@@ -1,11 +1,11 @@
 /**
- * Backend 服务入口（阶段 3）
+ * Backend 服务入口（阶段 4）
  *
  * 启动流程：
- *  1. 读环境变量决定端口/命令/工作目录/token
+ *  1. loadConfig（CLI > env > config.json > 默认）→ AppConfig
  *  1.5 解析用户 --settings + 合并 claude-remote hooks → 写 settings 文件
  *  2. 创建 AuthModule（绑定端口的 cookie 名）+ HookReceiver
- *  3. Express + JSON + CORS 白名单 + /api 路由（含 /auth + /hook）
+ *  3. Express + JSON + CORS 白名单 + /api 路由（含 /auth + /config + /hook）
  *  4. 静态前端 + SPA fallback
  *  5. HttpServer + WsServer（authenticate hook 接 AuthModule）
  *  6. PtyManager + SessionController + setHookReceiver + 条件 TerminalRelay
@@ -13,23 +13,19 @@
  *  8. SIGINT/SIGTERM/双 Ctrl+C/PTY exit/EADDRINUSE → shutdown
  *  9. listen 后打印 banner（首次显示完整 token，后续仅显示 shared 标记）
  *
- * 阶段 3 不做：完整配置文件 / 共享 Token / 多实例 / IP 监控 / Push
+ * 阶段 4 不做：共享 Token / 多实例 / IP 监控 / Push
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync } from 'node:fs';
-import { resolve, dirname, basename } from 'node:path';
+import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
-import {
-  DEFAULT_PORT,
-  DEFAULT_MAX_BUFFER_LINES,
-  DEFAULT_SESSION_TTL_MS,
-  DEFAULT_AUTH_RATE_LIMIT,
-} from '@ocr/shared';
+import type { UserConfig } from '@ocr/shared';
 import { logger } from './logger/logger.js';
 import { createApiRouter } from './api/router.js';
+import type { ConfigStore } from './api/config-routes.js';
 import { PtyManager } from './pty/pty-manager.js';
 import { WsServer } from './ws/ws-server.js';
 import { SessionController } from './session/session-controller.js';
@@ -45,48 +41,49 @@ import {
   createClaudeSettings,
   saveClaudeSettings,
   extractSettingsFromArgs,
+  loadConfig,
+  saveUserConfig,
+  type AppConfig,
 } from './config.js';
+import type { ParsedCliArgs } from './cli-utils.js';
 import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
   SHUTDOWN_FORCE_EXIT_MS,
 } from './constants.js';
 
 export interface StartServerOverrides {
+  /** 来自 cli.ts parseCliArgs 的解析结果；不传则使用空 ParsedCliArgs */
+  cli?: ParsedCliArgs;
+  /** 兼容老用法：直接传 port/token，覆盖 cli 中的对应字段（仅用于测试） */
   port?: number;
   token?: string;
 }
 
 export async function startServer(overrides: StartServerOverrides = {}): Promise<void> {
-  // 1. 配置（阶段 2 仅环境变量；阶段 4 引入完整 config 体系）
-  const port = overrides.port ?? (Number(process.env['PORT']) || DEFAULT_PORT);
-  const host = process.env['HOST'] ?? '0.0.0.0';
-  const claudeCommand = process.env['CLAUDE_COMMAND'] ?? 'claude';
-  const claudeCwd = process.env['CLAUDE_CWD'] ?? process.cwd();
-  const claudeArgs = process.env['CLAUDE_ARGS']
-    ? (() => {
-        try {
-          const parsed = JSON.parse(process.env['CLAUDE_ARGS']!);
-          return Array.isArray(parsed) ? (parsed as string[]) : [];
-        } catch {
-          return [];
-        }
-      })()
-    : [];
-  const maxBufferLines = Number(process.env['MAX_BUFFER_LINES']) || DEFAULT_MAX_BUFFER_LINES;
-  const sessionTtlMs = Number(process.env['SESSION_TTL_MS']) || DEFAULT_SESSION_TTL_MS;
-  const authRateLimit = Number(process.env['AUTH_RATE_LIMIT']) || DEFAULT_AUTH_RATE_LIMIT;
-  const noTerminal = process.env['NO_TERMINAL'] === 'true';
-  const instanceName = process.env['INSTANCE_NAME'] ?? basename(claudeCwd);
+  // 1. 配置加载（CLI > env > config.json > 默认）
+  const cli: ParsedCliArgs = overrides.cli ?? { subcommand: 'start', claudeArgs: [] };
+  // 老用法的便捷覆盖：保持阶段 1/2 测试不需要重写
+  if (overrides.port !== undefined) cli.port = overrides.port;
+  if (overrides.token !== undefined) cli.token = overrides.token;
 
-  // Token 来源：CLI > AUTH_TOKEN 环境变量 > 现场生成
-  // 阶段 5 引入共享 token 文件后，这里改为从 shared-token 模块取
-  const tokenSource: 'cli' | 'env' | 'generated' =
-    overrides.token ? 'cli' : process.env['AUTH_TOKEN'] ? 'env' : 'generated';
-  const token = overrides.token ?? process.env['AUTH_TOKEN'] ?? generateToken();
+  const cfg: AppConfig = loadConfig({
+    cli,
+    env: process.env,
+    generateToken,
+  });
 
   logger.info(
-    { port, host, claudeCommand, claudeCwd, claudeArgs, instanceName, tokenSource },
-    '加载阶段 2 配置',
+    {
+      port: cfg.port,
+      host: cfg.host,
+      claudeCommand: cfg.claudeCommand,
+      claudeCwd: cfg.claudeCwd,
+      claudeArgs: cfg.claudeArgs,
+      instanceName: cfg.instanceName,
+      tokenSource: cfg.tokenSource,
+      userConfigPath: cfg.userConfigPath,
+    },
+    '加载阶段 4 配置',
   );
 
   // 1.5 Hook 配置 + Claude settings 文件
@@ -94,23 +91,35 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   //   - 与 claude-remote 的 hooks 合并
   //   - 写入 ~/.claude-remote/settings/<port>.json
   //   - 把 --settings <path> 追加到 claudeArgs
-  const extracted = extractSettingsFromArgs(claudeArgs);
-  const finalClaudeArgs = extracted ? extracted.remainingArgs : [...claudeArgs];
-  const settings = createClaudeSettings(port, extracted?.value);
-  const settingsPath = saveClaudeSettings(settings, port);
+  const extracted = extractSettingsFromArgs(cfg.claudeArgs);
+  const finalClaudeArgs = extracted ? extracted.remainingArgs : [...cfg.claudeArgs];
+  const settings = createClaudeSettings(cfg.port, extracted?.value);
+  const settingsPath = saveClaudeSettings(settings, cfg.port);
   finalClaudeArgs.push('--settings', settingsPath);
 
   // 2. AuthModule
-  const cookieName = createSessionCookieName(port);
+  const cookieName = createSessionCookieName(cfg.port);
   const authModule = new AuthModule({
-    token,
-    sessionTtlMs,
-    rateLimitPerMinute: authRateLimit,
+    token: cfg.token,
+    sessionTtlMs: cfg.sessionTtlMs,
+    rateLimitPerMinute: cfg.authRateLimit,
     cookieName,
   });
 
   // 2.5 HookReceiver（业务逻辑解耦：路由层只接收，控制器监听 'notification' 事件）
   const hookReceiver = new HookReceiver();
+
+  // 2.6 ConfigStore：把内存中的 userConfig 与 config.json 写盘连接起来
+  //   - get() 返回当前内存值
+  //   - set() 写盘 + 更新内存（让 GET /api/config 立即反映新值）
+  let currentUserConfig: UserConfig = cfg.userConfig;
+  const configStore: ConfigStore = {
+    get: () => currentUserConfig,
+    set: (value) => {
+      saveUserConfig(value, cfg.userConfigPath);
+      currentUserConfig = value;
+    },
+  };
 
   // 3. Express
   const app = express();
@@ -142,8 +151,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }),
   );
 
-  // /api 路由（含 /auth + /hook）
-  app.use('/api', createApiRouter({ authModule, hookReceiver }));
+  // /api 路由（含 /auth + /config + /hook）
+  app.use('/api', createApiRouter({ authModule, hookReceiver, configStore }));
 
   // 静态前端 + SPA fallback
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -167,14 +176,14 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
   // 5. PTY + SessionController
   const pty = new PtyManager();
-  const ctrl = new SessionController(pty, ws, maxBufferLines, {
-    writeToProcessStdout: !noTerminal,
+  const ctrl = new SessionController(pty, ws, cfg.maxBufferLines, {
+    writeToProcessStdout: !cfg.noTerminal,
   });
   ctrl.setHookReceiver(hookReceiver);
 
   // 6. TerminalRelay（条件）
   let relay: TerminalRelay | null = null;
-  if (!noTerminal && process.stdin.isTTY) {
+  if (!cfg.noTerminal && process.stdin.isTTY) {
     relay = new TerminalRelay(pty, {
       onExitRequest: () => {
         process.stderr.write('\n[claude-remote] 检测到双 Ctrl+C，正在退出代理…\n');
@@ -214,7 +223,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
   httpServer.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
-      logger.error({ port, host }, '端口已被占用');
+      logger.error({ port: cfg.port, host: cfg.host }, '端口已被占用');
       process.exit(1);
     }
     logger.error({ err }, 'HTTP server 错误');
@@ -222,36 +231,39 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   });
 
   // 8. spawn（使用合并 hook settings 后的 args）
-  pty.spawn({ command: claudeCommand, args: finalClaudeArgs, cwd: claudeCwd });
+  pty.spawn({ command: cfg.claudeCommand, args: finalClaudeArgs, cwd: cfg.claudeCwd });
   if (relay) relay.start();
   ctrl.setStatus('running');
 
   // 9. listen + banner
-  httpServer.listen(port, host, () => {
+  httpServer.listen(cfg.port, cfg.host, () => {
     const tokenPreview =
-      token.length >= 16
-        ? `${token.slice(0, 8)}...${token.slice(-8)}`
-        : token;
+      cfg.token.length >= 16
+        ? `${cfg.token.slice(0, 8)}...${cfg.token.slice(-8)}`
+        : cfg.token;
 
     process.stderr.write('\n');
     process.stderr.write('╔══════════════════════════════════════════════════╗\n');
-    process.stderr.write('║         Open-Claude-Remote · 阶段 2 启动         ║\n');
+    process.stderr.write('║         Open-Claude-Remote · 阶段 4 启动         ║\n');
     process.stderr.write('╠══════════════════════════════════════════════════╣\n');
-    process.stderr.write(`║  实例:    ${instanceName.padEnd(38)}║\n`);
-    process.stderr.write(`║  地址:    http://${host}:${port}`.padEnd(53) + '║\n');
+    process.stderr.write(`║  实例:    ${cfg.instanceName.padEnd(38)}║\n`);
+    process.stderr.write(`║  地址:    http://${cfg.host}:${cfg.port}`.padEnd(53) + '║\n');
     process.stderr.write(`║  Token:   ${tokenPreview.padEnd(38)}║\n`);
 
-    if (tokenSource === 'generated') {
+    if (cfg.tokenSource === 'generated') {
       process.stderr.write('╠══════════════════════════════════════════════════╣\n');
       process.stderr.write('║  完整 Token（粘贴到手机）:                       ║\n');
       // 64 字符 token 一行放不下，分两行打印
-      process.stderr.write(`║  ${token.slice(0, 48).padEnd(48)}║\n`);
-      process.stderr.write(`║  ${token.slice(48).padEnd(48)}║\n`);
+      process.stderr.write(`║  ${cfg.token.slice(0, 48).padEnd(48)}║\n`);
+      process.stderr.write(`║  ${cfg.token.slice(48).padEnd(48)}║\n`);
     }
 
     process.stderr.write('╚══════════════════════════════════════════════════╝\n');
     process.stderr.write('  双 Ctrl+C（500ms 内）退出代理；单次 Ctrl+C 透传给 Claude\n');
     process.stderr.write('\n');
-    logger.info({ port, host, instanceName, tokenSource }, '服务已启动');
+    logger.info(
+      { port: cfg.port, host: cfg.host, instanceName: cfg.instanceName, tokenSource: cfg.tokenSource },
+      '服务已启动',
+    );
   });
 }

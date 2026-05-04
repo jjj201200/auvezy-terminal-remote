@@ -19,10 +19,46 @@
 process.env['CLI_MODE'] = 'true';
 
 void (async () => {
-  // 阶段 0：最小入口，仅启动空 Express
-  // 后续阶段会扩展：参数解析、attach 子命令、配置加载等
+  // 动态 import：保证 CLI_MODE 在 logger 等模块顶层加载前已设
+  const { parseCliArgs, HELP_TEXT } = await import('./cli-utils.js');
   const { startServer } = await import('./index.js');
-  await startServer();
+
+  let cli;
+  try {
+    cli = parseCliArgs(process.argv.slice(2));
+  } catch (err) {
+    process.stderr.write(
+      `[claude-remote] 参数解析失败：${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    process.exit(2);
+  }
+
+  if (cli.help) {
+    process.stdout.write(HELP_TEXT);
+    process.exit(0);
+  }
+  if (cli.version) {
+    // 版本号读 package.json，避免与 build 步骤强耦合
+    const { readFileSync } = await import('node:fs');
+    const { resolve, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(
+      readFileSync(resolve(__dirname, '..', 'package.json'), 'utf-8'),
+    ) as { version: string };
+    process.stdout.write(`${pkg.version}\n`);
+    process.exit(0);
+  }
+
+  // 阶段 4 仅实现 'start' 子命令；attach/stop/list 后续阶段补
+  if (cli.subcommand !== 'start') {
+    process.stderr.write(
+      `[claude-remote] 子命令 ${cli.subcommand} 暂未实现（阶段 6a/7 开放）\n`,
+    );
+    process.exit(2);
+  }
+
+  await startServer({ cli });
 })().catch((err: unknown) => {
   // 顶层兜底：任何启动错误都打印到 stderr 并 exit 1
   // 这里不能用 logger（它可能就是出错的源头）
