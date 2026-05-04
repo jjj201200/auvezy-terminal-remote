@@ -51,6 +51,12 @@ class MockWs {
   private disconnectHandler: ((counts: ClientCounts) => void) | null = null;
 
   clientCount = 0;
+  /** 测试可写：当前客户端类型分布；阶段 7 主从仲裁要用 */
+  counts: ClientCounts = { webapp: 0, attach: 0 };
+
+  getClientCounts(): ClientCounts {
+    return this.counts;
+  }
 
   onMessage(fn: (ws: WebSocket, raw: string, t: ClientType) => void): void {
     this.msgHandler = fn;
@@ -72,6 +78,8 @@ class MockWs {
   /** 测试辅助：模拟客户端连入 */
   fireConnect(ws: WebSocket, type: ClientType = 'webapp'): void {
     this.clientCount++;
+    if (type === 'attach') this.counts.attach++;
+    else this.counts.webapp++;
     this.connectHandler?.(ws, type);
   }
   /** 测试辅助：模拟客户端发消息 */
@@ -235,10 +243,46 @@ describe('SessionController', () => {
     expect(pty.writeCalls).toEqual(['ls\n']);
   });
 
-  it('客户端 resize 透传到 PTY.resize', () => {
+  it('客户端 resize 透传到 PTY.resize（仅 webapp 在线场景）', () => {
     const wsClient = {} as WebSocket;
+    ws.counts = { webapp: 1, attach: 0 };
     ws.fireMessage(wsClient, JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
     expect(pty.resizeCalls).toEqual([[120, 40]]);
+  });
+
+  it('阶段 7 主从仲裁：webapp 在线时 attach 的 resize 被忽略', () => {
+    const wsClient = {} as WebSocket;
+    ws.counts = { webapp: 1, attach: 1 };
+    ws.fireMessage(
+      wsClient,
+      JSON.stringify({ type: 'resize', cols: 120, rows: 40 }),
+      'attach',
+    );
+    expect(pty.resizeCalls).toEqual([]); // 被忽略
+  });
+
+  it('阶段 7 主从仲裁：仅 attach 在线时 attach 的 resize 生效', () => {
+    const wsClient = {} as WebSocket;
+    ws.counts = { webapp: 0, attach: 1 };
+    ws.fireMessage(
+      wsClient,
+      JSON.stringify({ type: 'resize', cols: 88, rows: 24 }),
+      'attach',
+    );
+    expect(pty.resizeCalls).toEqual([[88, 24]]);
+  });
+
+  it('阶段 7 主从仲裁：webapp 全断 attach 在 → 广播 terminal_resize', () => {
+    pty.cols = 100;
+    pty.rows = 30;
+    ws.broadcasts.length = 0;
+    ws.fireDisconnect({ webapp: 0, attach: 1 });
+    const tr = ws.broadcasts.find((m) => m.type === 'terminal_resize');
+    expect(tr).toBeTruthy();
+    if (tr?.type === 'terminal_resize') {
+      expect(tr.cols).toBe(100);
+      expect(tr.rows).toBe(30);
+    }
   });
 
   it('客户端非法消息不抛错', () => {

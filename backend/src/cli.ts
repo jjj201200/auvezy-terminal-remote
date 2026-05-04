@@ -62,10 +62,13 @@ void (async () => {
     process.exit(code);
   }
   if (cli.subcommand === 'attach') {
-    process.stderr.write(
-      `[claude-remote] attach 子命令暂未实现（阶段 7 开放）\n`,
-    );
-    process.exit(2);
+    if (!cli.attachUrl) {
+      process.stderr.write('[claude-remote] attach 需要 URL 参数\n');
+      process.exit(2);
+    }
+    const { runAttachCli } = await import('./attach.js');
+    const code = await runAttachCli(cli.attachUrl);
+    process.exit(code);
   }
 
   await startServer({ cli });

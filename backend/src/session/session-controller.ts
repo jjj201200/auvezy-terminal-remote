@@ -261,14 +261,27 @@ export class SessionController {
   // ──────────────── WS → PTY ────────────────
 
   private wireWs(): void {
-    this.ws.onMessage((wsConn: WebSocket, raw: string, _type: ClientType) => {
+    this.ws.onMessage((wsConn: WebSocket, raw: string, type: ClientType) => {
       handleWsMessage(wsConn, raw, {
         onUserInput: (data: string) => {
+          // 用户输入：所有客户端类型一律透传到 PTY
           this.pty.write(data);
         },
         onResize: (cols: number, rows: number) => {
-          // 阶段 1：所有客户端 resize 都直接生效
-          // 阶段 7 加 attach 后会在这里加主从仲裁
+          // 主从仲裁：webapp > attach > PC
+          //
+          // - 有 webapp 在线时：仅 webapp 的 resize 生效，attach 的 resize 被忽略
+          //   （webapp 通常是手机/小窗，更需要按它的尺寸渲染）
+          // - 仅 attach 在线时：attach 的 resize 生效
+          // - 没客户端时：本地 PC 终端通过 TerminalRelay 控制（这里不到达）
+          const counts = this.ws.getClientCounts();
+          if (counts.webapp > 0 && type === 'attach') {
+            logger.debug(
+              { type, cols, rows, counts },
+              'webapp 在线，attach 的 resize 被忽略',
+            );
+            return;
+          }
           this.pty.resize(cols, rows);
         },
       });
@@ -288,6 +301,15 @@ export class SessionController {
 
     this.ws.onDisconnect((counts: ClientCounts) => {
       logger.debug(counts, '客户端断开后剩余统计');
+      // webapp 全部断开但 attach 仍在 → 广播当前 PTY 尺寸让 attach 重新校准
+      // （webapp 在线期间 attach 的 resize 被忽略，可能本地终端尺寸已偏离 PTY 尺寸）
+      if (counts.webapp === 0 && counts.attach > 0) {
+        this.ws.broadcast({
+          type: 'terminal_resize',
+          cols: this.pty.cols,
+          rows: this.pty.rows,
+        });
+      }
     });
   }
 }
