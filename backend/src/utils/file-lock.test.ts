@@ -1,0 +1,120 @@
+/**
+ * file-lock 单测
+ *
+ * 关键点：
+ *  - 单进程下两次 tryAcquireLock 必须有一个失败
+ *  - withFileLock 的 fn 抛错时仍释放锁
+ *  - 僵尸锁（pid 不存活）会被强制清理
+ *  - 重试次数用尽抛 LockError(LOCK_TIMEOUT)
+ *  - 真实并发：用 Promise.all 起 5 个 withFileLock，结果应该串行（共享计数器无竞争）
+ */
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import {
+  withFileLock,
+  tryAcquireLock,
+  releaseLock,
+} from './file-lock.js';
+import { LockError } from '../errors.js';
+import { ErrorCode } from '@ocr/shared';
+
+describe('file-lock', () => {
+  let baseDir: string;
+
+  beforeEach(() => {
+    baseDir = mkdtempSync(resolve(tmpdir(), 'ocr-flock-'));
+  });
+
+  afterEach(() => {
+    rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  it('tryAcquireLock 第一次成功，第二次失败', () => {
+    const lock = resolve(baseDir, 'L');
+    expect(tryAcquireLock(lock)).toBe(true);
+    expect(tryAcquireLock(lock)).toBe(false);
+    releaseLock(lock);
+    expect(tryAcquireLock(lock)).toBe(true);
+    releaseLock(lock);
+  });
+
+  it('withFileLock 正常执行 fn 并释放', async () => {
+    const lock = resolve(baseDir, 'L');
+    const r = await withFileLock(lock, () => 42);
+    expect(r).toBe(42);
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it('withFileLock fn 抛错也会释放', async () => {
+    const lock = resolve(baseDir, 'L');
+    await expect(
+      withFileLock(lock, () => {
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it('重试用尽抛 LockError(LOCK_TIMEOUT)', async () => {
+    const lock = resolve(baseDir, 'L');
+    // 手动占住锁不放
+    mkdirSync(lock, { recursive: false, mode: 0o700 });
+    writeFileSync(resolve(lock, 'pid.txt'), `${process.pid}\n${Date.now()}\n`);
+
+    await expect(
+      withFileLock(lock, () => 1, {
+        retries: 2,
+        retryIntervalMs: 5,
+        staleMs: 60_000,
+      }),
+    ).rejects.toMatchObject({
+      code: ErrorCode.LOCK_TIMEOUT,
+    });
+
+    // 清理
+    rmSync(lock, { recursive: true, force: true });
+  });
+
+  it('僵尸锁（pid 不存活）被自动清理', async () => {
+    const lock = resolve(baseDir, 'L');
+    mkdirSync(lock, { recursive: false, mode: 0o700 });
+    // 写一个绝对不可能存在的 pid（INT32 最大附近）
+    writeFileSync(resolve(lock, 'pid.txt'), `2147483640\n${Date.now() - 60_000}\n`);
+    // 把 mtime 调老到超过 stale 阈值（10s 默认）
+    const oldTime = new Date(Date.now() - 60_000);
+    const fs = await import('node:fs');
+    fs.utimesSync(lock, oldTime, oldTime);
+
+    // 此时锁应被识别为 stale 并自动清理
+    expect(tryAcquireLock(lock)).toBe(true);
+    releaseLock(lock);
+  });
+
+  it('并发 5 路 withFileLock：fn 内 race-free 累加', async () => {
+    const lock = resolve(baseDir, 'L');
+    let counter = 0;
+    const inc = (): Promise<void> =>
+      withFileLock(
+        lock,
+        async () => {
+          // 模拟 read-modify-write：如果两路同时进来会丢更新
+          const before = counter;
+          await new Promise((r) => setTimeout(r, 10));
+          counter = before + 1;
+        },
+        { retries: 100, retryIntervalMs: 5 },
+      );
+
+    await Promise.all([inc(), inc(), inc(), inc(), inc()]);
+    expect(counter).toBe(5);
+  });
+
+  it('LockError 具有正确的 code 与默认 503', () => {
+    const err = new LockError(ErrorCode.LOCK_TIMEOUT, 'x');
+    expect(err.code).toBe(ErrorCode.LOCK_TIMEOUT);
+    expect(err.httpStatus).toBe(503);
+  });
+});
