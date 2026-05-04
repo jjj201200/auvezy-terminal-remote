@@ -1,0 +1,55 @@
+# Open-Claude-Remote 复刻项目规则
+
+## 🔴 测试与服务管理
+
+- **测试时启用的所有服务和端口在测试后必须全部释放**
+  - smoke test 启动的进程必须 `kill $PID` + `wait`
+  - 占用的端口（3000、3001 等）必须确认 `ss -tln` 已不再监听
+  - 测试用临时文件（如 `/tmp/srv.log`）测后清理
+  - 多实例测试结束必须 `pnpm stop` 或显式 kill 全部 PID
+  - **严禁留下后台进程导致下次启动 EADDRINUSE**
+
+## 🟢 工作路线
+
+- **clean-room 复刻**：基于行为级规格摘要独立实现，不复制上游 `analysis/upstream/` 内任何源代码
+- 协议字段名（如 `terminal_output`、`history_sync`）必须与上游一致——这是契约
+- 代码组织、注释、命名风格、错误体系全部独立设计
+
+## 📂 计划文档结构
+
+```
+docs/plans/<计划名>/
+├── design.md         # 总设计文档
+├── progress/         # 进度文档（一阶段一文件）
+└── adrs/             # 架构决策记录（5 段式：状态/背景/决策/理由/后果）
+```
+
+每个计划独立目录，与其他计划互不干扰。
+
+## 📝 代码规范
+
+- **中文注释优先**（除非引用 RFC/spec 原文）
+- **错误用 AppError 子类**（位于 `backend/src/errors.ts`），禁止抛裸 `Error` 或字符串
+- **常量集中管理**：协议常量在 `shared/src/constants.ts`，运行时常量在 `backend/src/constants.ts`
+- **类型严格**：`noUncheckedIndexedAccess` 启用，禁止 `any`（用 `unknown` + 类型守卫）
+- **公共 API 必须 JSDoc**：含 @param / @returns / @throws / @example
+
+## 🚀 阶段开发流程
+
+1. 每个步骤完成 → 一次 commit + 同步阶段进度文档
+2. 阶段结束 → 手动 smoke test + 更新 `progress/overview.md`
+3. ADR 在对应阶段开始前补写
+
+## 🛡️ 安全红线
+
+- 仅绑 LAN IP，不暴露公网
+- Token 用 `timingSafeEqual` 比较
+- /api/hook 仅接收 loopback（127.0.0.1 / ::1 / ::ffff:127.0.0.1）
+- 工作区白名单防穿越（`path.relative` + `!startsWith('..')`）
+- 配置文件 0o600，目录 0o700
+
+## 🔧 环境注意
+
+- WSL 上 node-pty 编译需要 `build-essential`（make/gcc/g++）+ `python3`
+- curl 测试 loopback 必须 `--noproxy "*"` 绕过 `http_proxy`
+- pino 多目标 transport 异步初始化约 1s，smoke test sleep ≥ 5s

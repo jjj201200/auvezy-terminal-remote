@@ -17,7 +17,7 @@
 - [x] **0.1** 初始化 pnpm workspace + 根 package.json + tsconfig.base
 - [x] **0.2** shared 包：constants / ws-protocol / instance / defaults / errors / index
 - [x] **0.3** backend 最小骨架：Express + /api/health + index 入口 + tsconfig
-- [ ] **0.4** frontend 最小骨架：Vite + React + 空白页 + tsconfig
+- [x] **0.4** frontend 最小骨架：Vite + React + 空白页 + tsconfig
 - [ ] **0.5** logger 基础（pino 配置 + 测试静默 + log 目录）
 - [ ] **0.6** errors 基础：AppError 基类 + 子类（AuthError / PtyError / ConfigError / InstanceError / LockError / HookError）
 - [ ] **0.7** ADR-009、ADR-010 文档落地 + 阶段 0 收尾（阶段进度同步 + overview 同步 + smoke test）
@@ -101,8 +101,32 @@
 - WSL 上首次 `pnpm install` 失败：node-pty 需要 build-essential（make/gcc/g++），sudo apt-get install 解决
 - curl 默认走 http_proxy 代理（`192.168.1.4:10808`），smoke test 必须 `--noproxy "*"`
 
-### 0.4 frontend 最小骨架
-（待开始）
+### 0.4 frontend 最小骨架 · 完成 2026-05-05
+
+**产出文件**：
+- `frontend/package.json`（@ocr/frontend，含 React 19/Vite 6/xterm/Zustand/dnd-kit/testing-library）
+- `frontend/tsconfig.json`（references shared，jsx: react-jsx，types: vite/client）
+- `frontend/vite.config.ts`（dev: 5173 + proxy /api /ws → 3000；build: dist/）
+- `frontend/index.html`（中文 lang，viewport-fit=cover，theme-color GitHub Dark）
+- `frontend/src/main.tsx`（StrictMode + createRoot + 容器存在性校验）
+- `frontend/src/App.tsx`（fetch /api/health 显示状态 + DEFAULT_PORT 显示验证 shared 导入）
+- `frontend/src/styles/global.css`（CSS 变量：GitHub Dark 配色 + safe-area-inset 占位 + 等宽字体链）
+- `backend/src/index.ts`（增量：静态文件挂载 + SPA fallback，跳过 /api 与 /ws）
+
+**关键决策**：
+- React 19 中 `JSX.Element` 已移到 `import { JSX } from 'react'`（不再是全局命名空间）
+- Vite proxy `/ws` 必须显式 `ws: true`，否则 WebSocket 升级握手会被普通 HTTP 代理破坏
+- 根 `package.json` 加 `type: module` 消除 scripts/copy-frontend-dist.js 的 ESM 解析告警
+- 静态文件路径用 `dirname(fileURLToPath(import.meta.url))` 解算到 `backend/frontend-dist/`，与 cwd 无关
+- SPA fallback 用 `app.get('*', ...)` + 显式 `req.path.startsWith('/api')` 跳过——避免劫持后端路由
+
+**验证**（端口 3000 监听后）：
+- ✓ `/api/health` 返回 `{"ok":true,...}`
+- ✓ `/` 返回 200 含 `#app` 容器（512B HTML）
+- ✓ `/assets/index-*.js` 加载 197KB
+- ✓ `/some/spa/route` SPA fallback 200 → index.html
+- ✓ `/api/nonexistent` 404（不被 SPA 劫持）
+- ✓ 测试结束 PID kill + 端口释放 + 临时文件清理（CLAUDE.md 第一条规则）
 
 ### 0.5 logger 基础
 （待开始）

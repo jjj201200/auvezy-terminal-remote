@@ -13,6 +13,9 @@
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
+import { existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { DEFAULT_PORT } from '@ocr/shared';
 import { logger } from './logger/logger.js';
@@ -34,7 +37,25 @@ export async function startServer(overrides: { port?: number } = {}): Promise<vo
   // 2. /api 路由
   app.use('/api', createApiRouter());
 
-  // 3. HTTP server
+  // 3. 前端静态文件服务（可选——产物存在时才挂）
+  //    路径：backend/dist/index.js → ../frontend-dist/
+  //    SPA fallback 显式跳过 /api 与 /ws 避免劫持后端路由
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const frontendDist = resolve(__dirname, '..', 'frontend-dist');
+  if (existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
+        return next();
+      }
+      res.sendFile(resolve(frontendDist, 'index.html'));
+    });
+    logger.info({ path: frontendDist }, '前端静态文件已挂载');
+  } else {
+    logger.warn({ expected: frontendDist }, '前端 dist 不存在，跳过静态服务');
+  }
+
+  // 4. HTTP server
   const httpServer: HttpServer = createServer(app);
 
   // 4. 错误处理

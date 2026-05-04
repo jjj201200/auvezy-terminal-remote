@@ -2,6 +2,7 @@
   "name": "open-claude-remote-clone",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "局域网内通过手机/平板浏览器远程控制 PC 上的 Claude Code CLI",
   "license": "MIT",
   "engines": {
