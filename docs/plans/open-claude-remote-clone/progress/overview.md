@@ -17,12 +17,12 @@
 | 4  | 配置体系                    | ✅ 完成   | 11/11 | [stage-04.md](./stage-04.md) |
 | 5  | 文件锁 + 共享 Token + 二维码 | ✅ 完成   | 7/7  | [stage-05.md](./stage-05.md) |
 | 6a | 多实例（后端）              | ✅ 完成   | 7/7  | [stage-06a.md](./stage-06a.md) |
-| 6b | 多实例（前端 + Web 创建）   | ⏳ 待开始 | 0/6  | [stage-06b.md](./stage-06b.md) |
+| 6b | 多实例（前端 + Web 创建）   | ✅ 完成   | 6/6  | [stage-06b.md](./stage-06b.md) |
 | 7  | attach 子命令               | ⏳ 待开始 | 0/6  | [stage-07.md](./stage-07.md) |
 | 8  | IP 漂移 + ANSI 过滤         | ⏳ 待开始 | 0/7  | [stage-08.md](./stage-08.md) |
 | 9  | Web Push                    | ⏳ 待开始 | 0/7  | [stage-09.md](./stage-09.md) |
 | 10 | 打磨与发布                  | ⏳ 待开始 | 0/7  | [stage-10.md](./stage-10.md) |
-|    | **总计**                    |          | **63/96** ||
+|    | **总计**                    |          | **69/96** ||
 
 **状态图例**：⏳ 待开始 · 🔄 进行中 · ✅ 完成 · ⚠ 阻塞
 
@@ -55,10 +55,7 @@
 
 ## 上次更新
 
-2026-05-05 · 阶段 6a 完成（7/7 步骤），port-finder（preferred 起递增，6 单测）+
-InstanceRegistryManager（withFileLock + 僵尸自清，11 单测）+ instance-routes（GET/POST，
-5 集成单测）+ DefaultInstanceSpawner（detached child，cli.js 重启自身）+ stop-instances
-（SIGTERM → SIGKILL 升级，5 单测）+ cli list/stop 子命令 + index 集成（auto port
-+ 注册 + 注销 hook）+ ADR 003 cookie 端口绑定已记录。期间发现并修正 file-lock 死等 bug
-（pid 不存活立即回收）。237/237 backend 单测 + 15/15 shared 单测 + stage-06a smoke 5/5
-通过（含派生实例 + stop 完整链路）。
+2026-05-05 · 阶段 6b 完成（6/6 步骤），instance-api + useInstances（5s 轮询 + 缓存）
++ InstanceTabs（跨端口 location.assign）+ CreateInstanceModal（cwd 必填 + name 可选）+
+ConsolePage 顶部接 InstanceTabs。stage-06b smoke 4/4 通过（SPA index / JS bundle 含
+多实例 UI 文案 / GET /api/instances 返回私有 IP host）。总进度 69/96。
