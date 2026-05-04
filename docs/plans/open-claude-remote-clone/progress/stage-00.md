@@ -18,9 +18,9 @@
 - [x] **0.2** shared 包：constants / ws-protocol / instance / defaults / errors / index
 - [x] **0.3** backend 最小骨架：Express + /api/health + index 入口 + tsconfig
 - [x] **0.4** frontend 最小骨架：Vite + React + 空白页 + tsconfig
-- [ ] **0.5** logger 基础（pino 配置 + 测试静默 + log 目录）
-- [ ] **0.6** errors 基础：AppError 基类 + 子类（AuthError / PtyError / ConfigError / InstanceError / LockError / HookError）
-- [ ] **0.7** ADR-009、ADR-010 文档落地 + 阶段 0 收尾（阶段进度同步 + overview 同步 + smoke test）
+- [x] **0.5** ~~logger 基础（已并入 0.3）~~ 改为：vitest 测试基础设施 + shared/errors/logger 关键单测
+- [x] **0.6** ~~errors 基础（已并入 0.3）~~ 改为：ADR-009 / ADR-010 落地 + ADR 通用模板
+- [ ] **0.7** 阶段 0 收尾：typecheck 全通 + overview 同步 + 端到端 smoke 复测
 
 ## 实施日志
 
@@ -128,8 +128,26 @@
 - ✓ `/api/nonexistent` 404（不被 SPA 劫持）
 - ✓ 测试结束 PID kill + 端口释放 + 临时文件清理（CLAUDE.md 第一条规则）
 
-### 0.5 logger 基础
-（待开始）
+### 0.5 vitest 基础设施 + 关键单测 · 完成 2026-05-05
+
+**产出文件**：
+- `shared/vitest.config.ts`（node 环境，仅 src/**/*.test.ts）
+- `shared/src/ws-protocol.test.ts`（8 个测试覆盖 isServerMessage / isClientMessage）
+- `backend/vitest.config.ts`（node 环境，src 与 tests 都收）
+- `backend/src/errors.test.ts`（19 个测试覆盖 AppError 字段保留、cause 链、子类默认 httpStatus、toAppError 规范化）
+
+**结果**：
+- `pnpm --filter @ocr/shared test` → 8/8 通过
+- `pnpm --filter @ocr/backend test` → 19/19 通过
+
+**关键设计**：
+- 类型守卫只校验 type 字段，不校验细节字段——契合"handler 二次校验"的分工
+- AppError 测试覆盖 cause stack 拼接（非显然但易漏）
+- toAppError 测试覆盖 4 种输入类型（AppError 直通 / Error 包装 / 字符串 / 其它对象）
+
+**未做**：
+- logger 模块单测——pino transport 异步初始化难以做单测，留到阶段 10 用 e2e 验证
+- 各业务模块单测在对应阶段补
 
 ### 0.6 errors 基础
 （待开始）
