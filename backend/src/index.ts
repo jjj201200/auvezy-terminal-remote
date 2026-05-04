@@ -56,6 +56,7 @@ import { InstanceRegistryManager } from './registry/instance-registry.js';
 import { DefaultInstanceSpawner } from './registry/instance-spawner.js';
 import { detectDisplayIp, buildPublicUrl } from './utils/network.js';
 import { renderQrCode } from './utils/qrcode-banner.js';
+import { IpMonitor } from './utils/ip-monitor.js';
 import { randomUUID } from 'node:crypto';
 import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
@@ -114,6 +115,9 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   }
   const instanceId = randomUUID();
   const publicUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
+
+  // 1.8 IP 监控（Wi-Fi 切换 → 广播 ip_changed）
+  const ipMonitor = new IpMonitor({ initialIp: displayIp, hostHint: cfg.host });
 
   logger.info(
     {
@@ -261,6 +265,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     shuttingDown = true;
     logger.info({ exitCode }, '开始优雅关闭');
     if (relay) relay.stop();
+    ipMonitor.stop();
     ctrl.destroy();
     pty.destroy();
     ws.destroy();
@@ -351,6 +356,13 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
         headless: cfg.noTerminal,
       })
       .catch((err) => logger.warn({ err }, '注册实例失败'));
+
+    // 启动 IP 监控；变化时广播 ip_changed
+    ipMonitor.onChange(({ oldIp, newIp }) => {
+      const newUrl = buildPublicUrl(newIp, cfg.port, cfg.token);
+      ws.broadcast({ type: 'ip_changed', oldIp, newIp, newUrl });
+    });
+    ipMonitor.start();
 
     logger.info(
       {

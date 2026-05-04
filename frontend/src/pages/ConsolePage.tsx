@@ -29,12 +29,14 @@ import { StatusBar } from '../components/status/StatusBar.js';
 import { SettingsModal } from '../components/settings/SettingsModal.js';
 import { InstanceTabs } from '../components/instances/InstanceTabs.js';
 import { CreateInstanceModal } from '../components/instances/CreateInstanceModal.js';
+import { IpChangeToast, type IpChangeInfo } from '../components/common/IpChangeToast.js';
 
 export function ConsolePage(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [ipChange, setIpChange] = useState<IpChangeInfo | null>(null);
   const connectionStatus = useAppStore((s) => s.connectionStatus);
   const { config, save } = useUserConfig();
   const { instances, create: createInstance } = useInstances();
@@ -87,8 +89,15 @@ export function ConsolePage(): JSX.Element {
         break;
 
       case 'ip_changed':
+        setIpChange({
+          oldIp: msg.oldIp,
+          newIp: msg.newIp,
+          newUrl: msg.newUrl,
+        });
+        break;
+
       case 'heartbeat':
-        // 阶段 1 暂不处理
+        // 当前未处理
         break;
     }
   }, [write, adaptToPtySize]);
@@ -137,6 +146,7 @@ export function ConsolePage(): JSX.Element {
         onSubmit={createInstance}
         onClose={() => setCreateOpen(false)}
       />
+      <IpChangeToast info={ipChange} onDismiss={() => setIpChange(null)} />
     </div>
   );
 }
