@@ -17,8 +17,6 @@
 import {
   existsSync,
   readFileSync,
-  writeFileSync,
-  renameSync,
   mkdirSync,
 } from 'node:fs';
 import { resolve } from 'node:path';
@@ -30,6 +28,7 @@ import {
   type InstanceRegistry,
 } from '@ocr/shared';
 import { withFileLock } from '../utils/file-lock.js';
+import { atomicWriteJson } from '../utils/atomic-write.js';
 import { logger } from '../logger/logger.js';
 
 /** Manager 构造选项 */
@@ -131,12 +130,7 @@ export class InstanceRegistryManager {
     if (!existsSync(this.baseDir)) {
       mkdirSync(this.baseDir, { recursive: true, mode: 0o700 });
     }
-    const tmp = `${this.path}.tmp-${process.pid}`;
-    writeFileSync(tmp, JSON.stringify(reg, null, 2), {
-      encoding: 'utf-8',
-      mode: 0o600,
-    });
-    renameSync(tmp, this.path);
+    atomicWriteJson(this.path, reg);
   }
 }
 

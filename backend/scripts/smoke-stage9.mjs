@@ -12,52 +12,13 @@
  * push-service.test.ts 已覆盖 notifyAll / 410 prune 等核心。
  */
 
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { tmpdir } from 'node:os';
+import { spawnBackend, waitReady } from './_smoke-helpers.mjs';
 
-const tmpHome = mkdtempSync(resolve(tmpdir(), 'ocr-stage9-'));
 const PORT = 3193;
 let pass = true;
-const cliJs = resolve(import.meta.dirname, '..', 'dist', 'cli.js');
-
-const child = spawn(
-  process.execPath,
-  [cliJs, '--port', String(PORT), '--no-terminal'],
-  {
-    env: {
-      ...process.env,
-      HOME: tmpHome,
-      CLAUDE_COMMAND: 'bash',
-      CLAUDE_ARGS: JSON.stringify(['-c', 'tail -f /dev/null', '--']),
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  },
-);
-
-let stderr = '';
-child.stderr.on('data', (d) => {
-  stderr += d.toString();
-});
-let stdout = '';
-child.stdout.on('data', (d) => {
-  stdout += d.toString();
-});
-
-async function waitReady() {
-  const deadline = Date.now() + 5000;
-  while (Date.now() < deadline) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${PORT}/api/health`);
-      if (r.ok) return true;
-    } catch {
-      /* */
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  return false;
-}
+const backend = spawnBackend({ port: PORT, label: 'ocr-stage9-' });
 
 /** 把若干 32-byte 随机 buffer base64url 编码（构造伪 keys） */
 function randomB64Url(n) {
@@ -67,15 +28,15 @@ function randomB64Url(n) {
 }
 
 try {
-  if (!(await waitReady())) {
+  if (!(await waitReady(PORT))) {
     process.stdout.write('  ✗ backend 未就绪\n');
-    process.stdout.write(`stderr:\n${stderr}\nstdout:\n${stdout}\n`);
+    process.stdout.write(`stderr:\n${backend.stderr}\nstdout:\n${backend.stdout}\n`);
     pass = false;
     throw new Error('not ready');
   }
   process.stdout.write('  ✓ backend ready\n');
 
-  const cfgPath = resolve(tmpHome, '.claude-remote', 'config.json');
+  const cfgPath = resolve(backend.tmpHome, '.claude-remote', 'config.json');
   const token = JSON.parse(readFileSync(cfgPath, 'utf-8')).token;
 
   // 通过 /api/auth 登录拿 cookie
@@ -170,10 +131,7 @@ try {
   process.stdout.write(`异常：${err?.message ?? err}\n`);
   pass = false;
 } finally {
-  child.kill('SIGTERM');
-  await new Promise((r) => setTimeout(r, 600));
-  if (child.exitCode === null) child.kill('SIGKILL');
-  rmSync(tmpHome, { recursive: true, force: true });
+  await backend.cleanup();
 }
 
 process.stdout.write('\n=== 总结 ===\n');

@@ -15,8 +15,6 @@
 import {
   existsSync,
   readFileSync,
-  writeFileSync,
-  renameSync,
   mkdirSync,
 } from 'node:fs';
 import { resolve } from 'node:path';
@@ -30,6 +28,7 @@ import {
 } from '@ocr/shared';
 import { PushError } from '../errors.js';
 import { logger } from '../logger/logger.js';
+import { atomicWriteJson } from '../utils/atomic-write.js';
 
 /** VAPID 密钥对 */
 export interface VapidKeys {
@@ -233,7 +232,7 @@ export class PushService {
     }
     // 3) generate
     const generated = this.pushImpl.generateVAPIDKeys();
-    this.atomicWriteJson(this.vapidPath, generated);
+    atomicWriteJson(this.vapidPath, generated);
     this.vapidSource = 'generated';
     return generated;
   }
@@ -253,16 +252,7 @@ export class PushService {
 
   private writeSubscriptions(): void {
     this.ensureDir();
-    this.atomicWriteJson(this.subPath, this.subscriptions);
-  }
-
-  private atomicWriteJson(path: string, value: unknown): void {
-    const tmp = `${path}.tmp-${process.pid}`;
-    writeFileSync(tmp, JSON.stringify(value, null, 2), {
-      encoding: 'utf-8',
-      mode: 0o600,
-    });
-    renameSync(tmp, path);
+    atomicWriteJson(this.subPath, this.subscriptions);
   }
 
   /**

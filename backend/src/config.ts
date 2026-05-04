@@ -26,7 +26,6 @@ import {
   readFileSync,
   writeFileSync,
   mkdirSync,
-  renameSync,
   copyFileSync,
 } from 'node:fs';
 import { resolve, basename } from 'node:path';
@@ -46,6 +45,7 @@ import {
 import { ConfigError } from './errors.js';
 import { logger } from './logger/logger.js';
 import type { ParsedCliArgs } from './cli-utils.js';
+import { atomicWriteJson } from './utils/atomic-write.js';
 
 // ==============================
 // Claude settings 生成
@@ -346,16 +346,6 @@ export function saveUserConfig(value: UserConfig, path: string = defaultUserConf
       err,
     );
   }
-}
-
-/** 写 tmp + rename，避免 partial write */
-function atomicWriteJson(path: string, value: unknown): void {
-  const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync(tmp, JSON.stringify(value, null, 2), {
-    encoding: 'utf-8',
-    mode: 0o600,
-  });
-  renameSync(tmp, path);
 }
 
 // ==============================

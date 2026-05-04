@@ -38,8 +38,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: '/icon-192.png', // 占位；阶段 10 加实际 icon
-      badge: '/icon-192.png',
+      // icon / badge 故意不设：未提供时浏览器用默认 + 站点 favicon
       tag: 'claude-approval',
       // 让通知不被同 tag 覆盖（默认会被覆盖；这里允许覆盖以避免堆积）
       renotify: true,

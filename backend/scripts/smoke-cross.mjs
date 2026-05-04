@@ -14,52 +14,20 @@
  * 任何一步失败整体 fail；端口、HOME 必清。
  */
 
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { tmpdir } from 'node:os';
 import WebSocket from 'ws';
+import { spawnBackend, waitReady } from './_smoke-helpers.mjs';
 
-const tmpHome = mkdtempSync(resolve(tmpdir(), 'ocr-cross-'));
 const PORT = 3194;
 let pass = true;
-const cliJs = resolve(import.meta.dirname, '..', 'dist', 'cli.js');
 
 // bash 持续运行，避免 PTY 退出关掉会话；启动时 echo 一行作为 history 标记
-const bashScript = `echo READY-MARKER; exec bash -i`;
-
-const child = spawn(
-  process.execPath,
-  [cliJs, '--port', String(PORT), '--no-terminal'],
-  {
-    env: {
-      ...process.env,
-      HOME: tmpHome,
-      CLAUDE_COMMAND: 'bash',
-      CLAUDE_ARGS: JSON.stringify(['-c', bashScript, '--']),
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  },
-);
-
-let stderr = '';
-child.stderr.on('data', (d) => {
-  stderr += d.toString();
+const backend = spawnBackend({
+  port: PORT,
+  label: 'ocr-cross-',
+  args: ['-c', 'echo READY-MARKER; exec bash -i', '--'],
 });
-
-async function waitReady() {
-  const deadline = Date.now() + 5000;
-  while (Date.now() < deadline) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${PORT}/api/health`);
-      if (r.ok) return true;
-    } catch {
-      /* */
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  return false;
-}
 
 function check(label, ok, detail = '') {
   process.stdout.write(`  ${ok ? '✓' : '✗'} ${label}${detail ? ' — ' + detail : ''}\n`);
@@ -67,15 +35,15 @@ function check(label, ok, detail = '') {
 }
 
 try {
-  if (!(await waitReady())) {
+  if (!(await waitReady(PORT))) {
     process.stdout.write('  ✗ backend 未就绪\n');
-    process.stdout.write(`stderr:\n${stderr}\n`);
+    process.stdout.write(`stderr:\n${backend.stderr}\n`);
     pass = false;
     throw new Error('not ready');
   }
   process.stdout.write('[smoke] backend ready\n');
 
-  const cfgPath = resolve(tmpHome, '.claude-remote', 'config.json');
+  const cfgPath = resolve(backend.tmpHome, '.claude-remote', 'config.json');
   const token = JSON.parse(readFileSync(cfgPath, 'utf-8')).token;
 
   // 3) 登录
@@ -171,10 +139,7 @@ try {
   process.stdout.write(`异常：${err?.message ?? err}\n`);
   pass = false;
 } finally {
-  child.kill('SIGTERM');
-  await new Promise((r) => setTimeout(r, 800));
-  if (child.exitCode === null) child.kill('SIGKILL');
-  rmSync(tmpHome, { recursive: true, force: true });
+  await backend.cleanup();
 }
 
 process.stdout.write('\n=== 总结 ===\n');
