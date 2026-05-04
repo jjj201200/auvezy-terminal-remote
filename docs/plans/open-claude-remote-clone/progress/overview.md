@@ -19,10 +19,10 @@
 | 6a | 多实例（后端）              | ✅ 完成   | 7/7  | [stage-06a.md](./stage-06a.md) |
 | 6b | 多实例（前端 + Web 创建）   | ✅ 完成   | 6/6  | [stage-06b.md](./stage-06b.md) |
 | 7  | attach 子命令               | ✅ 完成   | 6/6  | [stage-07.md](./stage-07.md) |
-| 8  | IP 漂移 + ANSI 过滤         | ⏳ 待开始 | 0/7  | [stage-08.md](./stage-08.md) |
+| 8  | IP 漂移 + ANSI 过滤         | ✅ 完成   | 7/7  | [stage-08.md](./stage-08.md) |
 | 9  | Web Push                    | ⏳ 待开始 | 0/7  | [stage-09.md](./stage-09.md) |
 | 10 | 打磨与发布                  | ⏳ 待开始 | 0/7  | [stage-10.md](./stage-10.md) |
-|    | **总计**                    |          | **75/96** ||
+|    | **总计**                    |          | **82/96** ||
 
 **状态图例**：⏳ 待开始 · 🔄 进行中 · ✅ 完成 · ⚠ 阻塞
 
@@ -40,7 +40,7 @@
 | 004 | ✅ | webapp/attach 主从仲裁 |
 | 005 | ⏳ | WS 输出三阈值批合并 |
 | 006 | ⏳ | 单调 seq 仅作版本戳 |
-| 007 | ⏳ | 启用 AlternateScreenFilter |
+| 007 | ✅ | 启用 AlternateScreenFilter |
 | 008 | ⏳ | Web Push VAPID 三优先级 |
 | 009 | ✅ | 错误体系（AppError + ErrorCode） |
 | 010 | ✅ | 裁剪 OnboardingGuide 与钉钉通知 |
@@ -55,7 +55,8 @@
 
 ## 上次更新
 
-2026-05-05 · 阶段 7 完成（6/6 步骤），AttachClient（normalizeAttachUrl + 重连退避，9 单测）
-+ attach.ts CLI（stdin raw mode + SIGWINCH + 双 Ctrl+C）+ cli.ts 分发 + SessionController
-主从仲裁（webapp 优先 resize，3 仲裁单测）+ ADR 004 已记录。247/247 backend 单测 + 15/15
-shared 单测 + stage-07 smoke 6/6 通过。总进度 75/96。
+2026-05-05 · 阶段 8 完成（7/7 步骤），AnsiFilter alt-screen 过滤（10 单测，跨 chunk pending）+
+SessionController 默认启用过滤（2 单测）+ IpMonitor 30s 轮询 + 稳定阈值（7 单测）+ 前端
+IpChangeToast（底部 toast + 复制链接）+ ip_changed WS 消息接入 + index 1.8 步起监控 +
+ADR 007 启用 AlternateScreenFilter（与上游不同）已记录。268/268 backend 单测 + 15/15 shared
+单测 + stage-08 smoke 2/2 通过。总进度 82/96。
