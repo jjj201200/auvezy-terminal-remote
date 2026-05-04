@@ -20,7 +20,7 @@
 - [x] **0.4** frontend 最小骨架：Vite + React + 空白页 + tsconfig
 - [x] **0.5** ~~logger 基础（已并入 0.3）~~ 改为：vitest 测试基础设施 + shared/errors/logger 关键单测
 - [x] **0.6** ~~errors 基础（已并入 0.3）~~ 改为：ADR-009 / ADR-010 落地 + ADR 通用模板
-- [ ] **0.7** 阶段 0 收尾：typecheck 全通 + overview 同步 + 端到端 smoke 复测
+- [x] **0.7** 阶段 0 收尾：typecheck 全通 + overview 同步 + 端到端 smoke 复测
 
 ## 实施日志
 
@@ -161,8 +161,34 @@
 - 每条 ADR 都列出"备选方案"——记录"为什么不选某方案"对长期维护更有价值
 - 阶段 0 仅落地阶段 0 自身触发的 ADR（009 / 010），其他阶段在对应阶段开头补
 
-### 0.7 阶段 0 收尾
-（待开始）
+### 0.7 阶段 0 收尾 · 完成 2026-05-05
+
+**修订**：
+- `frontend/package.json` test 脚本加 `--passWithNoTests`（阶段 0 没前端测试，避免 vitest 退出码 1 卡住）
+
+**typecheck 结果**：
+- `pnpm typecheck` 静默通过（shared / backend / frontend 三包都过 strict + noUncheckedIndexedAccess）
+
+**全测试结果**：
+- shared：8/8 通过
+- backend：19/19 通过
+- frontend：passWithNoTests
+- 总计 27/27 通过
+
+**端到端 smoke（清理脚本一并验证）**：
+- `pnpm build` 链路全过（shared → frontend → backend → copy-frontend-dist）
+- `node backend/dist/cli.js` 启动 → `/api/health` 200 JSON、`/` 200 HTML（512B）
+- `logs/app.log` 写入结构化日志含 instancePort 占位
+- kill PID + 端口释放 + 临时文件 + logs 清理（CLAUDE.md 第 1 条规则到位）
+
+## 验证结果
+
+✅ pnpm install 通过（含 node-pty 编译）
+✅ pnpm build 全链路通过
+✅ pnpm typecheck 全通
+✅ pnpm test 全通（27/27）
+✅ 端到端 smoke 通过：/api/health → JSON、/ → SPA HTML、SPA fallback 正常、/api/* 不被劫持
+✅ 测试结束所有进程与端口已释放
 
 ## 当前阻塞
 

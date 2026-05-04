@@ -10,7 +10,7 @@
 
 | 阶段 | 主题 | 状态 | 进度 | 文档 |
 |---|---|---|---|---|
-| 0  | 项目骨架与协议层            | 🔄 进行中 | 0/7  | [stage-00.md](./stage-00.md) |
+| 0  | 项目骨架与协议层            | ✅ 完成   | 7/7  | [stage-00.md](./stage-00.md) |
 | 1  | PTY ↔ WS ↔ xterm 闭环      | ⏳ 待开始 | 0/12 | [stage-01.md](./stage-01.md) |
 | 2  | 认证与安全                  | ⏳ 待开始 | 0/11 | [stage-02.md](./stage-02.md) |
 | 3  | 审批通知                    | ⏳ 待开始 | 0/8  | [stage-03.md](./stage-03.md) |
@@ -22,7 +22,7 @@
 | 8  | IP 漂移 + ANSI 过滤         | ⏳ 待开始 | 0/7  | [stage-08.md](./stage-08.md) |
 | 9  | Web Push                    | ⏳ 待开始 | 0/7  | [stage-09.md](./stage-09.md) |
 | 10 | 打磨与发布                  | ⏳ 待开始 | 0/7  | [stage-10.md](./stage-10.md) |
-|    | **总计**                    |          | **0/96** ||
+|    | **总计**                    |          | **7/96** ||
 
 **状态图例**：⏳ 待开始 · 🔄 进行中 · ✅ 完成 · ⚠ 阻塞
 
@@ -42,8 +42,8 @@
 | 006 | ⏳ | 单调 seq 仅作版本戳 |
 | 007 | ⏳ | 启用 AlternateScreenFilter |
 | 008 | ⏳ | Web Push VAPID 三优先级 |
-| 009 | ⏳ | 错误体系（AppError + ErrorCode） |
-| 010 | ⏳ | 裁剪 OnboardingGuide 与钉钉通知 |
+| 009 | ✅ | 错误体系（AppError + ErrorCode） |
+| 010 | ✅ | 裁剪 OnboardingGuide 与钉钉通知 |
 
 ---
 
@@ -55,4 +55,4 @@
 
 ## 上次更新
 
-2026-05-05 · 初始化 overview
+2026-05-05 · 阶段 0 完成（7/7 步骤），shared 协议层 + backend/frontend 骨架 + 静态托管 + 错误体系 + ADR-009/010 + 27 单测通过 + 端到端 smoke 验证
