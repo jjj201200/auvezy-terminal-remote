@@ -17,10 +17,12 @@ import { createAuthRoutes } from './auth-routes.js';
 import { createHookRoutes } from './hook-routes.js';
 import { createConfigRoutes, type ConfigStore } from './config-routes.js';
 import { createInstanceRoutes } from './instance-routes.js';
+import { createPushRoutes } from './push-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { HookReceiver } from '../hooks/hook-receiver.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner } from '../registry/instance-spawner.js';
+import type { PushService } from '../push/push-service.js';
 
 export interface ApiRouterOptions {
   /** 认证模块；不传则不挂 /auth 路由 */
@@ -35,10 +37,8 @@ export interface ApiRouterOptions {
   currentInstanceId?: string;
   /** 派生新实例（可选，不传则 POST /instances 返回 501） */
   spawner?: InstanceSpawner;
-  // 后续阶段会注入：
-  // pushService?: PushService
-  // getController?: () => SessionController | null
-  // ...
+  /** Web Push 服务；与 authModule 同时存在时挂 /push 路由 */
+  pushService?: PushService;
 }
 
 /**
@@ -75,6 +75,11 @@ export function createApiRouter(opts: ApiRouterOptions = {}): Router {
         spawner: opts.spawner,
       }),
     );
+  }
+
+  // Web Push（GET /vapid 公开；订阅 CRUD 鉴权）
+  if (opts.authModule && opts.pushService) {
+    router.use(createPushRoutes(opts.authModule, opts.pushService));
   }
 
   return router;

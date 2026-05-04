@@ -57,6 +57,7 @@ import { DefaultInstanceSpawner } from './registry/instance-spawner.js';
 import { detectDisplayIp, buildPublicUrl } from './utils/network.js';
 import { renderQrCode } from './utils/qrcode-banner.js';
 import { IpMonitor } from './utils/ip-monitor.js';
+import { PushService } from './push/push-service.js';
 import { randomUUID } from 'node:crypto';
 import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
@@ -118,6 +119,10 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
   // 1.8 IP 监控（Wi-Fi 切换 → 广播 ip_changed）
   const ipMonitor = new IpMonitor({ initialIp: displayIp, hostHint: cfg.host });
+
+  // 1.9 PushService（VAPID + 订阅；hook 触发时推送给已订阅手机）
+  const pushService = new PushService();
+  await pushService.init();
 
   logger.info(
     {
@@ -208,7 +213,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }),
   );
 
-  // /api 路由（含 /auth + /config + /hook + /instances）
+  // /api 路由（含 /auth + /config + /hook + /instances + /push）
   app.use(
     '/api',
     createApiRouter({
@@ -218,6 +223,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       registry,
       currentInstanceId: instanceId,
       spawner,
+      pushService,
     }),
   );
 
@@ -246,6 +252,10 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     writeToProcessStdout: !cfg.noTerminal,
   });
   ctrl.setHookReceiver(hookReceiver);
+  ctrl.setPushService(pushService, {
+    instanceName: cfg.instanceName,
+    url: publicUrl,
+  });
 
   // 6. TerminalRelay（条件）
   let relay: TerminalRelay | null = null;

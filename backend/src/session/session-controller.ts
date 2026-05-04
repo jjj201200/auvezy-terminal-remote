@@ -32,6 +32,7 @@ import { WsServer, type ClientType, type ClientCounts } from '../ws/ws-server.js
 import { handleWsMessage } from '../ws/ws-handler.js';
 import { HookReceiver, type HookNotification } from '../hooks/hook-receiver.js';
 import { AnsiFilter } from '../utils/ansi-filter.js';
+import type { PushService } from '../push/push-service.js';
 import { logger } from '../logger/logger.js';
 import {
   WS_FLUSH_INTERVAL_MS,
@@ -81,6 +82,11 @@ export class SessionController {
   /** ANSI 过滤器（阶段 8 启用；null = 关闭过滤直接透传） */
   private readonly ansiFilter: AnsiFilter | null;
 
+  /** 可选的 PushService（阶段 9 启用；用于 hook 触发时推送通知） */
+  private pushService: PushService | null = null;
+  /** 实例显示名 + 端口（用于推送 payload；阶段 9 启用） */
+  private pushContext: { instanceName: string; url: string } | null = null;
+
   constructor(
     private readonly pty: PtyManager,
     private readonly ws: WsServer,
@@ -109,6 +115,17 @@ export class SessionController {
   }
 
   /**
+   * 注入 PushService（阶段 9）
+   *
+   * @param push    PushService 实例（应已 init）
+   * @param context 实例标识，用于推送 payload 中的 title/url
+   */
+  setPushService(push: PushService, context: { instanceName: string; url: string }): void {
+    this.pushService = push;
+    this.pushContext = context;
+  }
+
+  /**
    * 处理 hook 触发的审批通知
    *
    * - 状态切到 waiting_input
@@ -126,6 +143,17 @@ export class SessionController {
       status: 'waiting_input',
       detail: `等待审批：${notif.tool}`,
     });
+
+    // 阶段 9：派发 Web Push（前台 webapp 在线也无伤大雅，service worker
+    // 自己会按需展示；锁屏场景才是核心价值）
+    if (this.pushService && this.pushContext) {
+      const ctx = this.pushContext;
+      const title = `[${ctx.instanceName}] Claude 等待审批`;
+      const body = `工具：${notif.tool}`;
+      void this.pushService
+        .notifyAll({ title, body, url: ctx.url })
+        .catch((err) => logger.warn({ err }, '推送 hook 通知失败'));
+    }
   }
 
   // ──────────────── 公共 API ────────────────
