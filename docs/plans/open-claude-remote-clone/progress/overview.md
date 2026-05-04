@@ -1,8 +1,9 @@
 # Open-Claude-Remote 复刻总进度
 
 **计划**：`docs/plans/open-claude-remote-clone/design.md`
-**状态**：进行中
+**状态**：✅ 已完成
 **起始日期**：2026-05-05
+**完成日期**：2026-05-05
 
 ---
 
@@ -21,8 +22,8 @@
 | 7  | attach 子命令               | ✅ 完成   | 6/6  | [stage-07.md](./stage-07.md) |
 | 8  | IP 漂移 + ANSI 过滤         | ✅ 完成   | 7/7  | [stage-08.md](./stage-08.md) |
 | 9  | Web Push                    | ✅ 完成   | 7/7  | [stage-09.md](./stage-09.md) |
-| 10 | 打磨与发布                  | ⏳ 待开始 | 0/7  | [stage-10.md](./stage-10.md) |
-|    | **总计**                    |          | **89/96** ||
+| 10 | 打磨与发布                  | ✅ 完成   | 7/7  | [stage-10.md](./stage-10.md) |
+|    | **总计**                    |          | **96/96** ||
 
 **状态图例**：⏳ 待开始 · 🔄 进行中 · ✅ 完成 · ⚠ 阻塞
 
@@ -55,9 +56,8 @@
 
 ## 上次更新
 
-2026-05-05 · 阶段 9 完成（7/7 步骤）。PushService 三优先级 VAPID（env > file > generate）
-+ 订阅文件持久化 + 410 自动 prune（10 单测）；push-routes 三端点（6 单测）；SessionController
-注入 PushService 在 waiting_input 时 notifyAll；前端 service-worker.js + usePushNotification
-+ useLocalNotification fallback + PushToggle UI；ConsolePage 集成订阅按钮与本地通知。
-ADR 008 已写。284/284 backend 单测、15/15 shared 单测、frontend typecheck/build、smoke-stage9
-5/5 全过；端口 3193 与临时 HOME 已释放。总进度 89/96。
+2026-05-05 · 阶段 10 完成（7/7 步骤）。install.sh 一键安装（Node/pnpm/编译依赖三检）
++ README 用户视角 + ARCHITECTURE 模块图与数据流 + CHANGELOG 0.1.0；smoke-cross 跨阶段集成
+6/6 全过（health / 登录 / WS 收发 / 配置双向 / instances / vapid）；
+backend 284 单测 + shared 15 单测 + frontend typecheck/build 全过；端口与临时 HOME 已清理。
+**总进度 96/96，项目交付完成。**
