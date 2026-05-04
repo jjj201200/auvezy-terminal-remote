@@ -1,0 +1,30 @@
+{
+  "name": "open-claude-remote-clone",
+  "version": "0.1.0",
+  "private": true,
+  "description": "局域网内通过手机/平板浏览器远程控制 PC 上的 Claude Code CLI",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter @ocr/shared build && pnpm --filter @ocr/frontend build && pnpm --filter @ocr/backend build && pnpm copy-frontend-dist",
+    "copy-frontend-dist": "node scripts/copy-frontend-dist.js",
+    "dev": "pnpm copy-frontend-dist && concurrently --kill-others --handle-input -n backend,frontend -c blue,green \"pnpm --filter @ocr/backend dev\" \"pnpm --filter @ocr/frontend dev\"",
+    "start": "node backend/dist/cli.js",
+    "stop": "pnpm --filter @ocr/backend exec tsx src/registry/stop-instances.ts",
+    "test": "pnpm --filter @ocr/shared test && pnpm --filter @ocr/backend test && pnpm --filter @ocr/frontend test",
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "clean": "pnpm -r exec rm -rf dist node_modules/.cache"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "node-pty"
+    ]
+  }
+}

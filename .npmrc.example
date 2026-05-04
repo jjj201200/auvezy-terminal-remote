@@ -1,0 +1,11 @@
+# 国内用户镜像配置示例：cp .npmrc.example .npmrc 即可启用
+registry=https://registry.npmmirror.com
+
+# 让 pnpm 优先复用父目录的 store，省磁盘
+shared-workspace-lockfile=true
+
+# 严格 peer dependencies，避免运行时 ESM 解析意外
+strict-peer-dependencies=true
+
+# Web Push / node-pty 等原生模块的镜像
+node-linker=isolated

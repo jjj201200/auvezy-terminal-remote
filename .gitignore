@@ -1,0 +1,42 @@
+# 构建产物
+dist/
+build/
+*.tsbuildinfo
+
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 日志
+logs/
+*.log
+
+# 环境与本地配置
+.env
+.env.local
+.npmrc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 测试覆盖率
+coverage/
+
+# Playwright
+e2e/test-results/
+e2e/playwright-report/
+e2e/.auth/
+
+# 临时
+*.tmp
+*.bak
+.cache/
+
+# 上游分析产物（仅本地参考，不入仓）
+analysis/
