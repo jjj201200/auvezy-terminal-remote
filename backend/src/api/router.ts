@@ -16,8 +16,11 @@ import { createHealthRoutes } from './health-routes.js';
 import { createAuthRoutes } from './auth-routes.js';
 import { createHookRoutes } from './hook-routes.js';
 import { createConfigRoutes, type ConfigStore } from './config-routes.js';
+import { createInstanceRoutes } from './instance-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { HookReceiver } from '../hooks/hook-receiver.js';
+import type { InstanceRegistryManager } from '../registry/instance-registry.js';
+import type { InstanceSpawner } from '../registry/instance-spawner.js';
 
 export interface ApiRouterOptions {
   /** 认证模块；不传则不挂 /auth 路由 */
@@ -26,6 +29,12 @@ export interface ApiRouterOptions {
   hookReceiver?: HookReceiver;
   /** 配置存储；与 authModule 同时存在时挂 /config 路由 */
   configStore?: ConfigStore;
+  /** 实例注册表；与 authModule + currentInstanceId 同时存在时挂 /instances */
+  registry?: InstanceRegistryManager;
+  /** 当前进程 instanceId（用于 isCurrent 标记） */
+  currentInstanceId?: string;
+  /** 派生新实例（可选，不传则 POST /instances 返回 501） */
+  spawner?: InstanceSpawner;
   // 后续阶段会注入：
   // pushService?: PushService
   // getController?: () => SessionController | null
@@ -54,6 +63,18 @@ export function createApiRouter(opts: ApiRouterOptions = {}): Router {
   // Hook 接收（路由内部做 loopback 限制，无需鉴权）
   if (opts.hookReceiver) {
     router.use(createHookRoutes(opts.hookReceiver));
+  }
+
+  // 实例列表 + 派生（需鉴权）
+  if (opts.authModule && opts.registry && opts.currentInstanceId) {
+    router.use(
+      createInstanceRoutes({
+        authModule: opts.authModule,
+        registry: opts.registry,
+        currentInstanceId: opts.currentInstanceId,
+        spawner: opts.spawner,
+      }),
+    );
   }
 
   return router;
