@@ -52,6 +52,8 @@ export interface ParsedCliArgs {
   subcommand: 'start' | 'attach' | 'stop' | 'list';
   /** attach 子命令的 URL（仅 subcommand='attach' 时） */
   attachUrl?: string;
+  /** stop 子命令的过滤模式（可选；不传 = 全部） */
+  stopPattern?: string;
   /** 监听端口 */
   port?: number;
   /** 监听 host */
@@ -114,6 +116,12 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         }
         result.attachUrl = argv[1];
         cursor = 2;
+      } else if (sub === 'stop') {
+        // 可选 positional pattern
+        if (argv[1] && !argv[1].startsWith('-')) {
+          result.stopPattern = argv[1];
+          cursor = 2;
+        }
       }
     } else {
       throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `未知子命令：${sub}`);

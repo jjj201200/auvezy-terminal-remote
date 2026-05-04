@@ -50,10 +50,20 @@ void (async () => {
     process.exit(0);
   }
 
-  // 阶段 4 仅实现 'start' 子命令；attach/stop/list 后续阶段补
-  if (cli.subcommand !== 'start') {
+  // 子命令分发：list / stop（阶段 6a 开放）；attach 阶段 7 开放
+  if (cli.subcommand === 'list') {
+    const { listInstancesCli } = await import('./registry/cli-list.js');
+    const code = await listInstancesCli();
+    process.exit(code);
+  }
+  if (cli.subcommand === 'stop') {
+    const { stopInstancesCli } = await import('./registry/cli-stop.js');
+    const code = await stopInstancesCli(cli.stopPattern);
+    process.exit(code);
+  }
+  if (cli.subcommand === 'attach') {
     process.stderr.write(
-      `[claude-remote] 子命令 ${cli.subcommand} 暂未实现（阶段 6a/7 开放）\n`,
+      `[claude-remote] attach 子命令暂未实现（阶段 7 开放）\n`,
     );
     process.exit(2);
   }
