@@ -18,7 +18,7 @@
 - [x] **1.2** OutputBuffer（按行环形缓冲、partial line、seq）+ 单测
 - [x] **1.3** WsServer（noServer upgrade、心跳、3 个 hook）+ 单测
 - [x] **1.4** ws-handler（消息分发器）+ 单测
-- [ ] **1.5** SessionController（PTY↔WS 桥接、批合并、history_sync）+ 单测
+- [x] **1.5** SessionController（PTY↔WS 桥接、批合并、history_sync）+ 单测
 - [ ] **1.6** TerminalRelay（PC 终端 raw mode + 双 Ctrl+C + Kitty 协议）+ 单测
 - [ ] **1.7** frontend useTerminal hook（xterm + addons + 批写入 + auto-follow）
 - [ ] **1.8** frontend useWebSocket hook（重连退避 + connectionToken 防 race）
@@ -91,8 +91,21 @@
 
 **测试**：10/10 通过
 
-### 1.5 SessionController
-（待开始）
+### 1.5 SessionController · 完成 2026-05-05
+
+**产出**：
+- `backend/src/session/session-controller.ts`（依赖注入 PtyManager + WsServer + maxBufferLines；批合并 16/32K/256K；4 PTY 事件 wiring；onConnect 推 history_sync）
+- `backend/src/session/session-controller.test.ts`（16 测试，MockPty + MockWs 不依赖真实 ws/pty）
+
+**关键设计**：
+- 三阈值批合并（16ms / 32KB / 256KB）——与上游策略一致
+- 客户端连入立即 sendTo history_sync（含 seq + status + cols + rows）让重连画面与实时一致
+- PTY exit 先 flush 再广播 session_ended——保证最后一行能到客户端
+- 阶段 1 不做主从仲裁（attach 在阶段 7 加）；resize 直接透传到 PTY
+- writeToProcessStdout 选项让单测不污染输出
+- destroy 时 flush 一次，避免最后一段输出丢失
+
+**测试**：16/16 通过（status 切换、批合并三阈值、history_sync、PTY 4 事件、user_input/resize 透传、非法消息容错、seq 单调）。backend 累计 82/82。
 
 ### 1.6 TerminalRelay
 （待开始）
