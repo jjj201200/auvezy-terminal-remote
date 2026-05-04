@@ -149,8 +149,17 @@
 - logger 模块单测——pino transport 异步初始化难以做单测，留到阶段 10 用 e2e 验证
 - 各业务模块单测在对应阶段补
 
-### 0.6 errors 基础
-（待开始）
+### 0.6 ADR 落地 · 完成 2026-05-05
+
+**产出文件**：
+- `docs/plans/open-claude-remote-clone/adrs/000-template.md`（5 段式模板：状态/背景/决策/理由/后果 + 可选备选方案段）
+- `docs/plans/open-claude-remote-clone/adrs/009-error-handling.md`（AppError + ErrorCode 枚举 vs 裸 Error 字符串 code）
+- `docs/plans/open-claude-remote-clone/adrs/010-feature-trim.md`（裁掉 OnboardingGuide + 钉钉通知）
+
+**关键设计**：
+- ADR 模板保持轻量（≈ 25 行），鼓励多写而不是写长
+- 每条 ADR 都列出"备选方案"——记录"为什么不选某方案"对长期维护更有价值
+- 阶段 0 仅落地阶段 0 自身触发的 ADR（009 / 010），其他阶段在对应阶段开头补
 
 ### 0.7 阶段 0 收尾
 （待开始）
