@@ -80,6 +80,28 @@ export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   }
 }
 
+/** 通用 PUT 包装：与 POST 同结构，区别只是方法 */
+export async function apiPut<T>(path: string, body: unknown): Promise<ApiResult<T>> {
+  try {
+    const res = await fetch(path, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return parseResponse<T>(res);
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      error: {
+        code: ErrorCode.INTERNAL_ERROR,
+        message: err instanceof Error ? err.message : '网络请求失败',
+      },
+    };
+  }
+}
+
 /**
  * 解析 fetch Response 为 ApiResult；401/403 时自动清 token
  */
