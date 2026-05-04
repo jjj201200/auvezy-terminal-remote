@@ -2,9 +2,10 @@
  * 全局样式
  *
  * 设计原则：
- * - GitHub Dark 风格作为基础配色（与 xterm.js 终端配色一致）
+ * - GitHub Dark 配色（与 xterm.js 终端配色一致）
  * - 移动优先：viewport-fit=cover + safe-area-inset 占位
- * - 系统等宽字体优先链：JetBrains Mono > Menlo > Monaco > 通用
+ * - 等宽字体链：JetBrains Mono > Menlo > Monaco > 通用
+ * - 全屏控制台布局：StatusBar 顶部固定 + Terminal 占满中间 + InputBar 底部固定
  */
 
 :root {
@@ -46,67 +47,151 @@ body {
 }
 
 #app {
-  min-height: 100vh;
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
 }
 
-.app-shell {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 24px 16px;
+/* ──────────────── ConsolePage ──────────────── */
+
+.console-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.app-header {
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: 16px;
-  margin-bottom: 24px;
+.console-page__terminal-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  background: var(--color-bg);
 }
 
-.app-header h1 {
-  margin: 0 0 4px 0;
-  font-size: 22px;
-  font-weight: 600;
+.console-page__terminal {
+  position: absolute;
+  inset: 0;
+  padding: 8px;
 }
 
-.app-subtitle {
-  margin: 0;
-  color: var(--color-fg-muted);
-  font-size: 13px;
-}
+/* ──────────────── StatusBar ──────────────── */
 
-.app-status {
+.status-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
   background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 24px;
-}
-
-.app-status h2 {
-  margin: 0 0 12px 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-accent);
-}
-
-.app-status ul {
-  margin: 0;
-  padding-left: 20px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-
-.app-status .error {
-  color: var(--color-error);
-  margin: 0;
-}
-
-.app-footer {
-  color: var(--color-fg-muted);
+  border-bottom: 1px solid var(--color-border);
   font-size: 12px;
+}
+
+.status-bar__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
   font-family: var(--font-mono);
 }
 
-.app-footer p {
-  margin: 4px 0;
+.status-bar__pill.tone-ok {
+  color: var(--color-success);
+  border-color: var(--color-success);
 }
+
+.status-bar__pill.tone-warn {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.status-bar__pill.tone-error {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.status-bar__pill.tone-muted {
+  color: var(--color-fg-muted);
+}
+
+/* ──────────────── InputBar ──────────────── */
+
+.input-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-bg-elevated);
+  border-top: 1px solid var(--color-border);
+}
+
+.input-bar__field {
+  flex: 1;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  outline: none;
+}
+
+.input-bar__field:focus {
+  border-color: var(--color-accent);
+}
+
+.input-bar__field:disabled {
+  background: var(--color-bg-elevated);
+  color: var(--color-fg-muted);
+}
+
+.input-bar__send {
+  background: var(--color-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0 16px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.input-bar__send:disabled {
+  background: var(--color-border);
+  color: var(--color-fg-muted);
+  cursor: not-allowed;
+}
+
+/* ──────────────── ScrollToBottomButton ──────────────── */
+
+.scroll-to-bottom-btn {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #ffffff;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+}
+
+.scroll-to-bottom-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* ──────────────── 终端视图 ──────────────── */
+
+.terminal-view {
+  width: 100%;
+  height: 100%;
+}
+
+/* xterm.js 自身的样式由 @xterm/xterm/css/xterm.css 提供 */

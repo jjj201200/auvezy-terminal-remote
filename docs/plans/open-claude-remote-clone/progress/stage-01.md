@@ -22,7 +22,7 @@
 - [x] **1.6** TerminalRelay（PC 终端 raw mode + 双 Ctrl+C + Kitty 协议）+ 单测
 - [x] **1.7** frontend useTerminal hook（xterm + addons + 批写入 + auto-follow）
 - [x] **1.8** frontend useWebSocket hook（重连退避 + connectionToken 防 race）
-- [ ] **1.9** frontend ConsolePage 最简版（接 useTerminal + useWebSocket）
+- [x] **1.9** frontend ConsolePage 最简版（接 useTerminal + useWebSocket）
 - [ ] **1.10** backend index.ts 启动序列（spawn PTY + 接 SessionController）
 - [ ] **1.11** 端到端 smoke test（单端 + 多端重连 + 双 Ctrl+C）
 - [ ] **1.12** 阶段 1 收尾（typecheck/test 全通 + overview 同步）
@@ -158,8 +158,23 @@
 
 **typecheck**：通过
 
-### 1.9 ConsolePage
-（待开始）
+### 1.9 ConsolePage · 完成 2026-05-05
+
+**产出**：
+- `frontend/src/components/input/InputBar.tsx`（受控 input，回车追加 \r 发送 user_input）
+- `frontend/src/components/status/StatusBar.tsx`（连接状态 + 会话状态双 pill）
+- `frontend/src/pages/ConsolePage.tsx`（消息分发 + useTerminal + useWebSocket + 子组件组合）
+- `frontend/src/App.tsx`（更新为挂 ConsolePage，移除阶段 0 占位）
+- `frontend/src/styles/global.css`（更新：ConsolePage 全屏布局 + 状态条/输入栏/滚动按钮样式）
+
+**关键设计**：
+- ConsolePage 用 `sendRef` 把 useWebSocket.send 暴露给 useTerminal 的 onResize——
+  避免"useTerminal 在 useWebSocket 之前构造导致 send 未就绪"的初始化顺序问题
+- 错误与 session_ended 用 ANSI 颜色直接写到 xterm 显示告警行（红色错误、黄色结束）
+- InputBar 回车自动 append \r 模拟终端回车
+- 离线时 InputBar disabled 防止用户白发
+
+**typecheck**：通过
 
 ### 1.10 index.ts 启动序列
 （待开始）
