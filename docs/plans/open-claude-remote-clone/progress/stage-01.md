@@ -21,7 +21,7 @@
 - [x] **1.5** SessionController（PTY↔WS 桥接、批合并、history_sync）+ 单测
 - [x] **1.6** TerminalRelay（PC 终端 raw mode + 双 Ctrl+C + Kitty 协议）+ 单测
 - [x] **1.7** frontend useTerminal hook（xterm + addons + 批写入 + auto-follow）
-- [ ] **1.8** frontend useWebSocket hook（重连退避 + connectionToken 防 race）
+- [x] **1.8** frontend useWebSocket hook（重连退避 + connectionToken 防 race）
 - [ ] **1.9** frontend ConsolePage 最简版（接 useTerminal + useWebSocket）
 - [ ] **1.10** backend index.ts 启动序列（spawn PTY + 接 SessionController）
 - [ ] **1.11** 端到端 smoke test（单端 + 多端重连 + 双 Ctrl+C）
@@ -141,8 +141,22 @@
 
 **typecheck**：通过
 
-### 1.8 useWebSocket
-（待开始）
+### 1.8 useWebSocket · 完成 2026-05-05
+
+**产出**：
+- `frontend/src/stores/app-store.ts`（zustand：connectionStatus + setter）
+- `frontend/src/hooks/useWebSocket.ts`（重连退避 + connectionToken 防 race + offline 监听）
+
+**关键设计**：
+- `connectionTokenRef`：每次 connect 自增，所有 4 个 ws 事件回调入口都校验 `myToken !== connectionTokenRef.current` 静默丢弃过时连接
+- `isDisposedRef`：dispose 后所有回调静默
+- `onMessageRef` 镜像 prop：避免父组件回调引用变化让连接被重建
+- 三重身份校验（dispose / token / wsRef===ws）：覆盖"卸载、新建、回调闭包过时"三种竞态
+- offline 事件主动 close：wifi 切蜂窝时秒切而不是被动等 timeout
+- send 严格 OPEN 检查，非 OPEN 返回 false 让上层重发（与 useTerminal 的 lastReportedResize 不更新策略闭环）
+- 阶段 1 不做认证；阶段 2 加 cachedToken 重认证
+
+**typecheck**：通过
 
 ### 1.9 ConsolePage
 （待开始）
