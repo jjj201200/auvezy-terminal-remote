@@ -1,18 +1,19 @@
 /**
- * Backend 服务入口（阶段 2）
+ * Backend 服务入口（阶段 3）
  *
  * 启动流程：
  *  1. 读环境变量决定端口/命令/工作目录/token
- *  2. 创建 AuthModule（绑定端口的 cookie 名）
- *  3. Express + JSON + CORS 白名单 + /api 路由（含 /auth）
+ *  1.5 解析用户 --settings + 合并 claude-remote hooks → 写 settings 文件
+ *  2. 创建 AuthModule（绑定端口的 cookie 名）+ HookReceiver
+ *  3. Express + JSON + CORS 白名单 + /api 路由（含 /auth + /hook）
  *  4. 静态前端 + SPA fallback
  *  5. HttpServer + WsServer（authenticate hook 接 AuthModule）
- *  6. PtyManager + SessionController + 条件 TerminalRelay
- *  7. spawn → setStatus(running)
+ *  6. PtyManager + SessionController + setHookReceiver + 条件 TerminalRelay
+ *  7. spawn（透传 --settings <path>）→ setStatus(running)
  *  8. SIGINT/SIGTERM/双 Ctrl+C/PTY exit/EADDRINUSE → shutdown
  *  9. listen 后打印 banner（首次显示完整 token，后续仅显示 shared 标记）
  *
- * 阶段 2 不做：配置文件 / 共享 Token / Hook 接收 / 多实例 / IP 监控 / Push
+ * 阶段 3 不做：完整配置文件 / 共享 Token / 多实例 / IP 监控 / Push
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
@@ -39,6 +40,12 @@ import {
 } from './auth/auth-middleware.js';
 import { generateToken } from './auth/token-generator.js';
 import { createWsAuthenticate } from './auth/ws-authenticate.js';
+import { HookReceiver } from './hooks/hook-receiver.js';
+import {
+  createClaudeSettings,
+  saveClaudeSettings,
+  extractSettingsFromArgs,
+} from './config.js';
 import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
   SHUTDOWN_FORCE_EXIT_MS,
@@ -82,6 +89,17 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     '加载阶段 2 配置',
   );
 
+  // 1.5 Hook 配置 + Claude settings 文件
+  //   - 解析用户原始 --settings 参数（如有）
+  //   - 与 claude-remote 的 hooks 合并
+  //   - 写入 ~/.claude-remote/settings/<port>.json
+  //   - 把 --settings <path> 追加到 claudeArgs
+  const extracted = extractSettingsFromArgs(claudeArgs);
+  const finalClaudeArgs = extracted ? extracted.remainingArgs : [...claudeArgs];
+  const settings = createClaudeSettings(port, extracted?.value);
+  const settingsPath = saveClaudeSettings(settings, port);
+  finalClaudeArgs.push('--settings', settingsPath);
+
   // 2. AuthModule
   const cookieName = createSessionCookieName(port);
   const authModule = new AuthModule({
@@ -90,6 +108,9 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     rateLimitPerMinute: authRateLimit,
     cookieName,
   });
+
+  // 2.5 HookReceiver（业务逻辑解耦：路由层只接收，控制器监听 'notification' 事件）
+  const hookReceiver = new HookReceiver();
 
   // 3. Express
   const app = express();
@@ -121,8 +142,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }),
   );
 
-  // /api 路由（含 /auth）
-  app.use('/api', createApiRouter({ authModule }));
+  // /api 路由（含 /auth + /hook）
+  app.use('/api', createApiRouter({ authModule, hookReceiver }));
 
   // 静态前端 + SPA fallback
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -149,6 +170,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   const ctrl = new SessionController(pty, ws, maxBufferLines, {
     writeToProcessStdout: !noTerminal,
   });
+  ctrl.setHookReceiver(hookReceiver);
 
   // 6. TerminalRelay（条件）
   let relay: TerminalRelay | null = null;
@@ -199,8 +221,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     process.exit(1);
   });
 
-  // 8. spawn
-  pty.spawn({ command: claudeCommand, args: claudeArgs, cwd: claudeCwd });
+  // 8. spawn（使用合并 hook settings 后的 args）
+  pty.spawn({ command: claudeCommand, args: finalClaudeArgs, cwd: claudeCwd });
   if (relay) relay.start();
   ctrl.setStatus('running');
 

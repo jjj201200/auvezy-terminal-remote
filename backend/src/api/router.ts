@@ -14,13 +14,16 @@
 import { Router } from 'express';
 import { createHealthRoutes } from './health-routes.js';
 import { createAuthRoutes } from './auth-routes.js';
+import { createHookRoutes } from './hook-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
+import type { HookReceiver } from '../hooks/hook-receiver.js';
 
 export interface ApiRouterOptions {
   /** 认证模块；不传则不挂 /auth 路由 */
   authModule?: AuthModule;
+  /** Hook 接收器；不传则不挂 /hook 路由（仅 localhost 可访问） */
+  hookReceiver?: HookReceiver;
   // 后续阶段会注入：
-  // hookReceiver?: HookReceiver
   // pushService?: PushService
   // getController?: () => SessionController | null
   // ...
@@ -38,6 +41,11 @@ export function createApiRouter(opts: ApiRouterOptions = {}): Router {
   // 认证（公开端点本身，但成功后才能拿到 cookie）
   if (opts.authModule) {
     router.use(createAuthRoutes(opts.authModule));
+  }
+
+  // Hook 接收（路由内部做 loopback 限制，无需鉴权）
+  if (opts.hookReceiver) {
+    router.use(createHookRoutes(opts.hookReceiver));
   }
 
   return router;
