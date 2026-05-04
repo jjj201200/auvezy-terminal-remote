@@ -30,6 +30,7 @@ import { PtyManager } from '../pty/pty-manager.js';
 import { OutputBuffer } from '../pty/output-buffer.js';
 import { WsServer, type ClientType, type ClientCounts } from '../ws/ws-server.js';
 import { handleWsMessage } from '../ws/ws-handler.js';
+import { HookReceiver, type HookNotification } from '../hooks/hook-receiver.js';
 import { logger } from '../logger/logger.js';
 import {
   WS_FLUSH_INTERVAL_MS,
@@ -38,7 +39,7 @@ import {
 } from '../constants.js';
 
 /**
- * 控制器外部可注入的可选服务（阶段 1 不启用，预留扩展点）
+ * 控制器外部可注入的可选服务
  */
 export interface SessionControllerOptions {
   /** 是否把 PTY 输出同时写到本进程 stdout（PC 终端可见）。默认 true。 */
@@ -66,6 +67,9 @@ export class SessionController {
   private wsMaxPendingBytes = 0;
   private wsBackpressureEvents = 0;
 
+  /** 可选的 hook 接收器（阶段 3 启用） */
+  private hookReceiver: HookReceiver | null = null;
+
   constructor(
     private readonly pty: PtyManager,
     private readonly ws: WsServer,
@@ -76,6 +80,40 @@ export class SessionController {
     this.writeToProcessStdout = opts.writeToProcessStdout ?? true;
     this.wirePty();
     this.wireWs();
+  }
+
+  /**
+   * 注入 HookReceiver
+   *
+   * 设计为 setter 而非构造参数，因为 HookReceiver 只在阶段 3+ 启用，
+   * 且阶段 6a Web 创建实例的 headless 模式可能不需要它。
+   */
+  setHookReceiver(receiver: HookReceiver): void {
+    if (this.hookReceiver) {
+      logger.warn('SessionController.setHookReceiver 重复调用，覆盖旧 receiver');
+    }
+    this.hookReceiver = receiver;
+    receiver.on('notification', (notif: HookNotification) => this.onHookNotification(notif));
+  }
+
+  /**
+   * 处理 hook 触发的审批通知
+   *
+   * - 状态切到 waiting_input
+   * - 广播 status_update 让前端 StatusBar 显示警告色
+   * - detail 字段附加工具名让用户知道是哪个工具在等
+   *
+   * 不直接广播文本提示——审批 prompt 已经通过 PTY 输出到 xterm 显示了，
+   * 用户在 xterm 内输入 y/Esc 即可
+   */
+  private onHookNotification(notif: HookNotification): void {
+    logger.info({ tool: notif.tool }, '审批通知到达，切到 waiting_input');
+    this._status = 'waiting_input';
+    this.ws.broadcast({
+      type: 'status_update',
+      status: 'waiting_input',
+      detail: `等待审批：${notif.tool}`,
+    });
   }
 
   // ──────────────── 公共 API ────────────────
