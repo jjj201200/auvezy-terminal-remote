@@ -16,7 +16,7 @@
 
 - [x] **0.1** 初始化 pnpm workspace + 根 package.json + tsconfig.base
 - [x] **0.2** shared 包：constants / ws-protocol / instance / defaults / errors / index
-- [ ] **0.3** backend 最小骨架：Express + /api/health + index 入口 + tsconfig
+- [x] **0.3** backend 最小骨架：Express + /api/health + index 入口 + tsconfig
 - [ ] **0.4** frontend 最小骨架：Vite + React + 空白页 + tsconfig
 - [ ] **0.5** logger 基础（pino 配置 + 测试静默 + log 目录）
 - [ ] **0.6** errors 基础：AppError 基类 + 子类（AuthError / PtyError / ConfigError / InstanceError / LockError / HookError）
@@ -67,8 +67,39 @@
 - `pnpm install`（76 包，47s）通过
 - `pnpm --filter @ocr/shared build` 通过，dist/ 生成 12 个 .js + .d.ts 文件
 
-### 0.3 backend 最小骨架
-（待开始）
+### 0.3 backend 最小骨架 · 完成 2026-05-05
+
+**产出文件**：
+- `backend/package.json`（@ocr/backend，bin: claude-remote → dist/cli.js）
+- `backend/tsconfig.json`（references shared，types: node）
+- `backend/src/constants.ts`（运行时常量：批合并阈值/文件锁/IP 监控/PTY/关闭/端口/停止）
+- `backend/src/errors.ts`（AppError 基类 + 8 个领域子类 + toAppError 规范化函数）
+- `backend/src/logger/logger.ts`（pino 多目标：stderr/app.log/error.log + setInstanceContext mixin）
+- `backend/src/api/health-routes.ts`（GET /api/health 公开端点）
+- `backend/src/api/router.ts`（路由聚合工厂 + ApiRouterOptions 占位）
+- `backend/src/cli.ts`（动态 import 模式入口，CLI_MODE 环境变量先于业务模块加载）
+- `backend/src/index.ts`（startServer 骨架：Express + /api + EADDRINUSE 兜底 + SIGINT/SIGTERM）
+
+**关键决策**：
+- AppError 的 `cause` 字段需 `override` 修饰（Node 16+ Error 已有此字段，noImplicitOverride 强制声明）
+- pino 多目标 transport 初始化是异步的（约 1s），smoke test 必须 sleep ≥ 5s
+- cli.ts 顶部仅 `process.env.CLI_MODE = 'true'`，其余全部动态 import——契合 ESM 顶部提升的复刻要求
+- logger 初始化在测试环境（NODE_ENV=test 或 VITEST）静默
+- Express 的 EADDRINUSE 错误处理保留——TOCTOU race 在阶段 6a 起会真正用到
+
+**验证**：
+- `pnpm install` 通过（含 node-pty 编译）
+- `pnpm --filter @ocr/backend build` 通过
+- `node backend/dist/cli.js` 启动后：
+  - 端口 3000 正常监听
+  - `curl http://127.0.0.1:3000/api/health` 返回 `{"ok":true,"timestamp":"...","uptime":N}`
+  - stderr 打印就绪横幅
+  - `logs/app.log` 写入结构化日志
+  - SIGINT 触发优雅关闭
+
+**踩坑记录**：
+- WSL 上首次 `pnpm install` 失败：node-pty 需要 build-essential（make/gcc/g++），sudo apt-get install 解决
+- curl 默认走 http_proxy 代理（`192.168.1.4:10808`），smoke test 必须 `--noproxy "*"`
 
 ### 0.4 frontend 最小骨架
 （待开始）
