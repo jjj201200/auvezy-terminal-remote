@@ -19,7 +19,7 @@
 - [x] **1.3** WsServer（noServer upgrade、心跳、3 个 hook）+ 单测
 - [x] **1.4** ws-handler（消息分发器）+ 单测
 - [x] **1.5** SessionController（PTY↔WS 桥接、批合并、history_sync）+ 单测
-- [ ] **1.6** TerminalRelay（PC 终端 raw mode + 双 Ctrl+C + Kitty 协议）+ 单测
+- [x] **1.6** TerminalRelay（PC 终端 raw mode + 双 Ctrl+C + Kitty 协议）+ 单测
 - [ ] **1.7** frontend useTerminal hook（xterm + addons + 批写入 + auto-follow）
 - [ ] **1.8** frontend useWebSocket hook（重连退避 + connectionToken 防 race）
 - [ ] **1.9** frontend ConsolePage 最简版（接 useTerminal + useWebSocket）
@@ -107,8 +107,20 @@
 
 **测试**：16/16 通过（status 切换、批合并三阈值、history_sync、PTY 4 事件、user_input/resize 透传、非法消息容错、seq 单调）。backend 累计 82/82。
 
-### 1.6 TerminalRelay
-（待开始）
+### 1.6 TerminalRelay · 完成 2026-05-05
+
+**产出**：
+- `backend/src/terminal/terminal-relay.ts`（raw mode + 双 Ctrl+C + Kitty CSI u + pause/resume resize）
+- `backend/src/terminal/terminal-relay.test.ts`（14 测试，提取关键算法做纯函数验证）
+
+**关键设计**：
+- 双 Ctrl+C 检测在 500ms 窗口内：第二次触发 `onExitRequest` 回调；单次透传给 PTY
+- Kitty CSI u 协议匹配：仅 press/repeat（事件类型 1/2 或省略），不匹配 release（3）
+- start/stop 在非 TTY 环境下安全：跳过 setRawMode 但仍监听 stdin data
+- pause/resume resize 与 SessionController 主从仲裁配合（阶段 7 启用）
+- 启动时主动同步一次尺寸——避免 PTY 默认 80×24 与 PC 终端不一致
+
+**测试**：14/14 通过（Kitty 协议 7 边界、双击窗口 4、集成 3）。backend 累计 96/96。
 
 ### 1.7 useTerminal
 （待开始）
