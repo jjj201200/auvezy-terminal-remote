@@ -20,19 +20,24 @@ import type { ServerMessage, SessionStatus, ClientMessage } from '@ocr/shared';
 import { useTerminal } from '../hooks/useTerminal.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useUserConfig } from '../hooks/useUserConfig.js';
+import { useInstances } from '../hooks/useInstances.js';
 import { useAppStore } from '../stores/app-store.js';
 import { TerminalView } from '../components/terminal/TerminalView.js';
 import { ScrollToBottomButton } from '../components/terminal/ScrollToBottomButton.js';
 import { InputBar } from '../components/input/InputBar.js';
 import { StatusBar } from '../components/status/StatusBar.js';
 import { SettingsModal } from '../components/settings/SettingsModal.js';
+import { InstanceTabs } from '../components/instances/InstanceTabs.js';
+import { CreateInstanceModal } from '../components/instances/CreateInstanceModal.js';
 
 export function ConsolePage(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const connectionStatus = useAppStore((s) => s.connectionStatus);
   const { config, save } = useUserConfig();
+  const { instances, create: createInstance } = useInstances();
 
   // useWebSocket 的 send 函数稍后赋值；用 ClientMessage union 作为 forward ref 类型
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
@@ -103,6 +108,10 @@ export function ConsolePage(): JSX.Element {
 
   return (
     <div className="console-page">
+      <InstanceTabs
+        instances={instances}
+        onCreateClick={() => setCreateOpen(true)}
+      />
       <StatusBar connection={connectionStatus} session={sessionStatus} />
       <div className="console-page__terminal-wrap">
         <TerminalView ref={containerRef} className="console-page__terminal" />
@@ -122,6 +131,11 @@ export function ConsolePage(): JSX.Element {
         current={config}
         onSave={save}
         onClose={() => setSettingsOpen(false)}
+      />
+      <CreateInstanceModal
+        open={createOpen}
+        onSubmit={createInstance}
+        onClose={() => setCreateOpen(false)}
       />
     </div>
   );
