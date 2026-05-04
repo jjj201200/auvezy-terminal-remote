@@ -30,6 +30,8 @@ import { SettingsModal } from '../components/settings/SettingsModal.js';
 import { InstanceTabs } from '../components/instances/InstanceTabs.js';
 import { CreateInstanceModal } from '../components/instances/CreateInstanceModal.js';
 import { IpChangeToast, type IpChangeInfo } from '../components/common/IpChangeToast.js';
+import { PushToggle } from '../components/common/PushToggle.js';
+import { useLocalNotification } from '../hooks/useLocalNotification.js';
 
 export function ConsolePage(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -40,6 +42,7 @@ export function ConsolePage(): JSX.Element {
   const connectionStatus = useAppStore((s) => s.connectionStatus);
   const { config, save } = useUserConfig();
   const { instances, create: createInstance } = useInstances();
+  const localNotify = useLocalNotification();
 
   // useWebSocket 的 send 函数稍后赋值；用 ClientMessage union 作为 forward ref 类型
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
@@ -73,6 +76,10 @@ export function ConsolePage(): JSX.Element {
 
       case 'status_update':
         setSessionStatus(msg.status);
+        if (msg.status === 'waiting_input') {
+          // Web Push 不支持时的兜底：前台通知
+          localNotify.notify('Claude 等待审批', msg.detail ?? '请在 Claude 中确认');
+        }
         break;
 
       case 'terminal_resize':
@@ -100,7 +107,7 @@ export function ConsolePage(): JSX.Element {
         // 当前未处理
         break;
     }
-  }, [write, adaptToPtySize]);
+  }, [write, adaptToPtySize, localNotify]);
 
   const { send } = useWebSocket(handleMessage);
   // 把 send 暴露给 handleResize（避免 useWebSocket 在 useTerminal 构造之前未就绪）
@@ -121,7 +128,10 @@ export function ConsolePage(): JSX.Element {
         instances={instances}
         onCreateClick={() => setCreateOpen(true)}
       />
-      <StatusBar connection={connectionStatus} session={sessionStatus} />
+      <div className="console-page__bar">
+        <StatusBar connection={connectionStatus} session={sessionStatus} />
+        <PushToggle />
+      </div>
       <div className="console-page__terminal-wrap">
         <TerminalView ref={containerRef} className="console-page__terminal" />
         <ScrollToBottomButton
