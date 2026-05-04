@@ -15,7 +15,12 @@ import {
   createClaudeSettings,
   saveClaudeSettings,
   extractSettingsFromArgs,
+  loadUserConfig,
+  saveUserConfig,
+  loadConfig,
 } from './config.js';
+import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from '@ocr/shared';
+import type { ParsedCliArgs } from './cli-utils.js';
 
 describe('createClaudeSettings', () => {
   it('无 existing → 仅返回我们的 hooks', () => {
@@ -146,5 +151,153 @@ describe('extractSettingsFromArgs', () => {
     ]);
     expect(r).not.toBeNull();
     expect(r!.value).toEqual({ second: true });
+  });
+});
+
+describe('loadUserConfig', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(resolve(tmpdir(), 'ocr-uc-'));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('文件不存在 → 写默认 + created=true', () => {
+    const path = resolve(tmpDir, 'config.json');
+    const r = loadUserConfig(path);
+    expect(r.created).toBe(true);
+    expect(r.recovered).toBe(false);
+    expect(existsSync(path)).toBe(true);
+    expect(r.value.shortcuts).toEqual(DEFAULT_SHORTCUTS);
+  });
+
+  it('文件已存在且合法 → 不重写，ensureDefaultUserConfig 兜底缺失字段', () => {
+    const path = resolve(tmpDir, 'config.json');
+    writeFileSync(path, JSON.stringify({ fontScale: 1.5 }));
+    const r = loadUserConfig(path);
+    expect(r.created).toBe(false);
+    expect(r.recovered).toBe(false);
+    expect(r.value.fontScale).toBe(1.5);
+    // shortcuts 缺失 → 默认值兜底
+    expect(r.value.shortcuts).toEqual(DEFAULT_SHORTCUTS);
+    expect(r.value.commands).toEqual(DEFAULT_COMMANDS);
+  });
+
+  it('JSON 损坏 → 备份原文件 + 落默认 + recovered=true', () => {
+    const path = resolve(tmpDir, 'config.json');
+    writeFileSync(path, '{not valid json');
+    const r = loadUserConfig(path);
+    expect(r.recovered).toBe(true);
+    expect(r.value.shortcuts).toEqual(DEFAULT_SHORTCUTS);
+    // 应该能找到一个 .corrupted-* 备份文件
+    const fs = require('node:fs');
+    const files = fs.readdirSync(tmpDir);
+    expect(files.some((f: string) => f.includes('.corrupted-'))).toBe(true);
+  });
+});
+
+describe('saveUserConfig', () => {
+  let tmpDir: string;
+  beforeEach(() => {
+    tmpDir = mkdtempSync(resolve(tmpdir(), 'ocr-su-'));
+  });
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('atomic 写入 + 内容可解析', () => {
+    const path = resolve(tmpDir, 'config.json');
+    saveUserConfig({ fontScale: 2.0 }, path);
+    const back = JSON.parse(readFileSync(path, 'utf-8'));
+    expect(back.fontScale).toBe(2.0);
+  });
+});
+
+describe('loadConfig（CLI > env > 默认）', () => {
+  const baseCli: ParsedCliArgs = { subcommand: 'start', claudeArgs: [] };
+
+  it('全空 → 内建默认', () => {
+    const cfg = loadConfig({
+      cli: baseCli,
+      env: {},
+      generateToken: () => 'gen-token',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: { shortcuts: DEFAULT_SHORTCUTS, commands: DEFAULT_COMMANDS },
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(cfg.port).toBe(DEFAULT_PORT);
+    expect(cfg.token).toBe('gen-token');
+    expect(cfg.tokenSource).toBe('generated');
+  });
+
+  it('CLI 覆盖 env', () => {
+    const cfg = loadConfig({
+      cli: { ...baseCli, port: 9999, token: 'cli-tok' },
+      env: { PORT: '4444', AUTH_TOKEN: 'env-tok' },
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(cfg.port).toBe(9999);
+    expect(cfg.token).toBe('cli-tok');
+    expect(cfg.tokenSource).toBe('cli');
+  });
+
+  it('env 覆盖默认；token=env', () => {
+    const cfg = loadConfig({
+      cli: baseCli,
+      env: { PORT: '4444', AUTH_TOKEN: 'env-tok', NO_TERMINAL: 'true' },
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(cfg.port).toBe(4444);
+    expect(cfg.tokenSource).toBe('env');
+    expect(cfg.noTerminal).toBe(true);
+  });
+
+  it('CLI workdir 优先；instanceName 缺省 = basename(workdir)', () => {
+    const cfg = loadConfig({
+      cli: { ...baseCli, workdir: '/tmp/myproject' },
+      env: {},
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(cfg.claudeCwd).toBe('/tmp/myproject');
+    expect(cfg.instanceName).toBe('myproject');
+  });
+
+  it('claudeArgs：CLI 优先于 env CLAUDE_ARGS', () => {
+    const cfg = loadConfig({
+      cli: { ...baseCli, claudeArgs: ['--cli-arg'] },
+      env: { CLAUDE_ARGS: '["--env-arg"]' },
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(cfg.claudeArgs).toEqual(['--cli-arg']);
   });
 });
