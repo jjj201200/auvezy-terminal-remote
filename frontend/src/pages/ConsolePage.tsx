@@ -19,16 +19,20 @@ import { useCallback, useRef, useState, type JSX } from 'react';
 import type { ServerMessage, SessionStatus, ClientMessage } from '@ocr/shared';
 import { useTerminal } from '../hooks/useTerminal.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
+import { useUserConfig } from '../hooks/useUserConfig.js';
 import { useAppStore } from '../stores/app-store.js';
 import { TerminalView } from '../components/terminal/TerminalView.js';
 import { ScrollToBottomButton } from '../components/terminal/ScrollToBottomButton.js';
 import { InputBar } from '../components/input/InputBar.js';
 import { StatusBar } from '../components/status/StatusBar.js';
+import { SettingsModal } from '../components/settings/SettingsModal.js';
 
 export function ConsolePage(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const connectionStatus = useAppStore((s) => s.connectionStatus);
+  const { config, save } = useUserConfig();
 
   // useWebSocket 的 send 函数稍后赋值；用 ClientMessage union 作为 forward ref 类型
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
@@ -107,7 +111,18 @@ export function ConsolePage(): JSX.Element {
           onClick={handleScrollToBottom}
         />
       </div>
-      <InputBar onSend={handleUserInput} disabled={connectionStatus !== 'connected'} />
+      <InputBar
+        onSend={handleUserInput}
+        disabled={connectionStatus !== 'connected'}
+        shortcuts={config.shortcuts}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+      <SettingsModal
+        open={settingsOpen}
+        current={config}
+        onSave={save}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   );
 }
