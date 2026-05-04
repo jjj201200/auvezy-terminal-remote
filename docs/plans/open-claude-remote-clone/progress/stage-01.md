@@ -20,7 +20,7 @@
 - [x] **1.4** ws-handler（消息分发器）+ 单测
 - [x] **1.5** SessionController（PTY↔WS 桥接、批合并、history_sync）+ 单测
 - [x] **1.6** TerminalRelay（PC 终端 raw mode + 双 Ctrl+C + Kitty 协议）+ 单测
-- [ ] **1.7** frontend useTerminal hook（xterm + addons + 批写入 + auto-follow）
+- [x] **1.7** frontend useTerminal hook（xterm + addons + 批写入 + auto-follow）
 - [ ] **1.8** frontend useWebSocket hook（重连退避 + connectionToken 防 race）
 - [ ] **1.9** frontend ConsolePage 最简版（接 useTerminal + useWebSocket）
 - [ ] **1.10** backend index.ts 启动序列（spawn PTY + 接 SessionController）
@@ -122,8 +122,24 @@
 
 **测试**：14/14 通过（Kitty 协议 7 边界、双击窗口 4、集成 3）。backend 累计 96/96。
 
-### 1.7 useTerminal
-（待开始）
+### 1.7 useTerminal · 完成 2026-05-05
+
+**产出**：
+- `frontend/src/config/constants.ts`（前端运行时常量集中：批写入/重连/节流/scrollback/字号）
+- `frontend/src/hooks/useTerminal.ts`（xterm 生命周期 + 三 addons graceful 降级 + 批写入 + auto-follow + resize 节流）
+- `frontend/src/components/terminal/TerminalView.tsx`（forwardRef 极薄壳）
+- `frontend/src/components/terminal/ScrollToBottomButton.tsx`
+
+**关键设计**：
+- 三 addon graceful 降级：FitAddon 必加；Unicode11Addon try/catch；WebglAddon try/catch + onContextLoss 自动 dispose
+- 批写入 RAF + setTimeout 双保险——隐藏 tab 时 RAF 不触发，setTimeout 兜底
+- resize 节流 + 去重：lastReportedResizeRef 去重，节流窗口内合并到 pending
+- onResize 回调返回 false 时不更新 lastReportedResize——离线时下次能重发
+- scrollSkipRef 计数器：每次程序滚动前 +1，吞下一次 onScroll，避免误识别用户滚动
+- 所有可变状态用 useRef，仅 showScrollHint 用 useState 驱动按钮显隐
+- cleanup 必须 cancel 所有定时器与 RAF，否则 unmount 后回调会抖
+
+**typecheck**：通过
 
 ### 1.8 useWebSocket
 （待开始）
