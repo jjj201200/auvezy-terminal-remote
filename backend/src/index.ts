@@ -1,21 +1,23 @@
 /**
- * Backend 服务入口（阶段 5）
+ * Backend 服务入口（阶段 6a）
  *
  * 启动流程：
  *  1. loadConfig（CLI > env > config.json > 默认）→ AppConfig
  *  1.4 共享 Token：cli/env 都没指定时，走 acquireSharedToken（withFileLock）
  *  1.5 解析用户 --settings + 合并 claude-remote hooks → 写 settings 文件
  *  1.6 detectDisplayIp 选 LAN IP，构造扫码 URL
- *  2. 创建 AuthModule（绑定端口的 cookie 名）+ HookReceiver
- *  3. Express + JSON + CORS 白名单（含 displayIp）+ /api 路由（含 /auth + /config + /hook）
+ *  1.7 多实例：findAvailablePort（preferred 起递增）+ 生成 instanceId
+ *  2. 创建 AuthModule（cookie 名按"实际端口"绑）+ HookReceiver
+ *  3. Express + CORS（含 displayIp）+ /api 路由（含 /auth + /config + /hook + /instances）
  *  4. 静态前端 + SPA fallback
- *  5. HttpServer + WsServer（authenticate hook 接 AuthModule）
- *  6. PtyManager + SessionController + setHookReceiver + 条件 TerminalRelay
- *  7. spawn（透传 --settings <path>）→ setStatus(running)
- *  8. SIGINT/SIGTERM/双 Ctrl+C/PTY exit/EADDRINUSE → shutdown
- *  9. listen 后打印 banner（含扫码 URL + ASCII QR；shared 来源仅短显 token 提示）
+ *  5. HttpServer + WsServer
+ *  6. PtyManager + SessionController + 条件 TerminalRelay
+ *  7. spawn → setStatus(running)
+ *  7.5 注册到 instances.json
+ *  8. SIGINT/SIGTERM/双 Ctrl+C/PTY exit/EADDRINUSE → shutdown（同步注销实例）
+ *  9. listen 后打印 banner（扫码 URL + ASCII QR）
  *
- * 阶段 5 不做：多实例 / IP 监控 / Push
+ * 阶段 6a 不做：IP 监控 / Push
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
@@ -49,8 +51,12 @@ import {
 } from './config.js';
 import type { ParsedCliArgs } from './cli-utils.js';
 import { acquireSharedToken } from './registry/shared-token.js';
+import { findAvailablePort } from './registry/port-finder.js';
+import { InstanceRegistryManager } from './registry/instance-registry.js';
+import { DefaultInstanceSpawner } from './registry/instance-spawner.js';
 import { detectDisplayIp, buildPublicUrl } from './utils/network.js';
 import { renderQrCode } from './utils/qrcode-banner.js';
+import { randomUUID } from 'node:crypto';
 import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
   SHUTDOWN_FORCE_EXIT_MS,
@@ -94,8 +100,19 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }
   }
 
-  // 1.6 displayIp & 扫码 URL
+  // 1.6 displayIp（先选好让后续 banner / CORS 用）
   const displayIp = detectDisplayIp(cfg.host);
+
+  // 1.7 端口自动递增（preferred 被占 → +1）+ 生成 instanceId
+  //    探测时仅在 127.0.0.1 上做（与实际监听 host 无关；只判端口空闲）
+  const actualPort = await findAvailablePort({
+    preferred: cfg.port,
+    host: '127.0.0.1',
+  });
+  if (actualPort !== cfg.port) {
+    cfg.port = actualPort;
+  }
+  const instanceId = randomUUID();
   const publicUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
 
   logger.info(
@@ -148,6 +165,13 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     },
   };
 
+  // 2.7 注册表 + Spawner（用于 /api/instances）
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const registry = new InstanceRegistryManager();
+  const spawner = new DefaultInstanceSpawner({
+    cliJsPath: resolve(__dirname, 'cli.js'),
+  });
+
   // 3. Express
   const app = express();
   app.use(express.json());
@@ -180,11 +204,20 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }),
   );
 
-  // /api 路由（含 /auth + /config + /hook）
-  app.use('/api', createApiRouter({ authModule, hookReceiver, configStore }));
+  // /api 路由（含 /auth + /config + /hook + /instances）
+  app.use(
+    '/api',
+    createApiRouter({
+      authModule,
+      hookReceiver,
+      configStore,
+      registry,
+      currentInstanceId: instanceId,
+      spawner,
+    }),
+  );
 
   // 静态前端 + SPA fallback
-  const __dirname = dirname(fileURLToPath(import.meta.url));
   const frontendDist = resolve(__dirname, '..', 'frontend-dist');
   if (existsSync(frontendDist)) {
     app.use(express.static(frontendDist));
@@ -232,6 +265,10 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     pty.destroy();
     ws.destroy();
     authModule.destroy();
+    // 注销实例（best-effort，不阻塞关闭）
+    void registry.unregister(instanceId).catch((err) => {
+      logger.warn({ err }, '关闭时注销实例失败');
+    });
     httpServer.close(() => {
       logger.info('HTTP server 已关闭');
       process.exit(exitCode);
@@ -300,11 +337,27 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     process.stderr.write(`\n  完整链接：${publicUrl}\n`);
     process.stderr.write('  双 Ctrl+C（500ms 内）退出代理；单次 Ctrl+C 透传给 Claude\n');
     process.stderr.write('\n');
+
+    // 注册到 instances.json（headless 派生的子进程也走这一步）
+    void registry
+      .register({
+        instanceId,
+        name: cfg.instanceName,
+        host: displayIp,
+        port: cfg.port,
+        pid: process.pid,
+        cwd: cfg.claudeCwd,
+        startedAt: new Date().toISOString(),
+        headless: cfg.noTerminal,
+      })
+      .catch((err) => logger.warn({ err }, '注册实例失败'));
+
     logger.info(
       {
         port: cfg.port,
         host: cfg.host,
         displayIp,
+        instanceId,
         instanceName: cfg.instanceName,
         tokenSource: cfg.tokenSource,
       },
