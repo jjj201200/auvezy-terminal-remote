@@ -15,6 +15,7 @@ import { Router } from 'express';
 import { createHealthRoutes } from './health-routes.js';
 import { createAuthRoutes } from './auth-routes.js';
 import { createHookRoutes } from './hook-routes.js';
+import { createConfigRoutes, type ConfigStore } from './config-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { HookReceiver } from '../hooks/hook-receiver.js';
 
@@ -23,6 +24,8 @@ export interface ApiRouterOptions {
   authModule?: AuthModule;
   /** Hook 接收器；不传则不挂 /hook 路由（仅 localhost 可访问） */
   hookReceiver?: HookReceiver;
+  /** 配置存储；与 authModule 同时存在时挂 /config 路由 */
+  configStore?: ConfigStore;
   // 后续阶段会注入：
   // pushService?: PushService
   // getController?: () => SessionController | null
@@ -41,6 +44,11 @@ export function createApiRouter(opts: ApiRouterOptions = {}): Router {
   // 认证（公开端点本身，但成功后才能拿到 cookie）
   if (opts.authModule) {
     router.use(createAuthRoutes(opts.authModule));
+  }
+
+  // 配置（需鉴权）
+  if (opts.authModule && opts.configStore) {
+    router.use(createConfigRoutes(opts.authModule, opts.configStore));
   }
 
   // Hook 接收（路由内部做 loopback 限制，无需鉴权）
