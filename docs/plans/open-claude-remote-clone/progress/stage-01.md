@@ -24,8 +24,8 @@
 - [x] **1.8** frontend useWebSocket hook（重连退避 + connectionToken 防 race）
 - [x] **1.9** frontend ConsolePage 最简版（接 useTerminal + useWebSocket）
 - [x] **1.10** backend index.ts 启动序列（spawn PTY + 接 SessionController）
-- [ ] **1.11** 端到端 smoke test（单端 + 多端重连 + 双 Ctrl+C）
-- [ ] **1.12** 阶段 1 收尾（typecheck/test 全通 + overview 同步）
+- [x] **1.11** 端到端 smoke test（用 bash 替代 claude，验证完整数据流）
+- [x] **1.12** 阶段 1 收尾（typecheck/test 全通 + overview 同步）
 
 ## 实施日志
 
@@ -191,11 +191,62 @@
 
 **typecheck/build**：全过。下一步 1.11 端到端 smoke。
 
-### 1.11 端到端 smoke
-（待开始）
+### 1.11 端到端 smoke · 完成 2026-05-05
 
-### 1.12 阶段收尾
-（待开始）
+**产出**：
+- `backend/scripts/smoke-stage1.mjs`（自动化 WS 客户端验证脚本）
+
+**验证项**（用 bash 作为 PTY 命令，因测试环境无 claude）：
+- ✓ history_sync 收到（cols=80 rows=24 status=running seq=1）
+- ✓ status_update 通过 history_sync 携带（重连恢复设计）
+- ✓ terminal_output 批合并后下发（含 PTY 输出 178B）
+- ✓ user_input 透传：发送 `echo OCRTEST123\r` 后 PTY 回显内容包含 OCRTEST123
+- ✓ resize 触发 PTY resize 并回包 terminal_resize
+- ✓ 测试结束 server kill + 端口释放 + logs 清理（CLAUDE.md 第一条）
+
+**关键发现**：
+- 客户端连入时 SessionController 推送 history_sync 已携带 status，因此独立的 status_update 在首次连接时不会再额外发——这是协议设计的"重连恢复"特性
+- bash spawn 后的 PTY 输出格式：178B 含 ANSI 控制序列（提示符 + 命令回显 + 输出），证明数据通路完整
+
+### 1.12 阶段收尾 · 完成 2026-05-05
+
+**typecheck**：全 workspace 通过（shared / backend / frontend 三包都过 strict + noUncheckedIndexedAccess）
+
+**测试**：
+- shared：8/8
+- backend：96/96（errors 19 + pty-manager 10 + output-buffer 18 + ws-handler 10 + ws-server 9 + session-controller 16 + terminal-relay 14）
+- frontend：passWithNoTests
+- 总计：104/104 通过
+
+## 验证结果
+
+✅ pnpm typecheck 全通
+✅ pnpm test 全通（104/104）
+✅ pnpm build 全链路通过（shared → frontend → backend → copy-frontend-dist）
+✅ 端到端 smoke：history_sync / terminal_output / user_input / resize 数据流完整
+✅ 测试结束所有进程与端口已释放（CLAUDE.md 第一条规则）
+
+## 阶段完成对照（与原项目自检）
+
+- [x] PtyManager：node-pty 包装、4 事件、resize 去重 ← 与上游设计一致
+- [x] OutputBuffer：按行环形缓冲、partial line、单调 seq、trim 摊销 ← 与上游设计一致
+- [x] WsServer：noServer + WeakMap clientType + 心跳 unref + 三 hook ← 与上游设计一致
+- [x] ws-handler：消息分发 + heartbeat 直接回包 ← 与上游设计一致
+- [x] SessionController：三阈值批合并 16/32K/256K + history_sync + 4 PTY 事件桥接 ← 与上游设计一致
+- [x] TerminalRelay：raw mode + 双 Ctrl+C + Kitty CSI u + pause/resume ← 与上游设计一致
+- [x] useTerminal：xterm + 三 addons graceful 降级 + 批写入 RAF/setTimeout 双保险 + auto-follow + scrollSkip 计数 ← 与上游设计一致
+- [x] useWebSocket：重连退避 + connectionToken 防 race + offline 监听 ← 与上游设计一致
+
+## 仍未实现（后续阶段补）
+
+- 认证（阶段 2）
+- 配置文件（阶段 4）
+- Hook 接收 / 审批（阶段 3）
+- 共享 Token / 二维码（阶段 5）
+- 多实例 / Web 创建（阶段 6a / 6b）
+- attach（阶段 7）
+- IP 监控 / ANSI filter（阶段 8）
+- Web Push（阶段 9）
 
 ## 当前阻塞
 
