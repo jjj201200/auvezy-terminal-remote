@@ -4,7 +4,7 @@
  * 把各个领域路由（health / auth / config / hook / instance / push / status）
  * 挂到统一的 /api 前缀下。
  *
- * 阶段 0：仅挂 health 路由。后续阶段按需扩展。
+ * 阶段 2：挂 health（公开）+ auth（公开）。后续阶段按需扩展。
  *
  * 设计：用工厂函数 + options 对象注入依赖，便于：
  * - 单测（直接 new Router 不需要起整个 server）
@@ -13,10 +13,13 @@
 
 import { Router } from 'express';
 import { createHealthRoutes } from './health-routes.js';
+import { createAuthRoutes } from './auth-routes.js';
+import type { AuthModule } from '../auth/auth-middleware.js';
 
 export interface ApiRouterOptions {
-  // 阶段 0 占位，后续阶段会注入：
-  // authModule?: AuthModule
+  /** 认证模块；不传则不挂 /auth 路由 */
+  authModule?: AuthModule;
+  // 后续阶段会注入：
   // hookReceiver?: HookReceiver
   // pushService?: PushService
   // getController?: () => SessionController | null
@@ -25,14 +28,17 @@ export interface ApiRouterOptions {
 
 /**
  * 创建 /api 路由聚合
- *
- * @param _opts 注入依赖（阶段 0 暂未使用）
  */
-export function createApiRouter(_opts: ApiRouterOptions = {}): Router {
+export function createApiRouter(opts: ApiRouterOptions = {}): Router {
   const router = Router();
 
   // 健康检查（公开）
   router.use(createHealthRoutes());
+
+  // 认证（公开端点本身，但成功后才能拿到 cookie）
+  if (opts.authModule) {
+    router.use(createAuthRoutes(opts.authModule));
+  }
 
   return router;
 }

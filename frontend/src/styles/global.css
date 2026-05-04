@@ -195,3 +195,98 @@ body {
 }
 
 /* xterm.js 自身的样式由 @xterm/xterm/css/xterm.css 提供 */
+
+/* ──────────────── 加载占位 ──────────────── */
+
+.app-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+}
+
+/* ──────────────── AuthPage ──────────────── */
+
+.auth-page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.auth-card__title {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.auth-card__subtitle {
+  margin: 0 0 16px 0;
+  color: var(--color-fg-muted);
+  font-size: 13px;
+}
+
+.auth-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-card__input {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  outline: none;
+}
+
+.auth-card__input:focus {
+  border-color: var(--color-accent);
+}
+
+.auth-card__error {
+  margin: 0;
+  color: var(--color-error);
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.auth-card__submit {
+  background: var(--color-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.auth-card__submit:disabled {
+  background: var(--color-border);
+  color: var(--color-fg-muted);
+  cursor: not-allowed;
+}
+
+.auth-card__hint {
+  margin: 16px 0 0 0;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+  line-height: 1.6;
+}

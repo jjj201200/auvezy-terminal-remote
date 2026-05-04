@@ -1,23 +1,18 @@
 /**
- * Backend 服务入口（阶段 1）
+ * Backend 服务入口（阶段 2）
  *
- * 启动流程（22 阶段中本阶段实现的部分）：
- *  1. 读环境变量决定端口/命令/工作目录
- *  2. Express + JSON + 健康检查 + 静态文件 + SPA fallback
- *  3. 创建 HttpServer（用于 WS upgrade 共用）
- *  4. 创建 PtyManager + WsServer + SessionController
- *  5. 条件创建 TerminalRelay（NO_TERMINAL 或非 TTY 时跳过）
- *  6. spawn Claude 进程
- *  7. SIGINT/SIGTERM/EADDRINUSE/PTY exit/双 Ctrl+C → 优雅 shutdown
- *  8. listen 后打印 banner
+ * 启动流程：
+ *  1. 读环境变量决定端口/命令/工作目录/token
+ *  2. 创建 AuthModule（绑定端口的 cookie 名）
+ *  3. Express + JSON + CORS 白名单 + /api 路由（含 /auth）
+ *  4. 静态前端 + SPA fallback
+ *  5. HttpServer + WsServer（authenticate hook 接 AuthModule）
+ *  6. PtyManager + SessionController + 条件 TerminalRelay
+ *  7. spawn → setStatus(running)
+ *  8. SIGINT/SIGTERM/双 Ctrl+C/PTY exit/EADDRINUSE → shutdown
+ *  9. listen 后打印 banner（首次显示完整 token，后续仅显示 shared 标记）
  *
- * 阶段 1 不做的事：
- *  - 认证（阶段 2）
- *  - 配置文件（阶段 4）
- *  - 共享 Token（阶段 5）
- *  - 多实例（阶段 6）
- *  - hooks 接收 / 审批通知（阶段 3）
- *  - IP 监控 / Push（阶段 8/9）
+ * 阶段 2 不做：配置文件 / 共享 Token / Hook 接收 / 多实例 / IP 监控 / Push
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
@@ -25,7 +20,13 @@ import { existsSync } from 'node:fs';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { DEFAULT_PORT, DEFAULT_MAX_BUFFER_LINES } from '@ocr/shared';
+import cors from 'cors';
+import {
+  DEFAULT_PORT,
+  DEFAULT_MAX_BUFFER_LINES,
+  DEFAULT_SESSION_TTL_MS,
+  DEFAULT_AUTH_RATE_LIMIT,
+} from '@ocr/shared';
 import { logger } from './logger/logger.js';
 import { createApiRouter } from './api/router.js';
 import { PtyManager } from './pty/pty-manager.js';
@@ -33,17 +34,23 @@ import { WsServer } from './ws/ws-server.js';
 import { SessionController } from './session/session-controller.js';
 import { TerminalRelay } from './terminal/terminal-relay.js';
 import {
+  AuthModule,
+  createSessionCookieName,
+} from './auth/auth-middleware.js';
+import { generateToken } from './auth/token-generator.js';
+import { createWsAuthenticate } from './auth/ws-authenticate.js';
+import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
   SHUTDOWN_FORCE_EXIT_MS,
 } from './constants.js';
 
-/** 启动覆盖（阶段 1：仅 port；后续阶段会扩展整套 CliOverrides） */
 export interface StartServerOverrides {
   port?: number;
+  token?: string;
 }
 
 export async function startServer(overrides: StartServerOverrides = {}): Promise<void> {
-  // 1. 解析配置（阶段 1 仅环境变量）
+  // 1. 配置（阶段 2 仅环境变量；阶段 4 引入完整 config 体系）
   const port = overrides.port ?? (Number(process.env['PORT']) || DEFAULT_PORT);
   const host = process.env['HOST'] ?? '0.0.0.0';
   const claudeCommand = process.env['CLAUDE_COMMAND'] ?? 'claude';
@@ -59,20 +66,65 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       })()
     : [];
   const maxBufferLines = Number(process.env['MAX_BUFFER_LINES']) || DEFAULT_MAX_BUFFER_LINES;
+  const sessionTtlMs = Number(process.env['SESSION_TTL_MS']) || DEFAULT_SESSION_TTL_MS;
+  const authRateLimit = Number(process.env['AUTH_RATE_LIMIT']) || DEFAULT_AUTH_RATE_LIMIT;
   const noTerminal = process.env['NO_TERMINAL'] === 'true';
   const instanceName = process.env['INSTANCE_NAME'] ?? basename(claudeCwd);
 
+  // Token 来源：CLI > AUTH_TOKEN 环境变量 > 现场生成
+  // 阶段 5 引入共享 token 文件后，这里改为从 shared-token 模块取
+  const tokenSource: 'cli' | 'env' | 'generated' =
+    overrides.token ? 'cli' : process.env['AUTH_TOKEN'] ? 'env' : 'generated';
+  const token = overrides.token ?? process.env['AUTH_TOKEN'] ?? generateToken();
+
   logger.info(
-    { port, host, claudeCommand, claudeCwd, claudeArgs, maxBufferLines, noTerminal, instanceName },
-    '加载阶段 1 配置',
+    { port, host, claudeCommand, claudeCwd, claudeArgs, instanceName, tokenSource },
+    '加载阶段 2 配置',
   );
 
-  // 2. Express + 路由
+  // 2. AuthModule
+  const cookieName = createSessionCookieName(port);
+  const authModule = new AuthModule({
+    token,
+    sessionTtlMs,
+    rateLimitPerMinute: authRateLimit,
+    cookieName,
+  });
+
+  // 3. Express
   const app = express();
   app.use(express.json());
-  app.use('/api', createApiRouter());
 
-  // 3. 静态前端
+  // CORS：仅允许同源 + 局域网常见地址
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // 同源（无 origin）一律允许
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+        try {
+          const url = new URL(origin);
+          // 阶段 2：localhost / 127.0.0.1 + 任意端口
+          // 阶段 5 引入 displayIp 后再加 LAN IP 白名单
+          if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+            callback(null, true);
+            return;
+          }
+        } catch {
+          // 无效 origin 忽略走拒绝路径
+        }
+        callback(new Error('CORS 拒绝：origin 不在白名单'));
+      },
+      credentials: true,
+    }),
+  );
+
+  // /api 路由（含 /auth）
+  app.use('/api', createApiRouter({ authModule }));
+
+  // 静态前端 + SPA fallback
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const frontendDist = resolve(__dirname, '..', 'frontend-dist');
   if (existsSync(frontendDist)) {
@@ -88,18 +140,17 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     logger.warn({ expected: frontendDist }, '前端 dist 不存在，跳过静态服务');
   }
 
-  // 4. HTTP server（WS 复用）
+  // 4. HTTP server + WsServer（带认证）
   const httpServer: HttpServer = createServer(app);
+  const ws = new WsServer(httpServer, { authenticate: createWsAuthenticate(authModule) });
 
-  // 5. PTY + WsServer + SessionController
+  // 5. PTY + SessionController
   const pty = new PtyManager();
-  const ws = new WsServer(httpServer);
   const ctrl = new SessionController(pty, ws, maxBufferLines, {
     writeToProcessStdout: !noTerminal,
   });
 
-  // 6. TerminalRelay（条件启动）
-  // 双 Ctrl+C 退代理 → shutdown
+  // 6. TerminalRelay（条件）
   let relay: TerminalRelay | null = null;
   if (!noTerminal && process.stdin.isTTY) {
     relay = new TerminalRelay(pty, {
@@ -110,7 +161,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     });
   }
 
-  // 7. 优雅 shutdown
+  // 7. 优雅关闭
   let shuttingDown = false;
   const shutdown = (exitCode = 0): void => {
     if (shuttingDown) return;
@@ -120,6 +171,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     ctrl.destroy();
     pty.destroy();
     ws.destroy();
+    authModule.destroy();
     httpServer.close(() => {
       logger.info('HTTP server 已关闭');
       process.exit(exitCode);
@@ -127,7 +179,6 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     setTimeout(() => process.exit(exitCode), SHUTDOWN_FORCE_EXIT_MS).unref();
   };
 
-  // PTY exit → 留点时间 flush 后关闭
   pty.on('exit', (exitCode: number) => {
     setTimeout(() => shutdown(exitCode), SHUTDOWN_WS_FLUSH_DELAY_MS);
   });
@@ -139,7 +190,6 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   process.on('SIGINT', () => shutdown(0));
   process.on('SIGTERM', () => shutdown(0));
 
-  // 端口冲突兜底（虽然阶段 1 没有 port-finder，但 EADDRINUSE 仍要处理）
   httpServer.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
       logger.error({ port, host }, '端口已被占用');
@@ -149,28 +199,37 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     process.exit(1);
   });
 
-  // 8. spawn Claude（PTY 起来后才设置 status=running）
-  pty.spawn({
-    command: claudeCommand,
-    args: claudeArgs,
-    cwd: claudeCwd,
-  });
+  // 8. spawn
+  pty.spawn({ command: claudeCommand, args: claudeArgs, cwd: claudeCwd });
   if (relay) relay.start();
   ctrl.setStatus('running');
 
-  // 9. 监听
+  // 9. listen + banner
   httpServer.listen(port, host, () => {
+    const tokenPreview =
+      token.length >= 16
+        ? `${token.slice(0, 8)}...${token.slice(-8)}`
+        : token;
+
     process.stderr.write('\n');
     process.stderr.write('╔══════════════════════════════════════════════════╗\n');
-    process.stderr.write('║         Open-Claude-Remote · 阶段 1 启动         ║\n');
+    process.stderr.write('║         Open-Claude-Remote · 阶段 2 启动         ║\n');
     process.stderr.write('╠══════════════════════════════════════════════════╣\n');
     process.stderr.write(`║  实例:    ${instanceName.padEnd(38)}║\n`);
     process.stderr.write(`║  地址:    http://${host}:${port}`.padEnd(53) + '║\n');
-    process.stderr.write(`║  命令:    ${claudeCommand} ${claudeArgs.join(' ')}`.padEnd(53) + '║\n');
-    process.stderr.write(`║  工作目录: ${claudeCwd.padEnd(37)}║\n`);
+    process.stderr.write(`║  Token:   ${tokenPreview.padEnd(38)}║\n`);
+
+    if (tokenSource === 'generated') {
+      process.stderr.write('╠══════════════════════════════════════════════════╣\n');
+      process.stderr.write('║  完整 Token（粘贴到手机）:                       ║\n');
+      // 64 字符 token 一行放不下，分两行打印
+      process.stderr.write(`║  ${token.slice(0, 48).padEnd(48)}║\n`);
+      process.stderr.write(`║  ${token.slice(48).padEnd(48)}║\n`);
+    }
+
     process.stderr.write('╚══════════════════════════════════════════════════╝\n');
     process.stderr.write('  双 Ctrl+C（500ms 内）退出代理；单次 Ctrl+C 透传给 Claude\n');
     process.stderr.write('\n');
-    logger.info({ port, host, instanceName }, '服务已启动');
+    logger.info({ port, host, instanceName, tokenSource }, '服务已启动');
   });
 }

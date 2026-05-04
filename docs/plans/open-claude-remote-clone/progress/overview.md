@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | 0  | 项目骨架与协议层            | ✅ 完成   | 7/7  | [stage-00.md](./stage-00.md) |
 | 1  | PTY ↔ WS ↔ xterm 闭环      | ✅ 完成   | 12/12 | [stage-01.md](./stage-01.md) |
-| 2  | 认证与安全                  | ⏳ 待开始 | 0/11 | [stage-02.md](./stage-02.md) |
+| 2  | 认证与安全                  | ✅ 完成   | 11/11 | [stage-02.md](./stage-02.md) |
 | 3  | 审批通知                    | ⏳ 待开始 | 0/8  | [stage-03.md](./stage-03.md) |
 | 4  | 配置体系                    | ⏳ 待开始 | 0/11 | [stage-04.md](./stage-04.md) |
 | 5  | 文件锁 + 共享 Token + 二维码 | ⏳ 待开始 | 0/7  | [stage-05.md](./stage-05.md) |
@@ -22,7 +22,7 @@
 | 8  | IP 漂移 + ANSI 过滤         | ⏳ 待开始 | 0/7  | [stage-08.md](./stage-08.md) |
 | 9  | Web Push                    | ⏳ 待开始 | 0/7  | [stage-09.md](./stage-09.md) |
 | 10 | 打磨与发布                  | ⏳ 待开始 | 0/7  | [stage-10.md](./stage-10.md) |
-|    | **总计**                    |          | **19/96** ||
+|    | **总计**                    |          | **30/96** ||
 
 **状态图例**：⏳ 待开始 · 🔄 进行中 · ✅ 完成 · ⚠ 阻塞
 
@@ -55,4 +55,4 @@
 
 ## 上次更新
 
-2026-05-05 · 阶段 1 完成（12/12 步骤），PTY ↔ WS ↔ xterm 完整数据流闭环，104/104 单测通过，端到端 smoke 验证 history_sync/terminal_output/user_input/resize 全部正常
+2026-05-05 · 阶段 2 完成（11/11 步骤），Token 认证 + Session Cookie + 限流 + WS 双重认证 + 前端 AuthPage/useAuth/api-client/token-storage，134/134 单测通过，端到端 smoke 全过
