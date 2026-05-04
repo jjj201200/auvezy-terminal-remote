@@ -23,7 +23,7 @@
 - [x] **1.7** frontend useTerminal hook（xterm + addons + 批写入 + auto-follow）
 - [x] **1.8** frontend useWebSocket hook（重连退避 + connectionToken 防 race）
 - [x] **1.9** frontend ConsolePage 最简版（接 useTerminal + useWebSocket）
-- [ ] **1.10** backend index.ts 启动序列（spawn PTY + 接 SessionController）
+- [x] **1.10** backend index.ts 启动序列（spawn PTY + 接 SessionController）
 - [ ] **1.11** 端到端 smoke test（单端 + 多端重连 + 双 Ctrl+C）
 - [ ] **1.12** 阶段 1 收尾（typecheck/test 全通 + overview 同步）
 
@@ -176,8 +176,20 @@
 
 **typecheck**：通过
 
-### 1.10 index.ts 启动序列
-（待开始）
+### 1.10 index.ts 启动序列 · 完成 2026-05-05
+
+**产出**：
+- `backend/src/index.ts`（22 阶段中的本阶段实现部分：环境变量配置 + 路由 + 静态 + PTY + WS + Session + Relay + spawn + shutdown + listen + banner）
+
+**关键设计**：
+- 环境变量驱动：`PORT / HOST / CLAUDE_COMMAND / CLAUDE_ARGS / CLAUDE_CWD / NO_TERMINAL / INSTANCE_NAME / MAX_BUFFER_LINES`
+- TerminalRelay 条件创建：`!noTerminal && process.stdin.isTTY` 才启用
+- onExitRequest（双 Ctrl+C）回调直接调 `shutdown(0)`
+- PTY exit 后延迟 SHUTDOWN_WS_FLUSH_DELAY_MS（500ms）再 shutdown，让 WS 把最后一条消息发出去
+- 强制退出兜底 SHUTDOWN_FORCE_EXIT_MS（2s）
+- spawn 完成后 setStatus('running') 让客户端看到状态切换
+
+**typecheck/build**：全过。下一步 1.11 端到端 smoke。
 
 ### 1.11 端到端 smoke
 （待开始）
