@@ -71,3 +71,11 @@ export const STOP_INSTANCE_GRACE_MS = 3_000;
 
 /** 停止实例时轮询进程退出的间隔（ms） */
 export const STOP_INSTANCE_POLL_INTERVAL_MS = 100;
+
+// ──────────────── attach 客户端 ────────────────
+
+/**
+ * attach WS 重连退避序列（ms）；用尽后保持最大值
+ * 与前端 frontend/src/config/constants.ts 的 WS_RECONNECT_DELAYS_MS 同步
+ */
+export const ATTACH_RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30_000];
