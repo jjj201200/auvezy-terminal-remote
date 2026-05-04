@@ -3,6 +3,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# backend 部署期复制过来的前端产物（每次 pnpm build 都会重生成，不入仓）
+backend/frontend-dist/
+
 # 依赖
 node_modules/
 .pnpm-store/
