@@ -31,6 +31,7 @@ import { OutputBuffer } from '../pty/output-buffer.js';
 import { WsServer, type ClientType, type ClientCounts } from '../ws/ws-server.js';
 import { handleWsMessage } from '../ws/ws-handler.js';
 import { HookReceiver, type HookNotification } from '../hooks/hook-receiver.js';
+import { AnsiFilter } from '../utils/ansi-filter.js';
 import { logger } from '../logger/logger.js';
 import {
   WS_FLUSH_INTERVAL_MS,
@@ -44,6 +45,13 @@ import {
 export interface SessionControllerOptions {
   /** 是否把 PTY 输出同时写到本进程 stdout（PC 终端可见）。默认 true。 */
   writeToProcessStdout?: boolean;
+  /**
+   * 是否启用 alt-screen ANSI 过滤。默认 true（与上游不同）：
+   *   - 进入 alt screen 后的内容不进 OutputBuffer / 不广播
+   *   - 重连时 history_sync 不会被 alt screen 临时画面污染
+   * 想保留 alt 内容的用户可关闭此开关。
+   */
+  ansiFilter?: boolean;
 }
 
 export class SessionController {
@@ -70,6 +78,9 @@ export class SessionController {
   /** 可选的 hook 接收器（阶段 3 启用） */
   private hookReceiver: HookReceiver | null = null;
 
+  /** ANSI 过滤器（阶段 8 启用；null = 关闭过滤直接透传） */
+  private readonly ansiFilter: AnsiFilter | null;
+
   constructor(
     private readonly pty: PtyManager,
     private readonly ws: WsServer,
@@ -78,6 +89,7 @@ export class SessionController {
   ) {
     this.buffer = new OutputBuffer(maxBufferLines);
     this.writeToProcessStdout = opts.writeToProcessStdout ?? true;
+    this.ansiFilter = (opts.ansiFilter ?? true) ? new AnsiFilter() : null;
     this.wirePty();
     this.wireWs();
   }
@@ -151,16 +163,19 @@ export class SessionController {
     this.pty.on('data', (data: string) => {
       this.ptyTotalBytes += Buffer.byteLength(data, 'utf8');
 
-      // 1. PC 终端
+      // 1. PC 终端：始终用原始数据（PC 终端可正常显示 alt screen 应用，
+      //    用户在 PC 上看 vim 等是有意义的）
       if (this.writeToProcessStdout) {
         process.stdout.write(data);
       }
 
-      // 2. 历史缓冲
-      this.buffer.append(data);
+      // 2/3 路使用过滤后的数据（如启用过滤）：避免 alt screen 内容
+      //     污染 OutputBuffer（重连回放）和广播给 webapp
+      const filtered = this.ansiFilter ? this.ansiFilter.filter(data) : data;
+      if (filtered.length === 0) return;
 
-      // 3. WS 批合并广播
-      this.enqueueWsOutput(data);
+      this.buffer.append(filtered);
+      this.enqueueWsOutput(filtered);
     });
 
     this.pty.on('exit', (exitCode: number) => {

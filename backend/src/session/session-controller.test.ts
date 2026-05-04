@@ -21,7 +21,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import type { ServerMessage } from '@ocr/shared';
 import type { WebSocket } from 'ws';
-import type { ClientType, ClientCounts } from '../ws/ws-server.js';
+import type { ClientType, ClientCounts, WsServer } from '../ws/ws-server.js';
 import { SessionController } from './session-controller.js';
 import { PtyManager } from '../pty/pty-manager.js';
 import {
@@ -303,5 +303,64 @@ describe('SessionController', () => {
     if (hs?.msg.type === 'history_sync') {
       expect(hs.msg.seq).toBe(3); // 3 次 append
     }
+  });
+});
+
+describe('SessionController + AnsiFilter（阶段 8）', () => {
+  it('alt-screen 内容默认被过滤，不进 buffer 也不广播', async () => {
+    const { SessionController } = await import('./session-controller.js');
+    const pty2 = new MockPty();
+    const ws2 = new MockWs();
+    const ctrl = new SessionController(
+      pty2 as unknown as PtyManager,
+      ws2 as unknown as WsServer,
+      100,
+      { writeToProcessStdout: false },
+    );
+
+    pty2.emit('data', 'before-alt');
+    pty2.emit('data', '\x1b[?1049h'); // enter alt
+    pty2.emit('data', 'inside-alt');
+    pty2.emit('data', '\x1b[?1049l'); // exit alt
+    pty2.emit('data', 'after-alt');
+
+    // 强制 flush 任何 pending（destroy 内部会 flush）
+    ctrl.destroy();
+
+    // 把所有 broadcast 的 terminal_output 内容拼起来
+    const out = ws2.broadcasts
+      .filter((m) => m.type === 'terminal_output')
+      .map((m) => (m.type === 'terminal_output' ? m.data : ''))
+      .join('');
+    // 应该不含 'inside-alt'
+    expect(out).not.toContain('inside-alt');
+    // 应该含 enter/exit 序列与正常文本
+    expect(out).toContain('before-alt');
+    expect(out).toContain('after-alt');
+    expect(out).toContain('\x1b[?1049h');
+    expect(out).toContain('\x1b[?1049l');
+  });
+
+  it('ansiFilter=false 时不过滤', async () => {
+    const { SessionController } = await import('./session-controller.js');
+    const pty2 = new MockPty();
+    const ws2 = new MockWs();
+    const ctrl = new SessionController(
+      pty2 as unknown as PtyManager,
+      ws2 as unknown as WsServer,
+      100,
+      { writeToProcessStdout: false, ansiFilter: false },
+    );
+
+    pty2.emit('data', '\x1b[?1049h');
+    pty2.emit('data', 'inside');
+    pty2.emit('data', '\x1b[?1049l');
+    ctrl.destroy();
+
+    const out = ws2.broadcasts
+      .filter((m) => m.type === 'terminal_output')
+      .map((m) => (m.type === 'terminal_output' ? m.data : ''))
+      .join('');
+    expect(out).toContain('inside'); // 关闭过滤后保留
   });
 });
