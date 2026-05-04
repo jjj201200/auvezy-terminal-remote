@@ -139,43 +139,51 @@ export function releaseLock(lockDir: string): void {
 
 /**
  * 锁是否过期：
- *  - 目录存在时间 > staleMs，且
- *  - pid.txt 中记录的 pid 已经不在进程表（或 pid.txt 不存在）
+ *
+ * 优先级（任一命中即视为 stale）：
+ *  - pid.txt 中 pid 不存活（同一用户可探活时，立即可回收，不必等 mtime）
+ *  - mtime > staleMs 且没有 pid.txt（无法探活只能用时间兜底）
+ *
+ * 历史上曾要求 mtime > staleMs *且* pid 不存活，结果造成"持锁进程刚被 KILL
+ * 后下个使用者要等 staleMs 才能拿到"的死等。改成 pid 不存活直接回收，
+ * mtime 只在拿不到 pid 时兜底。
  *
  * 注意：pid 检查只能识别"同一台机器、当前用户能 kill -0 的进程"。
  * 跨用户 / 跨容器场景需要更高级方案，但本工具仅服务本机本用户。
  */
 function isStale(lockDir: string, staleMs: number): boolean {
-  let ageMs: number;
+  // 先尝试读 pid.txt
+  const pidFile = resolve(lockDir, 'pid.txt');
+  if (existsSync(pidFile)) {
+    try {
+      const txt = readFileSync(pidFile, 'utf-8');
+      const pid = parseInt(txt.split('\n')[0] ?? '', 10);
+      if (!Number.isInteger(pid) || pid <= 0) {
+        return true; // pid 字段非法
+      }
+      if (pid === process.pid) {
+        // 自身在持锁——当前 withFileLock 调用之外的非重入位置看到自己的
+        // pid 一般是合法持有，不要回收。tryAcquireLock 不重入设计。
+        return false;
+      }
+      try {
+        process.kill(pid, 0);
+        return false; // 进程仍活着，未 stale
+      } catch (err) {
+        // ESRCH = 进程不存在 → 立即 stale，不必等 mtime
+        return (err as NodeJS.ErrnoException).code === 'ESRCH';
+      }
+    } catch {
+      // pid.txt 读失败 → 走 mtime 兜底
+    }
+  }
+
+  // 没 pid.txt 或读失败：用 mtime 兜底
   try {
     const st = statSync(lockDir);
-    ageMs = Date.now() - st.mtimeMs;
+    return Date.now() - st.mtimeMs > staleMs;
   } catch {
     return false;
-  }
-  if (ageMs <= staleMs) return false;
-
-  // 目录够老。再看 pid 是否存活
-  const pidFile = resolve(lockDir, 'pid.txt');
-  if (!existsSync(pidFile)) {
-    // 旧锁没有 pid.txt（可能上次写失败），按 stale 处理
-    return true;
-  }
-  try {
-    const txt = readFileSync(pidFile, 'utf-8');
-    const pid = parseInt(txt.split('\n')[0] ?? '', 10);
-    if (!Number.isInteger(pid) || pid <= 0) return true;
-    if (pid === process.pid) return true; // 自身重启留下的旧锁
-    try {
-      process.kill(pid, 0); // 仅探测，不实际发信号
-      return false; // 进程仍活着 → 还不能算 stale
-    } catch (err) {
-      // ESRCH = 进程不存在 → stale
-      return (err as NodeJS.ErrnoException).code === 'ESRCH';
-    }
-  } catch {
-    // 读 pid.txt 失败 → 当 stale
-    return true;
   }
 }
 

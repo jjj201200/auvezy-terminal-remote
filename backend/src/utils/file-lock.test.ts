@@ -60,9 +60,10 @@ describe('file-lock', () => {
 
   it('重试用尽抛 LockError(LOCK_TIMEOUT)', async () => {
     const lock = resolve(baseDir, 'L');
-    // 手动占住锁不放
+    // 手动占住锁不放，pid 写一个我们能确定"还活着"且不是自己的 pid。
+    // init (pid=1) 在 Linux/WSL 上总是存活；用它即可让 stale 检查返回 false。
     mkdirSync(lock, { recursive: false, mode: 0o700 });
-    writeFileSync(resolve(lock, 'pid.txt'), `${process.pid}\n${Date.now()}\n`);
+    writeFileSync(resolve(lock, 'pid.txt'), `1\n${Date.now()}\n`);
 
     await expect(
       withFileLock(lock, () => 1, {
@@ -78,17 +79,12 @@ describe('file-lock', () => {
     rmSync(lock, { recursive: true, force: true });
   });
 
-  it('僵尸锁（pid 不存活）被自动清理', async () => {
+  it('僵尸锁（pid 不存活）立即被回收，无需等 mtime', async () => {
     const lock = resolve(baseDir, 'L');
     mkdirSync(lock, { recursive: false, mode: 0o700 });
-    // 写一个绝对不可能存在的 pid（INT32 最大附近）
-    writeFileSync(resolve(lock, 'pid.txt'), `2147483640\n${Date.now() - 60_000}\n`);
-    // 把 mtime 调老到超过 stale 阈值（10s 默认）
-    const oldTime = new Date(Date.now() - 60_000);
-    const fs = await import('node:fs');
-    fs.utimesSync(lock, oldTime, oldTime);
+    // pid 是不存在的高位 pid，mtime 仍然是新的
+    writeFileSync(resolve(lock, 'pid.txt'), `2147483640\n${Date.now()}\n`);
 
-    // 此时锁应被识别为 stale 并自动清理
     expect(tryAcquireLock(lock)).toBe(true);
     releaseLock(lock);
   });
