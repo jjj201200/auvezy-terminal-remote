@@ -1,19 +1,21 @@
 /**
- * Backend 服务入口（阶段 4）
+ * Backend 服务入口（阶段 5）
  *
  * 启动流程：
  *  1. loadConfig（CLI > env > config.json > 默认）→ AppConfig
+ *  1.4 共享 Token：cli/env 都没指定时，走 acquireSharedToken（withFileLock）
  *  1.5 解析用户 --settings + 合并 claude-remote hooks → 写 settings 文件
+ *  1.6 detectDisplayIp 选 LAN IP，构造扫码 URL
  *  2. 创建 AuthModule（绑定端口的 cookie 名）+ HookReceiver
- *  3. Express + JSON + CORS 白名单 + /api 路由（含 /auth + /config + /hook）
+ *  3. Express + JSON + CORS 白名单（含 displayIp）+ /api 路由（含 /auth + /config + /hook）
  *  4. 静态前端 + SPA fallback
  *  5. HttpServer + WsServer（authenticate hook 接 AuthModule）
  *  6. PtyManager + SessionController + setHookReceiver + 条件 TerminalRelay
  *  7. spawn（透传 --settings <path>）→ setStatus(running)
  *  8. SIGINT/SIGTERM/双 Ctrl+C/PTY exit/EADDRINUSE → shutdown
- *  9. listen 后打印 banner（首次显示完整 token，后续仅显示 shared 标记）
+ *  9. listen 后打印 banner（含扫码 URL + ASCII QR；shared 来源仅短显 token 提示）
  *
- * 阶段 4 不做：共享 Token / 多实例 / IP 监控 / Push
+ * 阶段 5 不做：多实例 / IP 监控 / Push
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
@@ -46,6 +48,9 @@ import {
   type AppConfig,
 } from './config.js';
 import type { ParsedCliArgs } from './cli-utils.js';
+import { acquireSharedToken } from './registry/shared-token.js';
+import { detectDisplayIp, buildPublicUrl } from './utils/network.js';
+import { renderQrCode } from './utils/qrcode-banner.js';
 import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
   SHUTDOWN_FORCE_EXIT_MS,
@@ -72,10 +77,32 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     generateToken,
   });
 
+  // 1.4 共享 Token：仅当 loadConfig 走的是 'generated' 路径时（cli/env 都没指定）
+  //    才用 shared-token 取代——这样多实例之间能复用同一个 token，二维码不会
+  //    随启动顺序变。cli/env 显式指定时尊重用户意图。
+  if (cfg.tokenSource === 'generated') {
+    try {
+      const r = await acquireSharedToken({
+        path: cfg.userConfigPath,
+        generateToken,
+      });
+      cfg.token = r.token;
+      cfg.tokenSource = r.source; // 'shared' 或 'generated'
+    } catch (err) {
+      // 锁超时或文件 IO 失败：保留 generated token 继续运行（用户可能跨实例 token 不一致，但服务能起）
+      logger.warn({ err }, 'shared-token 获取失败，回退到本进程随机 token');
+    }
+  }
+
+  // 1.6 displayIp & 扫码 URL
+  const displayIp = detectDisplayIp(cfg.host);
+  const publicUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
+
   logger.info(
     {
       port: cfg.port,
       host: cfg.host,
+      displayIp,
       claudeCommand: cfg.claudeCommand,
       claudeCwd: cfg.claudeCwd,
       claudeArgs: cfg.claudeArgs,
@@ -83,7 +110,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       tokenSource: cfg.tokenSource,
       userConfigPath: cfg.userConfigPath,
     },
-    '加载阶段 4 配置',
+    '加载阶段 5 配置',
   );
 
   // 1.5 Hook 配置 + Claude settings 文件
@@ -125,7 +152,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   const app = express();
   app.use(express.json());
 
-  // CORS：仅允许同源 + 局域网常见地址
+  // CORS：同源 + localhost/127.0.0.1 + 检测到的 displayIp（任意端口）
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -136,9 +163,11 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
         }
         try {
           const url = new URL(origin);
-          // 阶段 2：localhost / 127.0.0.1 + 任意端口
-          // 阶段 5 引入 displayIp 后再加 LAN IP 白名单
-          if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+          if (
+            url.hostname === 'localhost' ||
+            url.hostname === '127.0.0.1' ||
+            url.hostname === displayIp
+          ) {
             callback(null, true);
             return;
           }
@@ -244,25 +273,41 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
     process.stderr.write('\n');
     process.stderr.write('╔══════════════════════════════════════════════════╗\n');
-    process.stderr.write('║         Open-Claude-Remote · 阶段 4 启动         ║\n');
+    process.stderr.write('║         Open-Claude-Remote · 阶段 5 启动         ║\n');
     process.stderr.write('╠══════════════════════════════════════════════════╣\n');
     process.stderr.write(`║  实例:    ${cfg.instanceName.padEnd(38)}║\n`);
-    process.stderr.write(`║  地址:    http://${cfg.host}:${cfg.port}`.padEnd(53) + '║\n');
+    process.stderr.write(`║  监听:    http://${cfg.host}:${cfg.port}`.padEnd(53) + '║\n');
+    process.stderr.write(`║  扫码:    http://${displayIp}:${cfg.port}`.padEnd(53) + '║\n');
     process.stderr.write(`║  Token:   ${tokenPreview.padEnd(38)}║\n`);
+    process.stderr.write(`║  来源:    ${cfg.tokenSource.padEnd(38)}║\n`);
 
+    // 仅在新生成（generated）token 时把完整 token 印出来一次让用户保存
     if (cfg.tokenSource === 'generated') {
       process.stderr.write('╠══════════════════════════════════════════════════╣\n');
-      process.stderr.write('║  完整 Token（粘贴到手机）:                       ║\n');
-      // 64 字符 token 一行放不下，分两行打印
+      process.stderr.write('║  完整 Token（首次显示，请保存）:                 ║\n');
       process.stderr.write(`║  ${cfg.token.slice(0, 48).padEnd(48)}║\n`);
       process.stderr.write(`║  ${cfg.token.slice(48).padEnd(48)}║\n`);
     }
 
     process.stderr.write('╚══════════════════════════════════════════════════╝\n');
+
+    // ASCII QR：手机扫码即登入（已带 ?token=...）
+    const qr = renderQrCode(publicUrl);
+    if (qr) {
+      process.stderr.write('\n  扫码登入：\n');
+      process.stderr.write(qr);
+    }
+    process.stderr.write(`\n  完整链接：${publicUrl}\n`);
     process.stderr.write('  双 Ctrl+C（500ms 内）退出代理；单次 Ctrl+C 透传给 Claude\n');
     process.stderr.write('\n');
     logger.info(
-      { port: cfg.port, host: cfg.host, instanceName: cfg.instanceName, tokenSource: cfg.tokenSource },
+      {
+        port: cfg.port,
+        host: cfg.host,
+        displayIp,
+        instanceName: cfg.instanceName,
+        tokenSource: cfg.tokenSource,
+      },
       '服务已启动',
     );
   });

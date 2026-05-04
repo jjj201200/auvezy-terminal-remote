@@ -374,7 +374,14 @@ export interface AppConfig {
   host: string;
   /** 已确定的 Token（可能来自 CLI / env / 共享文件 / 现场生成） */
   token: string;
-  tokenSource: 'cli' | 'env' | 'generated';
+  /**
+   * Token 来源：
+   *  - cli       --token
+   *  - env       AUTH_TOKEN 环境变量
+   *  - shared    从 ~/.claude-remote/config.json 共享文件读到（多实例共享）
+   *  - generated 共享文件未含 token，本进程刚生成并写盘
+   */
+  tokenSource: 'cli' | 'env' | 'shared' | 'generated';
   claudeCommand: string;
   claudeArgs: string[];
   claudeCwd: string;
