@@ -15,7 +15,7 @@
 ## 步骤清单
 
 - [x] **1.1** PtyManager（node-pty 包装、resize 去重、4 事件）+ 单测
-- [ ] **1.2** OutputBuffer（按行环形缓冲、partial line、seq）+ 单测
+- [x] **1.2** OutputBuffer（按行环形缓冲、partial line、seq）+ 单测
 - [ ] **1.3** WsServer（noServer upgrade、心跳、3 个 hook）+ 单测
 - [ ] **1.4** ws-handler（消息分发器）+ 单测
 - [ ] **1.5** SessionController（PTY↔WS 桥接、批合并、history_sync）+ 单测
@@ -46,8 +46,22 @@
 
 **测试**：10/10 通过
 
-### 1.2 OutputBuffer
-（待开始）
+### 1.2 OutputBuffer · 完成 2026-05-05
+
+**产出**：
+- `backend/src/pty/output-buffer.ts`（按行环形缓冲 + partial line + 单调 seq + trim 摊销）
+- `backend/src/pty/output-buffer.test.ts`（18 测试）
+
+**关键设计**：
+- 按行而非字节存储，`maxLines` 语义直观
+- 不完整行存 partial，下次 append 拼接——保证流式数据被正确切分
+- seq 每次 append +1 不论内容（空字符串也算），契合"版本戳"语义
+- 超过 maxLines × 1.1 才裁剪——把 splice 成本均摊
+- `getFullContent()` 重建带 \n 的原始流，让 history_sync 接收方与实时画面一致
+
+**踩坑**：测试用 `not.toContain('line1')` 时会被 `line11`/`line10` 子串命中导致误判——改用精确等值断言。
+
+**测试**：18/18 通过，backend 累计 47/47。
 
 ### 1.3 WsServer
 （待开始）
