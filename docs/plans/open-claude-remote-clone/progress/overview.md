@@ -15,14 +15,14 @@
 | 2  | 认证与安全                  | ✅ 完成   | 11/11 | [stage-02.md](./stage-02.md) |
 | 3  | 审批通知                    | ✅ 完成   | 8/8  | [stage-03.md](./stage-03.md) |
 | 4  | 配置体系                    | ✅ 完成   | 11/11 | [stage-04.md](./stage-04.md) |
-| 5  | 文件锁 + 共享 Token + 二维码 | ⏳ 待开始 | 0/7  | [stage-05.md](./stage-05.md) |
+| 5  | 文件锁 + 共享 Token + 二维码 | ✅ 完成   | 7/7  | [stage-05.md](./stage-05.md) |
 | 6a | 多实例（后端）              | ⏳ 待开始 | 0/7  | [stage-06a.md](./stage-06a.md) |
 | 6b | 多实例（前端 + Web 创建）   | ⏳ 待开始 | 0/6  | [stage-06b.md](./stage-06b.md) |
 | 7  | attach 子命令               | ⏳ 待开始 | 0/6  | [stage-07.md](./stage-07.md) |
 | 8  | IP 漂移 + ANSI 过滤         | ⏳ 待开始 | 0/7  | [stage-08.md](./stage-08.md) |
 | 9  | Web Push                    | ⏳ 待开始 | 0/7  | [stage-09.md](./stage-09.md) |
 | 10 | 打磨与发布                  | ⏳ 待开始 | 0/7  | [stage-10.md](./stage-10.md) |
-|    | **总计**                    |          | **49/96** ||
+|    | **总计**                    |          | **56/96** ||
 
 **状态图例**：⏳ 待开始 · 🔄 进行中 · ✅ 完成 · ⚠ 阻塞
 
@@ -35,7 +35,7 @@
 | ADR | 状态 | 说明 |
 |---|---|---|
 | 001 | ⏳ | PTY + Hooks 审批方案 |
-| 002 | ⏳ | mkdir-as-lock 文件锁选型 |
+| 002 | ✅ | mkdir-as-lock 文件锁选型 |
 | 003 | ⏳ | Cookie 名后缀绑端口 |
 | 004 | ⏳ | webapp/attach 主从仲裁 |
 | 005 | ⏳ | WS 输出三阈值批合并 |
@@ -55,8 +55,8 @@
 
 ## 上次更新
 
-2026-05-05 · 阶段 4 完成（11/11 步骤），CLI 解析（cli-utils 16 单测）+ UserConfig/AppConfig + loadConfig
-+ loadUserConfig（损坏自动备份 + 兜底）+ saveUserConfig（atomic 写入）+ /api/config（GET/PUT，6 单测）
-+ frontend useUserConfig（含 localStorage 兜底）+ SettingsModal/ShortcutSettings/CommandSettings
-+ ConsolePage 接 InputBar 快捷键栏 + 设置按钮。180/180 backend 单测 + 15/15 shared 单测 +
-stage-04 smoke 8/8 通过。
+2026-05-05 · 阶段 5 完成（7/7 步骤），mkdir-as-lock 文件锁（7 单测，含僵尸清理与 5 路并发竞争）
++ network 工具 RFC1918/displayIp（14 单测）+ shared-token withFileLock + double-check（6 单测，
+含 5 路并发唯一性）+ qrcode-banner（3 单测）+ index.ts 接 detectDisplayIp / shared-token /
+QR banner + CORS 含 displayIp + ADR 002 mkdir-as-lock 已记录。210/210 backend 单测 + 15/15
+shared 单测 + stage-05 smoke 4/4 通过（含跨实例 token 共享验证）。
