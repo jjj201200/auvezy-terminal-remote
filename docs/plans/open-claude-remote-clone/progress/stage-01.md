@@ -16,8 +16,8 @@
 
 - [x] **1.1** PtyManager（node-pty 包装、resize 去重、4 事件）+ 单测
 - [x] **1.2** OutputBuffer（按行环形缓冲、partial line、seq）+ 单测
-- [ ] **1.3** WsServer（noServer upgrade、心跳、3 个 hook）+ 单测
-- [ ] **1.4** ws-handler（消息分发器）+ 单测
+- [x] **1.3** WsServer（noServer upgrade、心跳、3 个 hook）+ 单测
+- [x] **1.4** ws-handler（消息分发器）+ 单测
 - [ ] **1.5** SessionController（PTY↔WS 桥接、批合并、history_sync）+ 单测
 - [ ] **1.6** TerminalRelay（PC 终端 raw mode + 双 Ctrl+C + Kitty 协议）+ 单测
 - [ ] **1.7** frontend useTerminal hook（xterm + addons + 批写入 + auto-follow）
@@ -63,11 +63,33 @@
 
 **测试**：18/18 通过，backend 累计 47/47。
 
-### 1.3 WsServer
-（待开始）
+### 1.3 WsServer · 完成 2026-05-05
 
-### 1.4 ws-handler
-（待开始）
+**产出**：
+- `backend/src/ws/ws-server.ts`（noServer 模式 + 心跳 + 三 hook + WeakMap 客户端类型映射）
+- `backend/src/ws/ws-server.test.ts`（9 测试，起真实 HTTP server + WS 客户端）
+
+**关键设计**：
+- noServer 模式手挂 `httpServer.on('upgrade')`，仅 pathname `/ws` 通过，其它直接 destroy
+- 客户端类型用 `WeakMap<IncomingMessage, ClientType>` 在 upgrade 阶段记录，connection 阶段读取——WeakMap 自动 GC 不留泄露
+- `WsServerOptions.authenticate` 是一个回调，让阶段 2 注入 AuthModule 时不需要改 ws-server 主体
+- 心跳定时器用 `unref()` 避免阻塞 `process.exit`
+- broadcast 序列化一次循环发送
+
+**测试**：9/9 通过（路径鉴权、authenticate hook、onConnect/onMessage/onDisconnect、broadcast、counts、destroy）
+
+### 1.4 ws-handler · 完成 2026-05-05
+
+**产出**：
+- `backend/src/ws/ws-handler.ts`（switch on type 派发到回调，heartbeat 在本层回包不进业务）
+- `backend/src/ws/ws-handler.test.ts`（10 测试 mock WebSocket）
+
+**关键设计**：
+- 非法 JSON / 缺字段 / 类型错误一律静默忽略 + warn 日志，不抛异常（防恶意客户端崩代理）
+- heartbeat 在本层直接 ws.send 回包，不污染 SessionController
+- callbacks 拆细到 `onUserInput / onResize`——业务层不需要看到协议形状
+
+**测试**：10/10 通过
 
 ### 1.5 SessionController
 （待开始）
