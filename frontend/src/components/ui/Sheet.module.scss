@@ -8,7 +8,11 @@
   inset: 0;
   z-index: t.$z-overlay;
   @include m.glass-overlay;
-  animation: fade-in t.$dur-base t.$ease both;
+  // open / close 各自的关键帧由 Radix 的 data-state 控制
+  animation: fade-in t.$dur-modal t.$ease both;
+  &[data-state='closed'] {
+    animation: fade-out t.$dur-modal t.$ease both;
+  }
 }
 
 // ──────────────── 桌面 Dialog ────────────────
@@ -29,7 +33,10 @@
   background: t.$bg-elev;
   outline: none;
   box-shadow: t.$shadow-3;
-  animation: pop-in t.$dur-base t.$ease both;
+  animation: pop-in t.$dur-modal t.$ease both;
+  &[data-state='closed'] {
+    animation: pop-out t.$dur-modal t.$ease both;
+  }
 
   // 抽屉内默认全部禁止文字选中：避免拖拽 / 长按时把无关文字"刷蓝"，
   // 也阻止 vaul 在选中文本时混淆为拖拽手势。
@@ -92,17 +99,25 @@
   min-height: 36px;
 }
 
-// header 中部空间：可放 Tabs.List 这类导航
-.headerExtra {
+// tabs 模式：header 内嵌 ScrollableTabs，标题被 sr-only
+// 关键：min-width: 0 + flex: 1 让 ScrollableTabs 容器真正受限于剩余宽度，
+// 否则它会按内容撑出去把 close 推出 modal 边界
+.headerWithTabs {
+  padding-left: t.$sp-3;  // tabs 自带按钮内 padding，外层缩一点更紧凑
+  padding-right: t.$sp-3;
+}
+
+.headerTabs {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin-right: t.$sp-3;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
+  // tab 栏只允许横向手势 / 滚轮，纵向手势不透传到 modal body
+  // （否则在 tab 上竖向滑动会把整个 settings body 也带着滚）
+  touch-action: pan-x;
+  overscroll-behavior: contain;
+  // 让 ScrollableTabs 内部 .scroller 继承同一手势策略
+  > * {
+    touch-action: pan-x;
+  }
 }
 
 .headerMobile {
@@ -115,6 +130,9 @@
   color: t.$fg;
   font-weight: 500;
   letter-spacing: t.$tracking-tight;
+  // 避免与 headerExtra 抢空间导致 tabs 溢出 modal 边界
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .close {
@@ -172,6 +190,11 @@
   to { opacity: 1; }
 }
 
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 @keyframes pop-in {
   from {
     opacity: 0;
@@ -180,5 +203,16 @@
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes pop-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.985);
   }
 }

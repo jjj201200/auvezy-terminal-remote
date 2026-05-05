@@ -8,6 +8,7 @@
  */
 
 import { useState, type JSX } from 'react';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './IpChangeToast.module.scss';
 
 export interface IpChangeInfo {
@@ -23,6 +24,7 @@ export interface IpChangeToastProps {
 }
 
 export function IpChangeToast({ info, onDismiss }: IpChangeToastProps): JSX.Element | null {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   if (!info) return null;
 
@@ -41,7 +43,7 @@ export function IpChangeToast({ info, onDismiss }: IpChangeToastProps): JSX.Elem
   return (
     <div id="ip-change-toast" role="alert" aria-live="polite" className={s.root}>
       <div className={s.body}>
-        <span className={s.title}>服务端 IP 已变化</span>
+        <span className={s.title}>{t('ipChange.title')}</span>
         <span className={s.ips}>
           {info.oldIp} → <strong>{info.newIp}</strong>
         </span>
@@ -49,10 +51,10 @@ export function IpChangeToast({ info, onDismiss }: IpChangeToastProps): JSX.Elem
       </div>
       <div className={s.actions}>
         <button type="button" onClick={() => void copy()} className={s.actionBtn}>
-          {copied ? '已复制' : '复制链接'}
+          {copied ? t('ipChange.copied') : t('ipChange.copy')}
         </button>
         <button type="button" onClick={onDismiss} className={s.actionBtn}>
-          关闭
+          {t('ipChange.dismiss')}
         </button>
       </div>
     </div>

@@ -8,11 +8,11 @@
  * 「通知」tab 不需要保存按钮（PushToggle 内部按钮即生效），所以 footer 在该 tab 下不渲染。
  */
 
-import { useEffect, useState, type JSX } from 'react';
-import * as Tabs from '@radix-ui/react-tabs';
+import { useEffect, useMemo, useState, type JSX } from 'react';
 import type { UserConfig } from '@otr/shared';
-import clsx from 'clsx';
-import { Sheet } from '../ui/Sheet.js';
+import { Sheet, type SheetTab } from '../ui/Sheet.js';
+import { useT } from '../../i18n/i18n-context.js';
+import { LanguageSwitch } from '../../i18n/LanguageSwitch.js';
 import { ShortcutSettings } from './ShortcutSettings.js';
 import { CommandSettings } from './CommandSettings.js';
 import { DisplaySettings } from './DisplaySettings.js';
@@ -26,7 +26,7 @@ export interface SettingsModalProps {
   onClose: () => void;
 }
 
-type TabKey = 'shortcuts' | 'commands' | 'display' | 'notifications';
+type TabKey = 'shortcuts' | 'commands' | 'display' | 'general' | 'notifications';
 
 export function SettingsModal({
   open,
@@ -34,6 +34,7 @@ export function SettingsModal({
   onSave,
   onClose,
 }: SettingsModalProps): JSX.Element {
+  const t = useT();
   const [tab, setTab] = useState<TabKey>('shortcuts');
   const [draft, setDraft] = useState<UserConfig>(current);
   const [saving, setSaving] = useState(false);
@@ -50,80 +51,70 @@ export function SettingsModal({
     const ok = await onSave(draft);
     setSaving(false);
     if (ok) onClose();
-    else alert('保存失败，请稍后重试');
+    else alert(t('settings.saveError'));
   };
 
-  const tabBtnCls = (key: TabKey): string =>
-    clsx(s.tabBtn, tab === key && s.tabBtnActive);
+  // tabs 直接喂给 Sheet header（用 ScrollableTabs 自带溢出处理，与 Toolbar 同款）
+  const tabs: SheetTab[] = useMemo(
+    () => [
+      { id: 'shortcuts', title: t('settings.tab.shortcuts') },
+      { id: 'commands', title: t('settings.tab.commands') },
+      { id: 'display', title: t('settings.tab.display') },
+      { id: 'general', title: t('settings.tab.general') },
+      { id: 'notifications', title: t('settings.tab.notifications') },
+    ],
+    [t],
+  );
 
   return (
-    <Tabs.Root
-      value={tab}
-      onValueChange={(v) => setTab(v as TabKey)}
+    <Sheet
+      id="settings-modal"
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title={t('settings.title')}
+      tabs={tabs}
+      activeTab={tab}
+      onTabChange={(id) => setTab(id as TabKey)}
+      footer={
+        tab !== 'notifications' && tab !== 'general' ? (
+          <>
+            <button type="button" onClick={onClose} className={s.cancelBtn}>
+              {t('common.cancel')}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleSave()}
+              className={s.saveBtn}
+            >
+              {saving ? t('settings.saving') : t('common.save')}
+            </button>
+          </>
+        ) : undefined
+      }
     >
-      <Sheet
-        id="settings-modal"
-        open={open}
-        onOpenChange={(next) => {
-          if (!next) onClose();
-        }}
-        title="设置"
-        headerExtra={
-          <Tabs.List className={s.tabsList}>
-            <Tabs.Trigger value="shortcuts" className={tabBtnCls('shortcuts')}>
-              快捷键
-            </Tabs.Trigger>
-            <Tabs.Trigger value="commands" className={tabBtnCls('commands')}>
-              命令
-            </Tabs.Trigger>
-            <Tabs.Trigger value="display" className={tabBtnCls('display')}>
-              显示
-            </Tabs.Trigger>
-            <Tabs.Trigger value="notifications" className={tabBtnCls('notifications')}>
-              通知
-            </Tabs.Trigger>
-          </Tabs.List>
-        }
-        footer={
-          tab !== 'notifications' ? (
-            <>
-              <button type="button" onClick={onClose} className={s.cancelBtn}>
-                取消
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void handleSave()}
-                className={s.saveBtn}
-              >
-                {saving ? '保存中…' : '保存'}
-              </button>
-            </>
-          ) : undefined
-        }
-      >
-        <Tabs.Content value="shortcuts">
-          <ShortcutSettings
-            value={draft.shortcuts ?? []}
-            onChange={(shortcuts) => setDraft({ ...draft, shortcuts })}
-          />
-        </Tabs.Content>
-        <Tabs.Content value="commands">
-          <CommandSettings
-            value={draft.commands ?? []}
-            onChange={(commands) => setDraft({ ...draft, commands })}
-          />
-        </Tabs.Content>
-        <Tabs.Content value="display">
-          <DisplaySettings
-            value={draft.display}
-            onChange={(display) => setDraft({ ...draft, display })}
-          />
-        </Tabs.Content>
-        <Tabs.Content value="notifications">
-          <PushToggle />
-        </Tabs.Content>
-      </Sheet>
-    </Tabs.Root>
+      {tab === 'shortcuts' && (
+        <ShortcutSettings
+          value={draft.shortcuts ?? []}
+          onChange={(shortcuts) => setDraft({ ...draft, shortcuts })}
+        />
+      )}
+      {tab === 'commands' && (
+        <CommandSettings
+          value={draft.commands ?? []}
+          onChange={(commands) => setDraft({ ...draft, commands })}
+        />
+      )}
+      {tab === 'display' && (
+        <DisplaySettings
+          value={draft.display}
+          onChange={(display) => setDraft({ ...draft, display })}
+        />
+      )}
+      {tab === 'general' && <LanguageSwitch />}
+      {tab === 'notifications' && <PushToggle />}
+    </Sheet>
   );
 }

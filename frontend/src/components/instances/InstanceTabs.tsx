@@ -9,6 +9,7 @@ import { type JSX } from 'react';
 import { IconPlus } from '@tabler/icons-react';
 import type { InstanceListItem } from '@otr/shared';
 import clsx from 'clsx';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './InstanceTabs.module.scss';
 
 export interface InstanceTabsProps {
@@ -17,13 +18,14 @@ export interface InstanceTabsProps {
 }
 
 export function InstanceTabs({ instances, onCreateClick }: InstanceTabsProps): JSX.Element {
+  const t = useT();
   const handleSwitch = (i: InstanceListItem): void => {
     if (i.isCurrent) return;
     window.location.assign(`http://${i.host}:${i.port}/`);
   };
 
   return (
-    <nav id="instance-tabs" className={s.nav} aria-label="实例切换">
+    <nav id="instance-tabs" className={s.nav} aria-label={t('instance.instancesAriaLabel')}>
       {instances.map((i) => (
         <button
           key={i.instanceId}
@@ -40,8 +42,8 @@ export function InstanceTabs({ instances, onCreateClick }: InstanceTabsProps): J
       <button
         type="button"
         onClick={onCreateClick}
-        title="创建新实例"
-        aria-label="创建新实例"
+        title={t('instance.create')}
+        aria-label={t('instance.create')}
         className={s.add}
       >
         <IconPlus size={12} stroke={1.5} />

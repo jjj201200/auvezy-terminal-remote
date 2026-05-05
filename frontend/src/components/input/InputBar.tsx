@@ -9,13 +9,14 @@
  */
 
 import {
+  forwardRef,
   useCallback,
-  type JSX,
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
 import { IconSend, IconSettings } from '@tabler/icons-react';
 import { IconButton } from '../ui/IconButton.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './InputBar.module.scss';
 
 export interface InputBarProps {
@@ -30,13 +31,18 @@ export interface InputBarProps {
   onOpenSettings?: () => void;
 }
 
-export function InputBar({
+/**
+ * forwardRef 暴露内部 input —— 让父级（ConsolePage）能在用户点终端区时
+ * 主动 focus()，把软键盘弹出后的焦点接到这里
+ */
+export const InputBar = forwardRef<HTMLInputElement, InputBarProps>(function InputBar({
   value,
   onChange,
   onSubmit,
   disabled,
   onOpenSettings,
-}: InputBarProps): JSX.Element {
+}, ref) {
+  const t = useT();
   const send = useCallback((): void => {
     if (disabled) return;
     const data = value + '\r';
@@ -65,8 +71,9 @@ export function InputBar({
   return (
     <form id="input-bar" onSubmit={onFormSubmit} className={s.form}>
       <input
+        ref={ref}
         type="text"
-        placeholder={disabled ? '未连接…' : '输入命令，回车发送'}
+        placeholder={disabled ? t('input.placeholderDisabled') : t('input.placeholder')}
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
@@ -81,15 +88,15 @@ export function InputBar({
         type="submit"
         variant="accent"
         disabled={disabled || value.length === 0}
-        aria-label="发送"
+        aria-label={t('input.sendTooltip')}
       >
         <IconSend size={14} stroke={1.5} />
       </IconButton>
       {onOpenSettings && (
-        <IconButton onClick={onOpenSettings} aria-label="设置" title="设置">
+        <IconButton onClick={onOpenSettings} aria-label={t('topBar.settings')} title={t('topBar.settingsTooltip')}>
           <IconSettings size={14} stroke={1.5} />
         </IconButton>
       )}
     </form>
   );
-}
+});

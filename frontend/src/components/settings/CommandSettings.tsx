@@ -32,6 +32,7 @@ import {
 import clsx from 'clsx';
 import { Toggle } from '../ui/Toggle.js';
 import { useDragReorder, type DropIndicator } from '../../hooks/useDragReorder.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './ShortcutSettings.module.scss';
 import sc from './CommandSettings.module.scss';
 
@@ -49,10 +50,11 @@ interface EditingState {
 }
 
 const CUSTOM_GROUP_ID: CommandGroupId = 'custom';
-const CUSTOM_GROUP_TITLE = '自定义';
-const CUSTOM_GROUP_DESC = '你新增的命令，或来自旧版本配置但未指定分组的项。可自由编辑、删除。';
 
 export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.Element {
+  const t = useT();
+  const CUSTOM_GROUP_TITLE = t('toolbar.customGroup');
+  const CUSTOM_GROUP_DESC = t('commands.descPlaceholder');
   const [expanded, setExpanded] = useState<Set<CommandGroupId>>(new Set(['session']));
   const [editing, setEditing] = useState<EditingState | null>(null);
 
@@ -181,7 +183,7 @@ export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.
           isCustomGroup ? (
             <button type="button" onClick={addCustom} className={s.addBtn}>
               <IconPlus size={12} stroke={1.5} />
-              新增
+              {t('list.add')}
             </button>
           ) : undefined
         }
@@ -226,7 +228,7 @@ export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.
           }}
         >
           <IconGripVertical size={12} stroke={1.5} />
-          <span className={s.dragGhostLabel}>{ghostItem.label || '未命名'}</span>
+          <span className={s.dragGhostLabel}>{ghostItem.label || t('commands.unnamed')}</span>
           <span className={s.dragGhostData}>{ghostItem.command}</span>
         </div>
       )}
@@ -269,6 +271,7 @@ function GroupBlock({
   children,
   footer,
 }: GroupBlockProps): JSX.Element {
+  const t = useT();
   const allOn = totalCount > 0 && enabledCount === totalCount;
   return (
     <section className={clsx(s.group, isDropTarget && s.groupDropTarget)} data-group-id={groupId}>
@@ -295,7 +298,7 @@ function GroupBlock({
             onClick={allOn ? onDisableAll : onEnableAll}
             className={s.bulkBtn}
           >
-            {allOn ? '全部禁用' : '全部启用'}
+            {allOn ? t('list.disableAll') : t('list.enableAll')}
           </button>
         )}
       </div>
@@ -303,7 +306,7 @@ function GroupBlock({
       {isOpen && (
         <div className={s.body}>
           {desc && <p className={s.desc}>{desc}</p>}
-          {totalCount === 0 && !footer && <p className={s.empty}>暂无命令（可拖入）</p>}
+          {totalCount === 0 && !footer && <p className={s.empty}>{t('commands.emptyList')}</p>}
           <div className={s.list} ref={registerListEl}>
             {children}
           </div>
@@ -345,6 +348,7 @@ function RowWithIndicator({
   onCancel,
   onDelete,
 }: RowWithIndicatorProps): JSX.Element {
+  const t = useT();
   const inEdit = editing !== null;
   const auto = command.autoSend ?? true;
   const isDragSource = dragSourceIdx === idx;
@@ -361,7 +365,7 @@ function RowWithIndicator({
           <input
             type="text"
             value={editing.label}
-            placeholder="名称"
+            placeholder={t('commands.namePlaceholder')}
             onChange={(e) => onChangeField({ label: e.target.value })}
             autoFocus
             className={sc.editLabel}
@@ -369,7 +373,7 @@ function RowWithIndicator({
           <input
             type="text"
             value={editing.command}
-            placeholder="命令文本（如 /clear）"
+            placeholder={t('commands.commandPlaceholder')}
             onChange={(e) => onChangeField({ command: e.target.value })}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -385,8 +389,8 @@ function RowWithIndicator({
           <button
             type="button"
             onClick={onCommit}
-            aria-label="保存"
-            title="保存"
+            aria-label={t('commands.saveTooltip')}
+            title={t('commands.saveTooltip')}
             className={s.commitBtn}
           >
             <IconCheck size={12} stroke={2} />
@@ -394,8 +398,8 @@ function RowWithIndicator({
           <button
             type="button"
             onClick={onCancel}
-            aria-label="取消"
-            title="取消"
+            aria-label={t('commands.cancelTooltip')}
+            title={t('commands.cancelTooltip')}
             className={s.cancelBtn}
           >
             <IconX size={12} stroke={1.5} />
@@ -405,7 +409,7 @@ function RowWithIndicator({
           <input
             type="text"
             value={editing.desc}
-            placeholder="描述（可选，按钮 title 与设置展示）"
+            placeholder={t('commands.descPlaceholder')}
             onChange={(e) => onChangeField({ desc: e.target.value })}
             className={sc.editDesc}
           />
@@ -414,7 +418,7 @@ function RowWithIndicator({
               checked={editing.autoSend}
               onCheckedChange={(checked) => onChangeField({ autoSend: checked })}
             />
-            <span>自动发送</span>
+            <span>{t('commands.autoSendLabel')}</span>
           </label>
         </div>
         {showIndicatorAfter && <div className={s.dropIndicatorBot} />}
@@ -434,10 +438,10 @@ function RowWithIndicator({
       {showIndicatorBefore && <div className={s.dropIndicatorTop} />}
       <Toggle checked={command.enabled} onCheckedChange={onToggleEnabled} />
       <span className={clsx(s.rowLabel, !command.label && s.rowLabelEmpty)}>
-        {command.label || '未命名'}
+        {command.label || t('commands.unnamed')}
       </span>
       <span className={clsx(s.rowData, !command.command && s.rowDataEmpty)}>
-        {command.command || '空'}
+        {command.command || t('commands.empty')}
       </span>
       <span className={clsx(sc.autoSendTag, !auto && sc.autoSendTagDraft)}>
         {auto ? '自动' : '编辑'}
@@ -450,8 +454,8 @@ function RowWithIndicator({
       <button
         type="button"
         onClick={onStartEdit}
-        aria-label="编辑"
-        title="编辑"
+        aria-label={t('commands.editTooltip')}
+        title={t('commands.editTooltip')}
         className={s.iconBtn}
       >
         <IconPencil size={12} stroke={1.5} />
@@ -459,15 +463,15 @@ function RowWithIndicator({
       <button
         type="button"
         onClick={onDelete}
-        aria-label="删除"
-        title="删除"
+        aria-label={t('commands.deleteTooltip')}
+        title={t('commands.deleteTooltip')}
         className={clsx(s.iconBtn, s.deleteBtn)}
       >
         <IconTrash size={12} stroke={1.5} />
       </button>
       <button
         type="button"
-        aria-label="拖动以重新排序 / 跨分组移动"
+        aria-label={t('commands.dragHandleTooltip')}
         className={s.gripBtn}
         {...handleProps}
       >

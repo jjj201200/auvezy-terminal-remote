@@ -2,20 +2,24 @@
 @use '../../styles/mixins' as m;
 
 // Tabs 现在嵌入到 Sheet header 同行，没有独立分隔线，每项是个紧凑按钮
+//
+// 5 个 tab 在窄屏会撑爆 header；外层 .headerExtra 已开 overflow-x:auto，
+// 这里让 tab 不被 flex 压缩并保持紧凑，超出时让 headerExtra 横向滚（不挤 title / close）
 .tabsList {
   display: flex;
   gap: t.$sp-1;
+  flex-shrink: 0; // 不被 header flex 容器挤压；超长走 headerExtra 滚动
 }
 
 .tabBtn {
   @include m.btn-reset;
-  padding: t.$sp-2 t.$sp-3;
+  padding: t.$sp-1 t.$sp-2;
   font-size: t.$fs-2xs;
-  letter-spacing: t.$tracking-wide;
-  text-transform: uppercase;
+  letter-spacing: t.$tracking-tight; // uppercase + wide 在 5 tab 时太宽，去掉
   color: t.$fg-dim;
   border: 1px solid transparent;
   white-space: nowrap;
+  flex-shrink: 0;
   @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast, text-shadow t.$dur-fast);
 
   &:hover {

@@ -1,0 +1,91 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+// ──────────────── 容器 ────────────────
+
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  // basis = 内容自然宽：和兄弟 HScroller 共占一行时，谁内容多谁占多
+  // 容器空间不够时，按 grow:1 等比压缩；caller 可在 className 里覆写
+  flex: 1 1 max-content;
+}
+
+// ──────────────── 滚动区 ────────────────
+
+.scroller {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  // 让浏览器层面就阻止纵向手势透传：拖 tab/按钮列表时不会带动外层滚
+  touch-action: pan-x;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  user-select: none;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+// rtl 方向：物理上仍从左往右滚动，但视觉上 children 从右往左排列
+.scrollerRtl {
+  flex-direction: row-reverse;
+}
+
+// ──────────────── 左右箭头按钮 ────────────────
+
+.arrow {
+  @include m.btn-reset;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  align-self: stretch;
+  color: t.$fg-low;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, t.$bg-elev 96%, transparent) 0%,
+    color-mix(in srgb, t.$bg-elev 96%, transparent) 60%,
+    transparent 100%
+  );
+  @include m.transition(color t.$dur-fast, opacity t.$dur-fast, transform t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    color: t.$fg;
+  }
+}
+
+.arrowLeft {
+  // 渐变方向已经是从左到右
+}
+
+.arrowRight {
+  background: linear-gradient(
+    to left,
+    color-mix(in srgb, t.$bg-elev 96%, transparent) 0%,
+    color-mix(in srgb, t.$bg-elev 96%, transparent) 60%,
+    transparent 100%
+  );
+}
+
+// 完全隐藏（从未溢出）：不占位
+.arrowGone {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+}
+
+// 端点态（已溢出但已到端）：保留宽度避免内容区抖动，仅视觉淡出 + 禁用交互
+.arrowDisabled {
+  opacity: 0.25;
+  pointer-events: none;
+  cursor: default;
+}

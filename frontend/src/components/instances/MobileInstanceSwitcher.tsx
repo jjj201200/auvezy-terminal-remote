@@ -10,6 +10,7 @@ import { IconLayoutGrid, IconPlus } from '@tabler/icons-react';
 import type { InstanceListItem } from '@otr/shared';
 import clsx from 'clsx';
 import { Sheet } from '../ui/Sheet.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './MobileInstanceSwitcher.module.scss';
 
 export interface MobileInstanceSwitcherProps {
@@ -21,6 +22,7 @@ export function MobileInstanceSwitcher({
   instances,
   onCreateClick,
 }: MobileInstanceSwitcherProps): JSX.Element {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const current = instances.find((i) => i.isCurrent);
 
@@ -39,14 +41,14 @@ export function MobileInstanceSwitcher({
         type="button"
         onClick={() => setOpen(true)}
         className={s.trigger}
-        aria-label="切换实例"
+        aria-label={t('topBar.switchInstance')}
       >
         <IconLayoutGrid size={12} stroke={1.5} />
-        <span className={s.triggerName}>{current?.name ?? '未命名'}</span>
+        <span className={s.triggerName}>{current?.name ?? t('shortcuts.unnamed')}</span>
         <span className={s.triggerPort}>:{current?.port ?? '-'}</span>
       </button>
 
-      <Sheet id="mobile-instance-sheet" open={open} onOpenChange={setOpen} title="实例">
+      <Sheet id="mobile-instance-sheet" open={open} onOpenChange={setOpen} title={t('instance.sheetTitle')}>
         <div className={s.list}>
           {instances.map((i) => (
             <button
@@ -71,7 +73,7 @@ export function MobileInstanceSwitcher({
             className={s.create}
           >
             <IconPlus size={14} stroke={1.5} />
-            创建新实例
+            {t('instance.create')}
           </button>
         </div>
       </Sheet>

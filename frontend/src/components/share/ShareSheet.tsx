@@ -22,6 +22,7 @@ import {
 } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { Sheet } from '../ui/Sheet.js';
+import { useT } from '../../i18n/i18n-context.js';
 import { loadToken } from '../../services/token-storage.js';
 import { fetchShareEndpoints, type ShareEndpoint } from '../../services/share-api.js';
 import s from './ShareSheet.module.scss';
@@ -31,15 +32,17 @@ export interface ShareSheetProps {
   onOpenChange: (next: boolean) => void;
 }
 
-const KIND_LABEL: Record<ShareEndpoint['kind'], string> = {
-  lan: 'LAN',
-  tailscale: 'Tailscale',
-  loopback: 'Loopback',
-  ipv6: 'IPv6',
-  other: '其它',
+/** kind → i18n key 映射，运行时通过 t() 解码（避免编译期就锁死中文/英文） */
+const KIND_KEY: Record<ShareEndpoint['kind'], string> = {
+  lan: 'share.kindLan',
+  tailscale: 'share.kindTailscale',
+  loopback: 'share.kindLoopback',
+  ipv6: 'share.kindIpv6',
+  other: 'share.kindOther',
 };
 
 export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element {
+  const t = useT();
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [endpoints, setEndpoints] = useState<ShareEndpoint[]>([]);
@@ -64,13 +67,13 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
         const defaultIdx = list.findIndex((e) => e.isDefault);
         setSelectedIdx(defaultIdx !== -1 ? defaultIdx : list.length > 0 ? 0 : -1);
       } else {
-        setLoadError(res.error?.message ?? '加载入口失败');
+        setLoadError(res.error?.message ?? t('share.loadError'));
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, t]);
 
   // 当前选中的入口
   const selected: ShareEndpoint | null =
@@ -163,7 +166,7 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
         const defaultIdx = list.findIndex((e) => e.isDefault);
         setSelectedIdx(defaultIdx !== -1 ? defaultIdx : list.length > 0 ? 0 : -1);
       } else {
-        setLoadError(res.error?.message ?? '加载入口失败');
+        setLoadError(res.error?.message ?? t('share.loadError'));
       }
     });
   };
@@ -172,40 +175,38 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title="分享此实例"
+      title={t('share.title')}
       id="share-sheet"
       className={s.sheet}
     >
       <div className={s.body}>
-        <p className={s.intro}>
-          扫码或复制链接让其它设备直接登录此实例
-        </p>
+        <p className={s.intro}>{t('share.intro')}</p>
 
         {devPortHint && (
           <div className={s.devHint}>
-            当前页面在 dev 代理 :{devPortHint.winPort}，分享链接指向真后端 :{devPortHint.realPort}
+            {t('share.devHint', { win: devPortHint.winPort, real: devPortHint.realPort })}
           </div>
         )}
 
         {/* 入口选择 */}
         <div className={s.endpointSection}>
           <div className={s.sectionLabelRow}>
-            <span className={s.sectionLabel}>选择入口</span>
+            <span className={s.sectionLabel}>{t('share.sectionLabel')}</span>
             <button
               type="button"
               onClick={handleRefresh}
               disabled={loading}
               className={s.refreshBtn}
-              title="刷新入口列表"
-              aria-label="刷新入口列表"
+              title={t('share.refreshTooltip')}
+              aria-label={t('share.refreshTooltip')}
             >
               <IconRefresh size={14} stroke={1.5} />
             </button>
           </div>
-          {loading && <div className={s.loading}>加载入口…</div>}
+          {loading && <div className={s.loading}>{t('share.loading')}</div>}
           {loadError && <div className={s.error}>{loadError}</div>}
           {!loading && !loadError && endpoints.length > 0 && (
-            <div className={s.endpointList} role="radiogroup" aria-label="可用入口">
+            <div className={s.endpointList} role="radiogroup" aria-label={t('share.endpointListAria')}>
               {endpoints.map((ep, idx) => {
                 const active = idx === selectedIdx;
                 return (
@@ -217,7 +218,7 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
                     onClick={() => setSelectedIdx(idx)}
                     className={`${s.endpointItem} ${active ? s.endpointItemActive : ''}`}
                   >
-                    <span className={s.endpointKind}>{KIND_LABEL[ep.kind]}</span>
+                    <span className={s.endpointKind}>{t(KIND_KEY[ep.kind])}</span>
                     <span className={s.endpointHost}>
                       {ep.host}:{ep.port}
                     </span>
@@ -236,7 +237,7 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
           {fullUrl ? (
             <canvas ref={renderQr} className={s.qr} />
           ) : (
-            <div className={s.qrEmpty}>选择入口后生成二维码</div>
+            <div className={s.qrEmpty}>{t('share.qrEmpty')}</div>
           )}
         </div>
 
@@ -246,18 +247,18 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
             type="text"
             readOnly
             value={displayUrl}
-            placeholder="选择入口后显示链接"
+            placeholder={t('share.qrEmpty')}
             className={s.urlInput}
             onFocus={(e) => e.currentTarget.select()}
-            aria-label="实例链接"
+            aria-label={t('share.urlAriaLabel')}
           />
           <button
             type="button"
             className={s.iconBtn}
             onClick={() => setRevealed((v) => !v)}
             disabled={!fullUrl}
-            title={revealed ? '隐藏 token' : '显示 token'}
-            aria-label={revealed ? '隐藏 token' : '显示 token'}
+            title={revealed ? t('share.hideTooltip') : t('share.revealTooltip')}
+            aria-label={revealed ? t('share.hideTooltip') : t('share.revealTooltip')}
           >
             {revealed ? (
               <IconEyeOff size={16} stroke={1.5} />
@@ -270,8 +271,8 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
             className={s.iconBtn}
             onClick={() => void handleCopy()}
             disabled={!fullUrl}
-            title="复制完整链接（含 token）"
-            aria-label="复制完整链接"
+            title={t('share.copyTooltip')}
+            aria-label={t('share.copyAriaLabel')}
           >
             {copied ? (
               <IconCheck size={16} stroke={1.5} />
@@ -281,11 +282,7 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
           </button>
         </div>
 
-        <p className={s.hint}>
-          token 自带于链接中，扫码 / 打开后无需再次输入。
-          <br />
-          切换入口可针对不同网络（局域网 / Tailscale / 本机回环）生成对应二维码。
-        </p>
+        <p className={s.hint} style={{ whiteSpace: 'pre-line' }}>{t('share.hint')}</p>
       </div>
     </Sheet>
   );

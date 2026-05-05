@@ -154,6 +154,8 @@ $dur-snap:    80ms;
 $dur-fast:    120ms;
 $dur-base:    180ms;
 $dur-slow:    280ms;
+// modal / drawer 的入场出场，比 base 慢一档让收起感觉更"扎实"
+$dur-modal:   260ms;
 
 // ──────────────── 层级 ────────────────
 

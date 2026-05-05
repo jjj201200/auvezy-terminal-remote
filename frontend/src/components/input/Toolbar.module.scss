@@ -17,7 +17,7 @@
   display: flex;
   align-items: stretch;
   min-width: 0;
-  padding: t.$bar-pad t.$bar-pad 0;
+  // padding: t.$bar-pad t.$bar-pad 0;
   border-bottom: 1px solid t.$border;
   // 给 ScrollableTabs 用的 underline 锚定
   position: relative;
@@ -36,23 +36,24 @@
 }
 
 // 语义占位：左半快捷键分类区 / 右半命令分类区
-.shortcutCats {
-  // 让左半边在挤压时优先压缩
-  min-width: 0;
-}
+// 每边至少占 toolbar 的 33%（含 padding，approx），避免一边内容多就把另一边挤没；
+// 剩余空间按 max-content 比例分（HScroller wrap 默认 flex: 1 1 max-content）
+.shortcutCats,
 .commandCats {
-  min-width: 0;
+  min-width: 33%;
 }
 
 // ──────────────── 下行：当前分类下的快捷键/命令按钮 ────────────────
 
+// 按钮区外层（HScroller 的 wrap 容器追加 className）
 .keys {
-  @include m.row-flex(t.$bar-gap);
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-  padding: t.$bar-pad;
   min-height: 28px;
+}
+
+// HScroller 内部 .scroller 追加：padding 放在这里（不挡箭头），gap 在 children 之间
+.keysScroller {
+  gap: t.$bar-gap;
+  padding: t.$bar-pad;
 }
 
 .btn {

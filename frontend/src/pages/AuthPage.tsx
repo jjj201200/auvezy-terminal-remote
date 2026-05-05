@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState, type JSX, type FormEvent } from 'react';
+import { useT } from '../i18n/i18n-context.js';
 import s from './AuthPage.module.scss';
 
 export interface AuthPageProps {
@@ -17,6 +18,7 @@ export interface AuthPageProps {
 }
 
 export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
+  const t = useT();
   const [token, setToken] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,17 +51,15 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
           <span className={s.brandName}>open-terminal-remote</span>
         </div>
 
-        <h1 className={s.title}>Authenticate</h1>
-        <p className={s.subtitle}>
-          Enter the access token shown when the server started.
-        </p>
+        <h1 className={s.title}>{t('authPage.title')}</h1>
+        <p className={s.subtitle}>{t('authPage.subtitle')}</p>
 
         <form className={s.form} onSubmit={handleSubmit}>
-          <span className={s.fieldLabel}>Access token</span>
+          <span className={s.fieldLabel}>{t('authPage.fieldLabel')}</span>
           <input
             type="password"
             className={s.input}
-            placeholder="64-char hex"
+            placeholder={t('authPage.placeholder')}
             value={token}
             onChange={(e) => setToken(e.target.value)}
             disabled={submitting}
@@ -77,14 +77,12 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
             disabled={submitting || token.trim().length === 0}
             className={s.submit}
           >
-            {submitting ? 'Verifying…' : 'Authenticate'}
+            {submitting ? t('authPage.submitting') : t('authPage.submit')}
           </button>
         </form>
 
         <div className={s.divider} />
-        <p className={s.hint}>
-          Scan the terminal QR code or paste the token shown on launch. Token is stored on this device only.
-        </p>
+        <p className={s.hint}>{t('authPage.hint')}</p>
       </div>
     </main>
   );

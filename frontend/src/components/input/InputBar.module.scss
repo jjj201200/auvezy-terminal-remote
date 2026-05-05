@@ -20,7 +20,7 @@
   color: t.$fg;
   padding: t.$sp-0 t.$sp-3;
   font-family: t.$font-mono;
-  font-size: t.$fs-md;
+  font-size: t.$fs-sm;
   outline: none;
   @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
 
@@ -32,7 +32,9 @@
     border-color: t.$border-hi;
   }
 
-  &:focus-visible {
+  // 用 :focus 而非 :focus-visible：程序 focus()（如点 terminal 转移焦点）不
+  // 触发 focus-visible，用户看不到焦点反馈。文本输入框任何方式聚焦都该有 ring
+  &:focus {
     border-color: t.$accent;
     box-shadow: t.$shadow-focus;
   }

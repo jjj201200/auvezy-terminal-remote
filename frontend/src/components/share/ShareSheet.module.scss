@@ -94,7 +94,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 180px;
+  // 单项约 36px + 4px gap → 减两行：从 5 行（~180px）降到 3 行
+  max-height: 108px;
   overflow-y: auto;
   padding: 2px; // 给 focus ring 留点空间
 }

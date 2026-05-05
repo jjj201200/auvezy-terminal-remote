@@ -32,17 +32,14 @@ import {
 } from '@otr/shared';
 import clsx from 'clsx';
 import { ScrollableTabs, type ScrollableTabItem } from './ScrollableTabs.js';
+import { HScroller } from '../ui/HScroller.js';
 import { PressPreview } from '../ui/PressPreview.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './Toolbar.module.scss';
 
-const CUSTOM_SHORTCUT_GROUP: { id: ShortcutGroupId; title: string } = {
-  id: 'custom',
-  title: '自定义',
-};
-const CUSTOM_COMMAND_GROUP: { id: CommandGroupId; title: string } = {
-  id: 'custom',
-  title: '自定义',
-};
+// id 是协议字段不变，title 在组件内通过 t() 渲染
+const CUSTOM_SHORTCUT_GROUP_ID: ShortcutGroupId = 'custom';
+const CUSTOM_COMMAND_GROUP_ID: CommandGroupId = 'custom';
 
 export interface ToolbarProps {
   shortcuts?: ConfigurableShortcut[];
@@ -70,17 +67,20 @@ export function Toolbar({
   onPrefillCommand,
   disabled,
 }: ToolbarProps): JSX.Element | null {
+  const t = useT();
+  const customLabel = t('toolbar.customGroup');
+
   // ──────── 快捷键按 group 分桶（仅启用项）────────
   const shortcutBuckets = useMemo(() => {
     const map = new Map<string, ConfigurableShortcut[]>();
     for (const g of SHORTCUT_GROUPS) map.set(g.id, []);
-    map.set(CUSTOM_SHORTCUT_GROUP.id, []);
+    map.set(CUSTOM_SHORTCUT_GROUP_ID, []);
     for (const sc of shortcuts ?? []) {
       if (!sc.enabled) continue;
       const gid =
         sc.group && map.has(sc.group as string)
           ? (sc.group as string)
-          : CUSTOM_SHORTCUT_GROUP.id;
+          : CUSTOM_SHORTCUT_GROUP_ID;
       map.get(gid)!.push(sc);
     }
     return map;
@@ -90,13 +90,13 @@ export function Toolbar({
   const commandBuckets = useMemo(() => {
     const map = new Map<string, ConfigurableCommand[]>();
     for (const g of COMMAND_GROUPS) map.set(g.id, []);
-    map.set(CUSTOM_COMMAND_GROUP.id, []);
+    map.set(CUSTOM_COMMAND_GROUP_ID, []);
     for (const c of commands ?? []) {
       if (!c.enabled) continue;
       const gid =
         c.group && map.has(c.group as string)
           ? (c.group as string)
-          : CUSTOM_COMMAND_GROUP.id;
+          : CUSTOM_COMMAND_GROUP_ID;
       map.get(gid)!.push(c);
     }
     return map;
@@ -110,11 +110,11 @@ export function Toolbar({
         arr.push({ id: g.id, title: g.title });
       }
     }
-    if ((shortcutBuckets.get(CUSTOM_SHORTCUT_GROUP.id) ?? []).length > 0) {
-      arr.push({ id: CUSTOM_SHORTCUT_GROUP.id, title: CUSTOM_SHORTCUT_GROUP.title });
+    if ((shortcutBuckets.get(CUSTOM_SHORTCUT_GROUP_ID) ?? []).length > 0) {
+      arr.push({ id: CUSTOM_SHORTCUT_GROUP_ID, title: customLabel });
     }
     return arr;
-  }, [shortcutBuckets]);
+  }, [shortcutBuckets, customLabel]);
 
   const visibleCommandGroups = useMemo<ScrollableTabItem[]>(() => {
     const arr: ScrollableTabItem[] = [];
@@ -123,11 +123,11 @@ export function Toolbar({
         arr.push({ id: g.id, title: g.title });
       }
     }
-    if ((commandBuckets.get(CUSTOM_COMMAND_GROUP.id) ?? []).length > 0) {
-      arr.push({ id: CUSTOM_COMMAND_GROUP.id, title: CUSTOM_COMMAND_GROUP.title });
+    if ((commandBuckets.get(CUSTOM_COMMAND_GROUP_ID) ?? []).length > 0) {
+      arr.push({ id: CUSTOM_COMMAND_GROUP_ID, title: customLabel });
     }
     return arr;
-  }, [commandBuckets]);
+  }, [commandBuckets, customLabel]);
 
   // ──────── 激活态 ────────
   const [active, setActive] = useState<ActiveState | null>(null);
@@ -198,14 +198,19 @@ export function Toolbar({
         )}
       </div>
 
-      {/* 下行：当前激活组下的按钮 */}
-      <div className={s.keys}>
-        {active === null && <span className={s.empty}>选择一个分类</span>}
+      {/* 下行：当前激活组下的按钮 —— 用 HScroller 与上方分类行同款溢出策略 */}
+      <HScroller
+        className={s.keys}
+        scrollerClassName={s.keysScroller}
+        disabled={disabled}
+        refreshKey={active?.kind === 'shortcut' ? activeShortcuts : activeCommands}
+      >
+        {active === null && <span className={s.empty}>{t('toolbar.pickGroup')}</span>}
         {active?.kind === 'shortcut' && activeShortcuts.length === 0 && (
-          <span className={s.empty}>该分组暂无启用项</span>
+          <span className={s.empty}>{t('toolbar.groupEmpty')}</span>
         )}
         {active?.kind === 'command' && activeCommands.length === 0 && (
-          <span className={s.empty}>该分组暂无启用项</span>
+          <span className={s.empty}>{t('toolbar.groupEmpty')}</span>
         )}
 
         {active?.kind === 'shortcut' &&
@@ -241,7 +246,7 @@ export function Toolbar({
               </PressPreview>
             );
           })}
-      </div>
+      </HScroller>
     </div>
   );
 }

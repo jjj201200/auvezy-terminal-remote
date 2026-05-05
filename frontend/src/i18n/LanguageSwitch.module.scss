@@ -1,0 +1,72 @@
+@use '../styles/tokens' as t;
+@use '../styles/mixins' as m;
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-4;
+  padding: t.$sp-2 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-1;
+}
+
+.title {
+  margin: 0;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.hint {
+  margin: 0;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-base;
+}
+
+.row {
+  display: flex;
+  gap: t.$sp-2;
+  flex-wrap: wrap;
+}
+
+.btn {
+  appearance: none;
+  padding: t.$sp-2 t.$sp-4;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  background: t.$bg-input;
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+  min-width: 96px;
+  text-align: center;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    border-color: t.$border-hi;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+.btnActive {
+  color: t.$accent;
+  border-color: t.$accent;
+  background: t.$accent-soft;
+
+  &:hover {
+    color: t.$accent;
+    border-color: t.$accent;
+  }
+}

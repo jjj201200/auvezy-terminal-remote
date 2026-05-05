@@ -8,6 +8,7 @@
 import type { JSX } from 'react';
 import { IconArrowDown } from '@tabler/icons-react';
 import clsx from 'clsx';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './ScrollToBottomButton.module.scss';
 
 export interface ScrollToBottomButtonProps {
@@ -19,14 +20,15 @@ export function ScrollToBottomButton({
   visible,
   onClick,
 }: ScrollToBottomButtonProps): JSX.Element | null {
+  const t = useT();
   if (!visible) return null;
   return (
     <button
       id="scroll-to-bottom-btn"
       type="button"
       onClick={onClick}
-      aria-label="返回底部"
-      title="返回底部"
+      aria-label={t('scrollToBottom.label')}
+      title={t('scrollToBottom.label')}
       className={clsx(s.root, 'hide-on-keyboard')}
     >
       <IconArrowDown size={18} stroke={1.5} />

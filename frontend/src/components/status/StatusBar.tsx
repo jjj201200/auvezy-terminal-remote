@@ -11,6 +11,7 @@ import type { JSX } from 'react';
 import type { SessionStatus } from '@otr/shared';
 import type { ConnectionStatus } from '../../stores/app-store.js';
 import { Pill, type PillTone } from '../ui/Pill.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './StatusBar.module.scss';
 
 export interface StatusBarProps {
@@ -20,17 +21,17 @@ export interface StatusBarProps {
   onReconnect?: () => void;
 }
 
-const CONN_LABEL: Record<ConnectionStatus, string> = {
-  connecting: '连接中',
-  connected: '已连接',
-  disconnected: '已断开',
+const CONN_KEY: Record<ConnectionStatus, string> = {
+  connecting: 'status.connecting',
+  connected: 'status.connected',
+  disconnected: 'status.disconnected',
 };
 
-const SESSION_LABEL: Record<SessionStatus, string> = {
-  pty_pending: '等待启动',
-  idle: '空闲',
-  running: '运行中',
-  waiting_input: '等待审批',
+const SESSION_KEY: Record<SessionStatus, string> = {
+  pty_pending: 'status.ptyPending',
+  idle: 'status.idle',
+  running: 'status.running',
+  waiting_input: 'status.waitingInput',
 };
 
 const CONN_TONE: Record<ConnectionStatus, PillTone> = {
@@ -47,9 +48,11 @@ const SESSION_TONE: Record<SessionStatus, PillTone> = {
 };
 
 export function StatusBar({ connection, session, onReconnect }: StatusBarProps): JSX.Element {
-  // disconnected + 提供了 onReconnect → 渲染按钮（语义可访问）；其它状态仍是静态 Pill
+  const t = useT();
   const canReconnect = connection === 'disconnected' && typeof onReconnect === 'function';
-  const connectionLabel = canReconnect ? '已断开 · 重连' : CONN_LABEL[connection];
+  const connectionLabel = canReconnect
+    ? t('status.disconnectedReconnect')
+    : t(CONN_KEY[connection]);
 
   return (
     <div id="status-bar" className={s.root}>
@@ -58,8 +61,8 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
           type="button"
           className={s.reconnectBtn}
           onClick={onReconnect}
-          title="立即重新连接"
-          aria-label="立即重新连接"
+          title={t('status.reconnectTooltip')}
+          aria-label={t('status.reconnectTooltip')}
         >
           <Pill tone={CONN_TONE[connection]} className={s.statusConnection}>
             {connectionLabel}
@@ -71,7 +74,7 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
         </Pill>
       )}
       <Pill tone={SESSION_TONE[session]} className={s.statusSession}>
-        {SESSION_LABEL[session]}
+        {t(SESSION_KEY[session])}
       </Pill>
     </div>
   );

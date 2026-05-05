@@ -7,9 +7,11 @@
 import { type JSX } from 'react';
 import { usePushNotification } from '../../hooks/usePushNotification.js';
 import { Pill, type PillTone } from '../ui/Pill.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './PushToggle.module.scss';
 
 export function PushToggle(): JSX.Element {
+  const t = useT();
   const { status, unsupportReason, busy, error, subscribe, unsubscribe } =
     usePushNotification();
 
@@ -23,31 +25,31 @@ export function PushToggle(): JSX.Element {
     case 'unsupported':
       // 不再笼统报"不支持"——细分到可执行的引导
       if (unsupportReason === 'insecure_context') {
-        label = '当前是 HTTP 连接，浏览器禁用 Web Push；请用 HTTPS 或 localhost 访问';
-        toneText = '需 HTTPS';
+        label = t('push.needHttpsHint');
+        toneText = t('push.needHttps');
       } else {
-        label = '当前浏览器缺少 ServiceWorker / PushManager API';
-        toneText = '不支持';
+        label = t('push.notSupportedHint');
+        toneText = t('push.notSupported');
       }
       tone = 'muted';
       disabled = true;
       break;
     case 'denied':
-      label = '通知权限被禁，请在系统设置中开启';
-      toneText = '已禁';
+      label = t('push.deniedHint');
+      toneText = t('push.statusDenied');
       tone = 'error';
       disabled = true;
       break;
     case 'subscribed':
-      label = busy ? '处理中…' : '点击关闭推送';
-      toneText = '已开启';
+      label = busy ? t('push.busy') : t('push.clickToDisable');
+      toneText = t('push.statusOn');
       tone = 'ok';
       onClick = () => void unsubscribe();
       break;
     case 'unsubscribed':
     default:
-      label = busy ? '处理中…' : '点击开启推送';
-      toneText = '未开启';
+      label = busy ? t('push.busy') : t('push.clickToEnable');
+      toneText = t('push.statusOff');
       tone = 'muted';
       onClick = () => void subscribe();
   }
@@ -56,7 +58,7 @@ export function PushToggle(): JSX.Element {
     <div id="push-toggle" className={s.root}>
       <div className={s.head}>
         <Pill tone={tone}>{toneText}</Pill>
-        <span className={s.headDesc}>Claude 触发审批时通过 Web Push 通知到本设备</span>
+        <span className={s.headDesc}>{t('push.headDesc')}</span>
       </div>
       <button
         type="button"

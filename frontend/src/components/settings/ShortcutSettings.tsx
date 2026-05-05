@@ -32,6 +32,7 @@ import clsx from 'clsx';
 import { encodeForInput, decodeFromInput } from '../../utils/escape-codec.js';
 import { Toggle } from '../ui/Toggle.js';
 import { useDragReorder, type DropIndicator } from '../../hooks/useDragReorder.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './ShortcutSettings.module.scss';
 
 export interface ShortcutSettingsProps {
@@ -47,10 +48,11 @@ interface EditingState {
 }
 
 const CUSTOM_GROUP_ID: ShortcutGroupId = 'custom';
-const CUSTOM_GROUP_TITLE = '自定义';
-const CUSTOM_GROUP_DESC = '你新增的快捷键，或来自旧版本配置但未指定分组的项。可自由编辑、删除。';
 
 export function ShortcutSettings({ value, onChange }: ShortcutSettingsProps): JSX.Element {
+  const t = useT();
+  const CUSTOM_GROUP_TITLE = t('toolbar.customGroup');
+  const CUSTOM_GROUP_DESC = t('shortcuts.descPlaceholder');
   const [expanded, setExpanded] = useState<Set<ShortcutGroupId>>(new Set(['common']));
   const [editing, setEditing] = useState<EditingState | null>(null);
 
@@ -176,7 +178,7 @@ export function ShortcutSettings({ value, onChange }: ShortcutSettingsProps): JS
           isCustomGroup ? (
             <button type="button" onClick={addCustom} className={s.addBtn}>
               <IconPlus size={12} stroke={1.5} />
-              新增
+              {t('list.add')}
             </button>
           ) : undefined
         }
@@ -228,7 +230,7 @@ export function ShortcutSettings({ value, onChange }: ShortcutSettingsProps): JS
           }}
         >
           <IconGripVertical size={12} stroke={1.5} />
-          <span className={s.dragGhostLabel}>{ghostItem.label || '未命名'}</span>
+          <span className={s.dragGhostLabel}>{ghostItem.label || t('shortcuts.unnamed')}</span>
           <span className={s.dragGhostData}>{encodeForInput(ghostItem.data)}</span>
         </div>
       )}
@@ -271,6 +273,7 @@ function GroupBlock({
   children,
   footer,
 }: GroupBlockProps): JSX.Element {
+  const t = useT();
   const allOn = totalCount > 0 && enabledCount === totalCount;
   return (
     <section className={clsx(s.group, isDropTarget && s.groupDropTarget)} data-group-id={groupId}>
@@ -297,7 +300,7 @@ function GroupBlock({
             onClick={allOn ? onDisableAll : onEnableAll}
             className={s.bulkBtn}
           >
-            {allOn ? '全部禁用' : '全部启用'}
+            {allOn ? t('list.disableAll') : t('list.enableAll')}
           </button>
         )}
       </div>
@@ -305,7 +308,7 @@ function GroupBlock({
       {isOpen && (
         <div className={s.body}>
           {desc && <p className={s.desc}>{desc}</p>}
-          {totalCount === 0 && !footer && <p className={s.empty}>暂无快捷键（可拖入）</p>}
+          {totalCount === 0 && !footer && <p className={s.empty}>{t('shortcuts.emptyList')}</p>}
           <div className={s.list} ref={registerListEl}>
             {children}
           </div>
@@ -349,6 +352,7 @@ function RowWithIndicator({
   onCancel,
   onDelete,
 }: RowWithIndicatorProps): JSX.Element {
+  const t = useT();
   const inEdit = editing !== null;
   const dataDisplay = encodeForInput(shortcut.data);
   const isDragSource = dragSourceIdx === idx;
@@ -365,7 +369,7 @@ function RowWithIndicator({
           <input
             type="text"
             value={editing.label}
-            placeholder="名称"
+            placeholder={t('shortcuts.namePlaceholder')}
             onChange={(e) => onChangeLabel(e.target.value)}
             autoFocus
             className={s.editLabelInput}
@@ -373,7 +377,7 @@ function RowWithIndicator({
           <input
             type="text"
             value={editing.dataRaw}
-            placeholder="\\e \\r \\xHH …"
+            placeholder={t('shortcuts.dataPlaceholder')}
             onChange={(e) => onChangeDataRaw(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -389,8 +393,8 @@ function RowWithIndicator({
           <button
             type="button"
             onClick={onCommit}
-            aria-label="保存"
-            title="保存"
+            aria-label={t('shortcuts.saveTooltip')}
+            title={t('shortcuts.saveTooltip')}
             className={s.commitBtn}
           >
             <IconCheck size={12} stroke={2} />
@@ -398,8 +402,8 @@ function RowWithIndicator({
           <button
             type="button"
             onClick={onCancel}
-            aria-label="取消"
-            title="取消"
+            aria-label={t('shortcuts.cancelTooltip')}
+            title={t('shortcuts.cancelTooltip')}
             className={s.cancelBtn}
           >
             <IconX size={12} stroke={1.5} />
@@ -423,10 +427,10 @@ function RowWithIndicator({
       {showIndicatorBefore && <div className={s.dropIndicatorTop} />}
       <Toggle checked={shortcut.enabled} onCheckedChange={onToggleEnabled} />
       <span className={clsx(s.rowLabel, !shortcut.label && s.rowLabelEmpty)}>
-        {shortcut.label || '未命名'}
+        {shortcut.label || t('shortcuts.unnamed')}
       </span>
       <span className={clsx(s.rowData, !dataDisplay && s.rowDataEmpty)}>
-        {dataDisplay || '空'}
+        {dataDisplay || t('shortcuts.empty')}
       </span>
       {shortcut.desc && (
         <span className={s.rowDesc} title={shortcut.desc}>
@@ -436,8 +440,8 @@ function RowWithIndicator({
       <button
         type="button"
         onClick={onStartEdit}
-        aria-label="编辑"
-        title="编辑"
+        aria-label={t('shortcuts.editTooltip')}
+        title={t('shortcuts.editTooltip')}
         className={s.iconBtn}
       >
         <IconPencil size={12} stroke={1.5} />
@@ -445,15 +449,15 @@ function RowWithIndicator({
       <button
         type="button"
         onClick={onDelete}
-        aria-label="删除"
-        title="删除"
+        aria-label={t('shortcuts.deleteTooltip')}
+        title={t('shortcuts.deleteTooltip')}
         className={clsx(s.iconBtn, s.deleteBtn)}
       >
         <IconTrash size={12} stroke={1.5} />
       </button>
       <button
         type="button"
-        aria-label="拖动以重新排序 / 跨分组移动"
+        aria-label={t('shortcuts.dragHandleTooltip')}
         className={s.gripBtn}
         {...handleProps}
       >

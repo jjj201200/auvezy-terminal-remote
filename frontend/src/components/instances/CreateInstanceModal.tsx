@@ -9,6 +9,7 @@
 import { useEffect, useState, type JSX, type FormEvent } from 'react';
 import { Sheet } from '../ui/Sheet.js';
 import { TextField } from '../ui/TextField.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './CreateInstanceModal.module.scss';
 
 export interface CreateInstanceModalProps {
@@ -22,6 +23,7 @@ export function CreateInstanceModal({
   onSubmit,
   onClose,
 }: CreateInstanceModalProps): JSX.Element {
+  const t = useT();
   const [cwd, setCwd] = useState('');
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -39,7 +41,7 @@ export function CreateInstanceModal({
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     if (!cwd.trim()) {
-      setError('cwd 不能为空');
+      setError(t('instance.errorEmptyCwd'));
       return;
     }
     setSubmitting(true);
@@ -47,7 +49,7 @@ export function CreateInstanceModal({
     const ok = await onSubmit(cwd.trim(), name.trim() || undefined);
     setSubmitting(false);
     if (ok) onClose();
-    else setError('创建失败：请检查 cwd 是否存在');
+    else setError(t('instance.errorCreateFailed'));
   };
 
   return (
@@ -57,11 +59,11 @@ export function CreateInstanceModal({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      title="创建新实例"
+      title={t('instance.create')}
       footer={
         <>
           <button type="button" onClick={onClose} className={s.cancelBtn}>
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
@@ -69,17 +71,17 @@ export function CreateInstanceModal({
             disabled={submitting || cwd.trim().length === 0}
             className={s.submitBtn}
           >
-            {submitting ? '创建中…' : '创建'}
+            {submitting ? t('instance.submitting') : t('instance.submit')}
           </button>
         </>
       }
     >
       <form id="create-instance-form" className={s.form} onSubmit={handleSubmit}>
         <label className={s.field}>
-          <span className={s.fieldLabel}>工作目录（cwd）</span>
+          <span className={s.fieldLabel}>{t('instance.workdirLabel')}</span>
           <TextField
             type="text"
-            placeholder="/home/me/code/foo"
+            placeholder={t('instance.workdirHelper')}
             value={cwd}
             mono
             onChange={(e) => setCwd(e.target.value)}
@@ -90,10 +92,10 @@ export function CreateInstanceModal({
           />
         </label>
         <label className={s.field}>
-          <span className={s.fieldLabel}>实例名（可选）</span>
+          <span className={s.fieldLabel}>{t('instance.nameLabelOptional')}</span>
           <TextField
             type="text"
-            placeholder="留空则用 cwd 末段"
+            placeholder={t('instance.namePlaceholder')}
             value={name}
             mono
             onChange={(e) => setName(e.target.value)}

@@ -15,19 +15,31 @@ import { Drawer } from 'vaul';
 import { IconX } from '@tabler/icons-react';
 import clsx from 'clsx';
 import { useMediaQuery } from '../../hooks/useMediaQuery.js';
+import { useT } from '../../i18n/i18n-context.js';
+import { ScrollableTabs } from '../input/ScrollableTabs.js';
 import s from './Sheet.module.scss';
+
+/** Sheet header 内嵌 tab 栏的描述（用 ScrollableTabs 渲染，自动处理溢出） */
+export interface SheetTab {
+  id: string;
+  title: string;
+}
 
 export interface SheetProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
+  /** Dialog/Drawer 的标题（始终需要——给 sr-only 的 Dialog.Title 用，保 a11y） */
   title: string;
   children: ReactNode;
   footer?: ReactNode;
   /**
-   * 渲染在 header 标题与关闭按钮之间的额外内容。
-   * 适合放 Tabs.List 这类「不应跟随内容滚动」的导航元素。
+   * 当传入 tabs 时，header 同行直接渲染 ScrollableTabs（替代 title 显示），
+   * 用与 Toolbar 同款的横向滚动方案处理溢出，不再被挤出 modal 边界。
+   * 需要同时受控 activeTab + onTabChange。
    */
-  headerExtra?: ReactNode;
+  tabs?: ReadonlyArray<SheetTab>;
+  activeTab?: string;
+  onTabChange?: (id: string) => void;
   className?: string;
   /** 可选 DOM id（用于唯一容器，如 settings-modal / create-instance-modal） */
   id?: string;
@@ -39,11 +51,27 @@ export function Sheet({
   title,
   children,
   footer,
-  headerExtra,
+  tabs,
+  activeTab,
+  onTabChange,
   className,
   id,
 }: SheetProps): JSX.Element {
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const t = useT();
+
+  // header 主区域：tabs 模式 → ScrollableTabs（自动溢出滚动）；否则显示 title 文本
+  const headerMain = tabs && tabs.length > 0 ? (
+    <ScrollableTabs
+      items={tabs as { id: string; title: string }[]}
+      activeId={activeTab ?? null}
+      onChange={(id) => onTabChange?.(id)}
+      direction="ltr"
+      className={s.headerTabs}
+    />
+  ) : (
+    <span className={s.title}>{title}</span>
+  );
 
   if (isMobile) {
     return (
@@ -58,15 +86,15 @@ export function Sheet({
         <Drawer.Portal>
           <Drawer.Overlay className={s.overlay} />
           <Drawer.Content id={id} className={clsx(s.drawerContent, className)}>
+            {/* a11y 必填：Drawer.Title 始终存在但 sr-only，避免 vaul/Radix 警告 */}
             <Drawer.Title className={s.srOnly}>{title}</Drawer.Title>
             <Drawer.Handle className={s.drawerGrip} />
-            <header className={clsx(s.header, s.headerMobile)}>
-              <span className={s.title}>{title}</span>
-              {headerExtra && <div className={s.headerExtra}>{headerExtra}</div>}
+            <header className={clsx(s.header, s.headerMobile, tabs && s.headerWithTabs)}>
+              {headerMain}
               <button
                 type="button"
                 onClick={() => onOpenChange(false)}
-                aria-label="关闭"
+                aria-label={t('common.close')}
                 className={s.close}
               >
                 <IconX size={16} stroke={1.5} />
@@ -87,11 +115,16 @@ export function Sheet({
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
         <Dialog.Content id={id} className={clsx(s.dialogContent, className)}>
-          <header className={s.header}>
-            <Dialog.Title className={s.title}>{title}</Dialog.Title>
-            {headerExtra && <div className={s.headerExtra}>{headerExtra}</div>}
+          {/* tabs 模式下 Dialog.Title 隐藏到 sr-only（Radix 仍要求一个 Title 节点） */}
+          {tabs && tabs.length > 0 && (
+            <Dialog.Title className={s.srOnly}>{title}</Dialog.Title>
+          )}
+          <header className={clsx(s.header, tabs && s.headerWithTabs)}>
+            {tabs && tabs.length > 0 ? headerMain : (
+              <Dialog.Title className={s.title}>{title}</Dialog.Title>
+            )}
             <Dialog.Close asChild>
-              <button type="button" aria-label="关闭" className={s.close}>
+              <button type="button" aria-label={t('common.close')} className={s.close}>
                 <IconX size={16} stroke={1.5} />
               </button>
             </Dialog.Close>

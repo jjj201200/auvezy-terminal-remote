@@ -27,6 +27,7 @@ import {
 } from '@otr/shared';
 import clsx from 'clsx';
 import { XTERM_FONT_SIZE } from '../../config/constants.js';
+import { useT } from '../../i18n/i18n-context.js';
 import s from './DisplaySettings.module.scss';
 
 // 与 useTerminal 同源：mono 字符宽度 / fontSize 比例
@@ -55,6 +56,7 @@ const COLS_MIN = 40;
 const COLS_MAX = 240;
 
 export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.Element {
+  const t = useT();
   const targetCols = value?.targetCols ?? DEFAULT_DISPLAY.targetCols;
   const letterSpacing = value?.letterSpacing ?? DEFAULT_DISPLAY.letterSpacing;
 
@@ -120,10 +122,8 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
       {/* 预览：用 xterm 主题色 + Geist Mono，按当前算法反推字号 */}
       <section className={s.section}>
         <header className={s.sectionHeader}>
-          <h3 className={s.sectionTitle}>预览</h3>
-          <p className={s.sectionHint}>
-            按当前列数与字间距渲染。预览框宽度可能与终端不同，仅作视觉密度参考。
-          </p>
+          <h3 className={s.sectionTitle}>{t('display.previewTitle')}</h3>
+          <p className={s.sectionHint}>{t('display.previewHint')}</p>
         </header>
         <div
           ref={previewRef}
@@ -155,8 +155,13 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
             <span className={s.cYellow}>'./missing'</span>
           </div>
           <div className={s.previewMeta}>
-            字号 {previewFontSize}px · 间距 {letterSpacing.toFixed(1)}px ·{' '}
-            列数 {targetCols > 0 ? `目标 ${targetCols}` : '自动'}
+            {t('display.previewMeta', {
+              size: previewFontSize,
+              ls: letterSpacing.toFixed(1),
+              cols: targetCols > 0
+                ? t('display.colsModeTarget', { cols: targetCols })
+                : t('display.colsModeAuto'),
+            })}
           </div>
         </div>
       </section>
@@ -164,10 +169,8 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
       {/* 列数 */}
       <section className={s.section}>
         <header className={s.sectionHeader}>
-          <h3 className={s.sectionTitle}>目标列数</h3>
-          <p className={s.sectionHint}>
-            按容器宽度反推字号，目标每行字符数。手机窄屏推荐 80。
-          </p>
+          <h3 className={s.sectionTitle}>{t('display.targetColsTitle')}</h3>
+          <p className={s.sectionHint}>{t('display.targetColsHint')}</p>
         </header>
 
         <div className={s.row}>
@@ -175,9 +178,9 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
             type="button"
             onClick={() => setCols(0)}
             className={clsx(s.presetBtn, targetCols === 0 && s.presetBtnActive)}
-            title="关闭自适应，使用默认字号"
+            title={t('display.autoTooltip')}
           >
-            自动
+            {t('display.autoLabel')}
           </button>
           {COLS_PRESETS.map((p) => (
             <button
@@ -195,11 +198,11 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
             min={COLS_MIN}
             max={COLS_MAX}
             value={colsInput}
-            placeholder="自定义"
+            placeholder={t('display.customPlaceholder')}
             onChange={(e) => handleColsInput(e.target.value)}
             onBlur={handleColsBlur}
             className={s.numInput}
-            aria-label="自定义列数"
+            aria-label={t('display.customAriaLabel')}
           />
         </div>
       </section>
@@ -207,10 +210,8 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
       {/* 字间距 */}
       <section className={s.section}>
         <header className={s.sectionHeader}>
-          <h3 className={s.sectionTitle}>字间距</h3>
-          <p className={s.sectionHint}>
-            等宽字符之间的额外间距（px）。负值压缩、正值拉宽，0 为默认。
-          </p>
+          <h3 className={s.sectionTitle}>{t('display.letterSpacingTitle')}</h3>
+          <p className={s.sectionHint}>{t('display.letterSpacingHint')}</p>
         </header>
 
         <div className={s.row}>
@@ -222,17 +223,19 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
             value={letterSpacing}
             onChange={(e) => setLetterSpacing(Number(e.target.value))}
             className={s.slider}
-            aria-label="字间距"
+            aria-label={t('display.letterSpacingAriaLabel')}
           />
-          <span className={s.valueLabel}>{letterSpacing.toFixed(1)} px</span>
+          <span className={s.valueLabel}>
+            {t('display.letterSpacingValue', { val: letterSpacing.toFixed(1) })}
+          </span>
           <button
             type="button"
             onClick={() => setLetterSpacing(0)}
             className={s.resetBtn}
             disabled={letterSpacing === 0}
-            title="重置为 0"
+            title={t('display.resetTooltip')}
           >
-            重置
+            {t('common.reset')}
           </button>
         </div>
       </section>

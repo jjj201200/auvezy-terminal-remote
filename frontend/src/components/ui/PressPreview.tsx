@@ -135,6 +135,9 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
         // 同时只允许一个 pointer
         if (stateRef.current.pointerId !== null) return;
 
+        // 阻止按钮默认聚焦行为：保留 InputBar 焦点，避免移动端键盘收起
+        e.preventDefault();
+
         try {
           btn.setPointerCapture(e.pointerId);
         } catch {

@@ -10,6 +10,7 @@
 import type { JSX } from 'react';
 import { useAuth } from './hooks/useAuth.js';
 import { useViewportFix } from './hooks/useViewportFix.js';
+import { useT } from './i18n/i18n-context.js';
 import { AuthPage } from './pages/AuthPage.js';
 import { ConsolePage } from './pages/ConsolePage.js';
 import s from './App.module.scss';
@@ -17,11 +18,12 @@ import s from './App.module.scss';
 export function App(): JSX.Element {
   useViewportFix();
   const { status, login } = useAuth();
+  const t = useT();
 
   if (status === 'pending') {
     return (
       <div id="app-loading" className={s.loading}>
-        <span className={s.loadingText}>loading</span>
+        <span className={s.loadingText}>{t('app.loading')}</span>
         <span className={s.loadingDot} />
       </div>
     );
