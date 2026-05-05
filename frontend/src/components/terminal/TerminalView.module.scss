@@ -6,12 +6,3 @@
   background: t.$bg-canvas;
 }
 
-// xterm SearchAddon 的 decoration 装饰：xterm 已经精确定位 + 设宽高，
-// 只覆盖 background-color，禁止再加 outline / box-shadow / border / padding 等
-// 影响布局或外溢的属性，否则会让命中区视觉偏移
-:global(.xterm-find-result-decoration) {
-  background-color: rgba(255, 140, 0, 0.45) !important;
-}
-:global(.xterm-find-active-result-decoration) {
-  background-color: rgba(255, 60, 120, 0.85) !important;
-}

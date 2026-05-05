@@ -25,7 +25,6 @@ import { useRef, useEffect, useState, useCallback, type RefObject } from 'react'
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import {
@@ -310,14 +309,9 @@ export function useTerminal(
 
     term.open(container);
 
-    // WebGL graceful 降级到 canvas
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
-      term.loadAddon(webgl);
-    } catch {
-      /* canvas renderer 是默认 fallback */
-    }
+    // 不加载 WebglAddon：webgl renderer 与 SearchAddon 的 decoration 不兼容
+    // （decoration 定位歪 + 不跟滚动），canvas 默认 renderer 行为正确。
+    // 性能差异在常规终端日志输出场景几乎不可感知。
 
     fitAddon.fit();
     // 等布局稳定后做首次 resize 上报
