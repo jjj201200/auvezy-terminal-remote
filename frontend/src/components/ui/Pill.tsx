@@ -28,7 +28,7 @@ export function Pill({ tone = 'muted', children, className }: PillProps): JSX.El
   return (
     <span
       className={cn(
-        'inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-mono whitespace-nowrap',
+        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono whitespace-nowrap',
         TONE_CLASS[tone],
         className,
       )}
