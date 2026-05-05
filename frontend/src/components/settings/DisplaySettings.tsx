@@ -187,38 +187,45 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
             {t('display.autoLabel')}
           </button>
           {/*
-            拖拽条范围 [SLIDER_MIN, SLIDER_MAX]（80~220），下方显示预设 tick 标签：
-            点 tick = 跳到该预设值。
-            输入框仍接受超出滑块范围的值（[COLS_MIN, COLS_MAX] = [40, 240]）。
+            拖拽条范围 [SLIDER_MIN, SLIDER_MAX]（80~220），下方显示预设 tick：
+            点 tick = 跳到该预设值。输入框接受超出滑块的值（[40, 240]）。
+            --fill 是已填充段百分比，由当前值与滑块范围算得；同样 tick 的 left 也按比例算
           */}
-          <div className={s.sliderWrap}>
-            <input
-              type="range"
-              min={SLIDER_MIN}
-              max={SLIDER_MAX}
-              step={1}
-              value={
-                targetCols > 0
-                  ? Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, targetCols))
-                  : SLIDER_MIN
-              }
-              onChange={(e) => setCols(Number(e.target.value))}
-              className={s.slider}
-              aria-label={t('display.targetColsTitle')}
-            />
-            <div className={s.sliderTicks}>
-              {COLS_PRESETS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setCols(p)}
-                  className={clsx(s.sliderTick, targetCols === p && s.sliderTickActive)}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
+          {(() => {
+            const v = targetCols > 0
+              ? Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, targetCols))
+              : SLIDER_MIN;
+            const fillPct = ((v - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
+            return (
+              <div className={s.colsSliderWrap}>
+                <input
+                  type="range"
+                  min={SLIDER_MIN}
+                  max={SLIDER_MAX}
+                  step={1}
+                  value={v}
+                  onChange={(e) => setCols(Number(e.target.value))}
+                  className={s.colsSlider}
+                  style={{ ['--fill' as string]: `${fillPct}%` }}
+                  aria-label={t('display.targetColsTitle')}
+                />
+                <div className={s.colsTicks} aria-hidden="true">
+                  {COLS_PRESETS.map((p) => {
+                    const left = ((p - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
+                    return (
+                      <span
+                        key={p}
+                        className={clsx(s.colsTick, targetCols === p && s.colsTickActive)}
+                        style={{ left: `${left}%` }}
+                      >
+                        {p}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           <input
             type="number"
             inputMode="numeric"
