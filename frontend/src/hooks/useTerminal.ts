@@ -507,8 +507,13 @@ export function useTerminal(
 
   const searchNext = useCallback((needle: string, opts?: SearchOpts): boolean => {
     const sa = searchAddonRef.current;
-    if (!sa || !needle) return false;
-    return sa.findNext(needle, {
+    const term = termRef.current;
+    if (!sa || !needle) {
+      // eslint-disable-next-line no-console
+      console.warn('[search] missing', { hasAddon: !!sa, needle });
+      return false;
+    }
+    const ok = sa.findNext(needle, {
       caseSensitive: opts?.caseSensitive,
       wholeWord: opts?.wholeWord,
       regex: opts?.regex,
@@ -519,6 +524,14 @@ export function useTerminal(
         activeMatchColorOverviewRuler: '#e06c75',
       },
     });
+    // eslint-disable-next-line no-console
+    console.warn('[search] findNext', {
+      needle,
+      ok,
+      hasSelection: term?.hasSelection(),
+      selection: term?.getSelection(),
+    });
+    return ok;
   }, []);
 
   const searchPrev = useCallback((needle: string, opts?: SearchOpts): boolean => {
