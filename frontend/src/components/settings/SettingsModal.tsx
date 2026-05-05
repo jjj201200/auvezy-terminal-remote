@@ -1,43 +1,41 @@
 /**
  * SettingsModal
  *
- * 设置面板：覆盖屏幕的简单 modal，含两个 tab：快捷键 / 命令。
+ * 设置面板：桌面 modal / 移动 sheet（共用 Sheet primitive）。
+ * 三个 tab：快捷键 / 命令 / 通知。
  *
- * 阶段 4 仅做最小可用：
- *  - 不做拖拽排序（@dnd-kit 留到阶段 4 之后或手动调整 order 字段）
- *  - 编辑模型：本地草稿（draft）→ 保存按钮 PUT
- *  - 取消 / 保存按钮均关闭 modal；保存失败时弹 alert（toast 系统在阶段 9 引入）
+ * 编辑模型：本地草稿（draft）→ 保存按钮 PUT；保存失败弹 alert（toast 系统未来引入）。
+ * 「通知」tab 不需要保存按钮（PushToggle 内部按钮即生效），所以 footer 在该 tab 下不渲染。
  */
 
 import { useEffect, useState, type JSX } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
 import type { UserConfig } from '@ocr/shared';
+import { Sheet } from '../ui/Sheet.js';
 import { ShortcutSettings } from './ShortcutSettings.js';
 import { CommandSettings } from './CommandSettings.js';
+import { PushToggle } from '../common/PushToggle.js';
+import { cn } from '../../utils/cn.js';
 
 export interface SettingsModalProps {
-  /** 是否显示 */
   open: boolean;
-  /** 当前生效的配置（来自 useUserConfig） */
   current: UserConfig;
-  /** 用户点保存：触发 useUserConfig.save；返回是否成功 */
   onSave: (next: UserConfig) => Promise<boolean>;
-  /** 关闭面板（取消或保存成功后调用） */
   onClose: () => void;
 }
 
-type Tab = 'shortcuts' | 'commands';
+type TabKey = 'shortcuts' | 'commands' | 'notifications';
 
 export function SettingsModal({
   open,
   current,
   onSave,
   onClose,
-}: SettingsModalProps): JSX.Element | null {
-  const [tab, setTab] = useState<Tab>('shortcuts');
+}: SettingsModalProps): JSX.Element {
+  const [tab, setTab] = useState<TabKey>('shortcuts');
   const [draft, setDraft] = useState<UserConfig>(current);
   const [saving, setSaving] = useState(false);
 
-  // 每次重新打开 modal 都把 draft 重置为最新值
   useEffect(() => {
     if (open) {
       setDraft(current);
@@ -45,92 +43,84 @@ export function SettingsModal({
     }
   }, [open, current]);
 
-  if (!open) return null;
-
   const handleSave = async (): Promise<void> => {
     setSaving(true);
     const ok = await onSave(draft);
     setSaving(false);
-    if (ok) {
-      onClose();
-    } else {
-      // 错误显示由 useUserConfig 内的 error 字段在外层呈现，这里仅简单提示
-      alert('保存失败，请稍后重试');
-    }
+    if (ok) onClose();
+    else alert('保存失败，请稍后重试');
   };
 
+  const tabBtnClass = (key: TabKey): string =>
+    cn(
+      'border-b-2 px-3 py-2 text-sm transition-colors',
+      tab === key
+        ? 'border-[var(--color-accent)] text-[var(--color-fg)] font-medium'
+        : 'border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]',
+    );
+
   return (
-    <div
-      className="settings-modal__backdrop"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
       }}
+      title="设置"
+      footer={
+        tab !== 'notifications' ? (
+          <>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg)]"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleSave()}
+              className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-[#0d1117] disabled:opacity-50"
+            >
+              {saving ? '保存中…' : '保存'}
+            </button>
+          </>
+        ) : undefined
+      }
     >
-      <div className="settings-modal__panel">
-        <header className="settings-modal__header">
-          <h2 className="settings-modal__title">设置</h2>
-          <button
-            type="button"
-            className="settings-modal__close"
-            onClick={onClose}
-            aria-label="关闭"
-          >
-            ×
-          </button>
-        </header>
-
-        <nav className="settings-modal__tabs">
-          <button
-            type="button"
-            className={`settings-modal__tab ${tab === 'shortcuts' ? 'settings-modal__tab--active' : ''}`}
-            onClick={() => setTab('shortcuts')}
-          >
+      <Tabs.Root
+        value={tab}
+        onValueChange={(v) => setTab(v as TabKey)}
+        className="flex flex-col gap-3"
+      >
+        <Tabs.List className="flex border-b border-[var(--color-border)]">
+          <Tabs.Trigger value="shortcuts" className={tabBtnClass('shortcuts')}>
             快捷键
-          </button>
-          <button
-            type="button"
-            className={`settings-modal__tab ${tab === 'commands' ? 'settings-modal__tab--active' : ''}`}
-            onClick={() => setTab('commands')}
-          >
+          </Tabs.Trigger>
+          <Tabs.Trigger value="commands" className={tabBtnClass('commands')}>
             命令
-          </button>
-        </nav>
+          </Tabs.Trigger>
+          <Tabs.Trigger value="notifications" className={tabBtnClass('notifications')}>
+            通知
+          </Tabs.Trigger>
+        </Tabs.List>
 
-        <main className="settings-modal__body">
-          {tab === 'shortcuts' && (
-            <ShortcutSettings
-              value={draft.shortcuts ?? []}
-              onChange={(shortcuts) => setDraft({ ...draft, shortcuts })}
-            />
-          )}
-          {tab === 'commands' && (
-            <CommandSettings
-              value={draft.commands ?? []}
-              onChange={(commands) => setDraft({ ...draft, commands })}
-            />
-          )}
-        </main>
-
-        <footer className="settings-modal__footer">
-          <button
-            type="button"
-            className="settings-modal__btn settings-modal__btn--ghost"
-            onClick={onClose}
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            className="settings-modal__btn settings-modal__btn--primary"
-            disabled={saving}
-            onClick={() => void handleSave()}
-          >
-            {saving ? '保存中…' : '保存'}
-          </button>
-        </footer>
-      </div>
-    </div>
+        <Tabs.Content value="shortcuts">
+          <ShortcutSettings
+            value={draft.shortcuts ?? []}
+            onChange={(shortcuts) => setDraft({ ...draft, shortcuts })}
+          />
+        </Tabs.Content>
+        <Tabs.Content value="commands">
+          <CommandSettings
+            value={draft.commands ?? []}
+            onChange={(commands) => setDraft({ ...draft, commands })}
+          />
+        </Tabs.Content>
+        <Tabs.Content value="notifications">
+          <PushToggle />
+        </Tabs.Content>
+      </Tabs.Root>
+    </Sheet>
   );
 }
