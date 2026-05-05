@@ -88,6 +88,12 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
     const [armed, setArmed] = useState(false);
     const [rect, setRect] = useState<ButtonRect | null>(null);
 
+    // 镜像 state 让 window 级 handler 拿到最新值（避免闭包过期）
+    const previewingRef = useRef(false);
+    const armedRef = useRef(false);
+    previewingRef.current = previewing;
+    armedRef.current = armed;
+
     // 跟踪当前 pointer 状态，避免闭包过期
     const stateRef = useRef<{
       pointerId: number | null;
@@ -95,7 +101,15 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
       startY: number;
       timer: number | null;
       released: boolean;
-    }>({ pointerId: null, startX: 0, startY: 0, timer: null, released: false });
+      windowHandlers: (() => void) | null;
+    }>({
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      timer: null,
+      released: false,
+      windowHandlers: null,
+    });
 
     const cleanup = useCallback(() => {
       if (stateRef.current.timer !== null) {
@@ -110,18 +124,78 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
           /* 已释放 */
         }
       }
+      // 解绑 window 兜底监听
+      stateRef.current.windowHandlers?.();
       stateRef.current = {
         pointerId: null,
         startX: 0,
         startY: 0,
         timer: null,
         released: false,
+        windowHandlers: null,
       };
       setPressing(false);
       setPreviewing(false);
       setArmed(false);
       setRect(null);
     }, []);
+
+    // 用 ref 间接调 onPress，保证 window handler 能拿到最新
+    const onPressRef = useRef(onPress);
+    onPressRef.current = onPress;
+    const disabledRef = useRef(disabled);
+    disabledRef.current = disabled;
+
+    /**
+     * 在 window 上绑兜底 pointerup / pointercancel：
+     * 浮层 confirm 按钮 portal 到 body 且 pointer-events:auto，iOS Safari 在
+     * 某些时序下 pointer-capture 会被夺走，导致原按钮收不到 pointerup → 卡在按下态
+     * 这层兜底确保任何位置释放都能 cleanup
+     */
+    const attachWindowListeners = useCallback(
+      (pointerId: number) => {
+        const onUp = (ev: PointerEvent): void => {
+          if (ev.pointerId !== pointerId) return;
+          const wasPreviewing = previewingRef.current;
+          const wasArmed = armedRef.current;
+          stateRef.current.released = true;
+          // 在 window 上重新做命中检测（不依赖原按钮收 pointermove）
+          const hit = document.elementsFromPoint(ev.clientX, ev.clientY);
+          const onConfirm = hit.some(
+            (el) => el instanceof HTMLElement && el.dataset.pressPreviewConfirm === '1',
+          );
+          cleanup();
+          if (disabledRef.current) return;
+          if (!wasPreviewing) {
+            // 短按：直接发送
+            onPressRef.current();
+          } else if (wasArmed || onConfirm) {
+            onPressRef.current();
+          }
+        };
+        const onCancel = (ev: PointerEvent): void => {
+          if (ev.pointerId !== pointerId) return;
+          cleanup();
+        };
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onCancel);
+        // 浏览器/系统事件兜底：tab 切走、窗口失焦也复位
+        const onVis = (): void => {
+          if (document.visibilityState !== 'visible') cleanup();
+        };
+        const onBlur = (): void => cleanup();
+        document.addEventListener('visibilitychange', onVis);
+        window.addEventListener('blur', onBlur);
+
+        stateRef.current.windowHandlers = () => {
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onCancel);
+          document.removeEventListener('visibilitychange', onVis);
+          window.removeEventListener('blur', onBlur);
+        };
+      },
+      [cleanup],
+    );
 
     useEffect(() => () => cleanup(), [cleanup]);
 
@@ -158,7 +232,14 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
             if (stateRef.current.released) return;
             setPreviewing(true);
           }, longPressDelay),
+          windowHandlers: null, // 下面 attach 后会填充
         };
+
+        // 兜底监听：进入预览态后浮层 confirm 是 portal 节点 + pointer-events:auto，
+        // iOS Safari 在某些时序下 pointer-capture 会被夺走 / pointerup 不再回到原按钮，
+        // 卡死在 pressing 状态。
+        // 同时绑 window 级 pointerup/cancel，确保任何释放都能被捕获 → cleanup
+        attachWindowListeners(e.pointerId);
       },
       [disabled, longPressDelay],
     );

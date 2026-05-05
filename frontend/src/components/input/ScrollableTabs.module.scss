@@ -17,7 +17,7 @@
   font-size: t.$fs-sm;
   letter-spacing: t.$tracking-wide;
   text-transform: uppercase;
-  color: t.$fg-low;
+  color: t.$fg-dim;
   border-bottom: 1px solid transparent;
   margin-bottom: -1px;
   @include m.transition(color t.$dur-fast, border-color t.$dur-fast, text-shadow t.$dur-fast);

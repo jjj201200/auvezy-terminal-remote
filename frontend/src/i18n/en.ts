@@ -121,7 +121,7 @@ export const en: Messages = {
     reconnectMaxHint:
       'Stop auto-retrying after this many tries. Mobile data is consumed even when retries fail. Tap the reconnect badge to resume after the cap.',
     reconnectMaxAriaLabel: 'Max auto-reconnect attempts',
-    reconnectMaxValue: '{{n}} times',
+    reconnectMaxUnit: 'times',
   },
 
   list: {

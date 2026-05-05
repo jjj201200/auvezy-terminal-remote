@@ -114,7 +114,7 @@ export const zhCN: Messages = {
     reconnectMaxHint:
       '达到此次数后停止自动重试，避免移动端流量被无效重连消耗。超过上限后点状态栏的重连标签可以恢复。',
     reconnectMaxAriaLabel: '自动重连次数上限',
-    reconnectMaxValue: '{{n}} 次',
+    reconnectMaxUnit: '次',
   },
 
   list: {

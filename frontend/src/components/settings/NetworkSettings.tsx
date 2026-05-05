@@ -68,9 +68,7 @@ export function NetworkSettings({ value, onChange }: NetworkSettingsProps): JSX.
             className={s.numInput}
             aria-label={t('network.reconnectMaxAriaLabel')}
           />
-          <span className={s.valueLabel}>
-            {t('network.reconnectMaxValue', { n: max })}
-          </span>
+          <span className={s.valueLabel}>{t('network.reconnectMaxUnit')}</span>
         </div>
       </section>
     </div>

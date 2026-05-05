@@ -140,7 +140,7 @@ export interface Messages {
     reconnectMaxTitle: string;
     reconnectMaxHint: string;
     reconnectMaxAriaLabel: string;
-    reconnectMaxValue: string; // {{n}} times / 次
+    reconnectMaxUnit: string;
   };
 
   // 通用列表操作
