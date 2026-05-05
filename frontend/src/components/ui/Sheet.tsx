@@ -79,10 +79,17 @@ export function Sheet({
     // 真正的关闭路径：用户点 X / 取消按钮 / 主动 swipe down → 走 onOpenChange(true→false) 但
     // 此时焦点已不在 input 上，因为 swipe down 会先让 input blur。
     const handleVaulOpenChange = (next: boolean): void => {
+      // 调试：标出关闭来源 + 当前焦点
+      // eslint-disable-next-line no-console
+      console.warn('[vaul] onOpenChange', {
+        next,
+        active: document.activeElement?.tagName,
+        activeId: (document.activeElement as HTMLElement | null)?.id,
+        stack: new Error().stack?.split('\n').slice(0, 8).join('\n'),
+      });
       if (!next && document.activeElement instanceof HTMLElement) {
         const ae = document.activeElement;
         if (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable) {
-          // 同步 blur 把焦点移走，让用户清晰看到"键盘收起"反馈，但不关闭弹层
           ae.blur();
           return;
         }
