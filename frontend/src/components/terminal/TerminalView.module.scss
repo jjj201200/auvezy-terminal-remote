@@ -1,0 +1,7 @@
+@use '../../styles/tokens' as t;
+
+.root {
+  height: 100%;
+  width: 100%;
+  background: t.$bg-canvas;
+}

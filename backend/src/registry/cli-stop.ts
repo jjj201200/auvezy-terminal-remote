@@ -1,5 +1,5 @@
 /**
- * `claude-remote stop [pattern]`：把匹配的实例停掉
+ * `otr stop [pattern]`：把匹配的实例停掉
  *
  * 输出每个目标的处理结果，最后总结杀掉个数。
  * 退出码：

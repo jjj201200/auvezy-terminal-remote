@@ -1,0 +1,72 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.label {
+  @include m.row-flex(t.$sp-3);
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  cursor: pointer;
+  user-select: none;
+}
+
+// label 旁边的文字
+.text {
+  font-size: inherit;
+}
+
+// Track 用 flex 让 thumb 垂直自动居中；
+// 横向位移由 thumb 的 transform 控制
+.root {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  height: 18px;
+  width: 32px;
+  padding: 0 2px;        // 内边距给 thumb 留居中余量
+  border-radius: t.$radius-pill;
+  border: 1px solid t.$border;
+  background: t.$bg-input;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast, box-shadow t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    border-color: t.$border-hi;
+  }
+
+  &[data-state='checked'] {
+    background: t.$accent;
+    border-color: t.$accent;
+    box-shadow:
+      0 0 0 1px rgba(182, 240, 156, 0.18),
+      0 0 8px rgba(182, 240, 156, 0.32);
+  }
+}
+
+// Thumb 12x12，纵向由 flex 居中，横向 transform 控制
+// track 内宽（不算 border 不算 padding）= 32 - 2 - 4 = 26
+// thumb 12 → 滑动距离 26 - 12 = 14px
+.thumb {
+  display: block;
+  height: 12px;
+  width: 12px;
+  border-radius: t.$radius-pill;
+  background: t.$fg-dim;
+  transform: translateX(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  @include m.transition(transform t.$dur-base t.$ease, background t.$dur-fast);
+
+  &[data-state='checked'] {
+    transform: translateX(14px);
+    background: #0a0c0f;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(0, 0, 0, 0.2) inset;
+  }
+}
+
+.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

@@ -9,14 +9,39 @@
  */
 
 import { defineConfig } from 'vite';
+import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
+
+const includeDesign = process.env.INCLUDE_DESIGN === '1';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react()],
+  css: {
+    modules: {
+      // CSS Modules 类名生成：开发期可读 + 生产期短哈希
+      generateScopedName:
+        process.env.NODE_ENV === 'production'
+          ? '[hash:base64:6]'
+          : '[name]__[local]__[hash:base64:4]',
+      localsConvention: 'camelCaseOnly',
+    },
+    preprocessorOptions: {
+      scss: {
+        // 不在每个 module 里 @use 'tokens'：tokens 仅在用到时显式 @use；
+        // 这里只统一 silenceDeprecations（vite 6 的 sass legacy api 警告）。
+        silenceDeprecations: ['legacy-js-api', 'import'],
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: false,
+    // WSL2 + Windows 文件系统（/mnt/d/...）的 fs event 经常丢，
+    // 改用 polling 让 vite 定时扫 mtime —— HMR 必备
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
@@ -32,7 +57,25 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: true,
+    // 闭源发布：不生成 source map（避免暴露源码结构 / 文件名）
+    sourcemap: false,
+    rollupOptions: {
+      // 默认仅打 index.html。dev 模式 multi-page 自动启用；
+      // 想 build 出 design.html 时，跑 INCLUDE_DESIGN=1 pnpm build
+      input: includeDesign
+        ? {
+            index: resolve(__dirname, 'index.html'),
+            design: resolve(__dirname, 'design.html'),
+          }
+        : resolve(__dirname, 'index.html'),
+    },
+  },
+  optimizeDeps: {
+    // 显式预构建 @tabler/icons-react：
+    // 不预构建 → 启动快 30s，但首次打开页面要按需编译每个 icon 文件，体验差
+    // 预构建   → 启动慢 30s 一次，页面切换秒开
+    // 我们选后者；启动后 .vite 缓存复用，下一次 dev 不再重做
+    include: ['@tabler/icons-react'],
   },
   test: {
     environment: 'jsdom',

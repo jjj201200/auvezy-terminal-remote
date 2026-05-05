@@ -20,11 +20,13 @@
 /**
  * 会话状态
  *
- * - idle：进程未启动 / 已退出
+ * - pty_pending：backend 已 listen，但 PTY 子进程尚未 spawn
+ *   （等待第一个 webapp 连入 / 用户按 Enter / 兜底超时）
+ * - idle：PTY 已启动后又退出 / 早期会话尚未 spawn 的兼容状态
  * - running：进程运行中，无审批等待
  * - waiting_input：Claude 触发了 Notification hook，等待人工审批
  */
-export type SessionStatus = 'idle' | 'running' | 'waiting_input';
+export type SessionStatus = 'pty_pending' | 'idle' | 'running' | 'waiting_input';
 
 // ============================================================
 // 服务端 → 客户端

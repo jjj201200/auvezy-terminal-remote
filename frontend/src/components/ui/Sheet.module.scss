@@ -1,0 +1,184 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+// ──────────────── 共享 overlay（高斯模糊）────────────────
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: t.$z-overlay;
+  @include m.glass-overlay;
+  animation: fade-in t.$dur-base t.$ease both;
+}
+
+// ──────────────── 桌面 Dialog ────────────────
+
+.dialogContent {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: t.$z-modal;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  // 固定高度，避免随内容跳动；body 自身滚动
+  height: 80dvh;
+  max-height: 720px;
+  transform: translate(-50%, -50%);
+  background: t.$bg-elev;
+  outline: none;
+  box-shadow: t.$shadow-3;
+  animation: pop-in t.$dur-base t.$ease both;
+
+  // 抽屉内默认全部禁止文字选中：避免拖拽 / 长按时把无关文字"刷蓝"，
+  // 也阻止 vaul 在选中文本时混淆为拖拽手势。
+  // 仅 input / textarea / contenteditable 例外（用 :where 保持 0 优先级）。
+  & {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  :where(input, textarea, [contenteditable='true'], [contenteditable='']) {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+// ──────────────── 移动 Drawer ────────────────
+
+.drawerContent {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: t.$z-modal;
+  display: flex;
+  flex-direction: column;
+  // 固定 88dvh，避免随内容跳动
+  height: 88dvh;
+  background: t.$bg-elev;
+  outline: none;
+  box-shadow: t.$shadow-3;
+
+  // 抽屉内默认禁止文字选中：避免列表 / 长文案在拖拽时被"刷蓝"
+  // 也避免 vaul 把"长按选词"误当成拖拽手势
+  & {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  :where(input, textarea, [contenteditable='true'], [contenteditable='']) {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+  }
+}
+
+.drawerGrip {
+  margin: t.$sp-3 auto t.$sp-2;
+  height: 3px;
+  width: 32px;
+  flex-shrink: 0;
+  border-radius: t.$radius-pill;
+  background: t.$border-hi;
+}
+
+// ──────────────── 头部 / 内容 / 底部 ────────────────
+
+.header {
+  @include m.row-flex(t.$sp-3);
+  justify-content: space-between;
+  padding: t.$sp-3 t.$sp-5;
+  border-bottom: 1px solid t.$border;
+  min-height: 36px;
+}
+
+// header 中部空间：可放 Tabs.List 这类导航
+.headerExtra {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-right: t.$sp-3;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.headerMobile {
+  padding: t.$sp-2 t.$sp-4;
+}
+
+.title {
+  font-family: t.$font-mono;
+  font-size: t.$fs-md;
+  color: t.$fg;
+  font-weight: 500;
+  letter-spacing: t.$tracking-tight;
+}
+
+.close {
+  @include m.btn-reset;
+  padding: t.$sp-2;
+  color: t.$fg-dim;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+  width: 24px;
+  height: 24px;
+
+  &:hover {
+    color: t.$fg;
+    background: t.$bg-hover;
+  }
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: t.$sp-5 t.$sp-6;
+  // input 聚焦后浏览器调用 scrollIntoView 时给底部留余量，
+  // 避免被键盘 / footer 盖住
+  scroll-padding-bottom: 96px;
+  // 即使外层是 overflow: hidden，body 自身也允许触摸惯性滚动
+  -webkit-overflow-scrolling: touch;
+}
+
+.footer {
+  @include m.row-flex(t.$sp-3);
+  justify-content: flex-end;
+  padding: t.$sp-4 t.$sp-6;
+  border-top: 1px solid t.$border;
+}
+
+.footerMobile {
+  @include m.safe-bottom(t.$sp-5);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+// ──────────────── 动画 ────────────────
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}

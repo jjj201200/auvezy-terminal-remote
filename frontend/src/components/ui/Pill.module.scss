@@ -1,0 +1,73 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: t.$sp-2;
+  padding: 2px t.$sp-3;
+  border: 1px solid t.$border;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-weight: 500;
+  line-height: 1.4;
+
+  // 状态点（::before）
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: currentColor;
+  }
+}
+
+.toneOk {
+  border-color: rgba(182, 240, 156, 0.32);
+  color: t.$accent;
+  background: t.$accent-soft;
+  @include m.phosphor-glow;
+
+  &::before {
+    @include m.phosphor-glow-shape;
+  }
+}
+
+.toneWarn {
+  border-color: rgba(255, 184, 77, 0.32);
+  color: t.$warn;
+  background: rgba(255, 184, 77, 0.08);
+  @include m.phosphor-glow(t.$warn);
+
+  &::before {
+    @include m.phosphor-glow-shape(t.$warn);
+  }
+}
+
+.toneError {
+  border-color: rgba(255, 107, 107, 0.32);
+  color: t.$alarm;
+  background: rgba(255, 107, 107, 0.08);
+  @include m.phosphor-glow(t.$alarm);
+
+  &::before {
+    @include m.phosphor-glow-shape(t.$alarm);
+  }
+}
+
+.toneMuted {
+  border-color: t.$border;
+  color: t.$fg-dim;
+}
+
+.toneAccent {
+  border-color: rgba(182, 240, 156, 0.32);
+  color: t.$accent;
+  @include m.phosphor-glow;
+
+  &::before {
+    @include m.phosphor-glow-shape;
+  }
+}
+

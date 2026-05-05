@@ -2,20 +2,16 @@
  * PushToggle
  *
  * Web Push 订阅开关（设置面板"通知"分页内嵌）。
- * - 不支持时禁用 + 显示原因
- * - 已拒绝权限时显示提示，浏览器已锁，无法再触发
- * - 已订阅 / 未订阅 提供切换按钮
- *
- * 设计原则：极客风、无 emoji；状态描述靠文字 + Pill。
  */
 
 import { type JSX } from 'react';
 import { usePushNotification } from '../../hooks/usePushNotification.js';
 import { Pill, type PillTone } from '../ui/Pill.js';
-import { cn } from '../../utils/cn.js';
+import s from './PushToggle.module.scss';
 
 export function PushToggle(): JSX.Element {
-  const { status, busy, error, subscribe, unsubscribe } = usePushNotification();
+  const { status, unsupportReason, busy, error, subscribe, unsubscribe } =
+    usePushNotification();
 
   let label: string;
   let toneText: string;
@@ -25,8 +21,14 @@ export function PushToggle(): JSX.Element {
 
   switch (status) {
     case 'unsupported':
-      label = '当前浏览器不支持';
-      toneText = '不支持';
+      // 不再笼统报"不支持"——细分到可执行的引导
+      if (unsupportReason === 'insecure_context') {
+        label = '当前是 HTTP 连接，浏览器禁用 Web Push；请用 HTTPS 或 localhost 访问';
+        toneText = '需 HTTPS';
+      } else {
+        label = '当前浏览器缺少 ServiceWorker / PushManager API';
+        toneText = '不支持';
+      }
       tone = 'muted';
       disabled = true;
       break;
@@ -51,27 +53,21 @@ export function PushToggle(): JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
+    <div id="push-toggle" className={s.root}>
+      <div className={s.head}>
         <Pill tone={tone}>{toneText}</Pill>
-        <span className="text-xs text-[var(--color-fg-muted)]">
-          Claude 触发审批时通过 Web Push 通知到本设备
-        </span>
+        <span className={s.headDesc}>Claude 触发审批时通过 Web Push 通知到本设备</span>
       </div>
       <button
         type="button"
         onClick={onClick ?? undefined}
         disabled={disabled}
         title={error ?? ''}
-        className={cn(
-          'self-start rounded-md border px-3 py-1.5 text-sm transition-colors',
-          'border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-fg)] hover:bg-[var(--color-bg-elevated)]',
-          disabled && 'opacity-40 cursor-not-allowed',
-        )}
+        className={s.btn}
       >
         {label}
       </button>
-      {error && <span className="text-xs text-[var(--color-error)]">{error}</span>}
+      {error && <span className={s.error}>{error}</span>}
     </div>
   );
 }

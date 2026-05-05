@@ -1,0 +1,43 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+// ──────────────── 输入栏 ────────────────
+
+.form {
+  flex-shrink: 0;
+  @include m.row-flex(t.$bar-gap);
+  border-top: 1px solid t.$border;
+  background: t.$bg-elev;
+  padding: t.$bar-pad;
+  @include m.safe-bottom(t.$bar-pad);
+}
+
+.input {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 1px solid t.$border;
+  background: t.$bg-input;
+  color: t.$fg;
+  padding: t.$sp-0 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-md;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+
+  &::placeholder {
+    color: t.$fg-low;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: t.$border-hi;
+  }
+
+  &:focus-visible {
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}

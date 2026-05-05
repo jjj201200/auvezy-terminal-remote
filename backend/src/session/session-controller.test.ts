@@ -19,7 +19,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import type { ServerMessage } from '@ocr/shared';
+import type { ServerMessage } from '@otr/shared';
 import type { WebSocket } from 'ws';
 import type { ClientType, ClientCounts, WsServer } from '../ws/ws-server.js';
 import { SessionController } from './session-controller.js';
@@ -115,8 +115,8 @@ describe('SessionController', () => {
     vi.useRealTimers();
   });
 
-  it('初始 status=idle、connectedClients=0', () => {
-    expect(ctrl.status).toBe('idle');
+  it('初始 status=pty_pending、connectedClients=0', () => {
+    expect(ctrl.status).toBe('pty_pending');
     expect(ctrl.connectedClients).toBe(0);
   });
 
@@ -187,7 +187,8 @@ describe('SessionController', () => {
       expect(sent.msg.data).toBe('hello\n');
       expect(sent.msg.cols).toBe(80);
       expect(sent.msg.rows).toBe(24);
-      expect(sent.msg.status).toBe('idle');
+      // 默认未 spawn → pty_pending
+      expect(sent.msg.status).toBe('pty_pending');
     }
   });
 

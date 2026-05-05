@@ -20,7 +20,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import * as cookie from 'cookie';
-import { ErrorCode } from '@ocr/shared';
+import { ErrorCode } from '@otr/shared';
 import { generateSessionId } from './token-generator.js';
 import { RateLimiter } from './rate-limiter.js';
 import { logger } from '../logger/logger.js';
@@ -170,7 +170,9 @@ export class AuthModule {
         'Token 无效',
         401,
       );
-      logger.warn({ ip }, '认证失败：token 无效');
+      // info 级而非 warn：用户携带过期/错误 token 是预期事件（缓存失效、复制错、
+      // 多实例之间共享 token 但其中一个重启），不应该当成"可疑事件"打 warn 噪音
+      logger.info({ ip }, '认证失败：token 无效');
       res.status(err.httpStatus).json({ error: err.toPayload() });
       return;
     }

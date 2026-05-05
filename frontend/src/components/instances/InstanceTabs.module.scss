@@ -1,0 +1,68 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.nav {
+  @include m.row-flex(t.$sp-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.tab {
+  @include m.btn-reset;
+  @include m.row-flex(t.$sp-2);
+  white-space: nowrap;
+  padding: t.$sp-2 t.$sp-4;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast, color t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    color: t.$fg;
+    background: t.$bg-hover;
+    border-color: t.$border-hi;
+  }
+}
+
+.tabActive {
+  border-color: t.$accent;
+  background: t.$accent-soft;
+  color: t.$fg;
+  cursor: default;
+
+  &:hover:not(:disabled) {
+    border-color: t.$accent;
+    background: t.$accent-soft;
+  }
+}
+
+.tabPort {
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+
+  .tabActive & {
+    color: t.$accent;
+  }
+}
+
+.add {
+  @include m.btn-reset;
+  @include m.row-flex(0);
+  justify-content: center;
+  height: 24px;
+  width: 24px;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg-dim;
+  @include m.transition(border-color t.$dur-fast, color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$accent;
+    border-color: t.$border-hi;
+    background: t.$bg-hover;
+  }
+}

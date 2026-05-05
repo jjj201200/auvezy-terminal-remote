@@ -1,0 +1,20 @@
+{
+  "name": "Open Terminal Remote",
+  "short_name": "OTR",
+  "description": "局域网内通过手机/平板浏览器远程控制 PC 终端",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0e120e",
+  "background_color": "#0e120e",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/icons/otr-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

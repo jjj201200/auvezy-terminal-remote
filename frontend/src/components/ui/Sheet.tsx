@@ -2,7 +2,7 @@
  * Sheet
  *
  * 双形态弹层：
- *  - 桌面（≥768px）：Radix Dialog 居中卡片
+ *  - 桌面（≥768px）：Radix Dialog 居中卡片 + 背景高斯模糊
  *  - 移动（<768px）：vaul Drawer 底部滑入
  *
  * 共享 API：受控 open；title 显示在头部；children 内容由调用者负责。
@@ -12,9 +12,10 @@
 import { type JSX, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Drawer } from 'vaul';
-import { X } from 'lucide-react';
+import { IconX } from '@tabler/icons-react';
+import clsx from 'clsx';
 import { useMediaQuery } from '../../hooks/useMediaQuery.js';
-import { cn } from '../../utils/cn.js';
+import s from './Sheet.module.scss';
 
 export interface SheetProps {
   open: boolean;
@@ -22,8 +23,14 @@ export interface SheetProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  /** 内容区附加 className（覆盖默认 max-h 等） */
+  /**
+   * 渲染在 header 标题与关闭按钮之间的额外内容。
+   * 适合放 Tabs.List 这类「不应跟随内容滚动」的导航元素。
+   */
+  headerExtra?: ReactNode;
   className?: string;
+  /** 可选 DOM id（用于唯一容器，如 settings-modal / create-instance-modal） */
+  id?: string;
 }
 
 export function Sheet({
@@ -32,39 +39,42 @@ export function Sheet({
   title,
   children,
   footer,
+  headerExtra,
   className,
+  id,
 }: SheetProps): JSX.Element {
   const isMobile = useMediaQuery('(max-width: 767px)');
 
   if (isMobile) {
     return (
-      <Drawer.Root open={open} onOpenChange={onOpenChange}>
+      <Drawer.Root
+        open={open}
+        onOpenChange={onOpenChange}
+        // 仅顶部 grip 才能拖动关闭，避免列表 / 输入框纵向滚动被识别为拖拽
+        handleOnly={true}
+        // 输入框聚焦时由 vaul 把内容上推让 input 可见，而不是被键盘盖
+        repositionInputs={true}
+      >
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-40 bg-black/60" />
-          <Drawer.Content
-            className={cn(
-              'fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-xl border-t border-[var(--color-border)] bg-[var(--color-bg-elevated)] outline-none',
-              className,
-            )}
-          >
-            <Drawer.Title className="sr-only">{title}</Drawer.Title>
-            <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-[var(--color-border)]" />
-            <header className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
-              <span className="text-md text-[var(--color-fg)]">{title}</span>
+          <Drawer.Overlay className={s.overlay} />
+          <Drawer.Content id={id} className={clsx(s.drawerContent, className)}>
+            <Drawer.Title className={s.srOnly}>{title}</Drawer.Title>
+            <Drawer.Handle className={s.drawerGrip} />
+            <header className={clsx(s.header, s.headerMobile)}>
+              <span className={s.title}>{title}</span>
+              {headerExtra && <div className={s.headerExtra}>{headerExtra}</div>}
               <button
                 type="button"
                 onClick={() => onOpenChange(false)}
                 aria-label="关闭"
-                className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] p-1"
+                className={s.close}
               >
-                <X size={16} strokeWidth={1.5} />
+                <IconX size={16} stroke={1.5} />
               </button>
             </header>
-            <div className="flex-1 overflow-y-auto scrollbar-hide px-4 py-3">{children}</div>
+            <div className={s.body}>{children}</div>
             {footer && (
-              <footer className="flex justify-end gap-2 border-t border-[var(--color-border)] px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-                {footer}
-              </footer>
+              <footer className={clsx(s.footer, s.footerMobile)}>{footer}</footer>
             )}
           </Drawer.Content>
         </Drawer.Portal>
@@ -75,33 +85,19 @@ export function Sheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content
-          className={cn(
-            'fixed left-1/2 top-1/2 z-50 flex w-full max-w-[640px] max-h-[90dvh] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] outline-none',
-            className,
-          )}
-        >
-          <header className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
-            <Dialog.Title className="text-md text-[var(--color-fg)] font-medium">
-              {title}
-            </Dialog.Title>
+        <Dialog.Overlay className={s.overlay} />
+        <Dialog.Content id={id} className={clsx(s.dialogContent, className)}>
+          <header className={s.header}>
+            <Dialog.Title className={s.title}>{title}</Dialog.Title>
+            {headerExtra && <div className={s.headerExtra}>{headerExtra}</div>}
             <Dialog.Close asChild>
-              <button
-                type="button"
-                aria-label="关闭"
-                className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] p-1"
-              >
-                <X size={16} strokeWidth={1.5} />
+              <button type="button" aria-label="关闭" className={s.close}>
+                <IconX size={16} stroke={1.5} />
               </button>
             </Dialog.Close>
           </header>
-          <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-          {footer && (
-            <footer className="flex justify-end gap-2 border-t border-[var(--color-border)] px-5 py-3">
-              {footer}
-            </footer>
-          )}
+          <div className={s.body}>{children}</div>
+          {footer && <footer className={s.footer}>{footer}</footer>}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

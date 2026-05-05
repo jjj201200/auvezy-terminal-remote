@@ -6,7 +6,8 @@
  */
 
 import { forwardRef, type InputHTMLAttributes } from 'react';
-import { cn } from '../../utils/cn.js';
+import clsx from 'clsx';
+import s from './TextField.module.scss';
 
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** 错误信息（非空时切红边） */
@@ -22,25 +23,14 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   ref,
 ) {
   return (
-    <div className="flex flex-col gap-1 min-w-0 flex-1">
+    <div className={s.wrap}>
       <input
         ref={ref}
         {...rest}
-        className={cn(
-          'rounded-md border bg-[var(--color-bg)] px-2 py-1.5 text-[var(--color-fg)] outline-none',
-          'text-sm',
-          mono ? 'font-mono' : 'font-sans',
-          error
-            ? 'border-[var(--color-error)] focus:border-[var(--color-error)]'
-            : 'border-[var(--color-border)] focus:border-[var(--color-accent)]',
-          'disabled:opacity-50',
-          className,
-        )}
+        className={clsx(s.input, mono && s.mono, error && s.errored, className)}
       />
-      {error && <span className="text-xs text-[var(--color-error)] font-sans">{error}</span>}
-      {!error && helper && (
-        <span className="text-xs text-[var(--color-fg-muted)] font-sans">{helper}</span>
-      )}
+      {error && <span className={s.error}>{error}</span>}
+      {!error && helper && <span className={s.helper}>{helper}</span>}
     </div>
   );
 });

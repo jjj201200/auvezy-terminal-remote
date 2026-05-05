@@ -9,10 +9,10 @@
 import { useEffect, useState, type JSX, type FormEvent } from 'react';
 import { Sheet } from '../ui/Sheet.js';
 import { TextField } from '../ui/TextField.js';
+import s from './CreateInstanceModal.module.scss';
 
 export interface CreateInstanceModalProps {
   open: boolean;
-  /** 提交：返回是否成功 */
   onSubmit: (cwd: string, name?: string) => Promise<boolean>;
   onClose: () => void;
 }
@@ -52,6 +52,7 @@ export function CreateInstanceModal({
 
   return (
     <Sheet
+      id="create-instance-modal"
       open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
@@ -59,27 +60,23 @@ export function CreateInstanceModal({
       title="创建新实例"
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg)]"
-          >
+          <button type="button" onClick={onClose} className={s.cancelBtn}>
             取消
           </button>
           <button
             type="submit"
             form="create-instance-form"
             disabled={submitting || cwd.trim().length === 0}
-            className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-[#0d1117] disabled:opacity-50"
+            className={s.submitBtn}
           >
             {submitting ? '创建中…' : '创建'}
           </button>
         </>
       }
     >
-      <form id="create-instance-form" className="flex flex-col gap-3" onSubmit={handleSubmit}>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-[var(--color-fg-muted)]">工作目录（cwd）</span>
+      <form id="create-instance-form" className={s.form} onSubmit={handleSubmit}>
+        <label className={s.field}>
+          <span className={s.fieldLabel}>工作目录（cwd）</span>
           <TextField
             type="text"
             placeholder="/home/me/code/foo"
@@ -92,8 +89,8 @@ export function CreateInstanceModal({
             autoFocus
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-[var(--color-fg-muted)]">实例名（可选）</span>
+        <label className={s.field}>
+          <span className={s.fieldLabel}>实例名（可选）</span>
           <TextField
             type="text"
             placeholder="留空则用 cwd 末段"
@@ -105,7 +102,7 @@ export function CreateInstanceModal({
             spellCheck={false}
           />
         </label>
-        {error && <p className="m-0 font-mono text-xs text-[var(--color-error)]">{error}</p>}
+        {error && <p className={s.error}>{error}</p>}
       </form>
     </Sheet>
   );

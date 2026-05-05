@@ -40,6 +40,16 @@ e2e/.auth/
 *.tmp
 *.bak
 .cache/
+log.txt
+
+# npm pack 产物
+*.tgz
+
+# pnpm-lock 备份（pnpm 偶发生成）
+pnpm-lock.yaml.*
+
+# Claude Code 工程元数据
+.claude/
 
 # 上游参考材料（已删除；保留 ignore 防止再次导入）
 analysis/

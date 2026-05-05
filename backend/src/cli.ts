@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * claude-remote CLI 入口
+ * otr CLI 入口
  *
  * ⚠ 关键约束：本文件不能有任何静态 import 业务模块。
  *

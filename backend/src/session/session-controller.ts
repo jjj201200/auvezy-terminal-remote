@@ -24,7 +24,7 @@
  */
 
 import type { WebSocket } from 'ws';
-import type { SessionStatus } from '@ocr/shared';
+import type { SessionStatus } from '@otr/shared';
 import type { IPtyManager } from '../pty/types.js';
 import { PtyManager } from '../pty/pty-manager.js';
 import { OutputBuffer } from '../pty/output-buffer.js';
@@ -57,7 +57,9 @@ export interface SessionControllerOptions {
 
 export class SessionController {
   // ──────────── 状态 ────────────
-  private _status: SessionStatus = 'idle';
+  // 初始化为 pty_pending：listen 已就绪，但 PTY 子进程还没 spawn。
+  // index.ts 的 spawn 触发器命中后会 setStatus('running')；spawn 失败再 fallback 到 idle。
+  private _status: SessionStatus = 'pty_pending';
   private readonly buffer: OutputBuffer;
   private readonly writeToProcessStdout: boolean;
 

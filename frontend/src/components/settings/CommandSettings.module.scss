@@ -1,0 +1,100 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+// ──────────────── 编辑态 ────────────────
+
+.editFields {
+  @include m.row-flex(t.$sp-2);
+}
+
+.editLabel {
+  width: 100px;
+  flex-shrink: 0;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg;
+  padding: t.$sp-2 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast);
+
+  &:focus-visible {
+    border-color: t.$accent;
+  }
+}
+
+.editCommand {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg;
+  padding: t.$sp-2 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast);
+
+  &:focus-visible {
+    border-color: t.$accent;
+  }
+}
+
+.editMeta {
+  margin-top: t.$sp-2;
+  @include m.row-flex(t.$sp-3);
+}
+
+.editDesc {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg-dim;
+  padding: t.$sp-2 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast);
+
+  &:focus-visible {
+    border-color: t.$accent;
+    color: t.$fg;
+  }
+}
+
+.autoSendInline {
+  display: inline-flex;
+  align-items: center;
+  gap: t.$sp-2;
+  flex-shrink: 0;
+  font-size: t.$fs-2xs;
+  color: t.$fg-dim;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+// ──────────────── 行内 autoSend 标签 ────────────────
+
+.autoSendTag {
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$accent;
+  border: 1px solid rgba(182, 240, 156, 0.32);
+  background: t.$accent-soft;
+  padding: 0 t.$sp-2;
+  flex-shrink: 0;
+  @include m.phosphor-glow;
+}
+
+.autoSendTagDraft {
+  color: t.$fg-dim;
+  border-color: t.$border;
+  background: transparent;
+  text-shadow: none;
+  border-style: dashed;
+}

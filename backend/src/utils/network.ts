@@ -133,6 +133,30 @@ export function detectDisplayIp(hostHint?: string): string {
 }
 
 /**
+ * 是否「可分享」的 IPv6 地址
+ *
+ * 排除：
+ *  - link-local（fe80::/10）：跨网段不可达，扫码后手机连不上
+ *  - 临时地址 / 已弃用 / secondary（隐私扩展，几小时轮换一次）
+ *  - 多播 / unspecified
+ *
+ * 保留：
+ *  - GUA（2000::/3）：全球可达
+ *  - ULA（fc00::/7）：私有但稳定
+ */
+export function isShareableIpv6(ip: string, info?: { scopeid?: number }): boolean {
+  if (!ip.includes(':')) return false;
+  const lower = ip.toLowerCase();
+  // link-local
+  if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return false;
+  // loopback / unspecified / 多播
+  if (lower === '::1' || lower === '::' || lower.startsWith('ff')) return false;
+  // 带 scopeid 的（fe80%eth0 这类，已经被前面 fe8 拦截，但兜底）
+  if (info?.scopeid !== undefined && info.scopeid !== 0) return false;
+  return true;
+}
+
+/**
  * 把 displayIp + port + token 拼成扫码用的 URL
  *
  * 形如：http://192.168.1.10:3000/?token=<hex>

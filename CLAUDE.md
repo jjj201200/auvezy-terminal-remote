@@ -1,4 +1,4 @@
-# Open-Claude-Remote 复刻项目规则
+# Open-Terminal-Remote 项目规则
 
 ## 🔴 测试与服务管理
 

@@ -18,6 +18,7 @@ import { createHookRoutes } from './hook-routes.js';
 import { createConfigRoutes, type ConfigStore } from './config-routes.js';
 import { createInstanceRoutes } from './instance-routes.js';
 import { createPushRoutes } from './push-routes.js';
+import { createShareRoutes } from './share-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { HookReceiver } from '../hooks/hook-receiver.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
@@ -39,6 +40,10 @@ export interface ApiRouterOptions {
   spawner?: InstanceSpawner;
   /** Web Push 服务；与 authModule 同时存在时挂 /push 路由 */
   pushService?: PushService;
+  /** 当前实例端口；与 authModule 同时存在时挂 /share/endpoints */
+  port?: number;
+  /** 当前实例 displayIp；用于 /share 标记默认入口 */
+  displayIp?: string;
 }
 
 /**
@@ -80,6 +85,17 @@ export function createApiRouter(opts: ApiRouterOptions = {}): Router {
   // Web Push（GET /vapid 公开；订阅 CRUD 鉴权）
   if (opts.authModule && opts.pushService) {
     router.use(createPushRoutes(opts.authModule, opts.pushService));
+  }
+
+  // 分享入口列表（鉴权）
+  if (opts.authModule && typeof opts.port === 'number' && opts.displayIp) {
+    router.use(
+      createShareRoutes({
+        authModule: opts.authModule,
+        port: opts.port,
+        displayIp: opts.displayIp,
+      }),
+    );
   }
 
   return router;

@@ -26,6 +26,44 @@ import { DOUBLE_CTRL_C_WINDOW_MS } from '../constants.js';
 const CTRL_C_BYTE = 0x03; // \x03 = ETX = Ctrl+C
 
 /**
+ * 终端模式复位序列
+ *
+ * 退出代理前向 process.stdout 写一次，把 PTY 子进程留下的副作用全清干净。
+ * 顺序无关；浏览器 TUI（claude/vim/htop/fzf 等）启用了什么我们都关一遍。
+ *
+ * 各序列含义（DEC private mode reset，?...l = reset，?...h = set）：
+ *   ?1l         应用键盘模式 → 关（方向键回到 ESC[A 标准）
+ *   ?9l         X10 鼠标 → 关
+ *   ?1000l      X11 鼠标 (按下/释放) → 关
+ *   ?1001l      鼠标 highlight tracking → 关
+ *   ?1002l      鼠标按下时移动 → 关  ← claude/vim 常开
+ *   ?1003l      所有鼠标移动 → 关
+ *   ?1004l      焦点变化报告 → 关
+ *   ?1005l      鼠标 UTF-8 模式 → 关
+ *   ?1006l      鼠标 SGR 模式 → 关  ← 用户看到的乱码就是这个
+ *   ?1015l      鼠标 urxvt 模式 → 关
+ *   ?2004l      bracketed paste → 关
+ *   ?1049l      退出 alt-screen 回到主屏  ← 不还原会"看似无响应"
+ *   ?25h        显示光标（很多 TUI 退出忘了打开）
+ *   ESC[m       SGR reset：清掉残留颜色 / 加粗 / 反相
+ */
+const TERM_RESET_SEQ =
+  '\x1b[?1l' +
+  '\x1b[?9l' +
+  '\x1b[?1000l' +
+  '\x1b[?1001l' +
+  '\x1b[?1002l' +
+  '\x1b[?1003l' +
+  '\x1b[?1004l' +
+  '\x1b[?1005l' +
+  '\x1b[?1006l' +
+  '\x1b[?1015l' +
+  '\x1b[?2004l' +
+  '\x1b[?1049l' +
+  '\x1b[?25h' +
+  '\x1b[m';
+
+/**
  * Kitty 键盘协议 CSI u 形式的 Ctrl+C：
  *   基础：\x1b[99;5u
  *   带事件类型：\x1b[99;5:1u（press）/ \x1b[99;5:2u（repeat）；3 是 release 不算
@@ -93,7 +131,16 @@ export class TerminalRelay {
   }
 
   /**
-   * 停止透传，恢复 stdin
+   * 停止透传，恢复 stdin + 复位本地终端模式
+   *
+   * 为什么需要复位本地终端模式：
+   *   PTY 子进程（claude / vim / htop / fzf 等）通过 escape 序列改了**本地终端**的
+   *   状态——开启鼠标追踪、切到 alt-screen、应用键盘模式、bracketed paste、隐藏光标。
+   *   这些状态写在 termios / 终端 emulator 里，PTY 退出时**不会自动还原**。
+   *   不复位的后果（用户实测）：otr 退出后本地终端
+   *     - 鼠标移动 / 点击被解析成坐标字符串疯狂 echo
+   *     - 终端"看似无响应"（实则在 alt-screen 里）
+   *     - 方向键发的序列错位
    *
    * 幂等
    */
@@ -108,6 +155,12 @@ export class TerminalRelay {
     if (this.resizeHandler) {
       process.stdout.off('resize', this.resizeHandler);
       this.resizeHandler = null;
+    }
+
+    // 复位本地终端模式（仅 TTY 才有意义）
+    if (process.stdout.isTTY) {
+      // 一次性发完所有 reset，避免分多次写入引入闪烁
+      process.stdout.write(TERM_RESET_SEQ);
     }
 
     if (process.stdin.isTTY && typeof process.stdin.setRawMode === 'function') {

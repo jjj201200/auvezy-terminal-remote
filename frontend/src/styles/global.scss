@@ -1,0 +1,33 @@
+// ============================================================
+// 全局样式入口（main.tsx 引入）
+// ============================================================
+
+@use 'tokens' as t;
+@use 'fonts';
+@use 'reset';
+@use 'scrollbar';
+
+@import '@xterm/xterm/css/xterm.css';
+
+:root {
+  @include t.css-vars-root;
+  // 键盘高度（由 useViewportFix 实时写入）；初始 0
+  --keyboard-h: 0px;
+}
+
+// ──────────────── 拖拽期间的全局抑制 ────────────────
+// useDragReorder 进入拖拽态时给 body 加这个类，结束时移除：
+//  - 禁用所有元素的文字选择（拖动时不会"刷蓝"无关文字）
+//  - 改光标为 grabbing，让用户清楚当前正在拖
+body.drag-reorder-active {
+  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
+
+  *,
+  *::before,
+  *::after {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+}

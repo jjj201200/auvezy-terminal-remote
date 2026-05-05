@@ -1,0 +1,119 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+// ──────────────── 容器 ────────────────
+
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+// ──────────────── 滚动区 ────────────────
+
+.scroller {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  gap: t.$bar-gap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  // 拖拽时屏蔽默认 pan-x，避免与浏览器手势冲突
+  touch-action: pan-y;
+  // 隐藏原生滚动条
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  user-select: none;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+// rtl 方向：物理上仍从左往右滚动，但 tab 视觉上从右往左排列
+.scrollerRtl {
+  flex-direction: row-reverse;
+}
+
+// ──────────────── 单个 tab ────────────────
+
+.tab {
+  @include m.btn-reset;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 3px t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-low;
+  border-bottom: 1px solid transparent;
+  margin-bottom: -1px;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, text-shadow t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    color: t.$fg-dim;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.tabActive {
+  color: t.$accent;
+  border-bottom-color: t.$accent;
+  @include m.phosphor-glow;
+
+  &:hover:not(:disabled) {
+    color: t.$accent;
+  }
+}
+
+// ──────────────── 左右箭头按钮 ────────────────
+
+.arrow {
+  @include m.btn-reset;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  align-self: stretch;
+  color: t.$fg-low;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, t.$bg-elev 96%, transparent) 0%,
+    color-mix(in srgb, t.$bg-elev 96%, transparent) 60%,
+    transparent 100%
+  );
+  @include m.transition(color t.$dur-fast, opacity t.$dur-fast, transform t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    color: t.$fg;
+  }
+}
+
+.arrowLeft {
+  // 渐变方向已经是从左到右
+}
+
+.arrowRight {
+  background: linear-gradient(
+    to left,
+    color-mix(in srgb, t.$bg-elev 96%, transparent) 0%,
+    color-mix(in srgb, t.$bg-elev 96%, transparent) 60%,
+    transparent 100%
+  );
+}
+
+.arrowHidden {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+}

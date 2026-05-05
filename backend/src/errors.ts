@@ -28,7 +28,7 @@
  * ```
  */
 
-import { ErrorCode, type ErrorPayload } from '@ocr/shared';
+import { ErrorCode, type ErrorPayload } from '@otr/shared';
 
 /**
  * 应用错误基类

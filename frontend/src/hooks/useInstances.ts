@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { InstanceListItem } from '@ocr/shared';
+import type { InstanceListItem } from '@otr/shared';
 import { fetchInstances, createInstance } from '../services/instance-api.js';
 
 const INSTANCE_POLL_INTERVAL_MS = 5_000;

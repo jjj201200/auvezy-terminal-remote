@@ -2,7 +2,7 @@
  * 默认快捷键与命令 + UserConfig 类型（前后端共享）
  *
  * UserConfig：
- *   - 文件层（~/.claude-remote/config.json），所有字段可选
+ *   - 文件层（~/.open-terminal-remote/config.json），所有字段可选
  *   - 仅描述"用户偏好"，不含运行期决定的端口、token、命令路径
  *
  * 默认值规则：
@@ -45,6 +45,8 @@ export interface ConfigurableCommand {
   autoSend?: boolean;
   /** 可选描述 */
   desc?: string;
+  /** 所属分组 id；缺省视为旧配置 → UI 归入「自定义」组 */
+  group?: CommandGroupId;
 }
 
 // ============================================================
@@ -218,21 +220,144 @@ export function findShortcutGroup(id: string): ShortcutGroupDef | undefined {
 }
 
 // ============================================================
-// 默认命令
+// 命令分组
+// ============================================================
+
+/** 所有内置命令分组 id */
+export type CommandGroupId =
+  | 'session'      // 会话生命周期：clear / compact / resume / exit
+  | 'context'      // 上下文与代码：add-dir / init / memory
+  | 'agent'        // Claude 自身能力：agents / model / hooks / mcp / output-style
+  | 'workflow'     // 任务与配置：todos / config / permissions / status / statusline
+  | 'auth'         // 账号与登录：login / logout
+  | 'help'         // 信息：help / cost / doctor / pr_comments / release-notes
+  | 'tools'        // 杂项工具：bashes / install-github-app / vim / migrate-installer / security-review / terminal-setup / upgrade
+  | 'custom';
+
+/** 分组定义 */
+export interface CommandGroupDef {
+  id: CommandGroupId;
+  /** 显示名 */
+  title: string;
+  /** 说明 */
+  desc: string;
+  /** 该组默认启用项；不在此列表的命令 enabled=false */
+  items: Array<Omit<ConfigurableCommand, 'group'>>;
+}
+
+/**
+ * 内置命令分组定义
+ *
+ * 来源：Claude Code 当前公开的斜杠命令。
+ * 设计原则：
+ *  - 「会话」组（session）默认全部启用，覆盖最高频的清屏 / 紧凑 / 恢复 / 退出
+ *  - 其他组默认 enabled=false，由用户在设置面板勾选或一键启用
+ *  - 每条命令带 desc 简短说明（按钮 title 提示与设置面板均会展示）
+ *  - autoSend 默认 true（点击即发送）；带占位参数的命令会显式置 false（填入待编辑）
+ */
+export const COMMAND_GROUPS: CommandGroupDef[] = [
+  {
+    id: 'session',
+    title: '会话',
+    desc: '会话生命周期相关：清空、压缩、恢复、退出。',
+    items: [
+      { label: '/clear', command: '/clear', enabled: true, autoSend: true, desc: '清空当前会话历史' },
+      { label: '/compact', command: '/compact', enabled: true, autoSend: true, desc: '将会话压缩成摘要以节省上下文' },
+      { label: '/resume', command: '/resume', enabled: true, autoSend: true, desc: '从最近的会话继续' },
+      { label: '/exit', command: '/exit', enabled: true, autoSend: true, desc: '退出 Claude Code' },
+    ],
+  },
+  {
+    id: 'context',
+    title: '上下文',
+    desc: '让 Claude 看到更多上下文：加目录、初始化项目记忆、查看记忆。',
+    items: [
+      { label: '/add-dir', command: '/add-dir ', enabled: false, autoSend: false, desc: '把额外目录加入 Claude 的可读范围' },
+      { label: '/init', command: '/init', enabled: false, autoSend: true, desc: '为当前项目生成初始 CLAUDE.md' },
+      { label: '/memory', command: '/memory', enabled: false, autoSend: true, desc: '查看 Claude 当前的项目记忆' },
+    ],
+  },
+  {
+    id: 'agent',
+    title: '能力',
+    desc: 'Claude 自身的能力配置：子 agent、模型、hooks、MCP、输出风格。',
+    items: [
+      { label: '/agents', command: '/agents', enabled: false, autoSend: true, desc: '管理可用的子 agent' },
+      { label: '/model', command: '/model', enabled: false, autoSend: true, desc: '切换使用的模型' },
+      { label: '/hooks', command: '/hooks', enabled: false, autoSend: true, desc: '管理生命周期 hooks' },
+      { label: '/mcp', command: '/mcp', enabled: false, autoSend: true, desc: '查看 / 管理 MCP 服务器' },
+      { label: '/output-style', command: '/output-style', enabled: false, autoSend: true, desc: '切换输出风格' },
+      { label: '/output-style:new', command: '/output-style:new ', enabled: false, autoSend: false, desc: '新建一个输出风格（需追加描述）' },
+    ],
+  },
+  {
+    id: 'workflow',
+    title: '工作流',
+    desc: '任务清单、设置、权限、状态展示。',
+    items: [
+      { label: '/todos', command: '/todos', enabled: false, autoSend: true, desc: '查看当前的 TODO 列表' },
+      { label: '/config', command: '/config', enabled: false, autoSend: true, desc: '查看 / 修改 Claude Code 设置' },
+      { label: '/permissions', command: '/permissions', enabled: false, autoSend: true, desc: '查看 / 修改工具调用权限' },
+      { label: '/status', command: '/status', enabled: false, autoSend: true, desc: '查看当前会话状态' },
+      { label: '/statusline', command: '/statusline', enabled: false, autoSend: true, desc: '配置状态行显示' },
+      { label: '/context', command: '/context', enabled: false, autoSend: true, desc: '查看当前上下文使用情况' },
+    ],
+  },
+  {
+    id: 'auth',
+    title: '账号',
+    desc: '登录、登出与账号切换。',
+    items: [
+      { label: '/login', command: '/login', enabled: false, autoSend: true, desc: '登录 / 切换 Anthropic 账号' },
+      { label: '/logout', command: '/logout', enabled: false, autoSend: true, desc: '登出当前账号' },
+    ],
+  },
+  {
+    id: 'help',
+    title: '信息',
+    desc: '帮助、费用、诊断、PR 评论、版本说明。',
+    items: [
+      { label: '/help', command: '/help', enabled: false, autoSend: true, desc: '查看可用的斜杠命令' },
+      { label: '/cost', command: '/cost', enabled: false, autoSend: true, desc: '查看本会话累计消耗' },
+      { label: '/doctor', command: '/doctor', enabled: false, autoSend: true, desc: '运行环境健康检查' },
+      { label: '/pr_comments', command: '/pr_comments', enabled: false, autoSend: true, desc: '抓取并阅读当前 PR 上的评论' },
+      { label: '/release-notes', command: '/release-notes', enabled: false, autoSend: true, desc: '查看最新版本说明' },
+    ],
+  },
+  {
+    id: 'tools',
+    title: '工具',
+    desc: '杂项工具：后台 bash、GitHub App、安全审查、终端设置、升级等。',
+    items: [
+      { label: '/bashes', command: '/bashes', enabled: false, autoSend: true, desc: '查看后台 bash 进程' },
+      { label: '/install-github-app', command: '/install-github-app', enabled: false, autoSend: true, desc: '安装 / 配置 GitHub App' },
+      { label: '/migrate-installer', command: '/migrate-installer', enabled: false, autoSend: true, desc: '迁移到原生安装器' },
+      { label: '/security-review', command: '/security-review', enabled: false, autoSend: true, desc: '让 Claude 做一次安全审查' },
+      { label: '/terminal-setup', command: '/terminal-setup', enabled: false, autoSend: true, desc: '配置终端集成' },
+      { label: '/upgrade', command: '/upgrade', enabled: false, autoSend: true, desc: '升级到最新 Claude Code' },
+      { label: '/vim', command: '/vim', enabled: false, autoSend: true, desc: '切换 Vim 键位' },
+    ],
+  },
+];
+
+// ============================================================
+// 默认命令（扁平化分组数据）
 // ============================================================
 
 /**
- * 默认命令列表
+ * 默认命令列表 = 所有内置分组的 items 扁平化 + 标注 group 字段。
  *
- * Claude Code 内置斜杠命令的常用入口。用户可在设置页禁用、新增、排序。
+ * - 「会话」组保持 enabled=true（在 COMMAND_GROUPS 内已设）
+ * - 其他组保持 enabled=false（在 COMMAND_GROUPS 内已设）
  */
-export const DEFAULT_COMMANDS: ConfigurableCommand[] = [
-  { label: '/clear', command: '/clear', enabled: true, desc: '清屏' },
-  { label: '/compact', command: '/compact', enabled: true, desc: '紧凑对话' },
-  { label: '/resume', command: '/resume', enabled: true, desc: '恢复会话' },
-  { label: '/stats', command: '/stats', enabled: true, desc: '统计信息' },
-  { label: '/exit', command: '/exit', enabled: true, desc: '退出' },
-];
+export const DEFAULT_COMMANDS: ConfigurableCommand[] = COMMAND_GROUPS.flatMap((g) =>
+  g.items.map((c) => ({ ...c, group: g.id })),
+);
+
+/** 按 id 取命令分组定义；找不到返回 undefined */
+export function findCommandGroup(id: string): CommandGroupDef | undefined {
+  return COMMAND_GROUPS.find((g) => g.id === id);
+}
 
 // ============================================================
 // UserConfig（文件层）
@@ -265,7 +390,8 @@ export interface UserConfig {
  *
  * 不修改入参；用户原值优先，仅在字段缺失或类型不对时回退到默认。
  *
- * 旧版 shortcuts（v0.2 之前，无 group 字段）：直接整段丢弃，回到 DEFAULT_SHORTCUTS。
+ * 旧版 shortcuts / commands（v0.2 之前，无 group 字段）：直接整段丢弃，
+ * 回到对应的 DEFAULT_*。
  *  - 判断条件：数组里存在任意一项缺 group 字段
  *  - 不做按 label/data 的智能迁移：升级即重置默认，简单可预期
  */
@@ -274,14 +400,22 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
 > &
   UserConfig {
   const src = input ?? {};
+
   const userShortcuts =
     Array.isArray(src.shortcuts) && src.shortcuts.length > 0 ? src.shortcuts : null;
-  const isLegacy =
+  const shortcutsLegacy =
     userShortcuts !== null &&
     userShortcuts.some((s) => typeof s.group !== 'string' || s.group.length === 0);
   const shortcuts =
-    userShortcuts === null || isLegacy ? DEFAULT_SHORTCUTS : userShortcuts;
+    userShortcuts === null || shortcutsLegacy ? DEFAULT_SHORTCUTS : userShortcuts;
+
+  const userCommands =
+    Array.isArray(src.commands) && src.commands.length > 0 ? src.commands : null;
+  const commandsLegacy =
+    userCommands !== null &&
+    userCommands.some((c) => typeof c.group !== 'string' || c.group.length === 0);
   const commands =
-    Array.isArray(src.commands) && src.commands.length > 0 ? src.commands : DEFAULT_COMMANDS;
+    userCommands === null || commandsLegacy ? DEFAULT_COMMANDS : userCommands;
+
   return { ...src, shortcuts, commands };
 }

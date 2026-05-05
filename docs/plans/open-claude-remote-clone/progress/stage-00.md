@@ -35,7 +35,7 @@
 - `scripts/copy-frontend-dist.js`（前端 dist 拷贝到 backend/frontend-dist）
 
 **关键决策**：
-- workspace 包名前缀 `@ocr/*`（避免与上游 `@claude-remote/*` 冲突，同时简短便于书写）
+- workspace 包名前缀 `@otr/*`（避免与上游 `@claude-remote/*` 冲突，同时简短便于书写）
 - `start` 脚本指向 `backend/dist/cli.js`（CLI 入口而非 index.js）——更符合 npm bin 调用习惯
 - `noUncheckedIndexedAccess` 启用——契合"清晰控制逻辑"要求
 - `onlyBuiltDependencies` 仅放 `esbuild` 和 `node-pty`——pnpm 9 安全模式
@@ -47,7 +47,7 @@
 ### 0.2 shared 包 · 完成 2026-05-05
 
 **产出文件**：
-- `shared/package.json`（@ocr/shared，仅 typescript + vitest 两个 dev 依赖）
+- `shared/package.json`（@otr/shared，仅 typescript + vitest 两个 dev 依赖）
 - `shared/tsconfig.json`（composite + outDir dist + 排除 *.test.ts）
 - `shared/src/constants.ts`（协议常量：端口/TTL/限流/buffer/心跳/字节数/WS 上限/路径名）
 - `shared/src/ws-protocol.ts`（11 种消息类型 + SessionStatus 枚举 + 两个类型守卫）
@@ -65,12 +65,12 @@
 
 **验证**：
 - `pnpm install`（76 包，47s）通过
-- `pnpm --filter @ocr/shared build` 通过，dist/ 生成 12 个 .js + .d.ts 文件
+- `pnpm --filter @otr/shared build` 通过，dist/ 生成 12 个 .js + .d.ts 文件
 
 ### 0.3 backend 最小骨架 · 完成 2026-05-05
 
 **产出文件**：
-- `backend/package.json`（@ocr/backend，bin: claude-remote → dist/cli.js）
+- `backend/package.json`（@otr/backend，bin: claude-remote → dist/cli.js）
 - `backend/tsconfig.json`（references shared，types: node）
 - `backend/src/constants.ts`（运行时常量：批合并阈值/文件锁/IP 监控/PTY/关闭/端口/停止）
 - `backend/src/errors.ts`（AppError 基类 + 8 个领域子类 + toAppError 规范化函数）
@@ -89,7 +89,7 @@
 
 **验证**：
 - `pnpm install` 通过（含 node-pty 编译）
-- `pnpm --filter @ocr/backend build` 通过
+- `pnpm --filter @otr/backend build` 通过
 - `node backend/dist/cli.js` 启动后：
   - 端口 3000 正常监听
   - `curl http://127.0.0.1:3000/api/health` 返回 `{"ok":true,"timestamp":"...","uptime":N}`
@@ -104,7 +104,7 @@
 ### 0.4 frontend 最小骨架 · 完成 2026-05-05
 
 **产出文件**：
-- `frontend/package.json`（@ocr/frontend，含 React 19/Vite 6/xterm/Zustand/dnd-kit/testing-library）
+- `frontend/package.json`（@otr/frontend，含 React 19/Vite 6/xterm/Zustand/dnd-kit/testing-library）
 - `frontend/tsconfig.json`（references shared，jsx: react-jsx，types: vite/client）
 - `frontend/vite.config.ts`（dev: 5173 + proxy /api /ws → 3000；build: dist/）
 - `frontend/index.html`（中文 lang，viewport-fit=cover，theme-color GitHub Dark）
@@ -137,8 +137,8 @@
 - `backend/src/errors.test.ts`（19 个测试覆盖 AppError 字段保留、cause 链、子类默认 httpStatus、toAppError 规范化）
 
 **结果**：
-- `pnpm --filter @ocr/shared test` → 8/8 通过
-- `pnpm --filter @ocr/backend test` → 19/19 通过
+- `pnpm --filter @otr/shared test` → 8/8 通过
+- `pnpm --filter @otr/backend test` → 19/19 通过
 
 **关键设计**：
 - 类型守卫只校验 type 字段，不校验细节字段——契合"handler 二次校验"的分工

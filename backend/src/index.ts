@@ -4,7 +4,7 @@
  * 启动流程：
  *  1. loadConfig（CLI > env > config.json > 默认）→ AppConfig
  *  1.4 共享 Token：cli/env 都没指定时，走 acquireSharedToken（withFileLock）
- *  1.5 解析用户 --settings + 合并 claude-remote hooks → 写 settings 文件
+ *  1.5 解析用户 --settings + 合并 otr hooks → 写 settings 文件
  *  1.6 detectDisplayIp 选 LAN IP，构造扫码 URL
  *  1.7 多实例：findAvailablePort（preferred 起递增）+ 生成 instanceId
  *  2. 创建 AuthModule（cookie 名按"实际端口"绑）+ HookReceiver
@@ -28,7 +28,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
-import type { UserConfig } from '@ocr/shared';
+import { type UserConfig, ErrorCode } from '@otr/shared';
 import { logger } from './logger/logger.js';
 import { createApiRouter } from './api/router.js';
 import type { ConfigStore } from './api/config-routes.js';
@@ -54,7 +54,8 @@ import {
 } from './config.js';
 import type { ParsedCliArgs } from './cli-utils.js';
 import { acquireSharedToken } from './registry/shared-token.js';
-import { findAvailablePort } from './registry/port-finder.js';
+import { bindAvailablePort } from './registry/port-finder.js';
+import { InstanceError } from './errors.js';
 import { InstanceRegistryManager } from './registry/instance-registry.js';
 import { DefaultInstanceSpawner } from './registry/instance-spawner.js';
 import {
@@ -68,6 +69,7 @@ import { isWsl } from './utils/wsl-detect.js';
 import { isWslNatIp, buildPortForwardHint } from './utils/wsl-port-hint.js';
 import { IpMonitor } from './utils/ip-monitor.js';
 import { PushService } from './push/push-service.js';
+import { createDevProxy, type DevProxyHandle } from './dev/dev-proxy.js';
 import { randomUUID } from 'node:crypto';
 import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
@@ -114,18 +116,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
   // 1.6 displayIp（先选好让后续 banner / CORS 用）
   const displayIp = detectDisplayIp(cfg.host);
-
-  // 1.7 端口自动递增（preferred 被占 → +1）+ 生成 instanceId
-  //    探测时仅在 127.0.0.1 上做（与实际监听 host 无关；只判端口空闲）
-  const actualPort = await findAvailablePort({
-    preferred: cfg.port,
-    host: '127.0.0.1',
-  });
-  if (actualPort !== cfg.port) {
-    cfg.port = actualPort;
-  }
   const instanceId = randomUUID();
-  const publicUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
 
   // 1.8 IP 监控（Wi-Fi 切换 → 广播 ip_changed）
   const ipMonitor = new IpMonitor({ initialIp: displayIp, hostHint: cfg.host });
@@ -133,6 +124,45 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   // 1.9 PushService（VAPID + 订阅；hook 触发时推送给已订阅手机）
   const pushService = new PushService();
   await pushService.init();
+
+  // 1.10 创建空 express + httpServer，但暂不挂 routes
+  //
+  // 关键点：cfg.port 在 listen 成功之前是"用户偏好"，listen 失败要能跳到下一个端口。
+  // 所有依赖最终 port 的副作用（settings / cookieName / authModule / banner）必须在
+  // listen 成功后才计算，否则失败回退时这些副作用会带着错的 port。
+  // express 路由是 lazy 的（每次 request 才查最新 stack），所以 listen 后追加 use
+  // 完全合法；listen 与 use 之间是同步代码，不会有真请求漏到 404。
+  const app = express();
+  app.use(express.json());
+  const httpServer: HttpServer = createServer(app);
+
+  // 1.11 bindAvailablePort：探测 + listen 一体循环
+  //
+  // - probe 与 listen 用同一个 host（cfg.host），消除 macOS 上 0.0.0.0/127.0.0.1 误判
+  // - listen 触发 EADDRINUSE 自动跳下一个候选（covers TOCTOU + 多实例并发抢端口）
+  // - strict 模式 → maxAttempts=1，preferred 失败立即抛错
+  let bindResult;
+  try {
+    bindResult = await bindAvailablePort({
+      preferred: cfg.port,
+      host: cfg.host,
+      server: httpServer,
+      strict: cfg.strictPort,
+    });
+  } catch (err) {
+    if (err instanceof InstanceError && err.code === ErrorCode.PORT_UNAVAILABLE) {
+      // strict 模式 / 全部候选耗尽：友好的中文报错 + hint，按用户偏好走 stderr
+      const hint = cfg.strictPort
+        ? '提示：换用 --port <n> 或去掉 --strict-port 启用自适应'
+        : '提示：换用 --port <n> 指定其他起始端口';
+      process.stderr.write(`otr: ${err.message}\n${hint}\n`);
+      process.exit(1);
+    }
+    // 其他错误（EACCES / 其他不可恢复）外抛
+    throw err;
+  }
+  cfg.port = bindResult.port;
+  const publicUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
 
   logger.info(
     {
@@ -145,6 +175,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       instanceName: cfg.instanceName,
       tokenSource: cfg.tokenSource,
       userConfigPath: cfg.userConfigPath,
+      strictPort: cfg.strictPort,
     },
     '加载阶段 5 配置',
   );
@@ -157,7 +188,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   //  - 用户可设 OCR_INJECT_SETTINGS=true|false 强制开关
   //
   // 跳过时仍写一份 settings 文件（代价极低），方便用户日后切回 claude
-  // 直接 `claude --settings ~/.claude-remote/settings/<port>.json` 即可。
+  // 直接 `claude --settings ~/.open-terminal-remote/settings/<port>.json` 即可。
   const extracted = extractSettingsFromArgs(cfg.claudeArgs);
   const finalClaudeArgs = extracted ? extracted.remainingArgs : [...cfg.claudeArgs];
   const settings = createClaudeSettings(cfg.port, extracted?.value);
@@ -202,10 +233,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     cliJsPath: resolve(__dirname, 'cli.js'),
   });
 
-  // 3. Express
-  const app = express();
-  app.use(express.json());
-
+  // 3. Express 路由（app + httpServer 已在 1.10 创建并 listen，这里只往同一个 app 上挂中间件/路由）
   // CORS：同源 + localhost/127.0.0.1 + 本机所有网卡 IP（含 Tailscale / VPN / 多网卡）
   // 之所以放开本机所有网卡 IP：用户可能从 LAN IP / Tailscale IP / 临时 VPN
   // IP 等不同入口访问，统一以"对端能 TCP 连到我们"作为信任前提（防火墙
@@ -235,7 +263,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }),
   );
 
-  // /api 路由（含 /auth + /config + /hook + /instances + /push）
+  // /api 路由（含 /auth + /config + /hook + /instances + /push + /share）
   app.use(
     '/api',
     createApiRouter({
@@ -246,13 +274,38 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       currentInstanceId: instanceId,
       spawner,
       pushService,
+      port: cfg.port,
+      displayIp,
     }),
   );
+
+  // dev 反代：当 --dev-proxy <port> / OCR_DEV_PROXY 设置时，把非 /api、/ws 的
+  // HTTP/WS 请求转到 vite dev server。让手机访问真后端端口也能拿到 HMR 实时前端。
+  // 必须在 static / SPA fallback 之前 mount —— 命中即转发，不再走静态。
+  // shutdown 路径会调 dispose() 摘 upgrade 监听 + 销毁所有进行中的 socket。
+  let devProxy: DevProxyHandle | null = null;
+  if (cfg.devProxyPort !== undefined) {
+    devProxy = createDevProxy({
+      targetPort: cfg.devProxyPort,
+      httpServer,
+      logger,
+    });
+    app.use(devProxy.middleware);
+  }
 
   // 静态前端 + SPA fallback
   const frontendDist = resolve(__dirname, '..', 'frontend-dist');
   if (existsSync(frontendDist)) {
-    app.use(express.static(frontendDist));
+    // 显式声明 .webmanifest 的 MIME，避免 Chrome PWA 安装提示因 MIME 错误而拒绝
+    app.use(
+      express.static(frontendDist, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.webmanifest')) {
+            res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+          }
+        },
+      }),
+    );
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
         return next();
@@ -264,8 +317,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     logger.warn({ expected: frontendDist }, '前端 dist 不存在，跳过静态服务');
   }
 
-  // 4. HTTP server + WsServer（带认证）
-  const httpServer: HttpServer = createServer(app);
+  // 4. WsServer（带认证）—— httpServer 已在 1.10 创建并 listen
   const ws = new WsServer(httpServer, { authenticate: createWsAuthenticate(authModule) });
 
   // 5. PTY + SessionController
@@ -335,6 +387,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     ctrl.destroy();
     ws.destroy();
     authModule.destroy();
+    devProxy?.dispose();
     // 注销实例（best-effort，不阻塞关闭）
     void registry.unregister(instanceId).catch((err) => {
       logger.warn({ err }, '关闭时注销实例失败');
@@ -349,30 +402,34 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   pty.on('exit', (exitCode: number) => {
     setTimeout(() => shutdown(exitCode), SHUTDOWN_WS_FLUSH_DELAY_MS);
   });
+  // PTY spawn / 运行错误：保留 backend 在线，让 SessionController 的 'error' listener
+  // 把消息广播给前端（前端在终端区显示错误文本，并通过 status_update 切回 idle）。
+  // 不再 shutdown(1)：用户在浏览器上能看到具体失败原因（如 "posix_spawnp failed"），
+  // 而不是 backend 静悄悄退出留下莫名空白。
+  //
+  // 关键：必须 stop relay —— 否则 stdin 仍处于 raw mode + 监听中，但 PTY 已死，
+  // 用户敲键盘无人接 = 本地 PC 终端卡死。stop 后 stdin 还原，用户至少能用 Ctrl+C
+  // 退掉 backend，看屏幕看清错误信息后决定下一步。
   pty.on('error', (err: Error) => {
-    logger.error({ err }, 'PTY 启动错误，退出');
-    setTimeout(() => shutdown(1), SHUTDOWN_WS_FLUSH_DELAY_MS);
+    logger.error({ err }, 'PTY 错误');
+    if (relay) relay.stop();
+    ctrl.setStatus('idle', err.message);
   });
 
   process.on('SIGINT', () => shutdown(0));
   process.on('SIGTERM', () => shutdown(0));
 
+  // listen 已在 1.11 完成；这里只挂运行期错误处理（非 EADDRINUSE，物理上不再可能）
   httpServer.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      logger.error({ port: cfg.port, host: cfg.host }, '端口已被占用');
-      process.exit(1);
-    }
-    logger.error({ err }, 'HTTP server 错误');
+    logger.error({ err }, 'HTTP server 运行期错误');
     process.exit(1);
   });
 
-  // 8. listen + banner（PTY 暂不 spawn，等用户按 Enter 后再启动，
+  // 8. banner（PTY 暂不 spawn，等用户按 Enter 后再启动，
   //    避免 Claude 等全屏 TUI 立刻把屏幕清掉、用户根本看不全二维码）
-  httpServer.listen(cfg.port, cfg.host, () => {
-    void (async (): Promise<void> => {
-      await renderBannerAndStart();
-    })();
-  });
+  void (async (): Promise<void> => {
+    await renderBannerAndStart();
+  })();
 
   async function renderBannerAndStart(): Promise<void> {
     const tokenPreview =
@@ -477,41 +534,82 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       process.stderr.write(
         `  ─── 准备启动 PTY 子进程（${cfg.claudeCommand}） ─────────────\n`,
       );
-      process.stderr.write(
-        '  （backend 已就绪，浏览器/手机扫码已可登录看到等待画面）\n',
-      );
+      // 根据 spawn 模式给出对应等待提示
+      const isHeadlessHint = cfg.noTerminal || !process.stdin.isTTY;
+      const mustWaitEnterHint = cli.waitConfirm === true && !isHeadlessHint;
+      if (isHeadlessHint) {
+        process.stderr.write('  （headless 模式：立即启动）\n');
+      } else if (mustWaitEnterHint) {
+        process.stderr.write('  按 Enter 立即启动 PTY 子进程（--wait-confirm 模式）\n');
+      } else {
+        const timeoutHint =
+          cfg.spawnTimeoutSec > 0
+            ? `（${cfg.spawnTimeoutSec}s 内任一触发：浏览器连入 / 按 Enter / 自动启动）`
+            : '（无超时：浏览器连入或按 Enter 触发）';
+        process.stderr.write(`  扫码登录浏览器后自动启动 ${timeoutHint}\n`);
+      }
       process.stderr.write('\n');
     } else {
       process.stderr.write('\n');
     }
 
-    // PTY spawn 时机：
-    //  - 默认（无 --wait-confirm）：立即 spawn，浏览器一连上就看到内容
-    //  - --wait-confirm + TTY：等用户按 Enter 才 spawn，让 banner / 二维码留屏
-    //  - headless / non-TTY：永远立即 spawn，按 Enter 没意义
-    const shouldWait = cli.waitConfirm === true && process.stdin.isTTY;
-    const startPty = (): void => {
-      pty.spawn({
-        command: cfg.claudeCommand,
-        args: finalClaudeArgs,
-        cwd: cfg.claudeCwd,
-      });
-      if (relay) relay.start();
-      ctrl.setStatus('running');
+    // PTY spawn 时机：三种模式
+    //
+    //  1. headless / 无 TTY / --no-terminal：立即 spawn（无人值守，banner 也无意义）
+    //  2. --wait-confirm + TTY：必须按 Enter（覆盖浏览器/超时触发），保留旧语义
+    //  3. 默认 + TTY：race（首个 webapp 连入 / Enter / spawnTimeoutSec）
+    //     - banner 保持留屏直到 spawn 真的发生 → 用户能看到二维码
+    //     - 浏览器先连入立即 spawn → 解决"按 Enter 之前打开链接看到空白"
+    //     - 兜底超时（默认 30s，可配）防止用户离开后永远不 spawn
+    //
+    // startPty 防重入：任一触发命中即 spawn 一次，其它触发 no-op
+    const isHeadless = cfg.noTerminal || !process.stdin.isTTY;
+    const mustWaitEnter = cli.waitConfirm === true && !isHeadless;
+
+    let ptyStarted = false;
+    const startPty = (reason: 'immediate' | 'webapp' | 'enter' | 'timeout'): void => {
+      if (ptyStarted) return;
+      ptyStarted = true;
+      logger.info({ reason }, 'PTY spawn 触发');
+      try {
+        pty.spawn({
+          command: cfg.claudeCommand,
+          args: finalClaudeArgs,
+          cwd: cfg.claudeCwd,
+        });
+        if (relay) relay.start();
+        ctrl.setStatus('running');
+      } catch (err) {
+        // PtyManager.spawn 一般通过 'error' 事件而非同步抛错暴露失败；
+        // 这里捕获是给"重复 spawn"等同步 PtyError 兜底——同样不退 backend，
+        // 让用户能在浏览器上看到状态与日志
+        logger.error({ err }, 'spawn PTY 失败');
+        ctrl.setStatus('idle', err instanceof Error ? err.message : String(err));
+      }
     };
-    if (shouldWait) {
+
+    if (isHeadless) {
+      startPty('immediate');
+    } else if (mustWaitEnter) {
       void waitForUserConfirm()
-        .then(startPty)
+        .then(() => startPty('enter'))
         .catch((err) => {
-          logger.error({ err }, 'spawn PTY 失败');
+          logger.error({ err }, '等待 Enter 失败');
           shutdown(1);
         });
     } else {
-      try {
-        startPty();
-      } catch (err) {
-        logger.error({ err }, 'spawn PTY 失败');
-        shutdown(1);
+      // 默认 race：webapp / Enter / 超时
+      // 1) webapp 连入 → spawn（attach 类型不算，attach 是命令行接管，不是浏览器）
+      ws.onConnect((_ws, type) => {
+        if (type === 'webapp') startPty('webapp');
+      });
+
+      // 2) Enter 键 → spawn
+      void waitForUserConfirm({ silent: true }).then(() => startPty('enter'));
+
+      // 3) 超时兜底（cfg.spawnTimeoutSec=0 时禁用）
+      if (cfg.spawnTimeoutSec > 0) {
+        setTimeout(() => startPty('timeout'), cfg.spawnTimeoutSec * 1000).unref();
       }
     }
 
@@ -692,16 +790,25 @@ function collectLocalHostnames(): Set<string> {
   return set;
 }
 
-function waitForUserConfirm(): Promise<void> {
+/**
+ * 等用户在 stdin 按任意键 / Enter；非 TTY 立即 resolve。
+ *
+ * @param opts.silent 不打印"按 Enter 启动"提示行（默认模式下 banner 已含等待提示）
+ */
+function waitForUserConfirm(opts: { silent?: boolean } = {}): Promise<void> {
   if (!process.stdin.isTTY) return Promise.resolve();
-  process.stderr.write('  按 Enter 启动子进程（或 Ctrl+C 退出 backend）...');
+  if (!opts.silent) {
+    process.stderr.write('  按 Enter 启动子进程（或 Ctrl+C 退出 backend）...');
+  }
   return new Promise<void>((resolve) => {
     const onData = (chunk: Buffer): void => {
       // 任何字节（包括 \r 或 \n）都算确认
       if (chunk.length === 0) return;
       cleanup();
-      // 清掉提示行（不留痕）
-      process.stderr.write('\r\x1b[K');
+      // 清掉提示行（不留痕）；silent 模式下没打印提示，无需清
+      if (!opts.silent) {
+        process.stderr.write('\r\x1b[K');
+      }
       resolve();
     };
     const cleanup = (): void => {

@@ -1,0 +1,36 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.root {
+  @include m.row-flex(t.$sp-2);
+}
+
+// 语义占位，便于运行时调试 / 测试选择器
+// 写一行无副作用的属性，避免 sass 把空规则删掉
+.statusConnection { display: inline-flex; }
+.statusSession { display: inline-flex; }
+
+// 把 Pill 包成 button 时去掉浏览器默认的 button 样式，保留 Pill 自身视觉
+.reconnectBtn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  border-radius: t.$radius-pill;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.$shadow-focus;
+  }
+
+  // hover 时让里面的 Pill 微微亮一格——靠 opacity 而不是改 Pill 内部颜色
+  &:hover .statusConnection {
+    opacity: 0.85;
+  }
+  &:active .statusConnection {
+    opacity: 0.7;
+  }
+}

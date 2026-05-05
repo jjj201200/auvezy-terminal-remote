@@ -12,7 +12,7 @@
  */
 
 import { WebSocket } from 'ws';
-import type { ClientMessage } from '@ocr/shared';
+import type { ClientMessage } from '@otr/shared';
 import { logger } from '../logger/logger.js';
 
 /** 业务回调集合 */

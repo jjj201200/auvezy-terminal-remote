@@ -12,7 +12,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { ErrorCode, type InstanceListItem } from '@ocr/shared';
+import { ErrorCode, type InstanceListItem } from '@otr/shared';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner, SpawnInstanceInput } from '../registry/instance-spawner.js';

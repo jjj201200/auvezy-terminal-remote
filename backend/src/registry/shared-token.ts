@@ -2,7 +2,7 @@
  * shared-token：跨实例共享的 token 文件
  *
  * 场景：
- *   用户 A 启动 instance 1（端口 3000），生成 token X 写到 ~/.claude-remote/config.json
+ *   用户 A 启动 instance 1（端口 3000），生成 token X 写到 ~/.open-terminal-remote/config.json
  *   用户 A 又启动 instance 2（端口 3001）——它应当读到同一个 token X，
  *   而不是另起一个 token Y——否则手机上扫码的二维码会随机失效。
  *
@@ -13,7 +13,7 @@
  *
  * 不做的事：
  *   - 加密：token 本身已经是 256-bit 高熵随机串，写明文 + 文件 0o600 已够
- *   - 跨主机同步：claude-remote 仅本机使用
+ *   - 跨主机同步：otr 仅本机使用
  *   - token 轮换：用户可手动删 config.json 让下次启动重新生成
  */
 
@@ -21,10 +21,10 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { homedir } from 'node:os';
 import {
-  CLAUDE_REMOTE_DIR,
+  OTR_DATA_DIR,
   CONFIG_FILENAME,
   type UserConfig,
-} from '@ocr/shared';
+} from '@otr/shared';
 import { withFileLock } from '../utils/file-lock.js';
 import { logger } from '../logger/logger.js';
 
@@ -47,7 +47,7 @@ export interface SharedTokenResult {
 
 /** acquireSharedToken 入参 */
 export interface AcquireSharedTokenOptions {
-  /** config.json 完整路径；默认 ~/.claude-remote/config.json */
+  /** config.json 完整路径；默认 ~/.open-terminal-remote/config.json */
   path?: string;
   /** 锁目录路径；默认 <dir>/.shared-token.lock */
   lockDir?: string;
@@ -132,7 +132,7 @@ function tryReadToken(path: string): string | null {
 }
 
 function defaultDir(): string {
-  return resolve(homedir(), CLAUDE_REMOTE_DIR);
+  return resolve(homedir(), OTR_DATA_DIR);
 }
 
 function defaultPath(): string {

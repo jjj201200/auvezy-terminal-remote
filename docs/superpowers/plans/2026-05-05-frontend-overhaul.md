@@ -1346,7 +1346,7 @@ git commit -m "refactor(frontend): AuthPage 重写为 utility 类、字号收紧
  */
 
 import type { JSX } from 'react';
-import type { SessionStatus } from '@ocr/shared';
+import type { SessionStatus } from '@otr/shared';
 import type { ConnectionStatus } from '../../stores/app-store.js';
 import { Pill, type PillTone } from '../ui/Pill.js';
 
@@ -1709,7 +1709,7 @@ git commit -m "refactor(frontend): PushToggle 去 emoji、用 Pill 表达状态"
 
 import { useMemo, useState, type JSX } from 'react';
 import { Trash2, Plus } from 'lucide-react';
-import type { ConfigurableShortcut } from '@ocr/shared';
+import type { ConfigurableShortcut } from '@otr/shared';
 import { encodeForInput, decodeFromInput } from '../../utils/escape-codec.js';
 import { TextField } from '../ui/TextField.js';
 import { Toggle } from '../ui/Toggle.js';
@@ -1841,7 +1841,7 @@ git commit -m "feat(frontend): ShortcutSettings 用 escape codec 与 UI primitiv
 
 import { type JSX } from 'react';
 import { Trash2, Plus } from 'lucide-react';
-import type { ConfigurableCommand } from '@ocr/shared';
+import type { ConfigurableCommand } from '@otr/shared';
 import { TextField } from '../ui/TextField.js';
 import { Toggle } from '../ui/Toggle.js';
 import { IconButton } from '../ui/IconButton.js';
@@ -1951,7 +1951,7 @@ git commit -m "refactor(frontend): CommandSettings 用 UI primitives，移动端
 
 import { useEffect, useState, type JSX } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import type { UserConfig } from '@ocr/shared';
+import type { UserConfig } from '@otr/shared';
 import { Sheet } from '../ui/Sheet.js';
 import { ShortcutSettings } from './ShortcutSettings.js';
 import { CommandSettings } from './CommandSettings.js';
@@ -2222,7 +2222,7 @@ git commit -m "refactor(frontend): CreateInstanceModal 用 Sheet primitive"
 
 import { type JSX } from 'react';
 import { Plus } from 'lucide-react';
-import type { InstanceListItem } from '@ocr/shared';
+import type { InstanceListItem } from '@otr/shared';
 import { cn } from '../../utils/cn.js';
 
 export interface InstanceTabsProps {
@@ -2282,7 +2282,7 @@ export function InstanceTabs({ instances, onCreateClick }: InstanceTabsProps): J
 
 import { useState, type JSX } from 'react';
 import { LayoutGrid, Plus } from 'lucide-react';
-import type { InstanceListItem } from '@ocr/shared';
+import type { InstanceListItem } from '@otr/shared';
 import { Sheet } from '../ui/Sheet.js';
 import { cn } from '../../utils/cn.js';
 
@@ -2396,7 +2396,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { Send, Settings } from 'lucide-react';
-import type { ConfigurableShortcut } from '@ocr/shared';
+import type { ConfigurableShortcut } from '@otr/shared';
 import { IconButton } from '../ui/IconButton.js';
 import { cn } from '../../utils/cn.js';
 
@@ -2563,7 +2563,7 @@ git add frontend/src/components/input/InputBar.tsx
 
 import { useCallback, useRef, useState, type JSX } from 'react';
 import { Settings } from 'lucide-react';
-import type { ServerMessage, SessionStatus, ClientMessage } from '@ocr/shared';
+import type { ServerMessage, SessionStatus, ClientMessage } from '@otr/shared';
 import { useTerminal } from '../hooks/useTerminal.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useUserConfig } from '../hooks/useUserConfig.js';

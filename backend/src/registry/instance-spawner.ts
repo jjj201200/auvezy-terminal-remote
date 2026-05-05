@@ -1,5 +1,5 @@
 /**
- * InstanceSpawner：派生 headless claude-remote 子进程
+ * InstanceSpawner：派生 headless otr 子进程
  *
  * 用途：前端"创建新实例"按钮 → POST /api/instances → 这里 fork 一个新进程
  *
@@ -19,7 +19,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { resolve, isAbsolute } from 'node:path';
-import { ErrorCode } from '@ocr/shared';
+import { ErrorCode } from '@otr/shared';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 
@@ -79,7 +79,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
           ...process.env,
           ...this.opts.env,
           INSTANCE_NAME: name,
-          // 不重置 HOME，让子进程读同一个 ~/.claude-remote/config.json（共享 token）
+          // 不重置 HOME，让子进程读同一个 ~/.open-terminal-remote/config.json（共享 token）
         },
         detached: true,
         stdio: 'ignore',

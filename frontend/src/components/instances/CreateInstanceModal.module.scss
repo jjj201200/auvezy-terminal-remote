@@ -1,0 +1,58 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.form {
+  @include m.col-flex(t.$sp-5);
+}
+
+.field {
+  @include m.col-flex(t.$sp-2);
+}
+
+.fieldLabel {
+  @include m.caps;
+  color: t.$fg-dim;
+}
+
+.error {
+  margin: 0;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$alarm;
+}
+
+.cancelBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  border: 1px solid t.$border;
+  background: transparent;
+  color: t.$fg;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover {
+    background: t.$bg-hover;
+    border-color: t.$border-hi;
+  }
+}
+
+.submitBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  background: t.$accent;
+  color: #0a0c0f;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, opacity t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, t.$accent 92%, white 8%);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

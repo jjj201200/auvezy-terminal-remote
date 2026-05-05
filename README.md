@@ -1,4 +1,4 @@
-# @drowsyflesh/open-terminal-remote
+# @jjj201200/open-terminal-remote
 
 > 局域网内通过手机 / 平板浏览器远程控制 PC 上的任意终端程序（zsh / bash / claude / 任何 CLI）。
 >
@@ -21,7 +21,7 @@
 ### 全局安装（npm 用户）
 
 ```bash
-npm install -g @drowsyflesh/open-terminal-remote
+npm install -g @jjj201200/open-terminal-remote
 ```
 
 之后任意终端：
@@ -102,11 +102,17 @@ ocr [子命令] [选项]
   stop           停止本机所有实例
 
 选项：
-  --port <n>          端口（默认 3000，多实例自动递增）
+  -p, --port <n>      端口（默认 3000，多实例自动递增；除非 -S）
+  -S, --strict-port   严格端口模式：被占即报错退出，不自适应
+  --spawn-timeout <s> PTY spawn 兜底秒数（默认 30；0=不超时；
+                      首个浏览器连入 / 按 Enter / 超时三选一触发）
+  --wait-confirm      强制必须按 Enter 才 spawn（覆盖浏览器/超时触发）
   --name <s>          实例名（用于 webapp 显示）
   --no-terminal       不打印二维码（CI / 守护进程友好）
   --command <cmd>     PTY 启动命令（默认 'claude'）
   --args <json>       命令参数（JSON 数组字符串）
+  -h, --help          显示帮助
+  -v, --version       显示版本号
 ```
 
 环境变量：
@@ -120,11 +126,26 @@ ocr [子命令] [选项]
 | `OCR_ANSI_FILTER_TUI_NAMES` | 追加自家 alt-screen TUI 黑名单（逗号分隔），例如 `"lazygit,k9s,gh-dash"` |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | 注入 VAPID（高优先级，跳过文件）|
 | `PORT`        | 同 `--port` |
+| `STRICT_PORT` | 同 `--strict-port`（设 `true` 启用严格模式）|
+| `OCR_SPAWN_TIMEOUT` | 同 `--spawn-timeout`（秒；0 = 无超时）|
 | `AUTH_TOKEN`  | 指定 token（默认自动生成）|
 | `LOG_LEVEL`   | pino 级别（默认 info）|
 
 > 旧名 `CLAUDE_COMMAND` / `CLAUDE_ARGS` / `CLAUDE_CWD` 仍兼容（启动时会 warn 一次）。
 > 改名是为了说清楚：这个项目不绑定 Claude，能跑任何 PTY 程序。
+
+## 安装为 PWA（手机推荐）
+
+webapp 自带 manifest，可"添加到主屏幕"获得近原生 app 体验：
+
+- **Android Chrome**：右上角 ⋮ → "安装应用"（或地址栏会自动弹"安装"提示）
+- **iOS Safari**：分享按钮 → "添加到主屏幕"
+
+启动后无浏览器 UI（无地址栏、无底部导航），独立任务卡片，状态栏与 app 同色。
+
+> **Web Push 限制**：浏览器规定 Push 必须在 secure context（HTTPS / localhost）下，
+> LAN HTTP（http://192.168.x.x）无法订阅推送。设置面板会显示"需 HTTPS"。
+> 解决方案：用 Tailscale / Cloudflare Tunnel 给后端套一层 HTTPS，或自签证书部署。
 
 ## 在 WSL 中跑、Windows 浏览器访问
 

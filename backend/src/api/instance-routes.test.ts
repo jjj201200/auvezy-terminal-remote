@@ -16,7 +16,7 @@ import {
 import { createInstanceRoutes } from './instance-routes.js';
 import { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner } from '../registry/instance-spawner.js';
-import type { InstanceInfo, InstanceListItem } from '@ocr/shared';
+import type { InstanceInfo, InstanceListItem } from '@otr/shared';
 
 class FakeSpawner implements InstanceSpawner {
   public calls: Array<{ cwd: string; name?: string }> = [];

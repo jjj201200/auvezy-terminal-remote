@@ -132,4 +132,45 @@ describe('parseCliArgs', () => {
     expect(parseCliArgs(['--help']).help).toBe(true);
     expect(parseCliArgs(['--version']).version).toBe(true);
   });
+
+  it('--strict-port → strictPort=true', () => {
+    expect(parseCliArgs(['--strict-port']).strictPort).toBe(true);
+    // 默认未指定 → undefined（loadConfig 兜底为 false）
+    expect(parseCliArgs([]).strictPort).toBeUndefined();
+  });
+
+  it('短选项 -p / -h / -v / -S → 规范化为长选项', () => {
+    expect(parseCliArgs(['-p', '4567']).port).toBe(4567);
+    expect(parseCliArgs(['-h']).help).toBe(true);
+    expect(parseCliArgs(['-v']).version).toBe(true);
+    expect(parseCliArgs(['-S']).strictPort).toBe(true);
+  });
+
+  it('短选项 + 长选项混用', () => {
+    const r = parseCliArgs(['-p', '4321', '-S', '--no-terminal']);
+    expect(r.port).toBe(4321);
+    expect(r.strictPort).toBe(true);
+    expect(r.noTerminal).toBe(true);
+  });
+
+  it('program 后的未知短选项透传给子进程，不报错', () => {
+    // -x 不在 SHORT_TO_LONG 里 → 当成子进程参数透传
+    const r = parseCliArgs(['claude', '-x', '--abc']);
+    expect(r.command).toBe('claude');
+    expect(r.claudeArgs).toEqual(['-x', '--abc']);
+  });
+
+  it('program 前的未知短选项 → ConfigError', () => {
+    expect(() => parseCliArgs(['-x'])).toThrow();
+  });
+
+  it('--spawn-timeout 接受非负整数（含 0）', () => {
+    expect(parseCliArgs(['--spawn-timeout', '60']).spawnTimeoutSec).toBe(60);
+    expect(parseCliArgs(['--spawn-timeout', '0']).spawnTimeoutSec).toBe(0);
+  });
+
+  it('--spawn-timeout 拒绝负数 / 非数值', () => {
+    expect(() => parseCliArgs(['--spawn-timeout', '-1'])).toThrow();
+    expect(() => parseCliArgs(['--spawn-timeout', 'abc'])).toThrow();
+  });
 });

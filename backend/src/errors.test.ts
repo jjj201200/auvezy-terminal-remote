@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ErrorCode } from '@ocr/shared';
+import { ErrorCode } from '@otr/shared';
 import {
   AppError,
   AuthError,

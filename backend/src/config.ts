@@ -3,9 +3,9 @@
  *
  * 实现：
  *  - createClaudeSettings：生成 Claude Code 的 hooks 配置（指向 /api/hook）
- *  - saveClaudeSettings：把 settings 落到 ~/.claude-remote/settings/<port>.json
+ *  - saveClaudeSettings：把 settings 落到 ~/.open-terminal-remote/settings/<port>.json
  *  - extractSettingsFromArgs：从用户原始 --settings 参数中分离出 settings 内容
- *  - loadUserConfig：读取 ~/.claude-remote/config.json，缺失/损坏时落默认
+ *  - loadUserConfig：读取 ~/.open-terminal-remote/config.json，缺失/损坏时落默认
  *  - saveUserConfig：写入 config.json（atomic：tmp + rename）
  *  - loadConfig：把 ParsedCliArgs + 环境变量 + UserConfig + 默认值 合并成 AppConfig
  *
@@ -31,17 +31,18 @@ import {
 import { resolve, basename } from 'node:path';
 import { homedir } from 'node:os';
 import {
-  CLAUDE_REMOTE_DIR,
+  OTR_DATA_DIR,
   CONFIG_FILENAME,
   SETTINGS_DIRNAME,
   DEFAULT_PORT,
   DEFAULT_MAX_BUFFER_LINES,
   DEFAULT_SESSION_TTL_MS,
   DEFAULT_AUTH_RATE_LIMIT,
+  DEFAULT_SPAWN_TIMEOUT_SEC,
   ErrorCode,
   ensureDefaultUserConfig,
   type UserConfig,
-} from '@ocr/shared';
+} from '@otr/shared';
 import { ConfigError } from './errors.js';
 import { logger } from './logger/logger.js';
 import type { ParsedCliArgs } from './cli-utils.js';
@@ -101,7 +102,7 @@ export function createClaudeSettings(
   if (overlapped.length > 0) {
     logger.warn(
       { overlapped },
-      '用户已有同名 hook 事件被 claude-remote 覆盖（这是必需的）',
+      '用户已有同名 hook 事件被 otr 覆盖（这是必需的）',
     );
   }
 
@@ -112,7 +113,7 @@ export function createClaudeSettings(
 }
 
 /**
- * 落盘 Claude settings 到 ~/.claude-remote/settings/<port>.json
+ * 落盘 Claude settings 到 ~/.open-terminal-remote/settings/<port>.json
  *
  * 使用同步 IO，仅在启动阶段调用。
  *
@@ -123,7 +124,7 @@ export function saveClaudeSettings(
   port: number,
   baseDir?: string,
 ): string {
-  const dir = baseDir ?? resolve(homedir(), CLAUDE_REMOTE_DIR);
+  const dir = baseDir ?? resolve(homedir(), OTR_DATA_DIR);
   const settingsDir = resolve(dir, SETTINGS_DIRNAME);
 
   if (!existsSync(settingsDir)) {
@@ -274,7 +275,7 @@ export interface LoadedUserConfig {
 
 /** 计算 config.json 默认完整路径 */
 export function defaultUserConfigPath(): string {
-  return resolve(homedir(), CLAUDE_REMOTE_DIR, CONFIG_FILENAME);
+  return resolve(homedir(), OTR_DATA_DIR, CONFIG_FILENAME);
 }
 
 /**
@@ -396,7 +397,7 @@ export interface AppConfig {
    * Token 来源：
    *  - cli       --token
    *  - env       AUTH_TOKEN 环境变量
-   *  - shared    从 ~/.claude-remote/config.json 共享文件读到（多实例共享）
+   *  - shared    从 ~/.open-terminal-remote/config.json 共享文件读到（多实例共享）
    *  - generated 共享文件未含 token，本进程刚生成并写盘
    */
   tokenSource: 'cli' | 'env' | 'shared' | 'generated';
@@ -408,6 +409,23 @@ export interface AppConfig {
   sessionTtlMs: number;
   authRateLimit: number;
   noTerminal: boolean;
+  /**
+   * 严格端口模式：preferred 端口被占即报错，不自适应递增。
+   * 来源优先级 CLI > env(STRICT_PORT) > 默认 false。
+   */
+  strictPort: boolean;
+  /**
+   * PTY spawn 兜底超时（秒）。0 = 无超时（永远等浏览器/Enter）。
+   * 来源优先级 CLI > env(OCR_SPAWN_TIMEOUT) > 默认 30。
+   * `--wait-confirm` 模式下被忽略（强制 Enter）。
+   */
+  spawnTimeoutSec: number;
+  /**
+   * dev 反代目标端口（vite dev server）；非 /api、/ws 的 HTTP/WS 转发到该端口。
+   * 来源 CLI > env(OCR_DEV_PROXY) > undefined（默认不启用）。
+   * 仅本地调试用：让手机扫码访问真后端端口也能拿到 vite HMR 实时前端。
+   */
+  devProxyPort?: number;
   /** 已加载的用户偏好（默认值兜底过） */
   userConfig: UserConfig;
   /** 用户配置文件路径（用于后续保存） */
@@ -473,6 +491,10 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
   const authRateLimit =
     cli.authRateLimit ?? toInt(env['AUTH_RATE_LIMIT']) ?? DEFAULT_AUTH_RATE_LIMIT;
   const noTerminal = cli.noTerminal ?? env['NO_TERMINAL'] === 'true';
+  const strictPort = cli.strictPort ?? env['STRICT_PORT'] === 'true';
+  const spawnTimeoutSec =
+    cli.spawnTimeoutSec ?? toInt(env['OCR_SPAWN_TIMEOUT']) ?? DEFAULT_SPAWN_TIMEOUT_SEC;
+  const devProxyPort = cli.devProxy ?? toInt(env['OCR_DEV_PROXY']);
 
   // Token 三级
   let token: string;
@@ -504,6 +526,9 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
     sessionTtlMs,
     authRateLimit,
     noTerminal,
+    strictPort,
+    spawnTimeoutSec,
+    devProxyPort,
     userConfig: loaded.value,
     userConfigPath: loaded.path,
   };

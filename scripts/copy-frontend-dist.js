@@ -30,7 +30,7 @@ const targetDir = resolve(projectRoot, 'backend', 'frontend-dist');
 
 if (!existsSync(sourceDir)) {
   console.warn(`[copy-frontend-dist] 源目录不存在，跳过：${sourceDir}`);
-  console.warn('[copy-frontend-dist] 提示：先运行 pnpm --filter @ocr/frontend build');
+  console.warn('[copy-frontend-dist] 提示：先运行 pnpm --filter @otr/frontend build');
   process.exit(0);
 }
 

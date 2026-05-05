@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { stopInstances } from './stop-instances.js';
 import { InstanceRegistryManager } from './instance-registry.js';
-import type { InstanceInfo } from '@ocr/shared';
+import type { InstanceInfo } from '@otr/shared';
 
 function fake(over: Partial<InstanceInfo> = {}): InstanceInfo {
   return {

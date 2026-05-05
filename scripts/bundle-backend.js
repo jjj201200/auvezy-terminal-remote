@@ -3,14 +3,14 @@
  * bundle-backend
  *
  * 把 backend ESM 多文件编译产物 bundle 成单文件 dist/cli.js，让 npm 发布时不依赖
- * @ocr/shared workspace 包（直接 inline 进 bundle）。
+ * @otr/shared workspace 包（直接 inline 进 bundle）。
  *
  * 调用时机：
  * - pnpm build 之后（即先 tsc -b 拿到 backend/dist 各 .js）
  * - 在 prepublishOnly 钩子里也会跑一遍
  *
  * 外部 require（不打进 bundle）：
- * - 真实 npm runtime 依赖（cookie / cors / express / pino / ws / web-push / qrcode-terminal）
+ * - 真实 npm runtime 依赖（cookie / cors / express / pino / ws / web-push / qrcode）
  * - 原生模块（node-pty）→ 必须保留 require()，由用户安装时 npm 编译
  *
  * 输出：backend/dist/cli.js（覆盖原 tsc 产物，仍带 #!/usr/bin/env node shebang）
@@ -39,8 +39,8 @@ const outfile = resolve(backendRoot, 'dist', 'cli.bundle.js');
 // 真实运行时依赖，发布时 npm 会装；不要打进 bundle，避免重复 / native 失效
 const pkg = JSON.parse(readFileSync(resolve(backendRoot, 'package.json'), 'utf8'));
 const externals = Object.keys(pkg.dependencies ?? {})
-  // 只保留真实 npm 包，过滤掉 workspace:* 这种本地依赖（@ocr/shared 内联）
-  .filter((name) => !name.startsWith('@ocr/'));
+  // 只保留真实 npm 包，过滤掉 workspace:* 这种本地依赖（@otr/shared 内联）
+  .filter((name) => !name.startsWith('@otr/'));
 
 // 临时入口：把 entry 的内容去掉 shebang 后写入 entry.tmp.js，bundle 完再 prepend shebang。
 // 原因：ESM 模式下 esbuild 把 shebang 当代码处理（不会自动剥），
@@ -99,6 +99,15 @@ const finalContent = '#!/usr/bin/env node\n' + bundleContent;
 writeFileSync(finalPath, finalContent, 'utf8');
 chmodSync(finalPath, 0o755);
 
+// 把 postinstall.mjs 复制到 dist 下：npm install 会在用户机器上执行 dist/postinstall.mjs
+// 用途：修复 node-pty/prebuilds/<plat>-<arch>/spawn-helper 在 npm tarball 解压后丢失的 +x 权限
+const postinstallSrc = resolve(backendRoot, 'scripts', 'postinstall.mjs');
+const postinstallDst = resolve(distDir, 'postinstall.mjs');
+const postinstallContent = readFileSync(postinstallSrc, 'utf8');
+writeFileSync(postinstallDst, postinstallContent, 'utf8');
+chmodSync(postinstallDst, 0o755);
+
 console.log(
-  `[bundle-backend] 输出：${finalPath}（${(finalContent.length / 1024).toFixed(1)}KB）`,
+  `[bundle-backend] 输出：${finalPath}（${(finalContent.length / 1024).toFixed(1)}KB）` +
+    ` + ${postinstallDst}`,
 );

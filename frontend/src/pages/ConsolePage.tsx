@@ -13,12 +13,12 @@
  * 数据流：
  *  - WS server message → onMessage → 分发至 terminal / 状态 / Toast
  *  - useTerminal onResize → ws.send resize
- *  - InputBar onSend / ShortcutsBar onShortcut → ws.send user_input
+ *  - InputBar onSubmit / Toolbar onSendData / onSubmitCommand → ws.send user_input
  */
 
 import { useCallback, useRef, useState, type JSX } from 'react';
-import { Settings } from 'lucide-react';
-import type { ServerMessage, SessionStatus, ClientMessage } from '@ocr/shared';
+import { IconSettings, IconShare2 } from '@tabler/icons-react';
+import type { ServerMessage, SessionStatus, ClientMessage } from '@otr/shared';
 import { useTerminal } from '../hooks/useTerminal.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useUserConfig } from '../hooks/useUserConfig.js';
@@ -27,20 +27,24 @@ import { useMediaQuery } from '../hooks/useMediaQuery.js';
 import { useAppStore } from '../stores/app-store.js';
 import { TerminalView } from '../components/terminal/TerminalView.js';
 import { ScrollToBottomButton } from '../components/terminal/ScrollToBottomButton.js';
-import { InputBar, ShortcutsBar } from '../components/input/InputBar.js';
+import { InputBar } from '../components/input/InputBar.js';
+import { Toolbar } from '../components/input/Toolbar.js';
 import { StatusBar } from '../components/status/StatusBar.js';
 import { SettingsModal } from '../components/settings/SettingsModal.js';
 import { InstanceTabs } from '../components/instances/InstanceTabs.js';
 import { MobileInstanceSwitcher } from '../components/instances/MobileInstanceSwitcher.js';
 import { CreateInstanceModal } from '../components/instances/CreateInstanceModal.js';
+import { ShareSheet } from '../components/share/ShareSheet.js';
 import { IpChangeToast, type IpChangeInfo } from '../components/common/IpChangeToast.js';
 import { IconButton } from '../components/ui/IconButton.js';
 import { useLocalNotification } from '../hooks/useLocalNotification.js';
+import s from './ConsolePage.module.scss';
 
 export function ConsolePage(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [ipChange, setIpChange] = useState<IpChangeInfo | null>(null);
   /**
@@ -48,7 +52,12 @@ export function ConsolePage(): JSX.Element {
    * （--wait-confirm 等场景）时，告诉用户去服务端按 Enter，避免「页面空白」误解。
    */
   const [hasPtyOutput, setHasPtyOutput] = useState(false);
-  const connectionStatus = useAppStore((s) => s.connectionStatus);
+  /**
+   * InputBar 的输入值。受控提到这里，是因为 Toolbar 中"非自动发送"的命令
+   * 需要把命令文本灌进输入框等用户编辑。
+   */
+  const [inputValue, setInputValue] = useState('');
+  const connectionStatus = useAppStore((st) => st.connectionStatus);
   const { config, save } = useUserConfig();
   const { instances, create: createInstance } = useInstances();
   const localNotify = useLocalNotification();
@@ -109,7 +118,7 @@ export function ConsolePage(): JSX.Element {
     [write, adaptToPtySize, localNotify],
   );
 
-  const { send } = useWebSocket(handleMessage);
+  const { send, connect } = useWebSocket(handleMessage);
   sendRef.current = send;
 
   const handleUserInput = useCallback(
@@ -123,9 +132,9 @@ export function ConsolePage(): JSX.Element {
   }, [scrollToBottom, setAutoFollow]);
 
   return (
-    <div className="flex flex-1 flex-col min-h-0">
-      <header className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-1.5 pt-[calc(env(safe-area-inset-top)+6px)]">
-        <div className="min-w-0 flex-1 overflow-hidden">
+    <div id="console-page" className={s.root}>
+      <header id="console-header" className={s.header}>
+        <div className={s.headerLeft}>
           {isMobile ? (
             <MobileInstanceSwitcher
               instances={instances}
@@ -138,41 +147,71 @@ export function ConsolePage(): JSX.Element {
             />
           )}
         </div>
-        <StatusBar connection={connectionStatus} session={sessionStatus} />
+        <StatusBar
+          connection={connectionStatus}
+          session={sessionStatus}
+          onReconnect={connect}
+        />
+        <IconButton
+          onClick={() => setShareOpen(true)}
+          aria-label="分享此实例"
+          title="分享此实例（含二维码）"
+        >
+          <IconShare2 size={14} stroke={1.5} />
+        </IconButton>
         <IconButton
           onClick={() => setSettingsOpen(true)}
           aria-label="设置"
           title="设置"
         >
-          <Settings size={14} strokeWidth={1.5} />
+          <IconSettings size={14} stroke={1.5} />
         </IconButton>
       </header>
 
-      <div className="relative min-h-0 flex-1 bg-[var(--color-bg)]">
-        <TerminalView ref={containerRef} className="absolute inset-0 p-2" />
-        {connectionStatus === 'connected' && !hasPtyOutput && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-            <div className="pointer-events-auto max-w-[420px] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-5 py-4 text-center text-sm text-[var(--color-fg-muted)] shadow-lg">
-              <div className="mb-1 text-[var(--color-fg)] font-medium">等待终端启动</div>
-              <p className="m-0 leading-relaxed">
-                浏览器已连接，但服务端还没产生任何输出。
+      <div id="console-terminal-wrap" className={s.terminalWrap}>
+        <TerminalView ref={containerRef} className={s.terminalView} />
+        {connectionStatus === 'connected' && sessionStatus === 'pty_pending' && (
+          <div className={s.idleOverlay}>
+            <div className={s.idleCard}>
+              <div className={s.idleTitle}>正在启动终端</div>
+              <p className={s.idleBody}>
+                浏览器已连接，PTY 子进程正在启动…
                 <br />
-                如果服务端用了 <code className="font-mono text-[var(--color-accent)]">--wait-confirm</code>，请回到启动 otr 的终端按一下 Enter。
+                若长时间无响应，请回到 otr 启动终端按一下 Enter。
               </p>
             </div>
           </div>
         )}
+        {connectionStatus === 'connected' &&
+          sessionStatus !== 'pty_pending' &&
+          !hasPtyOutput && (
+            <div className={s.idleOverlay}>
+              <div className={s.idleCard}>
+                <div className={s.idleTitle}>等待终端输出</div>
+                <p className={s.idleBody}>
+                  PTY 已启动但暂无输出。如果使用了{' '}
+                  <code className={s.idleCode}>--wait-confirm</code>，
+                  请回到启动 otr 的终端按一下 Enter。
+                </p>
+              </div>
+            </div>
+          )}
         <ScrollToBottomButton visible={showScrollHint} onClick={handleScrollToBottom} />
       </div>
 
-      <ShortcutsBar
+      <Toolbar
         shortcuts={config.shortcuts}
-        onShortcut={(data) => send({ type: 'user_input', data })}
+        commands={config.commands}
+        onSendData={(data) => send({ type: 'user_input', data })}
+        onSubmitCommand={(text) => send({ type: 'user_input', data: text + '\r' })}
+        onPrefillCommand={(text) => setInputValue(text)}
         disabled={connectionStatus !== 'connected'}
       />
 
       <InputBar
-        onSend={handleUserInput}
+        value={inputValue}
+        onChange={setInputValue}
+        onSubmit={handleUserInput}
         disabled={connectionStatus !== 'connected'}
       />
 
@@ -187,6 +226,7 @@ export function ConsolePage(): JSX.Element {
         onSubmit={createInstance}
         onClose={() => setCreateOpen(false)}
       />
+      <ShareSheet open={shareOpen} onOpenChange={setShareOpen} />
       <IpChangeToast info={ipChange} onDismiss={() => setIpChange(null)} />
     </div>
   );

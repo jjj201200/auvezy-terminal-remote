@@ -1,5 +1,5 @@
 /**
- * `claude-remote attach <url>` CLI 入口
+ * `otr attach <url>` CLI 入口
  *
  * 把 process.stdin/stdout/SIGWINCH 接到 AttachClient：
  *  - stdin 进入 raw mode（不缓冲、不回显），原始字节直接 WS 透传

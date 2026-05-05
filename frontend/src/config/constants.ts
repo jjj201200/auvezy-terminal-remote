@@ -2,7 +2,7 @@
  * 前端运行时常量
  *
  * 与 backend/src/constants.ts 类似，集中管理前端调优类常量。
- * 协议常量请去 @ocr/shared/constants.ts。
+ * 协议常量请去 @otr/shared/constants.ts。
  */
 
 // ──────────────── xterm 写入批合并 ────────────────

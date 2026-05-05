@@ -5,8 +5,6 @@
  *  - pending: 显示加载占位（防止 AuthPage 闪现后又跳走）
  *  - unauthenticated: AuthPage
  *  - authenticated: ConsolePage
- *
- * viewport fix 在根组件挂一次即生效全局。
  */
 
 import type { JSX } from 'react';
@@ -14,6 +12,7 @@ import { useAuth } from './hooks/useAuth.js';
 import { useViewportFix } from './hooks/useViewportFix.js';
 import { AuthPage } from './pages/AuthPage.js';
 import { ConsolePage } from './pages/ConsolePage.js';
+import s from './App.module.scss';
 
 export function App(): JSX.Element {
   useViewportFix();
@@ -21,8 +20,9 @@ export function App(): JSX.Element {
 
   if (status === 'pending') {
     return (
-      <div className="flex flex-1 items-center justify-center text-[var(--color-fg-muted)] font-mono">
-        <span>加载中…</span>
+      <div id="app-loading" className={s.loading}>
+        <span className={s.loadingText}>loading</span>
+        <span className={s.loadingDot} />
       </div>
     );
   }

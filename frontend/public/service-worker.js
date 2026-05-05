@@ -26,7 +26,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  let payload = { title: 'Claude Remote', body: '收到新通知' };
+  let payload = { title: 'Open Terminal Remote', body: '收到新通知' };
   try {
     if (event.data) {
       payload = { ...payload, ...event.data.json() };

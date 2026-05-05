@@ -174,16 +174,38 @@ export function useTerminal(
     const container = containerRef.current;
     if (!container) return;
 
+    // 抑制 xterm 5.x 的已知偶发报错：
+    //   "Cannot read properties of undefined (reading 'dimensions')"
+    //   (RenderService.ts -> Viewport.syncScrollArea)
+    // 触发场景：容器在 React portal mount/unmount、Sheet/Dialog 打开关闭、
+    //          或浏览器 reflow 时，xterm 内部异步访问 _renderService.dimensions
+    //          那一刻 dimensions 还没 realloc。
+    // 我们在 ResizeObserver 链里已加 try-catch，但 xterm 内部还有 RAF / timer
+    // 触发的同名访问，覆盖不到。这条全局拦截只针对这一个特定 message，不会吞掉别的错。
+    const errorSuppressor = (e: ErrorEvent): void => {
+      if (
+        e.error instanceof TypeError &&
+        e.error.message.includes("reading 'dimensions'") &&
+        (e.filename?.includes('xterm') ||
+          e.error.stack?.includes('RenderService') ||
+          e.error.stack?.includes('Viewport'))
+      ) {
+        e.preventDefault(); // 阻止控制台红字
+        e.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener('error', errorSuppressor);
+
     const term = new Terminal({
       disableStdin: true, // 前端是只读视图，输入走独立 InputBar
       fontSize: XTERM_FONT_SIZE,
-      fontFamily: "'JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
+      fontFamily: "'Geist Mono', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
       scrollback: XTERM_SCROLLBACK_LINES,
       theme: {
-        background: '#0d1117',
-        foreground: '#e6edf3',
-        cursor: '#e6edf3',
-        selectionBackground: '#264f78',
+        background: '#050608',
+        foreground: '#e6e7ea',
+        cursor: '#b6f09c',
+        selectionBackground: 'rgba(182, 240, 156, 0.18)',
         black: '#484f58',
         red: '#ff7b72',
         green: '#3fb950',
@@ -236,9 +258,22 @@ export function useTerminal(
     fitAddonRef.current = fitAddon;
 
     // 容器尺寸变化 → fit + 上报
+    //
+    // 防御：
+    //  - 容器宽/高为 0 时跳过（Sheet/Dialog 打开瞬间 / display:none 路径会触发）
+    //  - try/catch 兜底 xterm 内部 RenderService dimensions 偶发未就绪：抛错不能传出
+    //    ResizeObserver 回调，否则浏览器会把 observer 从 entries 清掉，之后 fit 永远不再触发
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
-      emitResize(term.cols, term.rows);
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w === 0 || h === 0) return;
+      try {
+        fitAddon.fit();
+        emitResize(term.cols, term.rows);
+      } catch {
+        // xterm RenderService 偶发 dimensions undefined（容器 portal 切换时序）
+        // 下一帧再次触发 ResizeObserver 时会自愈
+      }
     });
     resizeObserver.observe(container);
 
@@ -258,6 +293,7 @@ export function useTerminal(
     });
 
     return () => {
+      window.removeEventListener('error', errorSuppressor);
       resizeObserver.disconnect();
       onScrollDispose.dispose();
 

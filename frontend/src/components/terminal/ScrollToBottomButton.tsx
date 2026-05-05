@@ -6,7 +6,9 @@
  */
 
 import type { JSX } from 'react';
-import { ArrowDown } from 'lucide-react';
+import { IconArrowDown } from '@tabler/icons-react';
+import clsx from 'clsx';
+import s from './ScrollToBottomButton.module.scss';
 
 export interface ScrollToBottomButtonProps {
   visible: boolean;
@@ -20,13 +22,14 @@ export function ScrollToBottomButton({
   if (!visible) return null;
   return (
     <button
+      id="scroll-to-bottom-btn"
       type="button"
       onClick={onClick}
       aria-label="返回底部"
       title="返回底部"
-      className="hide-on-keyboard absolute right-4 bottom-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--color-accent)] text-white shadow-lg hover:opacity-90"
+      className={clsx(s.root, 'hide-on-keyboard')}
     >
-      <ArrowDown size={18} strokeWidth={1.5} />
+      <IconArrowDown size={18} stroke={1.5} />
     </button>
   );
 }

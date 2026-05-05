@@ -20,7 +20,7 @@ import {
   loadConfig,
   shouldInjectSettings,
 } from './config.js';
-import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from '@ocr/shared';
+import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from '@otr/shared';
 import type { ParsedCliArgs } from './cli-utils.js';
 
 describe('createClaudeSettings', () => {
@@ -269,6 +269,90 @@ describe('loadConfig（CLI > env > 默认）', () => {
     expect(cfg.port).toBe(4444);
     expect(cfg.tokenSource).toBe('env');
     expect(cfg.noTerminal).toBe(true);
+  });
+
+  it('strictPort：默认 false；CLI 设置生效', () => {
+    const def = loadConfig({
+      cli: baseCli,
+      env: {},
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(def.strictPort).toBe(false);
+
+    const on = loadConfig({
+      cli: { ...baseCli, strictPort: true },
+      env: {},
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(on.strictPort).toBe(true);
+  });
+
+  it('strictPort：env STRICT_PORT=true 生效', () => {
+    const cfg = loadConfig({
+      cli: baseCli,
+      env: { STRICT_PORT: 'true' },
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(cfg.strictPort).toBe(true);
+  });
+
+  it('spawnTimeoutSec：默认 30；CLI 优先；env 兜底', () => {
+    const def = loadConfig({
+      cli: baseCli,
+      env: {},
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(def.spawnTimeoutSec).toBe(30);
+
+    const cli = loadConfig({
+      cli: { ...baseCli, spawnTimeoutSec: 0 },
+      env: { OCR_SPAWN_TIMEOUT: '60' },
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(cli.spawnTimeoutSec).toBe(0); // CLI 0 优先于 env 60
+
+    const env = loadConfig({
+      cli: baseCli,
+      env: { OCR_SPAWN_TIMEOUT: '60' },
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(env.spawnTimeoutSec).toBe(60);
   });
 
   it('CLI workdir 优先；instanceName 缺省 = basename(workdir)', () => {

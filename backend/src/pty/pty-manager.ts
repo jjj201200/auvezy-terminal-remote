@@ -22,7 +22,7 @@ import {
   PTY_TERM_NAME,
 } from '../constants.js';
 import { PtyError } from '../errors.js';
-import { ErrorCode } from '@ocr/shared';
+import { ErrorCode } from '@otr/shared';
 import { logger } from '../logger/logger.js';
 
 /** spawn 时的入参 */

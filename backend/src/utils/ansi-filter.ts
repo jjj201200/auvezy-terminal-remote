@@ -5,7 +5,7 @@
  * 为什么要这样：
  *   Claude Code（以及 vim/htop 等）在启动时会发 `\x1b[?1049h` 进入备用屏幕，
  *   退出时发 `\x1b[?1049l` 还原。备用屏幕主要用来"画一个完整 UI 然后清掉
- *   不污染 history"。但 claude-remote 把 PTY 输出存进 OutputBuffer 用作重连
+ *   不污染 history"。但 otr 把 PTY 输出存进 OutputBuffer 用作重连
  *   回放——alt screen 的内容是临时的，重连时回放它没有意义还会盖住 history。
  *
  *   AnsiFilter 让 SessionController 在 alt screen 期间 drop 输出，仍把进入/

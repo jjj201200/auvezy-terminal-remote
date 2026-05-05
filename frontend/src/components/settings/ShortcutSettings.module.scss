@@ -1,0 +1,401 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.root {
+  @include m.col-flex(t.$sp-2);
+}
+
+// 拖拽中：禁用全局 hover 选中等避免抖动
+.rootDragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+// ──────────────── 组容器 ────────────────
+
+.group {
+  border: 1px solid t.$border;
+  background: t.$bg-elev;
+  @include m.transition(border-color t.$dur-fast);
+
+  &:hover {
+    border-color: t.$border-hi;
+  }
+}
+
+.head {
+  @include m.row-flex(t.$sp-3);
+  padding: t.$sp-3 t.$sp-4;
+}
+
+.headBtn {
+  @include m.btn-reset;
+  flex: 1;
+  @include m.row-flex(t.$sp-3);
+  text-align: left;
+  font-size: t.$fs-sm;
+  color: t.$fg;
+  @include m.transition(color t.$dur-fast, text-shadow t.$dur-fast);
+
+  &:hover {
+    color: t.$accent;
+    @include m.phosphor-glow;
+  }
+}
+
+.chev {
+  color: t.$fg-dim;
+  @include m.transition(transform t.$dur-fast, color t.$dur-fast);
+  flex-shrink: 0;
+
+  .headBtn:hover & {
+    color: t.$accent;
+  }
+}
+
+.chevOpen {
+  transform: rotate(90deg);
+}
+
+.title {
+  letter-spacing: t.$tracking-tight;
+}
+
+.count {
+  margin-left: auto;
+  margin-right: t.$sp-2;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  letter-spacing: t.$tracking-normal;
+}
+
+.bulkBtn {
+  @include m.btn-reset;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+  padding: 2px t.$sp-3;
+  border: 1px solid transparent;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, text-shadow t.$dur-fast);
+
+  &:hover {
+    color: t.$accent;
+    border-color: rgba(182, 240, 156, 0.32);
+    @include m.phosphor-glow;
+  }
+}
+
+.body {
+  border-top: 1px solid t.$border;
+}
+
+.desc {
+  margin: 0;
+  padding: t.$sp-3 t.$sp-4;
+  font-size: t.$fs-xs;
+  line-height: t.$lh-loose;
+  color: t.$fg-dim;
+  border-bottom: 1px solid t.$border;
+  background: t.$bg;
+}
+
+.empty {
+  padding: t.$sp-5 t.$sp-4;
+  text-align: center;
+  font-size: t.$fs-xs;
+  color: t.$fg-low;
+}
+
+.list {
+  @include m.col-flex(0);
+}
+
+.footer {
+  padding: t.$sp-2 t.$sp-3;
+  border-top: 1px solid t.$border;
+}
+
+.addBtn {
+  @include m.btn-reset;
+  align-self: flex-start;
+  @include m.row-flex(t.$sp-2);
+  padding: t.$sp-2 t.$sp-3;
+  color: t.$accent;
+  font-size: t.$fs-xs;
+  letter-spacing: t.$tracking-tight;
+  @include m.phosphor-glow;
+  @include m.transition(background t.$dur-fast);
+
+  &:hover {
+    background: t.$accent-soft;
+  }
+}
+
+// ──────────────── 行 ────────────────
+
+.row {
+  @include m.row-flex(t.$sp-3);
+  // 行内 gap：纵 2px、横 6px（含换行场景下两行间距）
+  gap: 2px 6px;
+  flex-wrap: wrap;
+  padding: t.$sp-2 t.$sp-3;
+  border-top: 1px solid t.$border;
+  @include m.transition(background t.$dur-fast);
+  min-height: 30px;
+  position: relative;
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  &:hover {
+    background: t.$bg-hover;
+  }
+
+  @include m.desktop {
+    flex-wrap: nowrap;
+  }
+}
+
+.rowDisabled {
+  opacity: 0.5;
+}
+
+.rowDragSource {
+  opacity: 0.4;
+}
+
+// 拖拽手柄（行末小图标按钮）
+.gripBtn {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  // 永远靠右边对齐（即使 row-wrap 后描述行换行也不影响这个 grip）
+  margin-left: auto;
+  color: t.$fg-low;
+  cursor: grab;
+  @include m.transition(color t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+// drop indicator（行间横线）
+.dropIndicatorTop,
+.dropIndicatorBot {
+  position: absolute;
+  left: t.$sp-3;
+  right: t.$sp-3;
+  height: 2px;
+  background: t.$accent;
+  box-shadow: 0 0 6px rgba(182, 240, 156, 0.6);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dropIndicatorTop {
+  top: -1px;
+}
+
+.dropIndicatorBot {
+  bottom: -1px;
+}
+
+// 拖拽浮层
+.dragGhost {
+  position: fixed;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: t.$sp-2;
+  padding: t.$sp-2 t.$sp-3;
+  background: t.$bg-elev;
+  border: 1px solid t.$accent;
+  box-shadow: t.$shadow-3, 0 0 12px rgba(182, 240, 156, 0.32);
+  pointer-events: none;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg;
+  white-space: nowrap;
+  opacity: 0.96;
+}
+
+.dragGhostLabel {
+  color: t.$accent;
+  @include m.phosphor-glow;
+}
+
+.dragGhostData {
+  color: t.$fg-dim;
+}
+
+// 空组成为落点时高亮整个组卡片
+.groupDropTarget {
+  border-color: t.$accent !important;
+  box-shadow: 0 0 12px rgba(182, 240, 156, 0.32);
+}
+
+.rowLabel {
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg;
+  min-width: 64px;
+  @include m.truncate;
+}
+
+.rowLabelEmpty {
+  color: t.$fg-low;
+  font-style: italic;
+}
+
+.rowData {
+  flex: 1 1 0;
+  min-width: 0;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  @include m.truncate;
+}
+
+.rowDataEmpty {
+  font-style: italic;
+}
+
+// 行末说明：桌面单行省略，移动端单独占第二行（用 flex-basis: 100% 强制换行）
+// 字号统一 12px（fs-sm），与行内主元素拉开层级
+.rowDesc {
+  flex-basis: 100%;
+  order: 99;
+  margin-top: 2px;
+  margin-left: 0;
+  font-size: t.$fs-sm;
+  color: t.$fg-low;
+  line-height: 1.4;
+  word-break: break-word;
+
+  @include m.desktop {
+    flex-basis: auto;
+    order: 0;
+    margin-top: 0;
+    max-width: 240px;
+    @include m.truncate;
+  }
+}
+
+.iconBtn {
+  @include m.btn-reset;
+  padding: t.$sp-1 t.$sp-2;
+  color: t.$fg-low;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    background: t.$bg-elev;
+  }
+}
+
+.deleteBtn {
+  &:hover {
+    color: t.$alarm;
+  }
+}
+
+// ──────────────── 行内编辑态 ────────────────
+
+.editRow {
+  @include m.col-flex(t.$sp-2);
+  padding: t.$sp-3 t.$sp-4;
+  background: t.$bg-input;
+  border-top: 1px solid t.$accent;
+  border-bottom: 1px solid t.$accent;
+
+  &:first-child {
+    border-top: 1px solid t.$accent;
+  }
+}
+
+.editFields {
+  @include m.row-flex(t.$sp-2);
+}
+
+.editLabelInput {
+  width: 80px;
+  flex-shrink: 0;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg;
+  padding: t.$sp-2 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast);
+
+  &:focus-visible {
+    border-color: t.$accent;
+  }
+}
+
+.editDataInput {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg;
+  padding: t.$sp-2 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast);
+
+  &:focus-visible {
+    border-color: t.$accent;
+  }
+}
+
+.editDataInputError {
+  border-color: t.$alarm;
+
+  &:focus-visible {
+    border-color: t.$alarm;
+  }
+}
+
+.commitBtn {
+  @include m.btn-reset;
+  padding: t.$sp-2;
+  color: t.$accent;
+  @include m.transition(background t.$dur-fast);
+
+  &:hover {
+    background: t.$accent-soft;
+  }
+}
+
+.cancelBtn {
+  @include m.btn-reset;
+  padding: t.$sp-2;
+  color: t.$fg-dim;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    background: t.$bg-hover;
+  }
+}
+
+.editWarning {
+  font-size: t.$fs-xs;
+  color: t.$alarm;
+}
+

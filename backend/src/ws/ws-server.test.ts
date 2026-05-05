@@ -182,6 +182,33 @@ describe('WsServer', () => {
     await closeWs(ws3);
   });
 
+  it('onConnect 支持多 listener；多次注册全部触发', async () => {
+    wsServer = new WsServer(httpServer);
+    const triggered: string[] = [];
+    wsServer.onConnect(() => triggered.push('a'));
+    wsServer.onConnect(() => triggered.push('b'));
+    wsServer.onConnect(() => triggered.push('c'));
+
+    const ws = await openWs(`ws://127.0.0.1:${port}/ws`);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(triggered).toEqual(['a', 'b', 'c']);
+
+    await closeWs(ws);
+  });
+
+  it('onDisconnect 支持多 listener', async () => {
+    wsServer = new WsServer(httpServer);
+    const triggered: number[] = [];
+    wsServer.onDisconnect(() => triggered.push(1));
+    wsServer.onDisconnect(() => triggered.push(2));
+
+    const ws = await openWs(`ws://127.0.0.1:${port}/ws`);
+    await new Promise((r) => setTimeout(r, 50));
+    await closeWs(ws);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(triggered).toEqual([1, 2]);
+  });
+
   it('destroy 关闭所有连接', async () => {
     wsServer = new WsServer(httpServer);
     const ws = await openWs(`ws://127.0.0.1:${port}/ws`);

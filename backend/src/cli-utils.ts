@@ -24,7 +24,7 @@
  */
 
 import { ConfigError } from './errors.js';
-import { ErrorCode } from '@ocr/shared';
+import { ErrorCode } from '@otr/shared';
 
 /** 已识别的 CLI flags 集合 */
 const KNOWN_FLAGS_BOOL = new Set([
@@ -34,6 +34,7 @@ const KNOWN_FLAGS_BOOL = new Set([
   '--version',
   '--no-open',
   '--wait-confirm',
+  '--strict-port',
 ]);
 
 const KNOWN_FLAGS_VALUE = new Set([
@@ -48,7 +49,22 @@ const KNOWN_FLAGS_VALUE = new Set([
   '--session-ttl',
   '--auth-rate-limit',
   '--log-dir',
+  '--spawn-timeout',
+  '--dev-proxy',
 ]);
+
+/**
+ * 短选项 → 长选项规范化映射
+ *
+ * 仅在解析最外层 argv 时生效。`--` 之后的透传参数不做规范化（避免误改子进程参数）。
+ * 当首位置参数已识别为 program、未在此映射内的任意 -x/-X 也仍透传，不报错。
+ */
+const SHORT_TO_LONG: Record<string, string> = {
+  '-p': '--port',
+  '-h': '--help',
+  '-v': '--version',
+  '-S': '--strict-port',
+};
 
 /** CLI 解析结果 */
 export interface ParsedCliArgs {
@@ -92,6 +108,22 @@ export interface ParsedCliArgs {
    * 仅 TTY 模式有效；headless 永远立即 spawn。
    */
   waitConfirm?: boolean;
+  /**
+   * 严格端口模式：preferred 端口被占即报错退出，不自适应递增。
+   * 适合 CI / 反向代理后端这种"必须固定端口"的部署。
+   */
+  strictPort?: boolean;
+  /**
+   * PTY spawn 兜底超时（秒）。0 表示无超时（永远等浏览器/Enter）。
+   * 默认 30s。`--wait-confirm` 模式下被忽略（必须 Enter）。
+   */
+  spawnTimeoutSec?: number;
+  /**
+   * dev 反代目标端口：非 /api、/ws 的 HTTP/WS 请求转发到 http://127.0.0.1:<devProxy>
+   * （vite dev server）。让手机访问真后端端口也能拿到 HMR 实时前端。
+   * 仅本地调试用；不指定则不启用。
+   */
+  devProxy?: number;
   /** 显示 help 后退出 */
   help?: boolean;
   /** 显示版本号后退出 */
@@ -162,12 +194,21 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const programGiven = (): boolean => result.command !== undefined;
 
   for (; cursor < argv.length; cursor++) {
-    const arg = argv[cursor]!;
+    let arg = argv[cursor]!;
 
     if (arg === '--') {
       // 剩余全部追加到 claudeArgs
       result.claudeArgs.push(...argv.slice(cursor + 1));
       return result;
+    }
+
+    // 短选项规范化：-p / -h / -v / -S → 对应长选项；不在映射内的 -x 保持原样
+    // 注意：仅整体匹配（如 '-p'），不拆解粘连写法（如 '-p3000'）—— 后者会落到下面"未知参数/透传"分支
+    if (arg.length === 2 && arg.startsWith('-') && !arg.startsWith('--')) {
+      const mapped = SHORT_TO_LONG[arg];
+      if (mapped !== undefined) {
+        arg = mapped;
+      }
     }
 
     // --key=value 形式
@@ -234,6 +275,9 @@ function assignFlag(out: ParsedCliArgs, key: string, value: string | boolean): v
     case '--wait-confirm':
       out.waitConfirm = value === true || value === 'true';
       return;
+    case '--strict-port':
+      out.strictPort = value === true || value === 'true';
+      return;
     case '--help':
       out.help = true;
       return;
@@ -268,6 +312,12 @@ function assignFlag(out: ParsedCliArgs, key: string, value: string | boolean): v
     case '--auth-rate-limit':
       out.authRateLimit = parsePositiveInt(key, value);
       return;
+    case '--spawn-timeout':
+      out.spawnTimeoutSec = parseNonNegativeInt(key, value);
+      return;
+    case '--dev-proxy':
+      out.devProxy = parsePort(value);
+      return;
     case '--log-dir':
       out.logDir = String(value);
       return;
@@ -298,6 +348,17 @@ function parsePositiveInt(name: string, value: string | boolean): number {
   return n;
 }
 
+function parseNonNegativeInt(name: string, value: string | boolean): number {
+  if (typeof value !== 'string') {
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `${name} 需要数值`);
+  }
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `${name} 非法：${value}`);
+  }
+  return n;
+}
+
 /**
  * 帮助文本（--help 时输出）
  */
@@ -313,12 +374,15 @@ otr — open-terminal-remote · 局域网内远程访问 PC 终端的代理
   otr stop [pattern]               停止匹配的实例
 
 启动选项：
-  --port <n>            监听端口（默认 3000，被占用自动 +1）
+  -p, --port <n>        监听端口（默认 3000，被占用自动 +1，除非启用 -S）
   --host <ip>           监听 host（默认自动检测 LAN IP）
+  -S, --strict-port     严格端口模式：preferred 端口被占即报错，不自适应
+  --spawn-timeout <s>   PTY 兜底超时秒数（默认 30；0 = 无超时）。
+                        与 --wait-confirm 互斥（后者强制 Enter，忽略本项与浏览器触发）
   --token <hex>         指定 Token（默认从共享文件读或生成）
   --workdir <path>      子进程工作目录（默认当前目录）
   --instance-name <s>   实例显示名（默认工作目录最后一段）
-  --config <path>       config.json 路径（默认 ~/.claude-remote/config.json）
+  --config <path>       config.json 路径（默认 ~/.open-terminal-remote/config.json）
   --max-buffer-lines    输出缓冲行数（默认 10000）
   --session-ttl <ms>    Session 有效期，毫秒（默认 24h）
   --auth-rate-limit <n> 每分钟每 IP 认证次数上限（默认 20）
@@ -328,8 +392,8 @@ otr — open-terminal-remote · 局域网内远程访问 PC 终端的代理
   --no-open             不自动打开浏览器
   --wait-confirm        启动 backend 后等用户按 Enter 才 spawn 子进程
                         （默认立即 spawn；适合不希望全屏 TUI 立刻覆盖 banner 的场景）
-  --help                显示本帮助
-  --version             显示版本号
+  -h, --help            显示本帮助
+  -v, --version         显示版本号
 
   -- <args>             之后的参数也会透传给 program（与 program 后位置参数等价）
 

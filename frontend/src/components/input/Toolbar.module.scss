@@ -1,0 +1,101 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+// ──────────────── 容器 ────────────────
+
+.root {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid t.$border;
+  background: t.$bg-elev;
+}
+
+// ──────────────── 上行：两组分类 tab ────────────────
+
+.cats {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  padding: t.$bar-pad t.$bar-pad 0;
+  border-bottom: 1px solid t.$border;
+  // 给 ScrollableTabs 用的 underline 锚定
+  position: relative;
+  min-height: 24px;
+}
+
+// 分类组之间的中线
+.divider {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 1px;
+  margin: -2px t.$bar-gap;
+  background: t.$border;
+  // 不与底部下划线相连，避免视觉脏
+  margin-bottom: 1px;
+}
+
+// 语义占位：左半快捷键分类区 / 右半命令分类区
+.shortcutCats {
+  // 让左半边在挤压时优先压缩
+  min-width: 0;
+}
+.commandCats {
+  min-width: 0;
+}
+
+// ──────────────── 下行：当前分类下的快捷键/命令按钮 ────────────────
+
+.keys {
+  @include m.row-flex(t.$bar-gap);
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  padding: t.$bar-pad;
+  min-height: 28px;
+}
+
+.btn {
+  @include m.btn-reset;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 3px t.$sp-3;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg-dim;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  min-height: 22px;
+  min-width: 22px;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast, color t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    background: t.$bg-hover;
+    border-color: t.$border-hi;
+    color: t.$fg;
+  }
+
+  &:active:not(:disabled) {
+    background: t.$accent-soft;
+    border-color: t.$accent;
+    color: t.$accent;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+// 命令中 autoSend=false（需要进一步编辑）的按钮：用虚线边表示「填入待编辑」
+.btnDraft {
+  border-style: dashed;
+}
+
+.empty {
+  padding: t.$sp-2 t.$sp-3;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  font-style: italic;
+}

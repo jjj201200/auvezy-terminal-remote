@@ -1,0 +1,195 @@
+// ============================================================
+// 设计令牌
+//
+// 视觉方向：精致工业级极客风
+//   - 接近黑底（带极微冷调），不是纯黑
+//   - 磷光绿 accent（饱和度低、偏白绿）—— 项目身份与众不同的核心
+//   - 无衬线等宽字体（Geist Mono），所有 UI 文字一致
+//   - 工业级阴影（顶部高光 + 长投影 + 蚀刻边）
+//   - 100% 直角，无圆角
+//
+// 双轨制：
+//   SCSS 变量（$xxx）—— 编译期常量，组件 SCSS 用
+//   CSS 变量（--xxx）—— 运行期可读，给 inline style / JS / 第三方主题用
+// ============================================================
+
+// ──────────────── 背景层（接近黑，带 1° 冷调）────────────────
+
+$bg:           #08090b;   // 主背景
+$bg-elev:      #0d0f12;   // 卡片 / 面板（悬浮层）
+$bg-canvas:    #050608;   // 终端 canvas 渲染区，最深
+$bg-input:     #0a0c0f;   // 输入框背景
+$bg-hover:     #14171c;   // hover 高亮
+
+// ──────────────── 边框（极细对比）────────────────
+
+$border:       rgba(26, 29, 35, 0.6);   // 默认边框
+$border-hi:    #2a2f38;   // 强调边框（focus 周边、卡片分隔）
+
+// ──────────────── 前景（暖白系，3 档）────────────────
+
+$fg:           #e6e7ea;   // 主文字（暖白，非纯白）
+$fg-dim:       #8a8f99;   // 次要（label、hint）
+$fg-low:       #50545d;   // 最弱（disabled、placeholder）
+
+// ──────────────── 强调色 ────────────────
+//
+// 磷光绿（偏白、低饱和）—— 这是项目专属配色，不是任何 GitHub Dark / Vercel 风格
+
+$accent:       #b6f09c;   // 主 accent（按钮、focus、active 边框）
+$accent-soft:  rgba(182, 240, 156, 0.10);   // soft fill / glow 底
+$accent-glow:  rgba(182, 240, 156, 0.32);   // focus ring / hover 边框
+
+// 状态色
+$alarm:        #ff6b6b;   // 错误（珊瑚红，不刺眼）
+$warn:         #ffb84d;   // 警告（琥珀）
+$ok:           $accent;   // 成功 = 主 accent（不引入新色）
+
+// 遮罩（高斯模糊用）
+$overlay-bg:   rgba(2, 4, 6, 0.65);   // dialog / drawer overlay
+$overlay-blur: blur(16px) saturate(1.2);
+
+// ──────────────── 字体 ────────────────
+//
+// 全局唯一字体：Geist Mono（无衬线等宽，Vercel 出品）
+// 副字体 Geist Sans 仅在极少处用作对比（比如登录页大标题）
+
+// fallback 链同时覆盖中英文：
+//   英文：Geist Mono (variable woff2) → ui-monospace → SF Mono → JetBrains Mono → Menlo / Consolas
+//   中文：浏览器自动选 fallback 中的中文字形 —— 我们只允许无衬线字体进入这个链：
+//         PingFang SC (mac) / HarmonyOS Sans SC / Microsoft YaHei (Win) /
+//         Source Han Sans SC (Linux 多发行版) / Noto Sans SC
+//   绝不让 SimSun / 宋体 这类带衬线的进入 fallback。
+$font-mono:
+  'Geist Mono', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas,
+  // 中文等宽 / 无衬线 fallback
+  'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei',
+  'Source Han Sans SC', 'Noto Sans SC',
+  monospace;
+
+$font-sans:
+  'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+  'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei',
+  'Source Han Sans SC', 'Noto Sans SC',
+  sans-serif;
+
+// 字号阶梯（紧凑：10 / 11 / 12 / 13 / 14 / 16 / 18）
+$fs-2xs: 10px;
+$fs-xs:  11px;
+$fs-sm:  12px;
+$fs-md:  13px;   // 默认正文
+$fs-lg:  14px;
+$fs-xl:  16px;
+$fs-2xl: 18px;
+
+$lh-tight: 1.25;
+$lh-base:  1.45;
+$lh-loose: 1.65;
+
+// 字符间距（mono 字体偏紧的字距更精致）
+$tracking-tight:  -0.01em;
+$tracking-normal: 0;
+$tracking-wide:   0.04em;   // 大写小标题用
+
+// ──────────────── 间距（4px 倍数 + 极细 2px 起步）────────────────
+
+$sp-0: 0;
+$sp-1: 2px;
+$sp-2: 4px;
+$sp-3: 6px;
+$sp-4: 8px;
+$sp-5: 12px;
+$sp-6: 16px;
+$sp-7: 20px;
+$sp-8: 24px;
+$sp-9: 32px;
+
+// ──────────────── 语义间距 ────────────────
+//
+// $bar-pad ── 顶栏 / 输入栏 / 快捷键栏 等扁平 bar 的统一内边距。
+//             改这一个值就能整体压缩或松开所有 bar。
+// $bar-gap ── bar 内子元素的默认间距（同时被快捷键按钮、Pill 等用）
+//
+// 当前用 sp-1 (2px) 实现极致紧凑（小于这个值视觉上元素会粘在一起）
+
+$bar-pad: $sp-1;     // 2px
+$bar-gap: $sp-1;     // 4px
+
+// ──────────────── 边框圆角（几乎都是 0）────────────────
+
+$radius-0:    0;       // 默认：直角
+$radius-sm:   2px;     // 极轻拐角（特殊场景）
+$radius-pill: 999px;   // 圆形 / 胶囊（toggle、pill 仍保留）
+
+// ──────────────── 阴影（工业级分层）────────────────
+//
+// 三种规格：
+//   $shadow-1: 平面元素的轻投影（hover、subtle elevation）
+//   $shadow-2: 卡片 / 面板（中等高度）
+//   $shadow-3: Modal / Drawer（最高层）
+// 每个都是「顶部高光 + 长投影 + 蚀刻边」三层叠加
+
+$shadow-1:
+  0 1px 0 0 rgba(255, 255, 255, 0.02) inset,
+  0 2px 6px -2px rgba(0, 0, 0, 0.4),
+  0 0 0 1px rgba(255, 255, 255, 0.03);
+
+$shadow-2:
+  0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+  0 8px 24px -8px rgba(0, 0, 0, 0.5),
+  0 0 0 1px rgba(255, 255, 255, 0.04);
+
+$shadow-3:
+  0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+  0 24px 60px -16px rgba(0, 0, 0, 0.7),
+  0 0 0 1px rgba(255, 255, 255, 0.05);
+
+$shadow-focus: 0 0 0 1px $accent;
+
+// ──────────────── 动效 ────────────────
+
+$ease:        cubic-bezier(0.16, 1, 0.3, 1);   // 主曲线
+$ease-snap:   cubic-bezier(0.4, 0, 0.2, 1);    // 快进快出
+$dur-snap:    80ms;
+$dur-fast:    120ms;
+$dur-base:    180ms;
+$dur-slow:    280ms;
+
+// ──────────────── 层级 ────────────────
+
+$z-base:     0;
+$z-sticky:   10;
+$z-overlay:  40;
+$z-modal:    50;
+$z-toast:    60;
+
+// ──────────────── 暴露给运行时的 CSS 变量 ────────────────
+
+@mixin css-vars-root {
+  --bar-pad:            #{$bar-pad};
+  --bar-gap:            #{$bar-gap};
+
+  --color-bg:           #{$bg};
+  --color-bg-elev:      #{$bg-elev};
+  --color-bg-canvas:    #{$bg-canvas};
+  --color-bg-input:     #{$bg-input};
+  --color-bg-hover:     #{$bg-hover};
+  --color-border:       #{$border};
+  --color-border-hi:    #{$border-hi};
+  --color-fg:           #{$fg};
+  --color-fg-dim:       #{$fg-dim};
+  --color-fg-low:       #{$fg-low};
+  --color-accent:       #{$accent};
+  --color-accent-soft:  #{$accent-soft};
+  --color-alarm:        #{$alarm};
+  --color-warn:         #{$warn};
+
+  --font-mono:          #{$font-mono};
+  --font-sans:          #{$font-sans};
+
+  --shadow-1:           #{$shadow-1};
+  --shadow-2:           #{$shadow-2};
+  --shadow-3:           #{$shadow-3};
+
+  --app-vh: 100dvh;
+}

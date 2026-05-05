@@ -1,0 +1,73 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+// Tabs 现在嵌入到 Sheet header 同行，没有独立分隔线，每项是个紧凑按钮
+.tabsList {
+  display: flex;
+  gap: t.$sp-1;
+}
+
+.tabBtn {
+  @include m.btn-reset;
+  padding: t.$sp-2 t.$sp-3;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast, text-shadow t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    background: t.$bg-hover;
+  }
+}
+
+.tabBtnActive {
+  color: t.$accent;
+  border-color: rgba(182, 240, 156, 0.32);
+  background: t.$accent-soft;
+  @include m.phosphor-glow;
+
+  &:hover {
+    color: t.$accent;
+    background: t.$accent-soft;
+  }
+}
+
+.cancelBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  border: 1px solid t.$border;
+  background: transparent;
+  color: t.$fg;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover {
+    background: t.$bg-hover;
+    border-color: t.$border-hi;
+  }
+}
+
+.saveBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  background: t.$accent;
+  color: #0a0c0f;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, opacity t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, t.$accent 92%, white 8%);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

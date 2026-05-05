@@ -32,15 +32,45 @@ export interface UseAuthReturn {
 export function useAuth(): UseAuthReturn {
   const [status, setStatus] = useState<AuthStatus>('pending');
 
-  // 静默重认证：mount 时若有缓存 token 直接试一次
+  // 静默重认证：mount 时优先用 URL ?token=（如二维码/链接登录场景），
+  // 没有 URL token 才回退到 localStorage 缓存。
+  //
+  // 为什么 URL token 必须优先：
+  //  - 用户从二维码进来时 URL 上挂的就是当前 backend 的新 token
+  //  - 如果先用 localStorage 旧 token（可能是别的实例 / 重启前的 token），会：
+  //    (1) 后端打 warn 噪音 (2) 清掉旧 token 跳 AuthPage 让用户重输（多余的一步）
+  //  - URL 优先后：新 token 一次成功，旧 token 自然被覆盖；后端不再有 401 噪音
+  //
+  // 拿到 URL token 即认证：成功后写缓存并清 URL（避免历史/书签里裸露 token）
   useEffect(() => {
     let cancelled = false;
+
+    const urlToken = readUrlToken();
+    if (urlToken) {
+      void authenticate(urlToken).then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          saveToken(urlToken);
+          // 不再 stripTokenFromUrl：手机端某些「扫码器内置浏览器」/隐私会话不持久化
+          // localStorage，抹掉 URL token 后刷新就回到 AuthPage。LAN 自用场景下保留
+          // URL token 的便利性 > 浏览历史隐私风险（用户主动通过二维码分享，已知会含 token）
+          setStatus('authenticated');
+        } else {
+          // URL 上的 token 也无效（用户复制错了 / 后端重启了）→ 跳认证页让用户重输
+          // 注意：不动 localStorage 缓存，让用户至少能看到上次缓存的 token
+          setStatus('unauthenticated');
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const cached = loadToken();
     if (!cached) {
       setStatus('unauthenticated');
       return;
     }
-
     void authenticate(cached).then((res) => {
       if (cancelled) return;
       if (res.ok) {
@@ -82,3 +112,16 @@ export function useAuth(): UseAuthReturn {
 
   return { status, login, logout };
 }
+
+/** 从 window.location.search 读取 token query 参数；不存在返回 null */
+function readUrlToken(): string | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('token');
+    if (t && t.trim().length > 0) return t.trim();
+  } catch {
+    /* 解析失败：忽略 */
+  }
+  return null;
+}
+

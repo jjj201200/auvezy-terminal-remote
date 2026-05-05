@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import type { ServerMessage, ClientMessage } from '@ocr/shared';
+import type { ServerMessage, ClientMessage } from '@otr/shared';
 import { useAppStore } from '../stores/app-store.js';
 import { WS_RECONNECT_DELAYS_MS } from '../config/constants.js';
 

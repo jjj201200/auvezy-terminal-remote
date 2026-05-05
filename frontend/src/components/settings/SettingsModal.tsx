@@ -10,12 +10,13 @@
 
 import { useEffect, useState, type JSX } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import type { UserConfig } from '@ocr/shared';
+import type { UserConfig } from '@otr/shared';
+import clsx from 'clsx';
 import { Sheet } from '../ui/Sheet.js';
 import { ShortcutSettings } from './ShortcutSettings.js';
 import { CommandSettings } from './CommandSettings.js';
 import { PushToggle } from '../common/PushToggle.js';
-import { cn } from '../../utils/cn.js';
+import s from './SettingsModal.module.scss';
 
 export interface SettingsModalProps {
   open: boolean;
@@ -51,60 +52,52 @@ export function SettingsModal({
     else alert('保存失败，请稍后重试');
   };
 
-  const tabBtnClass = (key: TabKey): string =>
-    cn(
-      'border-b-2 px-3 py-2 text-sm transition-colors',
-      tab === key
-        ? 'border-[var(--color-accent)] text-[var(--color-fg)] font-medium'
-        : 'border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]',
-    );
+  const tabBtnCls = (key: TabKey): string =>
+    clsx(s.tabBtn, tab === key && s.tabBtnActive);
 
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      title="设置"
-      footer={
-        tab !== 'notifications' ? (
-          <>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-sm text-[var(--color-fg)] hover:bg-[var(--color-bg)]"
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void handleSave()}
-              className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-[#0d1117] disabled:opacity-50"
-            >
-              {saving ? '保存中…' : '保存'}
-            </button>
-          </>
-        ) : undefined
-      }
+    <Tabs.Root
+      value={tab}
+      onValueChange={(v) => setTab(v as TabKey)}
     >
-      <Tabs.Root
-        value={tab}
-        onValueChange={(v) => setTab(v as TabKey)}
-        className="flex flex-col gap-3"
+      <Sheet
+        id="settings-modal"
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        title="设置"
+        headerExtra={
+          <Tabs.List className={s.tabsList}>
+            <Tabs.Trigger value="shortcuts" className={tabBtnCls('shortcuts')}>
+              快捷键
+            </Tabs.Trigger>
+            <Tabs.Trigger value="commands" className={tabBtnCls('commands')}>
+              命令
+            </Tabs.Trigger>
+            <Tabs.Trigger value="notifications" className={tabBtnCls('notifications')}>
+              通知
+            </Tabs.Trigger>
+          </Tabs.List>
+        }
+        footer={
+          tab !== 'notifications' ? (
+            <>
+              <button type="button" onClick={onClose} className={s.cancelBtn}>
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void handleSave()}
+                className={s.saveBtn}
+              >
+                {saving ? '保存中…' : '保存'}
+              </button>
+            </>
+          ) : undefined
+        }
       >
-        <Tabs.List className="flex border-b border-[var(--color-border)]">
-          <Tabs.Trigger value="shortcuts" className={tabBtnClass('shortcuts')}>
-            快捷键
-          </Tabs.Trigger>
-          <Tabs.Trigger value="commands" className={tabBtnClass('commands')}>
-            命令
-          </Tabs.Trigger>
-          <Tabs.Trigger value="notifications" className={tabBtnClass('notifications')}>
-            通知
-          </Tabs.Trigger>
-        </Tabs.List>
-
         <Tabs.Content value="shortcuts">
           <ShortcutSettings
             value={draft.shortcuts ?? []}
@@ -120,7 +113,7 @@ export function SettingsModal({
         <Tabs.Content value="notifications">
           <PushToggle />
         </Tabs.Content>
-      </Tabs.Root>
-    </Sheet>
+      </Sheet>
+    </Tabs.Root>
   );
 }

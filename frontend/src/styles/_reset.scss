@@ -1,0 +1,89 @@
+// ============================================================
+// 极小 reset
+// ============================================================
+
+@use 'tokens' as t;
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+// 视口策略：终端 / 播放器风格——键盘弹起时不挤压页面布局，输入法浮在上方。
+//  - viewport meta 不加 interactive-widget=resizes-content（默认 resizes-visual）
+//    → layout viewport 始终是物理屏幕大小，不被键盘缩
+//  - html / body / #app 全部用 100lvh（large viewport = 物理屏，不缩）
+//  - position: fixed + inset:0 + overflow:hidden + overscroll-behavior:none
+//    彻底锁死根，浏览器无法 pan visualViewport 到 layout viewport 之外
+//  - 键盘弹起后底部 InputBar 会被键盘盖住，依靠 IME 自带的"输入预览条"展示当前输入
+//    （这是 Chrome Android / iOS Safari 的标准行为，无需我们额外处理）
+html, body, #app {
+  height: 100lvh;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html, body {
+  position: fixed;
+  inset: 0;
+}
+
+body {
+  margin: 0;
+  background: t.$bg;
+  color: t.$fg;
+  font-family: t.$font-mono;        // 全局默认 mono（终端身份）
+  font-size: t.$fs-md;
+  line-height: t.$lh-base;
+  letter-spacing: t.$tracking-normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+
+  // 极弱径向高光（顶部偏亮，营造空间感）
+  background-image: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    rgba(182, 240, 156, 0.025),
+    transparent 70%
+  );
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+}
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+a {
+  color: t.$accent;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+// 移动端键盘弹起时的全局 hook
+body[data-keyboard='true'] .hide-on-keyboard {
+  display: none !important;
+}
+
+// 选区
+::selection {
+  background: t.$accent-soft;
+  color: t.$fg;
+}
+
+// 默认 focus 无 outline（focus-visible 由组件控制）
+:focus { outline: none; }
+
+// 占位符
+::placeholder {
+  color: t.$fg-low;
+  opacity: 1;
+}

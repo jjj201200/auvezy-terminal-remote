@@ -19,7 +19,7 @@ import {
   createSessionCookieName,
 } from '../auth/auth-middleware.js';
 import { createConfigRoutes, type ConfigStore } from './config-routes.js';
-import { DEFAULT_SHORTCUTS, type UserConfig, ErrorCode } from '@ocr/shared';
+import { DEFAULT_SHORTCUTS, type UserConfig, ErrorCode } from '@otr/shared';
 import { ConfigError } from '../errors.js';
 
 class InMemoryStore implements ConfigStore {

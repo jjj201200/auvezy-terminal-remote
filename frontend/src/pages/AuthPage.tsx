@@ -4,16 +4,15 @@
  * 认证页面：用户输入 token 后提交，成功跳到 ConsolePage。
  *
  * 设计：
- * - 受控 input + 显式 submit 按钮
- * - URL 参数 ?token=xxx（来自二维码扫码）自动填充输入框
- *   注意：自动填充但不自动提交——避免恶意链接绕过用户确认
- * - 错误信息红色显示在按钮上方
+ * - 居中卡片、深色面板、顶部 accent 渐变线
+ * - 品牌标识：绿光呼吸点 + 大写小标题
+ * - URL ?token=xxx 自动填充输入框（不自动提交）
  */
 
 import { useEffect, useState, type JSX, type FormEvent } from 'react';
+import s from './AuthPage.module.scss';
 
 export interface AuthPageProps {
-  /** 提交 token；返回 null 成功，否则返回错误信息 */
   onLogin: (token: string) => Promise<string | null>;
 }
 
@@ -43,20 +42,24 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
   };
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-6">
-      <div className="w-full max-w-[320px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5">
-        <h1 className="m-0 mb-1 text-lg font-medium text-[var(--color-fg)]">
-          Open-Claude-Remote
-        </h1>
-        <p className="mb-4 mt-0 text-xs text-[var(--color-fg-muted)]">
-          输入服务端启动时显示的 Token
+    <main id="auth-page" className={s.root}>
+      <div className={s.card}>
+        <div className={s.brand}>
+          <span className={s.brandDot} />
+          <span className={s.brandName}>open-terminal-remote</span>
+        </div>
+
+        <h1 className={s.title}>Authenticate</h1>
+        <p className={s.subtitle}>
+          Enter the access token shown when the server started.
         </p>
 
-        <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+        <form className={s.form} onSubmit={handleSubmit}>
+          <span className={s.fieldLabel}>Access token</span>
           <input
             type="password"
-            className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 font-mono text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
-            placeholder="64 位 Token"
+            className={s.input}
+            placeholder="64-char hex"
             value={token}
             onChange={(e) => setToken(e.target.value)}
             disabled={submitting}
@@ -67,19 +70,20 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
             autoFocus
           />
 
-          {error && <p className="m-0 font-mono text-xs text-[var(--color-error)]">{error}</p>}
+          {error && <p className={s.error}>{error}</p>}
 
           <button
             type="submit"
             disabled={submitting || token.trim().length === 0}
-            className="rounded-md bg-[var(--color-accent)] px-3 py-2.5 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className={s.submit}
           >
-            {submitting ? '验证中…' : '登录'}
+            {submitting ? 'Verifying…' : 'Authenticate'}
           </button>
         </form>
 
-        <p className="mt-4 text-2xs leading-relaxed text-[var(--color-fg-muted)]">
-          扫描终端二维码或手动输入 Token；登录后 Token 会保存在本设备
+        <div className={s.divider} />
+        <p className={s.hint}>
+          Scan the terminal QR code or paste the token shown on launch. Token is stored on this device only.
         </p>
       </div>
     </main>

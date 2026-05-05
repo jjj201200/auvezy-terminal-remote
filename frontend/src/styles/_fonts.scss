@@ -1,0 +1,32 @@
+// ============================================================
+// Geist 字体声明
+//
+// 用 Variable woff2 单文件支持全字重（100-900）。
+// font-feature-settings 启用 Geist Mono 的字符变体：
+//   ss01 — 单层 a（更几何）
+//   ss02 — 单层 g（更现代）
+//   cv11 — 0 不带斜杠
+//   zero — 数字 0 不带点
+// 这些一起让 Geist Mono 看起来比 JetBrains Mono / Fira Code 更现代精致。
+// ============================================================
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('./fonts/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  font-feature-settings:
+    'ss01' 1,   // 单层 a
+    'ss02' 1,   // 单层 g
+    'cv11' 1,   // 0 不带斜杠
+    'zero' 1;   // 数字 0 简洁
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}

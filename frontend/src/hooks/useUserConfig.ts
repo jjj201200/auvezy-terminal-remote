@@ -16,7 +16,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   ensureDefaultUserConfig,
   type UserConfig,
-} from '@ocr/shared';
+} from '@otr/shared';
 import { fetchUserConfig, saveUserConfigRemote } from '../services/config-api.js';
 
 const LS_KEY = 'ocr.userConfig.v1';

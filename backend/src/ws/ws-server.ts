@@ -24,7 +24,7 @@ import {
   WS_HEARTBEAT_INTERVAL_MS,
   MAX_WS_MESSAGE_SIZE,
   type ServerMessage,
-} from '@ocr/shared';
+} from '@otr/shared';
 import { logger } from '../logger/logger.js';
 
 /** 客户端类型：webapp 是主控，attach 是从控（阶段 7 启用） */
@@ -55,8 +55,10 @@ export class WsServer {
   private heartbeatTimer: NodeJS.Timeout | null = null;
 
   private messageHandler: ((ws: WebSocket, raw: string, type: ClientType) => void) | null = null;
-  private connectHandler: ((ws: WebSocket, type: ClientType) => void) | null = null;
-  private disconnectHandler: ((counts: ClientCounts) => void) | null = null;
+  // onConnect / onDisconnect 升级为多 listener，多个独立模块（SessionController +
+  // index.ts 的 spawn 触发器）需要同时监听新连接事件
+  private readonly connectHandlers: Array<(ws: WebSocket, type: ClientType) => void> = [];
+  private readonly disconnectHandlers: Array<(counts: ClientCounts) => void> = [];
 
   constructor(
     private readonly httpServer: HttpServer,
@@ -77,12 +79,14 @@ export class WsServer {
     this.messageHandler = fn;
   }
 
+  /** 注册新连接 listener；可重复调用，多 listener 独立触发 */
   onConnect(fn: (ws: WebSocket, type: ClientType) => void): void {
-    this.connectHandler = fn;
+    this.connectHandlers.push(fn);
   }
 
+  /** 注册断开 listener；可重复调用 */
   onDisconnect(fn: (counts: ClientCounts) => void): void {
-    this.disconnectHandler = fn;
+    this.disconnectHandlers.push(fn);
   }
 
   // ──────────────── 客户端统计 ────────────────
@@ -198,7 +202,7 @@ export class WsServer {
         if (this.clients.delete(entry)) {
           const counts = this.getClientCounts();
           logger.info({ total: this.clients.size, ...counts }, 'WS 客户端已断开');
-          if (this.disconnectHandler) this.disconnectHandler(counts);
+          for (const fn of this.disconnectHandlers) fn(counts);
         }
       };
 
@@ -208,7 +212,7 @@ export class WsServer {
         removeAndNotify();
       });
 
-      if (this.connectHandler) this.connectHandler(ws, clientType);
+      for (const fn of this.connectHandlers) fn(ws, clientType);
     });
   }
 

@@ -19,7 +19,7 @@ import {
   releaseLock,
 } from './file-lock.js';
 import { LockError } from '../errors.js';
-import { ErrorCode } from '@ocr/shared';
+import { ErrorCode } from '@otr/shared';
 
 describe('file-lock', () => {
   let baseDir: string;

@@ -23,7 +23,7 @@ const frontendDist = resolve(import.meta.dirname, '..', 'frontend-dist');
 
 if (!existsSync(frontendDist)) {
   process.stdout.write(
-    `[smoke] 前端未 build，先 pnpm -F @ocr/frontend build；当前 ${frontendDist} 不存在\n`,
+    `[smoke] 前端未 build，先 pnpm -F @otr/frontend build；当前 ${frontendDist} 不存在\n`,
   );
   process.exit(2);
 }

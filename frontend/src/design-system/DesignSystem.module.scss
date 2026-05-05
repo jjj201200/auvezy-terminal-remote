@@ -1,0 +1,723 @@
+@use '../styles/tokens' as t;
+@use '../styles/mixins' as m;
+
+.root {
+  height: 100dvh;
+  overflow-y: auto;
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: t.$sp-9 t.$sp-7;
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-9;
+
+  @include m.mobile {
+    padding: t.$sp-7 t.$sp-5;
+    gap: t.$sp-8;
+  }
+}
+
+// ─── 头部 ───────────────────────
+
+.heroSection {
+  border-bottom: 1px solid t.$border;
+  padding-bottom: t.$sp-7;
+  position: relative;
+}
+
+.heroBrand {
+  @include m.row-flex(t.$sp-2);
+  margin-bottom: t.$sp-4;
+}
+
+.heroDot {
+  width: 6px;
+  height: 6px;
+  background: t.$accent;
+  box-shadow:
+    0 0 4px rgba(182, 240, 156, 0.65),
+    0 0 12px rgba(182, 240, 156, 0.35),
+    0 0 24px rgba(182, 240, 156, 0.18);
+  animation: pulse 2s t.$ease infinite;
+}
+
+.heroBrandName {
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+}
+
+.heroTitle {
+  margin: 0;
+  font-family: t.$font-mono;
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: t.$fg;
+
+  & > span {
+    color: t.$accent;
+    @include m.phosphor-glow;
+  }
+}
+
+.heroDesc {
+  margin: t.$sp-4 0 0;
+  max-width: 540px;
+  font-size: t.$fs-md;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+}
+
+// ─── 章节 ───────────────────────
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-6;
+}
+
+.sectionHead {
+  @include m.col-flex(t.$sp-2);
+  border-bottom: 1px solid t.$border;
+  padding-bottom: t.$sp-3;
+}
+
+.sectionLabel {
+  @include m.caps;
+  color: t.$accent;
+  letter-spacing: t.$tracking-wide;
+  font-size: t.$fs-2xs;
+  @include m.phosphor-glow;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xl;
+  font-weight: 500;
+  letter-spacing: t.$tracking-tight;
+  color: t.$fg;
+}
+
+.sectionDesc {
+  margin: 0;
+  font-size: t.$fs-sm;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+  max-width: 640px;
+}
+
+.subsection {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-4;
+}
+
+.subsectionTitle {
+  @include m.caps;
+  margin: 0;
+  color: t.$fg-dim;
+}
+
+// ─── 颜色卡 ───────────────────────
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: t.$sp-3;
+}
+
+.colorCard {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-2;
+  padding: t.$sp-4;
+  border: 1px solid t.$border;
+  background: t.$bg-elev;
+  @include m.transition(border-color t.$dur-fast);
+
+  &:hover {
+    border-color: t.$border-hi;
+  }
+}
+
+.colorSwatch {
+  height: 60px;
+  border: 1px solid t.$border;
+  position: relative;
+  overflow: hidden;
+}
+
+.colorMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.colorName {
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  color: t.$fg;
+}
+
+.colorValue {
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+}
+
+// ─── 字体卡 ───────────────────────
+
+.typeCard {
+  border: 1px solid t.$border;
+  background: t.$bg-elev;
+  padding: t.$sp-5;
+  @include m.col-flex(t.$sp-3);
+}
+
+.typeMeta {
+  @include m.row-flex(t.$sp-3);
+  flex-wrap: wrap;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+}
+
+.typeMetaItem {
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+}
+
+.typeSample {
+  color: t.$fg;
+
+  &.fsHero { font-size: 32px; letter-spacing: -0.02em; }
+  &.fs2xl { font-size: t.$fs-2xl; }
+  &.fsXl  { font-size: t.$fs-xl; }
+  &.fsLg  { font-size: t.$fs-lg; }
+  &.fsMd  { font-size: t.$fs-md; }
+  &.fsSm  { font-size: t.$fs-sm; }
+  &.fsXs  { font-size: t.$fs-xs; }
+  &.fs2xs { font-size: t.$fs-2xs; }
+}
+
+.glyphRow {
+  @include m.row-flex(t.$sp-4);
+  flex-wrap: wrap;
+  font-family: t.$font-mono;
+  font-size: 22px;
+  color: t.$fg;
+  line-height: 1;
+}
+
+.glyphCell {
+  @include m.col-flex(2px);
+  align-items: center;
+}
+
+.glyphLabel {
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+}
+
+// ─── 间距 ───────────────────────
+
+.spacingRow {
+  @include m.row-flex(t.$sp-4);
+  padding: t.$sp-2 0;
+  border-bottom: 1px solid t.$border;
+
+  &:last-child { border-bottom: 0; }
+}
+
+.spacingName {
+  width: 64px;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+}
+
+.spacingBar {
+  height: 12px;
+  background: t.$accent;
+}
+
+.spacingValue {
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  margin-left: auto;
+}
+
+// ─── 阴影 ───────────────────────
+
+.shadowGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: t.$sp-5;
+  padding: t.$sp-6 t.$sp-5;
+  background: t.$bg;
+  border: 1px solid t.$border;
+}
+
+.shadowCard {
+  height: 80px;
+  background: t.$bg-elev;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+}
+
+// ─── 演示卡 / 网格 ───────────────────────
+
+.demoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: t.$sp-5;
+}
+
+.demoCard {
+  border: 1px solid t.$border;
+  background: t.$bg-elev;
+  padding: t.$sp-5;
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-4;
+}
+
+.demoLabel {
+  @include m.caps;
+}
+
+.demoBody {
+  @include m.col-flex(t.$sp-3);
+}
+
+.demoRow {
+  @include m.row-flex(t.$sp-3);
+  flex-wrap: wrap;
+}
+
+.demoCode {
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  background: t.$bg;
+  padding: t.$sp-2 t.$sp-3;
+  border: 1px solid t.$border;
+}
+
+// ─── Pattern 全宽演示 ───────────────────────
+
+.patternFrame {
+  border: 1px solid t.$border;
+  background: t.$bg;
+  position: relative;
+}
+
+.patternFrameHead {
+  @include m.row-flex(t.$sp-3);
+  padding: t.$sp-2 t.$sp-3;
+  border-bottom: 1px solid t.$border;
+  background: t.$bg-elev;
+}
+
+.patternFrameDot {
+  width: 8px;
+  height: 8px;
+  border-radius: t.$radius-pill;
+  background: t.$bg-canvas;
+  border: 1px solid t.$border-hi;
+}
+
+.patternFrameTitle {
+  margin-left: t.$sp-2;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-low;
+}
+
+.patternFrameBody {
+  padding: t.$sp-7 t.$sp-5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  background: t.$bg;
+
+  // 极弱网格背景（设计感）
+  background-image:
+    linear-gradient(t.$border 1px, transparent 1px),
+    linear-gradient(90deg, t.$border 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+  background-color: t.$bg;
+}
+
+// 「磷光熄灭」呼吸：100% 高亮发光 → 50% 直接变冷灰、辉光全灭
+//   不用 opacity 衰减（那是淡出，不是熄灭）
+//   用 background 在 accent 与 fg-low 之间过渡 + box-shadow 的透明度归零
+// ─── 演示按钮（用真 SCSS class 才有 hover 伪类）───
+
+.demoBtnPrimary {
+  appearance: none;
+  border: 0;
+  padding: 8px 16px;
+  background: t.$accent;
+  color: #0a0c0f;
+  font-family: t.$font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  @include m.transition(background t.$dur-fast, box-shadow t.$dur-fast, transform t.$dur-snap);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, t.$accent 92%, white 8%);
+    box-shadow:
+      0 0 0 1px rgba(182, 240, 156, 0.32),
+      0 0 12px rgba(182, 240, 156, 0.4);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.demoBtnSecondary {
+  appearance: none;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid t.$border;
+  color: t.$fg;
+  font-family: t.$font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast, color t.$dur-fast, text-shadow t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    background: t.$accent-soft;
+    border-color: t.$accent;
+    color: t.$accent;
+    @include m.phosphor-glow;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+// ─── Shortcuts row demo（两行）───
+
+.shortcutsDemo {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: t.$bg-elev;
+  border-top: 1px solid t.$border;
+  border-bottom: 1px solid t.$border;
+}
+
+.shortcutsCats {
+  @include m.row-flex(t.$sp-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  padding: 4px 6px 0;
+  border-bottom: 1px solid t.$border;
+}
+
+.shortcutsCat {
+  @include m.btn-reset;
+  padding: 3px 8px;
+  font-family: t.$font-mono;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: t.$fg-low;
+  border-bottom: 1px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, text-shadow t.$dur-fast);
+
+  &:hover {
+    color: t.$fg-dim;
+  }
+}
+
+.shortcutsCatActive {
+  color: t.$accent;
+  border-bottom-color: t.$accent;
+  @include m.phosphor-glow;
+
+  &:hover {
+    color: t.$accent;
+  }
+}
+
+.shortcutsKeys {
+  @include m.row-flex(t.$sp-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  padding: 4px 6px;
+}
+
+.shortcutsKey {
+  @include m.btn-reset;
+  padding: 4px 6px;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg-dim;
+  font-family: t.$font-mono;
+  font-size: 11px;
+  min-height: 22px;
+  min-width: 22px;
+  white-space: nowrap;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast, color t.$dur-fast);
+
+  &:hover {
+    background: t.$bg-hover;
+    border-color: t.$border-hi;
+    color: t.$fg;
+  }
+
+  &:active {
+    background: t.$accent-soft;
+    border-color: t.$accent;
+    color: t.$accent;
+  }
+}
+
+// ─── 字体阶梯样本行 ───
+
+.typeRow {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-2;
+  padding-top: t.$sp-4;
+  padding-bottom: t.$sp-4;
+  border-bottom: 1px solid t.$border;
+
+  &:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+}
+
+// ─── Footer ───
+
+.footer {
+  margin-top: t.$sp-9;
+  padding-top: t.$sp-8;
+  border-top: 1px solid t.$border;
+  text-align: center;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg-low;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+}
+
+// ─── Hover demo ───
+
+.hoverRow {
+  @include m.row-flex(t.$sp-4);
+}
+
+.hoverHint {
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+}
+
+// ─── Auth demo（pattern frame 内）───
+
+.authCard {
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid t.$border;
+  background: t.$bg-elev;
+  padding: t.$sp-7 t.$sp-7 t.$sp-6;
+  box-shadow: t.$shadow-3;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: t.$sp-7;
+    right: t.$sp-7;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, t.$accent 50%, transparent);
+    opacity: 0.6;
+  }
+}
+
+.authBrand {
+  @include m.row-flex(t.$sp-2);
+  margin-bottom: t.$sp-6;
+}
+
+.authBrandName {
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+}
+
+.authTitle {
+  margin: 0 0 t.$sp-2;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xl;
+  font-weight: 500;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.authSubtitle {
+  margin: 0 0 t.$sp-6;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+}
+
+.authForm {
+  @include m.col-flex(t.$sp-3);
+}
+
+.authFieldLabel {
+  @include m.caps;
+}
+
+.authInput {
+  border: 1px solid t.$border;
+  background: t.$bg-input;
+  color: t.$fg;
+  padding: t.$sp-3 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  outline: none;
+}
+
+// ─── Top bar demo ───
+
+.topBar {
+  width: 100%;
+  background: t.$bg-elev;
+  border-bottom: 1px solid t.$border;
+  padding: t.$bar-pad;
+  @include m.row-flex(t.$bar-gap);
+}
+
+.topBarTab {
+  appearance: none;
+  padding: t.$sp-2 t.$sp-3;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg-dim;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  letter-spacing: t.$tracking-tight;
+  cursor: pointer;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast, color t.$dur-fast);
+
+  &:hover {
+    background: t.$bg-hover;
+    border-color: t.$border-hi;
+    color: t.$fg;
+  }
+}
+
+.topBarTabActive {
+  border-color: t.$accent;
+  background: t.$accent-soft;
+  color: t.$fg;
+  cursor: default;
+
+  &:hover {
+    background: t.$accent-soft;
+    border-color: t.$accent;
+  }
+}
+
+.topBarPort {
+  margin-left: t.$sp-2;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+
+  .topBarTabActive & {
+    color: t.$accent;
+    @include m.phosphor-glow;
+  }
+}
+
+.topBarSpacer {
+  flex: 1;
+}
+
+// ─── Input demo ───
+
+.inputDemoBar {
+  width: 100%;
+  background: t.$bg-elev;
+  border-top: 1px solid t.$border;
+  padding: t.$bar-pad;
+  @include m.row-flex(t.$bar-gap);
+}
+
+.inputDemoInput {
+  flex: 1;
+  border: 1px solid t.$border;
+  background: t.$bg-input;
+  color: t.$fg;
+  padding: t.$sp-1 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-md;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+
+  &:focus-visible {
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    background: t.$accent;
+    box-shadow:
+      0 0 4px rgba(182, 240, 156, 0.65),
+      0 0 12px rgba(182, 240, 156, 0.35),
+      0 0 24px rgba(182, 240, 156, 0.18);
+  }
+  50% {
+    background: t.$fg-low;
+    box-shadow: none;
+  }
+}
+

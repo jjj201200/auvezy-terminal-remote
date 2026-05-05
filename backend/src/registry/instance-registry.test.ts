@@ -10,7 +10,7 @@ import {
   InstanceRegistryManager,
   isPidAlive,
 } from './instance-registry.js';
-import type { InstanceInfo } from '@ocr/shared';
+import type { InstanceInfo } from '@otr/shared';
 
 function fakeInfo(over: Partial<InstanceInfo> = {}): InstanceInfo {
   return {

@@ -1,0 +1,51 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.root {
+  @include m.btn-reset;
+  @include m.row-flex(0);
+  justify-content: center;
+  min-height: 22px;
+  min-width: 22px;
+  padding: t.$sp-1;
+  color: t.$fg-dim;
+  border: 1px solid transparent;
+  @include m.transition(background t.$dur-fast, color t.$dur-fast, border-color t.$dur-fast);
+  @include m.focus-ring;
+
+  @include m.mobile {
+    min-height: 22px;
+    min-width: 22px;
+    padding: t.$sp-1;
+  }
+
+  &:hover:not(:disabled) {
+    background: t.$bg-hover;
+    color: t.$fg;
+    border-color: t.$border;
+  }
+
+  &:active:not(:disabled) {
+    background: t.$bg-elev;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.variantAccent {
+  background: t.$accent;
+  color: #0a0c0f;
+  border-color: t.$accent;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, t.$accent 92%, white 8%);
+    color: #0a0c0f;
+    border-color: t.$accent;
+    box-shadow:
+      0 0 0 1px rgba(182, 240, 156, 0.32),
+      0 0 12px rgba(182, 240, 156, 0.4);
+  }
+}

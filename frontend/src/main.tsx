@@ -8,7 +8,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
-import './styles/index.css';
+import './styles/global.scss';
 
 const container = document.getElementById('app');
 if (!container) {

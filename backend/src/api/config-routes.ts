@@ -15,8 +15,8 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import type { UserConfig } from '@ocr/shared';
-import { ErrorCode, ensureDefaultUserConfig } from '@ocr/shared';
+import type { UserConfig } from '@otr/shared';
+import { ErrorCode, ensureDefaultUserConfig } from '@otr/shared';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import { ConfigError } from '../errors.js';
 import { logger } from '../logger/logger.js';

@@ -23,6 +23,14 @@ export const DEFAULT_AUTH_RATE_LIMIT = 20;
 /** 默认输出缓冲区最大行数（重连时回放此行数） */
 export const DEFAULT_MAX_BUFFER_LINES = 10000;
 
+/**
+ * 默认 PTY 兜底超时（秒）。
+ *
+ * banner 打印后的等待窗口：浏览器连入 / 用户按 Enter / 此超时三选一触发 spawn。
+ * 0 = 无超时（永远等浏览器/Enter）。
+ */
+export const DEFAULT_SPAWN_TIMEOUT_SEC = 30;
+
 // ============================================================
 // 安全相关
 // ============================================================
@@ -51,7 +59,7 @@ export const MAX_WS_MESSAGE_SIZE = 1024 * 1024;
 // ============================================================
 
 /** 用户配置目录名（位于 ~ 之下） */
-export const CLAUDE_REMOTE_DIR = '.claude-remote';
+export const OTR_DATA_DIR = '.open-terminal-remote';
 
 /** 配置文件名 */
 export const CONFIG_FILENAME = 'config.json';

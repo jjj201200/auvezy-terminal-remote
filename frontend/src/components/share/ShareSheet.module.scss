@@ -1,0 +1,239 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.sheet {
+  // 仅桌面 dialog 限宽；移动 vaul Drawer 走全宽（与 SettingsModal 行为一致）
+  @media (min-width: 768px) {
+    max-width: 480px;
+  }
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-5;
+  padding: t.$sp-2 0;
+}
+
+.intro {
+  margin: 0;
+  font-size: t.$fs-sm;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+}
+
+.devHint {
+  font-size: t.$fs-xs;
+  color: t.$accent;
+  background: t.$accent-soft;
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  padding: t.$sp-2 t.$sp-3;
+  line-height: t.$lh-loose;
+}
+
+// ──────────── 入口选择 ────────────
+
+.endpointSection {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-2;
+}
+
+.sectionLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionLabel {
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  text-transform: uppercase;
+  letter-spacing: t.$tracking-wide;
+}
+
+.refreshBtn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: t.$fg-dim;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+
+  &:hover {
+    color: t.$fg;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.$shadow-focus;
+    border-radius: t.$radius-sm;
+  }
+}
+
+.loading,
+.error {
+  font-size: t.$fs-sm;
+  color: t.$fg-dim;
+  padding: t.$sp-3;
+  text-align: center;
+}
+.error {
+  color: t.$warn;
+}
+
+.endpointList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 2px; // 给 focus ring 留点空间
+}
+
+.endpointItem {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  align-items: center;
+  gap: t.$sp-3;
+  padding: t.$sp-2 t.$sp-3;
+  background: t.$bg-elev;
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  color: t.$fg;
+  text-align: left;
+  cursor: pointer;
+  font-size: t.$fs-sm;
+  transition: border-color 0.12s ease, background 0.12s ease;
+
+  &:hover {
+    border-color: t.$accent;
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+.endpointItemActive {
+  border-color: t.$accent;
+  background: t.$accent-soft;
+}
+
+.endpointKind {
+  font-size: t.$fs-xs;
+  color: t.$accent;
+  text-transform: uppercase;
+  letter-spacing: t.$tracking-wide;
+  font-weight: 500;
+}
+
+.endpointHost {
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endpointIface {
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+}
+
+// ──────────── QR ────────────
+
+.qrWrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: t.$sp-3;
+  border-radius: t.$radius-sm;
+  min-height: 200px;
+}
+
+.qr {
+  display: block;
+  width: 200px;
+  height: 200px;
+  max-width: 100%;
+  height: auto;
+}
+
+.qrEmpty {
+  font-size: t.$fs-sm;
+  color: t.$fg-dim;
+  padding: t.$sp-6;
+  text-align: center;
+}
+
+// ──────────── URL + 操作 ────────────
+
+.urlRow {
+  display: flex;
+  gap: t.$sp-2;
+  align-items: stretch;
+}
+
+.urlInput {
+  flex: 1;
+  min-width: 0;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  padding: t.$sp-2 t.$sp-3;
+  border: 1px solid t.$border;
+  background: t.$bg-input;
+  color: t.$fg;
+  border-radius: t.$radius-sm;
+
+  &:focus {
+    outline: none;
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+.iconBtn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: t.$bg-elev;
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  color: t.$fg-dim;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+
+  &:hover:not(:disabled) {
+    color: t.$fg;
+    border-color: t.$accent;
+  }
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+.hint {
+  margin: 0;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+}

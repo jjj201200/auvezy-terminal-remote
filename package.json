@@ -1,23 +1,23 @@
 {
-  "name": "open-claude-remote-clone",
-  "version": "0.1.0",
+  "name": "open-terminal-remote",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "局域网内通过手机/平板浏览器远程控制 PC 上的 Claude Code CLI",
-  "license": "MIT",
+  "description": "局域网内通过手机/平板浏览器远程控制 PC 终端：otr <program>，多终端多实例自动出现在浏览器顶栏 tab 切换",
+  "license": "UNLICENSED",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "build": "pnpm prebuild && pnpm --filter @ocr/shared build && pnpm --filter @ocr/frontend build && pnpm --filter @drowsyflesh/open-terminal-remote build && pnpm copy-frontend-dist && pnpm bundle-backend",
+    "build": "pnpm prebuild && pnpm --filter @otr/shared build && pnpm --filter @otr/frontend build && pnpm --filter @jjj201200/open-terminal-remote build && pnpm copy-frontend-dist && pnpm bundle-backend",
     "prebuild": "rm -rf backend/dist backend/tsconfig.tsbuildinfo",
     "copy-frontend-dist": "node scripts/copy-frontend-dist.js",
     "bundle-backend": "node scripts/bundle-backend.js",
-    "dev": "pnpm copy-frontend-dist && concurrently --kill-others --handle-input -n backend,frontend -c blue,green \"pnpm --filter @drowsyflesh/open-terminal-remote dev\" \"pnpm --filter @ocr/frontend dev\"",
+    "dev": "pnpm copy-frontend-dist && concurrently --kill-others --handle-input -n backend,frontend -c blue,green \"pnpm --filter @jjj201200/open-terminal-remote dev\" \"pnpm --filter @otr/frontend dev\"",
     "start": "node backend/dist/cli.js",
-    "stop": "pnpm --filter @drowsyflesh/open-terminal-remote exec tsx src/registry/stop-instances.ts",
-    "test": "pnpm --filter @ocr/shared test && pnpm --filter @drowsyflesh/open-terminal-remote test && pnpm --filter @ocr/frontend test",
+    "stop": "pnpm --filter @jjj201200/open-terminal-remote exec tsx src/registry/stop-instances.ts",
+    "test": "pnpm --filter @otr/shared test && pnpm --filter @jjj201200/open-terminal-remote test && pnpm --filter @otr/frontend test",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "clean": "pnpm -r exec rm -rf dist node_modules/.cache"
   },

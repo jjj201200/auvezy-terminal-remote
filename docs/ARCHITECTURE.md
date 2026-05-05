@@ -9,9 +9,9 @@ monorepo 用 pnpm workspace，三个 package 共用 TS 严格模式：
 
 ```
 .
-├── shared/      @ocr/shared    协议常量 / WS 消息 union / Error 体系
-├── backend/     @ocr/backend   Express + ws + node-pty + pino + web-push
-└── frontend/    @ocr/frontend  React 19 + Vite + xterm.js + Zustand
+├── shared/      @otr/shared    协议常量 / WS 消息 union / Error 体系
+├── backend/     @otr/backend   Express + ws + node-pty + pino + web-push
+└── frontend/    @otr/frontend  React 19 + Vite + xterm.js + Zustand
 ```
 
 - shared 为 frontend 与 backend 唯一共用源。任何"协议"层面的东西

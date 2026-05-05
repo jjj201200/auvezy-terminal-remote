@@ -1,5 +1,5 @@
 /**
- * `claude-remote list`：列出当前用户所有活实例
+ * `otr list`：列出当前用户所有活实例
  *
  * 输出到 stdout 的简表（不依赖颜色）：
  *   PORT   PID    INSTANCE NAME                  CWD

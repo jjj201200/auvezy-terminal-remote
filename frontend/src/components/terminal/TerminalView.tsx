@@ -5,7 +5,8 @@
  */
 
 import { forwardRef } from 'react';
-import { cn } from '../../utils/cn.js';
+import clsx from 'clsx';
+import s from './TerminalView.module.scss';
 
 export interface TerminalViewProps {
   className?: string;
@@ -13,6 +14,6 @@ export interface TerminalViewProps {
 
 export const TerminalView = forwardRef<HTMLDivElement, TerminalViewProps>(
   function TerminalView({ className }, ref) {
-    return <div ref={ref} className={cn('h-full w-full', className)} />;
+    return <div id="terminal-view" ref={ref} className={clsx(s.root, className)} />;
   },
 );

@@ -23,6 +23,8 @@ export type PushSupportStatus =
 
 export interface UsePushNotificationResult {
   status: PushSupportStatus;
+  /** status='unsupported' 时的具体原因；其它状态固定为 'none' */
+  unsupportReason: PushUnsupportReason;
   /** 操作进行中（订阅 / 取消订阅） */
   busy: boolean;
   /** 上次错误信息 */
@@ -33,13 +35,35 @@ export interface UsePushNotificationResult {
   unsubscribe: () => Promise<void>;
 }
 
-function isPushSupported(): boolean {
-  return (
-    typeof window !== 'undefined' &&
+/**
+ * 不支持 Web Push 的具体原因
+ *
+ * 用于分级提示——把"不支持"细分成可执行的引导：
+ *  - insecure_context：当前不是 HTTPS 也不是 localhost/file://
+ *    Chrome/Safari/Firefox 都强制 secure context 才允许 ServiceWorker + Push
+ *    LAN HTTP（http://192.168.x.x）一定会走到这里
+ *  - missing_api：浏览器实在没实现（罕见，例如 iOS 16.4 之前）
+ *  - none：完全支持
+ */
+export type PushUnsupportReason = 'none' | 'insecure_context' | 'missing_api';
+
+export function detectPushSupport(): PushUnsupportReason {
+  if (typeof window === 'undefined') return 'missing_api';
+  // 必须 secure context（HTTPS / localhost / 127.0.0.1 / file://）
+  // window.isSecureContext 是浏览器判定结果，包含 localhost 自动豁免
+  if (!window.isSecureContext) return 'insecure_context';
+  if (
     'serviceWorker' in navigator &&
     'PushManager' in window &&
     'Notification' in window
-  );
+  ) {
+    return 'none';
+  }
+  return 'missing_api';
+}
+
+function isPushSupported(): boolean {
+  return detectPushSupport() === 'none';
 }
 
 /** base64url → ArrayBuffer（VAPID 公钥订阅入参，避免 SharedArrayBuffer 兼容问题） */
@@ -66,8 +90,9 @@ function readKeys(sub: PushSubscription): { p256dh: string; auth: string } | nul
 }
 
 export function usePushNotification(): UsePushNotificationResult {
+  const [unsupportReason] = useState<PushUnsupportReason>(() => detectPushSupport());
   const [status, setStatus] = useState<PushSupportStatus>(() =>
-    isPushSupported() ? 'unsubscribed' : 'unsupported',
+    unsupportReason === 'none' ? 'unsubscribed' : 'unsupported',
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,5 +173,5 @@ export function usePushNotification(): UsePushNotificationResult {
     }
   }, []);
 
-  return { status, busy, error, subscribe, unsubscribe };
+  return { status, unsupportReason, busy, error, subscribe, unsubscribe };
 }

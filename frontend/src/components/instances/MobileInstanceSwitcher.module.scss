@@ -1,0 +1,98 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.trigger {
+  @include m.btn-reset;
+  @include m.row-flex(t.$sp-2);
+  padding: t.$sp-2 t.$sp-3;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  @include m.transition(border-color t.$dur-fast, color t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    border-color: t.$border-hi;
+  }
+}
+
+.triggerName {
+  max-width: 110px;
+  @include m.truncate;
+}
+
+.triggerPort {
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+}
+
+.list {
+  @include m.col-flex(t.$sp-2);
+}
+
+.item {
+  @include m.btn-reset;
+  @include m.row-flex(t.$sp-3);
+  justify-content: space-between;
+  padding: t.$sp-4;
+  border: 1px solid t.$border;
+  background: t.$bg-input;
+  text-align: left;
+  font-size: t.$fs-sm;
+  color: t.$fg-dim;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover {
+    background: t.$bg-hover;
+    border-color: t.$border-hi;
+  }
+}
+
+.itemActive {
+  border-color: t.$accent;
+  background: t.$accent-soft;
+  color: t.$fg;
+}
+
+.itemBody {
+  @include m.col-flex(2px);
+  min-width: 0;
+}
+
+.itemName {
+  color: t.$fg;
+  @include m.truncate;
+}
+
+.itemCwd {
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  @include m.truncate;
+}
+
+.itemPort {
+  margin-left: t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg-low;
+}
+
+.create {
+  @include m.btn-reset;
+  @include m.row-flex(t.$sp-2);
+  justify-content: center;
+  padding: t.$sp-4;
+  border: 1px dashed t.$border;
+  color: t.$accent;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    border-color: t.$accent;
+    background: t.$accent-soft;
+  }
+}
