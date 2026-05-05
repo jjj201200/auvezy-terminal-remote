@@ -25,6 +25,7 @@ import { useRef, useEffect, useState, useCallback, type RefObject } from 'react'
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import {
@@ -271,7 +272,8 @@ export function useTerminal(
         background: '#050608',
         foreground: '#dcdfe4',
         cursor: '#dcdfe4',
-        selectionBackground: 'rgba(120, 150, 200, 0.45)',
+        // 选区色——既是用户拖选反馈，也是搜索时唯一的当前匹配视觉提示
+        selectionBackground: 'rgba(255, 140, 0, 0.55)',
         black: '#3f4451',
         red: '#e06c75',
         green: '#98c379',
@@ -309,9 +311,16 @@ export function useTerminal(
 
     term.open(container);
 
-    // 不加载 WebglAddon：webgl renderer 与 SearchAddon 的 decoration 不兼容
-    // （decoration 定位歪 + 不跟滚动），canvas 默认 renderer 行为正确。
-    // 性能差异在常规终端日志输出场景几乎不可感知。
+    // WebGL graceful 降级到 canvas
+    // 注意：webgl 与 SearchAddon 的 decoration 不兼容，所以 search 不传 decorations，
+    // 只靠 term.select() 渲染当前匹配（webgl 下 selection 走 GPU，定位正确）
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch {
+      /* canvas renderer 是默认 fallback */
+    }
 
     fitAddon.fit();
     // 等布局稳定后做首次 resize 上报
@@ -501,6 +510,9 @@ export function useTerminal(
     emitResize(term.cols, term.rows);
   }, [emitResize]);
 
+  // 注意：不传 decorations —— webgl renderer 与 SearchAddon 的 DOM decoration
+  // 不兼容（位置不跟字符 + 不跟滚动）。仅靠 term.select() 显示当前匹配选区，
+  // 牺牲"所有匹配同时高亮"，换来 webgl 性能 + 定位正确。
   const searchNext = useCallback((needle: string, opts?: SearchOpts): boolean => {
     const sa = searchAddonRef.current;
     if (!sa || !needle) return false;
@@ -508,12 +520,6 @@ export function useTerminal(
       caseSensitive: opts?.caseSensitive,
       wholeWord: opts?.wholeWord,
       regex: opts?.regex,
-      decorations: {
-        matchBackground: '#ff8c00',
-        matchOverviewRuler: '#ff8c00',
-        activeMatchBackground: '#ff3c78',
-        activeMatchColorOverviewRuler: '#ff3c78',
-      },
     });
   }, []);
 
@@ -524,17 +530,12 @@ export function useTerminal(
       caseSensitive: opts?.caseSensitive,
       wholeWord: opts?.wholeWord,
       regex: opts?.regex,
-      decorations: {
-        matchBackground: '#ff8c00',
-        matchOverviewRuler: '#ff8c00',
-        activeMatchBackground: '#ff3c78',
-        activeMatchColorOverviewRuler: '#ff3c78',
-      },
     });
   }, []);
 
   const clearSearch = useCallback((): void => {
     searchAddonRef.current?.clearDecorations();
+    termRef.current?.clearSelection();
   }, []);
 
   const getSelection = useCallback((): string => {
