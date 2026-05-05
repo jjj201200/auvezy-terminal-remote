@@ -106,12 +106,19 @@ export function Sheet({
             {/* a11y 必填：Drawer.Title 始终存在但 sr-only，避免 vaul/Radix 警告 */}
             <Drawer.Title className={s.srOnly}>{title}</Drawer.Title>
             <Drawer.Handle className={s.drawerGrip} />
-            <header className={clsx(s.header, s.headerMobile, tabs && s.headerWithTabs)}>
+            {/*
+              data-vaul-no-drag：阻止 vaul 在 header / body / footer 区域响应 pointer 拖拽
+              否则键盘弹起时点 tab 切换被 vaul 当成 drag-to-dismiss 触发关闭
+              真正的关闭手势靠 Drawer.Handle（grip 区域）
+            */}
+            <header
+              className={clsx(s.header, s.headerMobile, tabs && s.headerWithTabs)}
+              data-vaul-no-drag
+            >
               {headerMain}
               <button
                 type="button"
                 onClick={() => {
-                  // 主动关闭：先把 input blur 让键盘收起，避免上面 handleVaulOpenChange 拦截
                   if (
                     document.activeElement instanceof HTMLElement &&
                     (document.activeElement.tagName === 'INPUT' ||
@@ -127,9 +134,16 @@ export function Sheet({
                 <IconX size={16} stroke={1.5} />
               </button>
             </header>
-            <div className={s.body}>{children}</div>
+            <div className={s.body} data-vaul-no-drag>
+              {children}
+            </div>
             {footer && (
-              <footer className={clsx(s.footer, s.footerMobile)}>{footer}</footer>
+              <footer
+                className={clsx(s.footer, s.footerMobile)}
+                data-vaul-no-drag
+              >
+                {footer}
+              </footer>
             )}
           </Drawer.Content>
         </Drawer.Portal>
