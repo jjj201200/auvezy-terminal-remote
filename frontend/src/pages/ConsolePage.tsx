@@ -70,6 +70,8 @@ export function ConsolePage(): JSX.Element {
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
   // 让点击 terminal 区也能把焦点接到 InputBar 输入框
   const inputBarRef = useRef<HTMLInputElement | null>(null);
+  // 终端区 tap 检测：pointerdown 记起点，pointerup 时判定是 tap 还是 swipe
+  const terminalTapRef = useRef<{ id: number; x: number; y: number; t: number } | null>(null);
 
   const handleResize = useCallback((cols: number, rows: number): boolean => {
     return sendRef.current?.({ type: 'resize', cols, rows }) ?? false;
@@ -237,12 +239,30 @@ export function ConsolePage(): JSX.Element {
       <div
         id="console-terminal-wrap"
         className={s.terminalWrap}
-        // 触摸 / 点击终端区时把焦点接到 InputBar：
-        // 移动端 xterm 会因 helper-textarea 触发软键盘，但输入到达不了任何地方
-        // 这里在 pointerdown 阶段把焦点抢过来，键盘弹起后就直接落在输入框
-        // 桌面：用户拖选文字会触发 pointerdown，但 input.focus() 不影响选区
-        onPointerDown={() => {
+        // tap → 把焦点接到 InputBar 让软键盘弹起且能输入
+        // swipe / 长按 → 视为查看历史 / 选词，不动焦点（也不弹键盘）
+        // 用 pointerdown 记起点，pointerup 时按移动距离 + 时长判定是不是 tap
+        onPointerDown={(e) => {
+          terminalTapRef.current = {
+            id: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            t: e.timeStamp,
+          };
+        }}
+        onPointerUp={(e) => {
+          const start = terminalTapRef.current;
+          terminalTapRef.current = null;
+          if (!start || start.id !== e.pointerId) return;
+          const dx = e.clientX - start.x;
+          const dy = e.clientY - start.y;
+          const dt = e.timeStamp - start.t;
+          // tap 判定：移动 ≤ 8px 且时长 ≤ 400ms
+          if (Math.hypot(dx, dy) > 8 || dt > 400) return;
           inputBarRef.current?.focus({ preventScroll: true });
+        }}
+        onPointerCancel={() => {
+          terminalTapRef.current = null;
         }}
       >
         <TerminalView ref={containerRef} className={s.terminalView} />

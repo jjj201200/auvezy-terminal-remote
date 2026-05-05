@@ -53,7 +53,7 @@ export interface DisplaySettingsProps {
 
 // 输入框接受的范围（可超出预设）
 const COLS_MIN = 40;
-const COLS_MAX = 240;
+const COLS_MAX = 150;
 
 /**
  * 根据当前屏幕宽度算"有意义的列数预设"
@@ -65,7 +65,7 @@ const COLS_MAX = 240;
  * 落在 [COLS_MIN, COLS_MAX] 内的去重收集。结果按升序返回。
  */
 function computeMeaningfulPresets(width: number): number[] {
-  if (width <= 0) return [80, 100, 120];
+  if (width <= 0) return [80, 100, 120, 220];
   const set = new Set<number>();
   for (let fs = FONT_SIZE_MAX; fs >= FONT_SIZE_MIN; fs--) {
     const cols = Math.floor(width / fs / CHAR_WIDTH_RATIO);
