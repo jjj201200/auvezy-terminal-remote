@@ -298,6 +298,17 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ exitCode }, '开始优雅关闭');
+    // 撤销 PTY 子进程可能改过的全局终端状态（鼠标跟踪 / alt screen /
+    // bracketed paste / 隐藏光标），避免外层 shell 接管后被残留状态污染。
+    // 仅 TerminalRelay 启用时才有这个污染风险（headless 模式 PTY 输出不到
+    // 当前终端 stdout）。
+    if (relay && process.stdout.isTTY) {
+      // 关 alt screen + 关鼠标跟踪（1000/1002/1003/1006/1015）+ 关 bracketed
+      // paste（2004）+ 显示光标（25h）+ 软重置（!p）
+      process.stdout.write(
+        '\x1b[?1049l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[?2004l\x1b[?25h\x1b[!p',
+      );
+    }
     if (relay) relay.stop();
     ipMonitor.stop();
     ctrl.destroy();
