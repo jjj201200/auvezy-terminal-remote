@@ -1,17 +1,10 @@
 /**
  * InputBar
  *
- * 输入栏：
- *  - 顶部：快捷键栏（来自 useUserConfig.shortcuts，仅显示 enabled）+ 设置按钮
- *  - 底部：受控 input + 发送按钮
+ * 输入栏（仅渲染输入框 + 发送按钮 + 设置按钮）。
+ * 快捷键栏拆出 ShortcutsBar，由父级 ConsolePage 直接渲染（独立 sticky 行）。
  *
- * 阶段 4 改造：
- *  - 接受 shortcuts 数组并渲染按钮
- *  - 接受 commands 数组（命令选择器留作后续，本阶段先不渲染选择器，
- *    用户可通过手动输入命令文本进入；命令的 autoSend 行为已经在数据模型里）
- *  - 设置按钮触发外部 onOpenSettings
- *
- * Shortcut 点击：直接 send(data)，不附加回车（用户可在 data 里自己写 \r）
+ * Shortcut 点击：直接 send(data)，不附加回车（用户可在 data 里自己写 \r）。
  */
 
 import {
@@ -21,15 +14,16 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
+import { Send, Settings } from 'lucide-react';
 import type { ConfigurableShortcut } from '@ocr/shared';
+import { IconButton } from '../ui/IconButton.js';
+import { cn } from '../../utils/cn.js';
 
 export interface InputBarProps {
   /** 发送一条用户输入到服务端，返回是否成功（false 一般是 WS 离线） */
   onSend: (data: string) => boolean;
   /** 是否禁用（如未连接） */
   disabled?: boolean;
-  /** 启用的快捷键（来自 useUserConfig） */
-  shortcuts?: ConfigurableShortcut[];
   /** 设置按钮回调；不传则不显示按钮 */
   onOpenSettings?: () => void;
 }
@@ -37,7 +31,6 @@ export interface InputBarProps {
 export function InputBar({
   onSend,
   disabled,
-  shortcuts,
   onOpenSettings,
 }: InputBarProps): JSX.Element {
   const [value, setValue] = useState('');
@@ -47,9 +40,7 @@ export function InputBar({
       if (disabled) return;
       const data = withReturn ? value + '\r' : value;
       if (data.length === 0) return;
-      if (onSend(data)) {
-        setValue('');
-      }
+      if (onSend(data)) setValue('');
     },
     [onSend, disabled, value],
   );
@@ -72,64 +63,77 @@ export function InputBar({
     [send],
   );
 
-  const enabledShortcuts = (shortcuts ?? []).filter((s) => s.enabled);
-
-  const handleShortcut = (s: ConfigurableShortcut): void => {
-    if (disabled) return;
-    onSend(s.data);
-  };
-
   return (
-    <div className="input-bar-wrap">
-      {(enabledShortcuts.length > 0 || onOpenSettings) && (
-        <div className="input-bar__shortcuts">
-          {enabledShortcuts.map((s, idx) => (
-            <button
-              type="button"
-              key={`${s.label}-${idx}`}
-              className="input-bar__shortcut"
-              onClick={() => handleShortcut(s)}
-              disabled={disabled}
-              title={s.desc ?? s.label}
-            >
-              {s.label}
-            </button>
-          ))}
-          {onOpenSettings && (
-            <button
-              type="button"
-              className="input-bar__settings"
-              onClick={onOpenSettings}
-              aria-label="设置"
-            >
-              ⚙ 设置
-            </button>
-          )}
-        </div>
+    <form
+      onSubmit={onFormSubmit}
+      className="flex shrink-0 items-stretch gap-2 border-t border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+8px)]"
+    >
+      <input
+        type="text"
+        placeholder={disabled ? '未连接…' : '输入命令，回车发送'}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={onKeyDown}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        className="flex-1 min-w-0 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 font-mono text-base text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] disabled:opacity-50"
+      />
+      <button
+        type="submit"
+        disabled={disabled || value.length === 0}
+        aria-label="发送"
+        className="rounded-md bg-[var(--color-accent)] px-3 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Send size={14} strokeWidth={1.5} />
+      </button>
+      {onOpenSettings && (
+        <IconButton onClick={onOpenSettings} aria-label="设置" title="设置">
+          <Settings size={14} strokeWidth={1.5} />
+        </IconButton>
       )}
+    </form>
+  );
+}
 
-      <form className="input-bar" onSubmit={onFormSubmit}>
-        <input
-          type="text"
-          className="input-bar__field"
-          placeholder={disabled ? '未连接…' : '输入命令，回车发送'}
-          value={value}
-          disabled={disabled}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={onKeyDown}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-        />
+export interface ShortcutsBarProps {
+  shortcuts?: ConfigurableShortcut[];
+  onShortcut: (data: string) => void;
+  disabled?: boolean;
+}
+
+/**
+ * 快捷键栏：从 InputBar 拆出，独立行渲染。
+ * 移动端单行横向滚动（scrollbar-hide）。
+ */
+export function ShortcutsBar({
+  shortcuts,
+  onShortcut,
+  disabled,
+}: ShortcutsBarProps): JSX.Element | null {
+  const enabled = (shortcuts ?? []).filter((s) => s.enabled);
+  if (enabled.length === 0) return null;
+  return (
+    <div className="flex shrink-0 items-center gap-1 overflow-x-auto scrollbar-hide border-t border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-2 py-1">
+      {enabled.map((s, idx) => (
         <button
-          type="submit"
-          className="input-bar__send"
-          disabled={disabled || value.length === 0}
+          type="button"
+          key={`${s.label}-${idx}`}
+          onClick={() => !disabled && onShortcut(s.data)}
+          disabled={disabled}
+          title={s.desc ?? s.label}
+          className={cn(
+            'whitespace-nowrap rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-1 font-mono text-xs text-[var(--color-fg)]',
+            'min-h-[28px]',
+            'active:bg-[var(--color-border)]',
+            disabled && 'opacity-40 cursor-not-allowed',
+          )}
         >
-          发送
+          {s.label}
         </button>
-      </form>
+      ))}
     </div>
   );
 }
