@@ -154,16 +154,34 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
      */
     const attachWindowListeners = useCallback(
       (pointerId: number) => {
+        // 命中检测：手指是否落在浮层 confirm 按钮上
+        const hitConfirm = (clientX: number, clientY: number): boolean => {
+          const hit = document.elementsFromPoint(clientX, clientY);
+          return hit.some(
+            (el) => el instanceof HTMLElement && el.dataset.pressPreviewConfirm === '1',
+          );
+        };
+
+        // pointermove 兜底：浮层 confirm 是 portal 节点 + pointer-events:auto，
+        // 手指悬在它上面时事件被 confirm "抢走"，原按钮的 onPointerMove 收不到
+        // → armed 状态滞后。这里在 window 上独立做命中检测，确保移入/移出能实时切换样式
+        const onMove = (ev: PointerEvent): void => {
+          if (ev.pointerId !== pointerId) return;
+          if (!previewingRef.current) return;
+          const onConfirm = hitConfirm(ev.clientX, ev.clientY);
+          if (onConfirm !== armedRef.current) {
+            armedRef.current = onConfirm;
+            setArmed(onConfirm);
+          }
+        };
+
         const onUp = (ev: PointerEvent): void => {
           if (ev.pointerId !== pointerId) return;
           const wasPreviewing = previewingRef.current;
           const wasArmed = armedRef.current;
           stateRef.current.released = true;
-          // 在 window 上重新做命中检测（不依赖原按钮收 pointermove）
-          const hit = document.elementsFromPoint(ev.clientX, ev.clientY);
-          const onConfirm = hit.some(
-            (el) => el instanceof HTMLElement && el.dataset.pressPreviewConfirm === '1',
-          );
+          // 重新做命中检测，规避 armed 状态因事件丢失而过时
+          const onConfirm = hitConfirm(ev.clientX, ev.clientY);
           cleanup();
           if (disabledRef.current) return;
           if (!wasPreviewing) {
@@ -177,6 +195,7 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
           if (ev.pointerId !== pointerId) return;
           cleanup();
         };
+        window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
         window.addEventListener('pointercancel', onCancel);
         // 浏览器/系统事件兜底：tab 切走、窗口失焦也复位
@@ -188,6 +207,7 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
         window.addEventListener('blur', onBlur);
 
         stateRef.current.windowHandlers = () => {
+          window.removeEventListener('pointermove', onMove);
           window.removeEventListener('pointerup', onUp);
           window.removeEventListener('pointercancel', onCancel);
           document.removeEventListener('visibilitychange', onVis);
