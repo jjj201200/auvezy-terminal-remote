@@ -191,6 +191,38 @@
   }
 }
 
+// cols 滑块的"轨道 + tick 标签"包裹
+.sliderWrap {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sliderTicks {
+  display: flex;
+  justify-content: space-between;
+  font-size: t.$fs-2xs;
+  font-family: t.$font-mono;
+  color: t.$fg-low;
+  // 让 tick 标签视觉上对齐滑块两端 thumb 的中心（thumb width 14px，半径 7px）
+  padding: 0 7px;
+}
+
+.sliderTick {
+  cursor: pointer;
+  user-select: none;
+  @include m.transition(color t.$dur-fast);
+  &:hover {
+    color: t.$fg-dim;
+  }
+}
+
+.sliderTickActive {
+  color: t.$accent;
+}
+
 .valueLabel {
   font-size: t.$fs-xs;
   font-family: t.$font-mono;

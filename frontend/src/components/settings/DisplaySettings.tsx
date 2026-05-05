@@ -52,8 +52,12 @@ export interface DisplaySettingsProps {
   onChange: (next: DisplayPrefs) => void;
 }
 
+// 输入框接受的范围（可超出滑块）
 const COLS_MIN = 40;
 const COLS_MAX = 240;
+// 滑块本身的范围：覆盖常用区间，超出靠输入框
+const SLIDER_MIN = 80;
+const SLIDER_MAX = 220;
 
 export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.Element {
   const t = useT();
@@ -182,16 +186,39 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
           >
             {t('display.autoLabel')}
           </button>
-          {COLS_PRESETS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setCols(p)}
-              className={clsx(s.presetBtn, targetCols === p && s.presetBtnActive)}
-            >
-              {p}
-            </button>
-          ))}
+          {/*
+            拖拽条范围 [SLIDER_MIN, SLIDER_MAX]（80~220），下方显示预设 tick 标签：
+            点 tick = 跳到该预设值。
+            输入框仍接受超出滑块范围的值（[COLS_MIN, COLS_MAX] = [40, 240]）。
+          */}
+          <div className={s.sliderWrap}>
+            <input
+              type="range"
+              min={SLIDER_MIN}
+              max={SLIDER_MAX}
+              step={1}
+              value={
+                targetCols > 0
+                  ? Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, targetCols))
+                  : SLIDER_MIN
+              }
+              onChange={(e) => setCols(Number(e.target.value))}
+              className={s.slider}
+              aria-label={t('display.targetColsTitle')}
+            />
+            <div className={s.sliderTicks}>
+              {COLS_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setCols(p)}
+                  className={clsx(s.sliderTick, targetCols === p && s.sliderTickActive)}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
           <input
             type="number"
             inputMode="numeric"
