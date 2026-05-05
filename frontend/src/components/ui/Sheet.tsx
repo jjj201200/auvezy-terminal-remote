@@ -74,10 +74,25 @@ export function Sheet({
   );
 
   if (isMobile) {
+    // 拦截 vaul 的 onOpenChange(false)：input 聚焦中（键盘弹起时）任何
+    // 自动触发的关闭都视为误判（实测点别的 tab 切换会被 vaul 误识别为关闭意图）。
+    // 真正的关闭路径：用户点 X / 取消按钮 / 主动 swipe down → 走 onOpenChange(true→false) 但
+    // 此时焦点已不在 input 上，因为 swipe down 会先让 input blur。
+    const handleVaulOpenChange = (next: boolean): void => {
+      if (!next && document.activeElement instanceof HTMLElement) {
+        const ae = document.activeElement;
+        if (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable) {
+          // 同步 blur 把焦点移走，让用户清晰看到"键盘收起"反馈，但不关闭弹层
+          ae.blur();
+          return;
+        }
+      }
+      onOpenChange(next);
+    };
     return (
       <Drawer.Root
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={handleVaulOpenChange}
         // 仅顶部 grip 才能拖动关闭，避免列表 / 输入框纵向滚动被识别为拖拽
         handleOnly={true}
         // vaul 默认会用 transform 把内容推上去，但和我们 CSS 里跟踪 --vv-bottom
@@ -95,7 +110,17 @@ export function Sheet({
               {headerMain}
               <button
                 type="button"
-                onClick={() => onOpenChange(false)}
+                onClick={() => {
+                  // 主动关闭：先把 input blur 让键盘收起，避免上面 handleVaulOpenChange 拦截
+                  if (
+                    document.activeElement instanceof HTMLElement &&
+                    (document.activeElement.tagName === 'INPUT' ||
+                      document.activeElement.tagName === 'TEXTAREA')
+                  ) {
+                    document.activeElement.blur();
+                  }
+                  onOpenChange(false);
+                }}
                 aria-label={t('common.close')}
                 className={s.close}
               >

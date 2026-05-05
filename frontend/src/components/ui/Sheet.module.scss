@@ -56,16 +56,14 @@
 .drawerContent {
   position: fixed;
   inset-inline: 0;
-  // 键盘弹起时 visualViewport 缩小但 dvh 不变，drawer 下半被键盘盖住。
-  // 把 bottom 顶到键盘上方（useViewportFix 维护 --vv-bottom），让 input 始终可见。
-  bottom: var(--vv-bottom, 0px);
+  bottom: 0;
   z-index: t.$z-modal;
   display: flex;
   flex-direction: column;
-  // 高度也减除键盘空间，避免 88dvh + bottom 偏移把顶部推出屏幕
+  // 键盘弹起时 dvh 不变（dvh 是稳定测量），drawer 下半被键盘盖住。
+  // 不动容器位置，仅缩短可视高度——避免 vaul 把容器位置变化误识别为 drag-to-dismiss。
+  // useViewportFix 维护 --vv-bottom（键盘高度）。
   height: calc(88dvh - var(--vv-bottom, 0px));
-  // 平滑响应键盘弹起 / 收起
-  transition: bottom 0.18s ease-out, height 0.18s ease-out;
   background: t.$bg-elev;
   outline: none;
   box-shadow: t.$shadow-3;
