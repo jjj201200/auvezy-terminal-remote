@@ -8,7 +8,11 @@
   z-index: 30;
   @include m.row-flex(t.$bar-gap);
   border: 1px solid t.$border;
+  // bg-elev 自带 0.5 alpha 在 webgl 终端上会"穿透"看不清，
+  // 配合 backdrop-filter 模糊后面的内容形成磨砂玻璃效果
   background: t.$bg-elev;
+  backdrop-filter: t.$overlay-blur;
+  -webkit-backdrop-filter: t.$overlay-blur;
   padding: t.$sp-2;
   box-shadow: t.$shadow-3;
 
