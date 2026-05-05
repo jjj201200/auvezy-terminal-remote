@@ -32,7 +32,7 @@
   color: t.$fg;
   padding: t.$sp-1 t.$sp-2;
   font-family: t.$font-mono;
-  font-size: t.$fs-lg;
+  font-size: t.$fs-sm;
   outline: none;
   @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
 

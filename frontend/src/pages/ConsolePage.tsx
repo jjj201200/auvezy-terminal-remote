@@ -252,6 +252,10 @@ export function ConsolePage(): JSX.Element {
         // swipe / 长按 → 视为查看历史 / 选词，不动焦点（也不弹键盘）
         // 用 pointerdown 记起点，pointerup 时按移动距离 + 时长判定是不是 tap
         onPointerDown={(e) => {
+          // 浮层（SearchBar / ScrollToBottomButton / idleCard）的事件会冒泡到这里，
+          // 但它们的 tap 不应触发 InputBar 聚焦。检查 target 是否在 xterm 渲染层内。
+          const el = e.target as HTMLElement | null;
+          if (!el?.closest('.xterm')) return;
           terminalTapRef.current = {
             id: e.pointerId,
             x: e.clientX,
