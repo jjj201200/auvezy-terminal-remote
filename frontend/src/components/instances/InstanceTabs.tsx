@@ -1,18 +1,14 @@
 /**
- * InstanceTabs
+ * InstanceTabs（桌面）
  *
- * 顶部标签条：每个实例一个 tab，点击非当前实例 → window.location 跳转到该实例。
- *
- * 设计：
- *  - 跨实例 = 跨端口 = 跨 origin → 必须用 location.assign 而不是 react-router
- *  - 跳转 URL 不带 ?token：用户已经登录过的实例由 cookie 维持；
- *    没登录的实例靠 useAuth 的本地缓存 token 自动重认证
- *  - 「+」按钮触发 onCreateClick（外层弹 CreateInstanceModal）
- *  - 当前实例不可点击（视觉上 active）
+ * 顶部横向标签条；每个实例一个 tab；点击非当前实例 → location.assign。
+ * 「+」按钮触发 onCreateClick。移动端不渲染（用 MobileInstanceSwitcher）。
  */
 
 import { type JSX } from 'react';
+import { Plus } from 'lucide-react';
 import type { InstanceListItem } from '@ocr/shared';
+import { cn } from '../../utils/cn.js';
 
 export interface InstanceTabsProps {
   instances: InstanceListItem[];
@@ -24,33 +20,37 @@ export function InstanceTabs({ instances, onCreateClick }: InstanceTabsProps): J
   const handleSwitch = (i: InstanceListItem): void => {
     if (i.isCurrent) return;
     // 跨端口跳转；同 host
-    const url = `http://${i.host}:${i.port}/`;
-    window.location.assign(url);
+    window.location.assign(`http://${i.host}:${i.port}/`);
   };
 
   return (
-    <nav className="instance-tabs" aria-label="实例切换">
+    <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide" aria-label="实例切换">
       {instances.map((i) => (
         <button
           key={i.instanceId}
           type="button"
-          className={`instance-tab ${i.isCurrent ? 'instance-tab--active' : ''}`}
           onClick={() => handleSwitch(i)}
           title={`${i.cwd} · pid=${i.pid}`}
           disabled={i.isCurrent}
+          className={cn(
+            'inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-xs',
+            i.isCurrent
+              ? 'border-[var(--color-accent)] bg-[var(--color-bg)] text-[var(--color-fg)] cursor-default'
+              : 'border-[var(--color-border)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:border-[var(--color-fg-muted)]',
+          )}
         >
-          <span className="instance-tab__name">{i.name}</span>
-          <span className="instance-tab__port">:{i.port}</span>
+          <span>{i.name}</span>
+          <span className="font-mono text-2xs opacity-70">:{i.port}</span>
         </button>
       ))}
       <button
         type="button"
-        className="instance-tab instance-tab--create"
         onClick={onCreateClick}
         title="创建新实例"
         aria-label="创建新实例"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:border-[var(--color-fg-muted)]"
       >
-        +
+        <Plus size={14} strokeWidth={1.5} />
       </button>
     </nav>
   );
