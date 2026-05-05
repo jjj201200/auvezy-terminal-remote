@@ -93,9 +93,8 @@ export function useViewportFix(): void {
         (target instanceof HTMLElement && target.isContentEditable)
       ) {
         startScrollGuard();
-        // 弹层内的 input 被键盘挡住时，浏览器不一定会自动 scrollIntoView。
-        // 等键盘动画 + 我们 CSS 的 bottom transition 都到位后再滚一次到可见。
-        // 主页 console 的 InputBar 不需要——它本身就钉死在 visualViewport 底部。
+        // 弹层内的 input 被键盘挡住时主动滚到中部
+        // 主页 InputBar 不需要——它钉死在 visualViewport 底部
         if (target.closest('#settings-modal, #create-instance-modal, #share-sheet')) {
           window.setTimeout(() => {
             try {

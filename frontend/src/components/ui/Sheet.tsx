@@ -74,46 +74,25 @@ export function Sheet({
   );
 
   if (isMobile) {
-    // 拦截 vaul 的 onOpenChange(false)：input 聚焦中（键盘弹起时）任何
-    // 自动触发的关闭都视为误判（实测点别的 tab 切换会被 vaul 误识别为关闭意图）。
-    // 真正的关闭路径：用户点 X / 取消按钮 / 主动 swipe down → 走 onOpenChange(true→false) 但
-    // 此时焦点已不在 input 上，因为 swipe down 会先让 input blur。
-    // outside / focus 自动关闭已在 Drawer.Content 里屏蔽，这里直接透传
-    const handleVaulOpenChange = (next: boolean): void => {
-      onOpenChange(next);
-    };
     return (
       <Drawer.Root
         open={open}
-        onOpenChange={handleVaulOpenChange}
+        onOpenChange={onOpenChange}
         // 仅顶部 grip 才能拖动关闭，避免列表 / 输入框纵向滚动被识别为拖拽
         handleOnly={true}
-        // vaul 默认会用 transform 把内容推上去，但和我们 CSS 里跟踪 --vv-bottom
-        // 调 bottom + height 会双重偏移，把 drawer 顶到屏幕外。
-        // 由 CSS 单独接管：禁掉 vaul 的 reposition
+        // vaul 的 reposition 会用 transform 上推 drawer，与我们的 CSS（--vv-bottom 接管 padding）
+        // 叠加会双重偏移。由 CSS 单独接管
         repositionInputs={false}
       >
         <Drawer.Portal>
-          {/* 点遮罩 = 主动关闭。手动绑 click 而非依赖 Radix outside 检测，
-              避免 input blur 与 tab click 同时发生时被误判为 outside */}
-          <Drawer.Overlay
-            className={s.overlay}
-            onClick={() => {
-              if (
-                document.activeElement instanceof HTMLElement &&
-                (document.activeElement.tagName === 'INPUT' ||
-                  document.activeElement.tagName === 'TEXTAREA')
-              ) {
-                document.activeElement.blur();
-              }
-              onOpenChange(false);
-            }}
-          />
+          {/* 点遮罩 = 关闭。手动绑 onClick 显式接管，不靠 Radix outside 自动检测——
+              键盘弹起期 visualViewport 与 layout viewport 不一致，Radix 把 drawer
+              内点击误判为外部 → 触发关闭，是之前的关弹层 bug 根因 */}
+          <Drawer.Overlay className={s.overlay} onClick={() => onOpenChange(false)} />
           <Drawer.Content
             id={id}
             className={clsx(s.drawerContent, className)}
-            // Radix 默认的 outside / focus 自动关闭在键盘弹起时坐标判断不准，
-            // 会把 drawer 内点击误判为外部。完全屏蔽，由 Overlay onClick 显式接管
+            // 屏蔽 Radix 默认 outside / focus 自动关闭，由 Overlay onClick 显式接管
             onPointerDownOutside={(e) => e.preventDefault()}
             onInteractOutside={(e) => e.preventDefault()}
             onFocusOutside={(e) => e.preventDefault()}
@@ -121,44 +100,20 @@ export function Sheet({
             {/* a11y 必填：Drawer.Title 始终存在但 sr-only，避免 vaul/Radix 警告 */}
             <Drawer.Title className={s.srOnly}>{title}</Drawer.Title>
             <Drawer.Handle className={s.drawerGrip} />
-            {/*
-              data-vaul-no-drag：阻止 vaul 在 header / body / footer 区域响应 pointer 拖拽
-              否则键盘弹起时点 tab 切换被 vaul 当成 drag-to-dismiss 触发关闭
-              真正的关闭手势靠 Drawer.Handle（grip 区域）
-            */}
-            <header
-              className={clsx(s.header, s.headerMobile, tabs && s.headerWithTabs)}
-              data-vaul-no-drag
-            >
+            <header className={clsx(s.header, s.headerMobile, tabs && s.headerWithTabs)}>
               {headerMain}
               <button
                 type="button"
-                onClick={() => {
-                  if (
-                    document.activeElement instanceof HTMLElement &&
-                    (document.activeElement.tagName === 'INPUT' ||
-                      document.activeElement.tagName === 'TEXTAREA')
-                  ) {
-                    document.activeElement.blur();
-                  }
-                  onOpenChange(false);
-                }}
+                onClick={() => onOpenChange(false)}
                 aria-label={t('common.close')}
                 className={s.close}
               >
                 <IconX size={16} stroke={1.5} />
               </button>
             </header>
-            <div className={s.body} data-vaul-no-drag>
-              {children}
-            </div>
+            <div className={s.body}>{children}</div>
             {footer && (
-              <footer
-                className={clsx(s.footer, s.footerMobile)}
-                data-vaul-no-drag
-              >
-                {footer}
-              </footer>
+              <footer className={clsx(s.footer, s.footerMobile)}>{footer}</footer>
             )}
           </Drawer.Content>
         </Drawer.Portal>
