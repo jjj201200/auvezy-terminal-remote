@@ -22,6 +22,7 @@
 
 import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -298,21 +299,35 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ exitCode }, '开始优雅关闭');
-    // 撤销 PTY 子进程可能改过的全局终端状态（鼠标跟踪 / alt screen /
-    // bracketed paste / 隐藏光标），避免外层 shell 接管后被残留状态污染。
-    // 仅 TerminalRelay 启用时才有这个污染风险（headless 模式 PTY 输出不到
-    // 当前终端 stdout）。
-    if (relay && process.stdout.isTTY) {
-      // 关 alt screen + 关鼠标跟踪（1000/1002/1003/1006/1015）+ 关 bracketed
-      // paste（2004）+ 显示光标（25h）+ 软重置（!p）
-      process.stdout.write(
-        '\x1b[?1049l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[?2004l\x1b[?25h\x1b[!p',
-      );
-    }
+    // 顺序很关键：
+    //  1. 先 stop relay 与 destroy PTY，让 PTY 子进程完全死透
+    //     （否则它最后一刻可能再发输出重新打开鼠标跟踪等模式）
+    //  2. 再 reset 终端状态（多重防御 + tput reset 兜底）
+    //  3. 最后清网络资源
     if (relay) relay.stop();
+    pty.destroy();
+    if (process.stdout.isTTY) {
+      // 关 alt screen + 关鼠标跟踪（1000/1002/1003/1005/1006/1015）+ 关
+      // bracketed paste（2004）+ 关焦点事件（1004）+ 显示光标 + DECSTR 软重置
+      process.stdout.write(
+        '\x1b[?1049l' + // alt screen 退出
+          '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l\x1b[?1015l' + // 鼠标
+          '\x1b[?2004l' + // bracketed paste
+          '\x1b[?1004l' + // 焦点事件
+          '\x1b[?25h' + // 显示光标
+          '\x1b[!p' + // 软重置
+          '\x1b[0m' + // 颜色 / 样式重置
+          '\x1bc', // RIS（hard reset，最后兜底）
+      );
+      // 顺便用 stty 把行规则也撤回标准，防止 echo / icanon 被关
+      try {
+        execSync('stty sane 2>/dev/null', { stdio: 'ignore' });
+      } catch {
+        // 没有 stty 也不要紧，前面的 ANSI 已经做了大部分工作
+      }
+    }
     ipMonitor.stop();
     ctrl.destroy();
-    pty.destroy();
     ws.destroy();
     authModule.destroy();
     // 注销实例（best-effort，不阻塞关闭）
