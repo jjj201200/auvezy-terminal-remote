@@ -7,6 +7,9 @@
 // 实际样式由调用方 className 提供（Toolbar 的 .btn 等）
 .root {
   position: relative;
+  // 长按 / 拖动 / 选中文字都不该发生在按钮上
+  @include m.no-select;
+  -webkit-tap-highlight-color: transparent;
 }
 
 // ──────────────── 按钮按下中状态 ────────────────

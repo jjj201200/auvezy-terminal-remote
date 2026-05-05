@@ -28,6 +28,8 @@
 @mixin no-select {
   user-select: none;
   -webkit-user-select: none;
+  // 禁用 iOS 长按弹出系统菜单 / 文字放大镜
+  -webkit-touch-callout: none;
 }
 
 @mixin focus-ring($color: t.$accent) {
@@ -85,6 +87,11 @@
   color: inherit;
   cursor: pointer;
   letter-spacing: inherit;
+  // 任何按钮都不该被文字选中：选中后再次点会产生 selection-change 而非 click，
+  // 移动端长按还会弹放大镜/复制菜单
+  @include no-select;
+  // 关掉移动端 tap 时的高亮闪烁（按钮已自有 :hover/:active 反馈）
+  -webkit-tap-highlight-color: transparent;
 }
 
 @mixin safe-bottom($extra: 0px) {
