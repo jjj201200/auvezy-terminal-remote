@@ -182,7 +182,7 @@
 - `backend/src/index.ts`（22 阶段中的本阶段实现部分：环境变量配置 + 路由 + 静态 + PTY + WS + Session + Relay + spawn + shutdown + listen + banner）
 
 **关键设计**：
-- 环境变量驱动：`PORT / HOST / CLAUDE_COMMAND / CLAUDE_ARGS / CLAUDE_CWD / NO_TERMINAL / INSTANCE_NAME / MAX_BUFFER_LINES`
+- 环境变量驱动：`PORT / HOST / OCR_COMMAND / OCR_ARGS / OCR_CWD / NO_TERMINAL / INSTANCE_NAME / MAX_BUFFER_LINES`（旧名 `CLAUDE_*` 仍兼容，会 warn）
 - TerminalRelay 条件创建：`!noTerminal && process.stdin.isTTY` 才启用
 - onExitRequest（双 Ctrl+C）回调直接调 `shutdown(0)`
 - PTY exit 后延迟 SHUTDOWN_WS_FLUSH_DELAY_MS（500ms）再 shutdown，让 WS 把最后一条消息发出去

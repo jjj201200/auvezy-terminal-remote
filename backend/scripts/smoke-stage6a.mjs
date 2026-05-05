@@ -29,8 +29,8 @@ function start(port) {
       env: {
         ...process.env,
         HOME: tmpHome,
-        CLAUDE_COMMAND: 'bash',
-        CLAUDE_ARGS: JSON.stringify(['-c', 'tail -f /dev/null', '--']),
+        OCR_COMMAND: 'bash',
+        OCR_ARGS: JSON.stringify(['-c', 'tail -f /dev/null', '--']),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     },

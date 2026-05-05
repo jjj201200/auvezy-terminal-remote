@@ -37,8 +37,8 @@ const child = spawn(
     env: {
       ...process.env,
       HOME: tmpHome,
-      CLAUDE_COMMAND: 'bash',
-      CLAUDE_ARGS: JSON.stringify(['-c', altScript, '--']),
+      OCR_COMMAND: 'bash',
+      OCR_ARGS: JSON.stringify(['-c', altScript, '--']),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   },

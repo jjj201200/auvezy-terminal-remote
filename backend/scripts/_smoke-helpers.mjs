@@ -3,7 +3,7 @@
  *
  * 各阶段 smoke 的共性：
  *  - mkdtemp 出隔离 HOME
- *  - 起 cli.js 子进程（--port, --no-terminal, CLAUDE_COMMAND/ARGS env）
+ *  - 起 cli.js 子进程（--port, --no-terminal, OCR_COMMAND/ARGS env）
  *  - 轮询 /api/health 等就绪
  *  - 末了 SIGTERM + rmSync
  *
@@ -23,8 +23,8 @@ import { tmpdir } from 'node:os';
  * @param {string} [opts.label] 临时目录前缀（默认 'ocr-smoke-'）
  * @param {string[]} [opts.extraArgs] 追加给 cli.js 的命令行参数
  * @param {object} [opts.env] 额外环境变量（会和 process.env + HOME 合并）
- * @param {string} [opts.command] CLAUDE_COMMAND，默认 'bash'
- * @param {string[]} [opts.args] CLAUDE_ARGS（数组形式），默认 ['-c', 'tail -f /dev/null', '--']
+ * @param {string} [opts.command] OCR_COMMAND，默认 'bash'
+ * @param {string[]} [opts.args] OCR_ARGS（数组形式），默认 ['-c', 'tail -f /dev/null', '--']
  */
 export function spawnBackend(opts) {
   const {
@@ -46,8 +46,8 @@ export function spawnBackend(opts) {
       env: {
         ...process.env,
         HOME: tmpHome,
-        CLAUDE_COMMAND: command,
-        CLAUDE_ARGS: JSON.stringify(args),
+        OCR_COMMAND: command,
+        OCR_ARGS: JSON.stringify(args),
         ...env,
       },
       stdio: ['ignore', 'pipe', 'pipe'],

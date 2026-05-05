@@ -53,8 +53,8 @@ const child = spawn(
       ...process.env,
       HOME: tmpHome,
       // 用 bash -c 包裹 tail，避免 tail 直接被 --settings 干扰
-      CLAUDE_COMMAND: 'bash',
-      CLAUDE_ARGS: JSON.stringify(['-c', 'tail -f /dev/null', '--']),
+      OCR_COMMAND: 'bash',
+      OCR_ARGS: JSON.stringify(['-c', 'tail -f /dev/null', '--']),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   },

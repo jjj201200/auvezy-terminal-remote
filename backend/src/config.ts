@@ -420,9 +420,14 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
 
   const port = cli.port ?? toInt(env['PORT']) ?? DEFAULT_PORT;
   const host = cli.host ?? env['HOST'] ?? '0.0.0.0';
-  const claudeCommand = env['CLAUDE_COMMAND'] ?? 'claude';
-  const claudeCwd = cli.workdir ?? env['CLAUDE_CWD'] ?? process.cwd();
-  const claudeArgs = mergeClaudeArgs(cli.claudeArgs, env['CLAUDE_ARGS']);
+  const claudeCommand =
+    env['OCR_COMMAND'] ?? readLegacyEnv(env, 'CLAUDE_COMMAND') ?? 'claude';
+  const claudeCwd =
+    cli.workdir ?? env['OCR_CWD'] ?? readLegacyEnv(env, 'CLAUDE_CWD') ?? process.cwd();
+  const claudeArgs = mergeClaudeArgs(
+    cli.claudeArgs,
+    env['OCR_ARGS'] ?? readLegacyEnv(env, 'CLAUDE_ARGS'),
+  );
   const instanceName =
     cli.instanceName ?? env['INSTANCE_NAME'] ?? (basename(claudeCwd) || 'instance');
   const maxBufferLines =
@@ -468,7 +473,30 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
   };
 }
 
-/** 把 CLI 的 claudeArgs 与 env CLAUDE_ARGS（JSON 数组形式）合并；CLI 优先 */
+/**
+ * 兼容读旧名 env：发现旧名时 warn 一次（每进程），鼓励迁移到新名 OCR_*。
+ *
+ * 旧名 CLAUDE_COMMAND / CLAUDE_ARGS / CLAUDE_CWD 会一直支持，但若同时设置
+ * 新旧两个，新名 OCR_* 优先。
+ */
+const warnedLegacy = new Set<string>();
+function readLegacyEnv(
+  env: NodeJS.ProcessEnv,
+  legacyKey: 'CLAUDE_COMMAND' | 'CLAUDE_ARGS' | 'CLAUDE_CWD',
+): string | undefined {
+  const v = env[legacyKey];
+  if (v && !warnedLegacy.has(legacyKey)) {
+    warnedLegacy.add(legacyKey);
+    const newKey = legacyKey.replace('CLAUDE_', 'OCR_');
+    logger.warn(
+      { legacyKey, newKey },
+      `环境变量 ${legacyKey} 已重命名为 ${newKey}（旧名仍支持，建议迁移）`,
+    );
+  }
+  return v;
+}
+
+/** 把 CLI 的 claudeArgs 与 env OCR_ARGS（JSON 数组形式）合并；CLI 优先 */
 function mergeClaudeArgs(cliArgs: string[], envJson: string | undefined): string[] {
   if (cliArgs.length > 0) return cliArgs;
   if (!envJson) return [];

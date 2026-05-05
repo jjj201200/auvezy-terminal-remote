@@ -99,11 +99,16 @@ ocr [子命令] [选项]
 
 | 变量 | 用途 |
 |---|---|
-| `CLAUDE_COMMAND` | 同 `--command` |
-| `CLAUDE_ARGS`    | 同 `--args` |
+| `OCR_COMMAND` | 子进程命令（默认 `claude`，可换 `bash` 等任意 PTY 程序）|
+| `OCR_ARGS`    | 命令参数（JSON 数组字符串，如 `'["-c","tail -f /dev/null"]'`）|
+| `OCR_CWD`     | 子进程工作目录（默认 `process.cwd()`）|
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | 注入 VAPID（高优先级，跳过文件）|
-| `PORT`           | 同 `--port` |
-| `LOG_LEVEL`      | pino 级别（默认 info）|
+| `PORT`        | 同 `--port` |
+| `AUTH_TOKEN`  | 指定 token（默认自动生成）|
+| `LOG_LEVEL`   | pino 级别（默认 info）|
+
+> 旧名 `CLAUDE_COMMAND` / `CLAUDE_ARGS` / `CLAUDE_CWD` 仍兼容（启动时会 warn 一次）。
+> 改名是为了说清楚：这个项目不绑定 Claude，能跑任何 PTY 程序。
 
 ## 架构 / 决策
 
