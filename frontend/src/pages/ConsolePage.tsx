@@ -221,9 +221,11 @@ export function ConsolePage(): JSX.Element {
           onReconnect={connect}
         />
         <IconButton
-          onClick={() => setSearchOpen(true)}
+          onClick={() => setSearchOpen((v) => !v)}
           aria-label={t('search.aria')}
+          aria-pressed={searchOpen}
           title={t('search.aria')}
+          variant={searchOpen ? 'accent' : undefined}
         >
           <IconSearch size={14} stroke={1.5} />
         </IconButton>
