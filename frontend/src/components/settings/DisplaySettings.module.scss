@@ -86,7 +86,7 @@
 
 .presetBtn {
   appearance: none;
-  padding: t.$sp-2 t.$sp-4;
+  padding: t.$sp-2 t.$sp-3;
   font-size: t.$fs-xs;
   font-family: t.$font-mono;
   color: t.$fg-dim;
@@ -94,7 +94,6 @@
   border: 1px solid t.$border;
   border-radius: t.$radius-sm;
   cursor: pointer;
-  min-width: 48px;
   text-align: center;
   @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
 
@@ -122,8 +121,9 @@
 }
 
 .numInput {
-  width: 84px;
-  padding: t.$sp-2 t.$sp-3;
+  width: 56px;
+  padding: t.$sp-2;
+  text-align: center;
   font-size: t.$fs-xs;
   font-family: t.$font-mono;
   color: t.$fg;
@@ -203,59 +203,105 @@
 }
 
 // 重制 colsSlider：方形轨道 + 已填充段 accent 实色
+// 整体 height 24px 拓宽点击/触摸热区；轨道只画 6px 在伪元素 track 上
 .colsSlider {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 6px;
-  // 用 inline style 注入 --fill 百分比，画"已填充 + 未填充"两段
-  background: linear-gradient(
-    to right,
-    t.$accent 0,
-    t.$accent var(--fill, 0%),
-    t.$bg-input var(--fill, 0%),
-    t.$bg-input 100%
-  );
-  border: 1px solid t.$border;
-  border-radius: 0;
+  height: 24px;
+  background: transparent;
+  border: 0;
   outline: none;
   cursor: pointer;
-  @include m.transition(border-color t.$dur-fast);
 
-  &:hover {
+  // ── webkit 轨道 ──
+  &::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(
+      to right,
+      t.$accent 0,
+      t.$accent var(--fill, 0%),
+      t.$bg-input var(--fill, 0%),
+      t.$bg-input 100%
+    );
+    border: 1px solid t.$border;
+    border-radius: 0;
+    @include m.transition(border-color t.$dur-fast);
+  }
+  &:hover::-webkit-slider-runnable-track {
     border-color: t.$border-hi;
   }
-  &:focus-visible {
+  &:focus-visible::-webkit-slider-runnable-track {
     border-color: t.$accent;
   }
 
-  // 方块 thumb + 磷光辉光（match phosphor-glow 风格）
+  // ── firefox 轨道 ──
+  &::-moz-range-track {
+    width: 100%;
+    height: 6px;
+    background: t.$bg-input;
+    border: 1px solid t.$border;
+    border-radius: 0;
+  }
+  &::-moz-range-progress {
+    height: 6px;
+    background: t.$accent;
+  }
+  &:hover::-moz-range-track {
+    border-color: t.$border-hi;
+  }
+  &:focus-visible::-moz-range-track {
+    border-color: t.$accent;
+  }
+
+  // thumb 24×24 大热区 + 视觉上仅中央 4×16 实心高亮线
+  // 大热区避免拖拽时手指偏一点就丢；视觉仍是终端风格细窄竖线
+  // 居中实心条用 linear-gradient 画：透明 - accent (4px 中央) - 透明
   &::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 4px;
-    height: 14px;
-    background: t.$accent;
+    width: 24px;
+    height: 24px;
+    // 让 thumb 中心对齐 6px track 中心：(24 - 6) / 2 = 9 + 1px border 差
+    margin-top: -10px;
+    background: linear-gradient(
+      to right,
+      transparent 0,
+      transparent 10px,
+      t.$accent 10px,
+      t.$accent 14px,
+      transparent 14px,
+      transparent 100%
+    );
     border: 0;
     border-radius: 0;
     cursor: pointer;
-    box-shadow: 0 0 6px t.$accent-glow;
-    @include m.transition(box-shadow t.$dur-fast);
+    filter: drop-shadow(0 0 6px t.$accent-glow);
+    @include m.transition(filter t.$dur-fast);
   }
   &::-moz-range-thumb {
-    width: 4px;
-    height: 14px;
-    background: t.$accent;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(
+      to right,
+      transparent 0,
+      transparent 10px,
+      t.$accent 10px,
+      t.$accent 14px,
+      transparent 14px,
+      transparent 100%
+    );
     border: 0;
     border-radius: 0;
     cursor: pointer;
-    box-shadow: 0 0 6px t.$accent-glow;
+    filter: drop-shadow(0 0 6px t.$accent-glow);
   }
   &:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 10px t.$accent;
+    filter: drop-shadow(0 0 10px t.$accent);
   }
   &:focus-visible::-moz-range-thumb {
-    box-shadow: 0 0 10px t.$accent;
+    filter: drop-shadow(0 0 10px t.$accent);
   }
 }
 

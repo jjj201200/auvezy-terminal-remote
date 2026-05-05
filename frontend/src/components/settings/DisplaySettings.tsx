@@ -58,6 +58,9 @@ const COLS_MAX = 240;
 // 滑块本身的范围：覆盖常用区间，超出靠输入框
 const SLIDER_MIN = 80;
 const SLIDER_MAX = 220;
+// thumb 视觉宽度的一半（用于 tick / fill 的 calc 修正端点 thumb 内缩）
+// 必须与 .colsSlider thumb width 保持同步
+const SLIDER_THUMB_HALF = 12;
 
 export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.Element {
   const t = useT();
@@ -195,7 +198,10 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
             const v = targetCols > 0
               ? Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, targetCols))
               : SLIDER_MIN;
-            const fillPct = ((v - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
+            // thumb 中心在 [SLIDER_THUMB_HALF, 100% - SLIDER_THUMB_HALF] 区间内移动
+            // 必须用 calc 修正端点的 thumb 内缩，否则 tick 与 thumb 对不齐
+            const ratio = (v - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN);
+            const fill = `calc(${SLIDER_THUMB_HALF}px + ${ratio} * (100% - ${SLIDER_THUMB_HALF * 2}px))`;
             return (
               <div className={s.colsSliderWrap}>
                 <input
@@ -206,17 +212,18 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
                   value={v}
                   onChange={(e) => setCols(Number(e.target.value))}
                   className={s.colsSlider}
-                  style={{ ['--fill' as string]: `${fillPct}%` }}
+                  style={{ ['--fill' as string]: fill }}
                   aria-label={t('display.targetColsTitle')}
                 />
                 <div className={s.colsTicks} aria-hidden="true">
                   {COLS_PRESETS.map((p) => {
-                    const left = ((p - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
+                    const r = (p - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN);
+                    const left = `calc(${SLIDER_THUMB_HALF}px + ${r} * (100% - ${SLIDER_THUMB_HALF * 2}px))`;
                     return (
                       <span
                         key={p}
                         className={clsx(s.colsTick, targetCols === p && s.colsTickActive)}
-                        style={{ left: `${left}%` }}
+                        style={{ left }}
                       >
                         {p}
                       </span>
