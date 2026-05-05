@@ -75,7 +75,7 @@ export function ConsolePage(): JSX.Element {
     setAutoFollow,
     showScrollHint,
     adaptToPtySize,
-  } = useTerminal(containerRef, handleResize);
+  } = useTerminal(containerRef, handleResize, config.display);
 
   const handleMessage = useCallback(
     (msg: ServerMessage) => {

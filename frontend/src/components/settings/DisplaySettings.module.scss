@@ -1,0 +1,228 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-6;
+  padding: t.$sp-2 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-4;
+}
+
+.sectionHeader {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-1;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.sectionHint {
+  margin: 0;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-base;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: t.$sp-2;
+  flex-wrap: wrap;
+}
+
+// ──────────── 预览框 ────────────
+
+.preview {
+  background: #050608; // 与 xterm theme.background 同
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  padding: t.$sp-4 t.$sp-5;
+  font-family: t.$font-mono;
+  line-height: t.$lh-base;
+  // 字号 / letterSpacing 由 inline style 注入
+  color: #e6e7ea; // theme.foreground
+  overflow-x: auto;
+  // mono 字符宽度受 letterSpacing 影响也能 1:1 反映
+  white-space: pre;
+}
+
+.previewLine {
+  display: block;
+}
+
+// xterm 主题色（与 useTerminal 中的 theme 一一对应）
+.cPrompt { color: #b6f09c; } // accent green
+.cFg     { color: #e6e7ea; }
+.cMuted  { color: #6e7681; } // brightBlack
+.cBlue   { color: #58a6ff; }
+.cGreen  { color: #3fb950; }
+.cRed    { color: #ff7b72; }
+.cYellow { color: #d29922; }
+
+.previewMeta {
+  margin-top: t.$sp-3;
+  padding-top: t.$sp-2;
+  border-top: 1px solid rgba(110, 118, 129, 0.18);
+  font-size: t.$fs-2xs;
+  color: t.$fg-dim;
+  // meta 是说明文字，不该被预览的 letter-spacing 影响
+  letter-spacing: normal;
+  font-family: t.$font-mono;
+}
+
+// ──────────── 列数预设 ────────────
+
+.presetBtn {
+  appearance: none;
+  padding: t.$sp-2 t.$sp-4;
+  font-size: t.$fs-xs;
+  font-family: t.$font-mono;
+  color: t.$fg-dim;
+  background: t.$bg-input;
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+  min-width: 48px;
+  text-align: center;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    border-color: t.$border-hi;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+.presetBtnActive {
+  color: t.$accent;
+  border-color: t.$accent;
+  background: t.$accent-soft;
+
+  &:hover {
+    color: t.$accent;
+    border-color: t.$accent;
+  }
+}
+
+.numInput {
+  width: 84px;
+  padding: t.$sp-2 t.$sp-3;
+  font-size: t.$fs-xs;
+  font-family: t.$font-mono;
+  color: t.$fg;
+  background: t.$bg-input;
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  outline: none;
+  // 隐藏 number input 的上下旋钮（与紧凑视觉冲突）
+  -moz-appearance: textfield;
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  &::placeholder {
+    color: t.$fg-low;
+  }
+
+  &:focus-visible {
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+// ──────────── 字间距滑块 ────────────
+
+.slider {
+  flex: 1;
+  min-width: 120px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: t.$border;
+  border-radius: t.$radius-pill;
+  outline: none;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: t.$accent;
+    cursor: pointer;
+    border: 2px solid t.$bg-elev;
+    @include m.transition(transform t.$dur-fast);
+  }
+
+  &::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: t.$accent;
+    cursor: pointer;
+    border: 2px solid t.$bg-elev;
+  }
+
+  &:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px t.$accent-glow;
+  }
+  &:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 3px t.$accent-glow;
+  }
+}
+
+.valueLabel {
+  font-size: t.$fs-xs;
+  font-family: t.$font-mono;
+  color: t.$fg-dim;
+  min-width: 56px;
+  text-align: right;
+}
+
+.resetBtn {
+  appearance: none;
+  padding: t.$sp-2 t.$sp-3;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  background: transparent;
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    color: t.$fg;
+    border-color: t.$border-hi;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}

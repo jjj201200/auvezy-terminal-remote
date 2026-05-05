@@ -15,6 +15,7 @@ import clsx from 'clsx';
 import { Sheet } from '../ui/Sheet.js';
 import { ShortcutSettings } from './ShortcutSettings.js';
 import { CommandSettings } from './CommandSettings.js';
+import { DisplaySettings } from './DisplaySettings.js';
 import { PushToggle } from '../common/PushToggle.js';
 import s from './SettingsModal.module.scss';
 
@@ -25,7 +26,7 @@ export interface SettingsModalProps {
   onClose: () => void;
 }
 
-type TabKey = 'shortcuts' | 'commands' | 'notifications';
+type TabKey = 'shortcuts' | 'commands' | 'display' | 'notifications';
 
 export function SettingsModal({
   open,
@@ -75,6 +76,9 @@ export function SettingsModal({
             <Tabs.Trigger value="commands" className={tabBtnCls('commands')}>
               命令
             </Tabs.Trigger>
+            <Tabs.Trigger value="display" className={tabBtnCls('display')}>
+              显示
+            </Tabs.Trigger>
             <Tabs.Trigger value="notifications" className={tabBtnCls('notifications')}>
               通知
             </Tabs.Trigger>
@@ -108,6 +112,12 @@ export function SettingsModal({
           <CommandSettings
             value={draft.commands ?? []}
             onChange={(commands) => setDraft({ ...draft, commands })}
+          />
+        </Tabs.Content>
+        <Tabs.Content value="display">
+          <DisplaySettings
+            value={draft.display}
+            onChange={(display) => setDraft({ ...draft, display })}
           />
         </Tabs.Content>
         <Tabs.Content value="notifications">

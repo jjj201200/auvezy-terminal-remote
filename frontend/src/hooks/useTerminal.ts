@@ -34,6 +34,22 @@ import {
   XTERM_FONT_SIZE,
   RESIZE_THROTTLE_MS,
 } from '../config/constants.js';
+import { FONT_SIZE_MIN, FONT_SIZE_MAX } from '@otr/shared';
+
+/**
+ * xterm 显示偏好（来自 UserConfig.display）
+ *
+ * - targetCols：>0 时启用自适应字号；按容器宽度反推 fontSize
+ *   公式：fontSize ≈ containerWidth / targetCols / CHAR_WIDTH_RATIO
+ *   等宽字体 char-width / fontSize ≈ 0.6（Geist Mono / Menlo 实测）
+ * - letterSpacing：负值压缩、正值拉宽（px）
+ */
+export interface DisplayOpts {
+  targetCols?: number;
+  letterSpacing?: number;
+}
+
+const CHAR_WIDTH_RATIO = 0.6;
 
 /**
  * onResize 回调返回值含义：
@@ -64,10 +80,17 @@ export interface UseTerminalReturn {
 export function useTerminal(
   containerRef: RefObject<HTMLDivElement | null>,
   onResize?: ResizeCallback,
+  display?: DisplayOpts,
 ): UseTerminalReturn {
   // ──────────────── refs ────────────────
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+
+  // 镜像 display 偏好（避免重建 xterm；ResizeObserver 也读这个 ref）
+  const displayRef = useRef<DisplayOpts | undefined>(display);
+  displayRef.current = display;
+  // applyPrefs 的指针：xterm 初始化时填，display 变化的 effect 调
+  const applyPrefsRef = useRef<(() => void) | null>(null);
 
   // 镜像 prop：避免 onResize 变化导致整个 xterm 重建
   const onResizeRef = useRef<ResizeCallback | undefined>(onResize);
@@ -196,9 +219,34 @@ export function useTerminal(
     };
     window.addEventListener('error', errorSuppressor);
 
+    /**
+     * 根据 display 偏好 + 容器宽度，算出 fontSize / letterSpacing
+     *
+     * - targetCols > 0：自适应字号；fontSize ≈ width / targetCols / CHAR_WIDTH_RATIO
+     *   减去 letterSpacing 的影响（每个字宽多了 letterSpacing px），夹紧到 [8, 18]
+     * - targetCols 缺失 / 0：用默认字号
+     * - letterSpacing：原值透传（已在 UI 限范围）
+     */
+    const computeFontPrefs = (): { fontSize: number; letterSpacing: number } => {
+      const d = displayRef.current;
+      const ls = d?.letterSpacing ?? 0;
+      const targetCols = d?.targetCols ?? 0;
+      if (!targetCols || targetCols <= 0) {
+        return { fontSize: XTERM_FONT_SIZE, letterSpacing: ls };
+      }
+      const width = container.clientWidth;
+      if (width <= 0) return { fontSize: XTERM_FONT_SIZE, letterSpacing: ls };
+      // (fontSize * CHAR_WIDTH_RATIO + ls) * targetCols ≈ width
+      const raw = (width / targetCols - ls) / CHAR_WIDTH_RATIO;
+      const clamped = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.floor(raw)));
+      return { fontSize: clamped, letterSpacing: ls };
+    };
+
+    const initial = computeFontPrefs();
     const term = new Terminal({
       disableStdin: true, // 前端是只读视图，输入走独立 InputBar
-      fontSize: XTERM_FONT_SIZE,
+      fontSize: initial.fontSize,
+      letterSpacing: initial.letterSpacing,
       fontFamily: "'Geist Mono', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
       scrollback: XTERM_SCROLLBACK_LINES,
       theme: {
@@ -263,11 +311,44 @@ export function useTerminal(
     //  - 容器宽/高为 0 时跳过（Sheet/Dialog 打开瞬间 / display:none 路径会触发）
     //  - try/catch 兜底 xterm 内部 RenderService dimensions 偶发未就绪：抛错不能传出
     //    ResizeObserver 回调，否则浏览器会把 observer 从 entries 清掉，之后 fit 永远不再触发
+    /**
+     * 重应用显示偏好（字号 / letterSpacing）
+     *
+     * 调用时机：
+     *  - 容器尺寸变化（targetCols 模式下，宽度变化要重算字号）
+     *  - 用户在设置里改了 display 偏好（触发 effect → applyPrefs）
+     *
+     * 改动 fontSize/letterSpacing 后必须 fit() 让 cols/rows 与新字号同步，
+     * 然后上报 resize 给后端 PTY。
+     */
+    const applyPrefs = (): void => {
+      const next = computeFontPrefs();
+      const opts = term.options;
+      let changed = false;
+      if (opts.fontSize !== next.fontSize) {
+        opts.fontSize = next.fontSize;
+        changed = true;
+      }
+      if ((opts.letterSpacing ?? 0) !== next.letterSpacing) {
+        opts.letterSpacing = next.letterSpacing;
+        changed = true;
+      }
+      if (changed) {
+        try {
+          fitAddon.fit();
+        } catch {
+          /* xterm RenderService 偶发未就绪：下一帧 ResizeObserver 自愈 */
+        }
+      }
+    };
+    applyPrefsRef.current = applyPrefs;
+
     const resizeObserver = new ResizeObserver(() => {
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w === 0 || h === 0) return;
       try {
+        applyPrefs();
         fitAddon.fit();
         emitResize(term.cols, term.rows);
       } catch {
@@ -322,6 +403,15 @@ export function useTerminal(
       fitAddonRef.current = null;
     };
   }, [containerRef, emitResize, flushWriteQueue]);
+
+  // 用户在设置里改了 display 偏好 → 立即重应用 + 上报新尺寸
+  // 用 stringify 比较避免 useUserConfig 每次返回新对象引用导致重复 fire
+  const displayKey = `${display?.targetCols ?? 0}|${display?.letterSpacing ?? 0}`;
+  useEffect(() => {
+    applyPrefsRef.current?.();
+    const term = termRef.current;
+    if (term) emitResize(term.cols, term.rows);
+  }, [displayKey, emitResize]);
 
   // ──────────────── 公共 API ────────────────
 

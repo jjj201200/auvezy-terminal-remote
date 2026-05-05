@@ -383,7 +383,39 @@ export interface UserConfig {
   vapidPublicKey?: string;
   /** 字体缩放比例（1.0 = 默认；阶段 4 暂留口子，UI 不做） */
   fontScale?: number;
+  /** 显示偏好：xterm 自适应字号目标列数 + 字间距 */
+  display?: DisplayPrefs;
 }
+
+/**
+ * 显示偏好
+ *
+ * - targetCols：xterm 自适应字号的目标列数；0 / 缺失 = 关闭自适应（用默认字号）。
+ *   常用预设 80 / 100 / 120；移动端窄屏用 80 即可填满。算法：
+ *   fontSize = floor(containerWidth / targetCols / 0.6)，并夹紧到 [8, 18]
+ * - letterSpacing：字间距（px）；负值压缩、正值拉宽。范围 [-2, 4]，默认 0
+ */
+export interface DisplayPrefs {
+  targetCols?: number;
+  letterSpacing?: number;
+}
+
+/** display 字段的硬默认 */
+export const DEFAULT_DISPLAY: Required<DisplayPrefs> = {
+  targetCols: 0, // 0 = 关闭自适应
+  letterSpacing: 0,
+};
+
+/** 列数预设（设置面板按钮） */
+export const COLS_PRESETS = [80, 100, 120] as const;
+
+/** xterm 自适应字号的上下限（避免极小看不清 / 极大塞不下） */
+export const FONT_SIZE_MIN = 8;
+export const FONT_SIZE_MAX = 18;
+
+/** letterSpacing 范围 */
+export const LETTER_SPACING_MIN = -2;
+export const LETTER_SPACING_MAX = 4;
 
 /**
  * 把可能缺字段或脏数据的 UserConfig 补全为完整可用形态
