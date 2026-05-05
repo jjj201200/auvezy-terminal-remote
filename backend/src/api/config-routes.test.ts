@@ -102,7 +102,7 @@ describe('config-routes', () => {
   it('PUT 整体覆盖 + store.set 被调用', async () => {
     const cookie = await login();
     const newCfg: UserConfig = {
-      shortcuts: [{ label: 'X', data: 'x', enabled: true }],
+      shortcuts: [{ label: 'X', data: 'x', enabled: true, group: 'custom' }],
       fontScale: 1.5,
     };
     const res = await fetch(`http://127.0.0.1:${port}/api/config`, {
