@@ -380,7 +380,21 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       process.stderr.write(`  │ ${hint.footer}\n`);
       process.stderr.write('  └──────────────────────────────────────────────────\n');
     }
-    process.stderr.write('\n');
+    // 视觉分隔：banner 之后是 PTY 子进程的输出（如果 TerminalRelay 启用）
+    // 这条很重要：当 OCR_COMMAND 也是 zsh / bash 时，PTY 子进程的 prompt
+    // 长得跟外层一模一样，很容易被误以为"backend 退出回到 shell"。
+    if (relay) {
+      process.stderr.write('\n');
+      process.stderr.write(
+        `  ─── 以下为 PTY 子进程（${cfg.claudeCommand}）输出 ─────────────\n`,
+      );
+      process.stderr.write(
+        '  （backend 仍在运行；浏览器仍可访问。双 Ctrl+C 退出 backend）\n',
+      );
+      process.stderr.write('\n');
+    } else {
+      process.stderr.write('\n');
+    }
 
     // 注册到 instances.json（headless 派生的子进程也走这一步）
     void registry
