@@ -261,6 +261,8 @@ export function useTerminal(
     const initial = computeFontPrefs();
     const term = new Terminal({
       disableStdin: true, // 前端是只读视图，输入走独立 InputBar
+      // SearchAddon 用 registerDecoration 画匹配高亮，xterm 把它归为 proposed API
+      allowProposedApi: true,
       fontSize: initial.fontSize,
       letterSpacing: initial.letterSpacing,
       fontFamily: "'Geist Mono', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
@@ -507,13 +509,8 @@ export function useTerminal(
 
   const searchNext = useCallback((needle: string, opts?: SearchOpts): boolean => {
     const sa = searchAddonRef.current;
-    const term = termRef.current;
-    if (!sa || !needle) {
-      // eslint-disable-next-line no-console
-      console.warn('[search] missing', { hasAddon: !!sa, needle });
-      return false;
-    }
-    const ok = sa.findNext(needle, {
+    if (!sa || !needle) return false;
+    return sa.findNext(needle, {
       caseSensitive: opts?.caseSensitive,
       wholeWord: opts?.wholeWord,
       regex: opts?.regex,
@@ -524,14 +521,6 @@ export function useTerminal(
         activeMatchColorOverviewRuler: '#e06c75',
       },
     });
-    // eslint-disable-next-line no-console
-    console.warn('[search] findNext', {
-      needle,
-      ok,
-      hasSelection: term?.hasSelection(),
-      selection: term?.getSelection(),
-    });
-    return ok;
   }, []);
 
   const searchPrev = useCallback((needle: string, opts?: SearchOpts): boolean => {
