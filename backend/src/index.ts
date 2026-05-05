@@ -361,12 +361,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     process.exit(1);
   });
 
-  // 8. spawn（使用合并 hook settings 后的 args）
-  pty.spawn({ command: cfg.claudeCommand, args: finalClaudeArgs, cwd: cfg.claudeCwd });
-  if (relay) relay.start();
-  ctrl.setStatus('running');
-
-  // 9. listen + banner
+  // 8. listen + banner（PTY 暂不 spawn，等用户按 Enter 后再启动，
+  //    避免 Claude 等全屏 TUI 立刻把屏幕清掉、用户根本看不全二维码）
   httpServer.listen(cfg.port, cfg.host, () => {
     const tokenPreview =
       cfg.token.length >= 16
@@ -422,15 +418,31 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     if (relay) {
       process.stderr.write('\n');
       process.stderr.write(
-        `  ─── 以下为 PTY 子进程（${cfg.claudeCommand}）输出 ─────────────\n`,
+        `  ─── 准备启动 PTY 子进程（${cfg.claudeCommand}） ─────────────\n`,
       );
       process.stderr.write(
-        '  （backend 仍在运行；浏览器仍可访问。双 Ctrl+C 退出 backend）\n',
+        '  （backend 已就绪，浏览器/手机扫码已可登录看到等待画面）\n',
       );
       process.stderr.write('\n');
     } else {
       process.stderr.write('\n');
     }
+
+    // 等用户按 Enter 再 spawn PTY；headless / non-TTY 立即 spawn
+    void waitForUserConfirm()
+      .then(() => {
+        pty.spawn({
+          command: cfg.claudeCommand,
+          args: finalClaudeArgs,
+          cwd: cfg.claudeCwd,
+        });
+        if (relay) relay.start();
+        ctrl.setStatus('running');
+      })
+      .catch((err) => {
+        logger.error({ err }, 'spawn PTY 失败');
+        shutdown(1);
+      });
 
     // 注册到 instances.json（headless 派生的子进程也走这一步）
     void registry
@@ -491,4 +503,36 @@ function resolveAnsiFilterEnabled(
   if (base === 'claude' || base.startsWith('claude-')) return false;
   if (base === 'tmux' || base === 'screen') return false;
   return true;
+}
+
+/**
+ * 等用户按 Enter 才继续。Headless / 非 TTY 模式立即 resolve。
+ *
+ * 用途：让 banner + 二维码留在屏幕上够久，给用户扫码 / 登录的窗口；
+ * 然后才 spawn 全屏 TUI（如 claude）覆盖屏幕。
+ *
+ * 实现：读 stdin 一行；若 stdin 不是 TTY（pipe 进来 / 守护进程模式）
+ * 不阻塞，立即返回。
+ */
+function waitForUserConfirm(): Promise<void> {
+  if (!process.stdin.isTTY) return Promise.resolve();
+  process.stderr.write('  按 Enter 启动子进程（或 Ctrl+C 退出 backend）...');
+  return new Promise<void>((resolve) => {
+    const onData = (chunk: Buffer): void => {
+      // 任何字节（包括 \r 或 \n）都算确认
+      if (chunk.length === 0) return;
+      cleanup();
+      // 清掉提示行（不留痕）
+      process.stderr.write('\r\x1b[K');
+      resolve();
+    };
+    const cleanup = (): void => {
+      process.stdin.removeListener('data', onData);
+      // pause 是为了把 stdin 还给后续接管者（TerminalRelay）；
+      // 不 pause 的话 raw mode 的 keystroke 会先被这里"吃"掉
+      process.stdin.pause();
+    };
+    process.stdin.resume();
+    process.stdin.on('data', onData);
+  });
 }
