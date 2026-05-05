@@ -1,15 +1,14 @@
 /**
  * IpChangeToast
  *
- * 屏幕底部黄色横条，提示 LAN IP 已变化、显示新 URL，让用户更新书签 / 重新扫码。
+ * 屏幕底部黄色横条，IP 漂移时提示用户。
+ * 不自动消失；手动 dismiss 或点"复制链接"。
  *
- * 设计：
- *  - 不自动消失：IP 漂移是真要响应的事件，让用户主动 dismiss
- *  - 「复制链接」按钮把 newUrl 复制到剪贴板
- *  - 一行不够时换行；按钮始终在右
+ * 位置上移到 InputBar 之上（避免压输入栏）：bottom = 输入栏高度（约 52） + safe-bottom + 8。
  */
 
-import { type JSX, useState } from 'react';
+import { useState, type JSX } from 'react';
+import { cn } from '../../utils/cn.js';
 
 export interface IpChangeInfo {
   oldIp: string;
@@ -35,25 +34,40 @@ export function IpChangeToast({ info, onDismiss }: IpChangeToastProps): JSX.Elem
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // 拒绝权限或非 https 上下文：fallback 选中
+      // 拒绝权限或非 https 上下文：不做 fallback，保持 false
       setCopied(false);
     }
   };
 
   return (
-    <div className="ip-change-toast" role="alert" aria-live="polite">
-      <div className="ip-change-toast__content">
-        <span className="ip-change-toast__title">⚠ 服务端 IP 已变化</span>
-        <span className="ip-change-toast__detail">
+    <div
+      role="alert"
+      aria-live="polite"
+      className={cn(
+        'fixed left-2 right-2 z-30 flex flex-wrap items-center gap-2 rounded-lg bg-[var(--color-warning)] px-3 py-2.5 text-sm text-[#0d1117] shadow-xl',
+        'bottom-[calc(52px+env(safe-area-inset-bottom)+8px)]',
+      )}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="font-medium">服务端 IP 已变化</span>
+        <span className="font-mono text-xs">
           {info.oldIp} → <strong>{info.newIp}</strong>
         </span>
-        <span className="ip-change-toast__url">{target}</span>
+        <span className="break-all font-mono text-2xs opacity-80">{target}</span>
       </div>
-      <div className="ip-change-toast__actions">
-        <button type="button" className="ip-change-toast__btn" onClick={() => void copy()}>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="rounded border border-black/30 bg-black/15 px-2.5 py-1 text-xs text-[#0d1117] hover:bg-black/25"
+        >
           {copied ? '已复制' : '复制链接'}
         </button>
-        <button type="button" className="ip-change-toast__btn" onClick={onDismiss}>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded border border-black/30 bg-black/15 px-2.5 py-1 text-xs text-[#0d1117] hover:bg-black/25"
+        >
           关闭
         </button>
       </div>
