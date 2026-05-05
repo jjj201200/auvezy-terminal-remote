@@ -7,6 +7,7 @@ import {
   isPrivateIp,
   isLinkLocal,
   isLoopbackIp,
+  isTailscaleIp,
   detectDisplayIp,
   buildPublicUrl,
 } from './network.js';
@@ -53,6 +54,36 @@ describe('isLoopbackIp', () => {
   });
   it('::1', () => {
     expect(isLoopbackIp('::1')).toBe(true);
+  });
+});
+
+describe('isTailscaleIp', () => {
+  it('100.64.0.0/10 边界', () => {
+    expect(isTailscaleIp('100.64.0.0')).toBe(true);
+    expect(isTailscaleIp('100.64.0.1')).toBe(true);
+    expect(isTailscaleIp('100.100.0.50')).toBe(true);
+    expect(isTailscaleIp('100.127.255.255')).toBe(true);
+  });
+
+  it('段外 100.x 不是 Tailscale', () => {
+    expect(isTailscaleIp('100.0.0.1')).toBe(false);
+    expect(isTailscaleIp('100.63.255.255')).toBe(false);
+    expect(isTailscaleIp('100.128.0.0')).toBe(false);
+    expect(isTailscaleIp('100.255.255.255')).toBe(false);
+  });
+
+  it('其它段全部 false', () => {
+    expect(isTailscaleIp('192.168.1.1')).toBe(false);
+    expect(isTailscaleIp('10.0.0.1')).toBe(false);
+    expect(isTailscaleIp('127.0.0.1')).toBe(false);
+    expect(isTailscaleIp('::1')).toBe(false);
+    expect(isTailscaleIp('fd7a:115c:a1e0::1')).toBe(false);
+  });
+
+  it('非法输入返回 false', () => {
+    expect(isTailscaleIp('')).toBe(false);
+    expect(isTailscaleIp('100.64')).toBe(false);
+    expect(isTailscaleIp('100.x.y.z')).toBe(false);
   });
 });
 

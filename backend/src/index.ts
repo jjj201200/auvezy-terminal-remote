@@ -57,7 +57,12 @@ import { acquireSharedToken } from './registry/shared-token.js';
 import { findAvailablePort } from './registry/port-finder.js';
 import { InstanceRegistryManager } from './registry/instance-registry.js';
 import { DefaultInstanceSpawner } from './registry/instance-spawner.js';
-import { detectDisplayIp, buildPublicUrl } from './utils/network.js';
+import {
+  detectDisplayIp,
+  buildPublicUrl,
+  isPrivateIp,
+  isTailscaleIp,
+} from './utils/network.js';
 import { renderQrCode } from './utils/qrcode-banner.js';
 import { isWsl } from './utils/wsl-detect.js';
 import { isWslNatIp, buildPortForwardHint } from './utils/wsl-port-hint.js';
@@ -366,6 +371,12 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   // 8. listen + banner（PTY 暂不 spawn，等用户按 Enter 后再启动，
   //    避免 Claude 等全屏 TUI 立刻把屏幕清掉、用户根本看不全二维码）
   httpServer.listen(cfg.port, cfg.host, () => {
+    void (async (): Promise<void> => {
+      await renderBannerAndStart();
+    })();
+  });
+
+  async function renderBannerAndStart(): Promise<void> {
     const tokenPreview =
       cfg.token.length >= 16
         ? `${cfg.token.slice(0, 8)}...${cfg.token.slice(-8)}`
@@ -391,22 +402,53 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
     process.stderr.write('╚══════════════════════════════════════════════════╝\n');
 
-    // ASCII QR：手机扫码即登入（已带 ?token=...）
-    const qr = renderQrCode(publicUrl);
-    if (qr) {
-      process.stderr.write('\n  扫码登入：\n');
-      process.stderr.write(qr);
-    }
-    process.stderr.write(`\n  完整链接：${publicUrl}\n`);
-
-    // 列出所有本机网卡 IP 对应的备选链接（Tailscale / VPN / 多网卡场景）
-    const altIps = Array.from(localHostnames).filter(
-      (h) => h !== 'localhost' && h !== '127.0.0.1' && h !== '::1' && h !== displayIp,
+    // 双二维码：LAN（默认 displayIp）+ Tailscale（如果检测到 100.64/10）。
+    // 其余 IP 仅文字列出，避免屏幕被太多二维码占满。
+    const allIps = Array.from(localHostnames).filter(
+      (h) => h !== 'localhost' && h !== '127.0.0.1' && h !== '::1',
     );
-    if (altIps.length > 0) {
-      process.stderr.write('  其它可用入口（Tailscale / VPN / 多网卡）：\n');
-      for (const ip of altIps) {
-        // IPv6 加方括号
+    const lanIp = isPrivateIp(displayIp)
+      ? displayIp
+      : allIps.find(isPrivateIp);
+    const tailscaleIp = allIps.find(isTailscaleIp);
+
+    if (lanIp) {
+      const lanUrl = buildPublicUrl(lanIp, cfg.port, cfg.token);
+      const qr = await renderQrCode(lanUrl);
+      if (qr) {
+        process.stderr.write(`\n  ── 局域网 LAN（${lanIp}） ──\n`);
+        process.stderr.write(qr);
+        process.stderr.write(`  ${lanUrl}\n`);
+      }
+    }
+
+    if (tailscaleIp && tailscaleIp !== lanIp) {
+      const tsUrl = buildPublicUrl(tailscaleIp, cfg.port, cfg.token);
+      const qr = await renderQrCode(tsUrl);
+      if (qr) {
+        process.stderr.write(`\n  ── Tailscale（${tailscaleIp}） ──\n`);
+        process.stderr.write(qr);
+        process.stderr.write(`  ${tsUrl}\n`);
+      }
+    }
+
+    // 兜底：既没 LAN 也没 Tailscale 时，至少给 displayIp 一个二维码
+    if (!lanIp && !tailscaleIp) {
+      const qr = await renderQrCode(publicUrl);
+      if (qr) {
+        process.stderr.write(`\n  ── 入口（${displayIp}） ──\n`);
+        process.stderr.write(qr);
+        process.stderr.write(`  ${publicUrl}\n`);
+      }
+    }
+
+    // 其余 IP 仅文字列出（VPN / 多网卡 / IPv6 / link-local）
+    const otherIps = allIps.filter(
+      (ip) => ip !== lanIp && ip !== tailscaleIp,
+    );
+    if (otherIps.length > 0) {
+      process.stderr.write('\n  其它可用入口（VPN / 多网卡 / IPv6）：\n');
+      for (const ip of otherIps) {
         const host = ip.includes(':') ? `[${ip}]` : ip;
         process.stderr.write(
           `    http://${host}:${cfg.port}/?token=${encodeURIComponent(cfg.token)}\n`,
@@ -445,21 +487,35 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       process.stderr.write('\n');
     }
 
-    // 等用户按 Enter 再 spawn PTY；headless / non-TTY 立即 spawn
-    void waitForUserConfirm()
-      .then(() => {
-        pty.spawn({
-          command: cfg.claudeCommand,
-          args: finalClaudeArgs,
-          cwd: cfg.claudeCwd,
+    // PTY spawn 时机：
+    //  - 默认（无 --wait-confirm）：立即 spawn，浏览器一连上就看到内容
+    //  - --wait-confirm + TTY：等用户按 Enter 才 spawn，让 banner / 二维码留屏
+    //  - headless / non-TTY：永远立即 spawn，按 Enter 没意义
+    const shouldWait = cli.waitConfirm === true && process.stdin.isTTY;
+    const startPty = (): void => {
+      pty.spawn({
+        command: cfg.claudeCommand,
+        args: finalClaudeArgs,
+        cwd: cfg.claudeCwd,
+      });
+      if (relay) relay.start();
+      ctrl.setStatus('running');
+    };
+    if (shouldWait) {
+      void waitForUserConfirm()
+        .then(startPty)
+        .catch((err) => {
+          logger.error({ err }, 'spawn PTY 失败');
+          shutdown(1);
         });
-        if (relay) relay.start();
-        ctrl.setStatus('running');
-      })
-      .catch((err) => {
+    } else {
+      try {
+        startPty();
+      } catch (err) {
         logger.error({ err }, 'spawn PTY 失败');
         shutdown(1);
-      });
+      }
+    }
 
     // 注册到 instances.json（headless 派生的子进程也走这一步）
     void registry
@@ -493,7 +549,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       },
       '服务已启动',
     );
-  });
+  }
 }
 
 /**

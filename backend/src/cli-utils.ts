@@ -33,6 +33,7 @@ const KNOWN_FLAGS_BOOL = new Set([
   '--help',
   '--version',
   '--no-open',
+  '--wait-confirm',
 ]);
 
 const KNOWN_FLAGS_VALUE = new Set([
@@ -85,6 +86,12 @@ export interface ParsedCliArgs {
   noColor?: boolean;
   /** 不自动打开浏览器（保留口子） */
   noOpen?: boolean;
+  /**
+   * 启动 backend 后等用户按 Enter 才 spawn PTY 子进程（默认 false：立即 spawn）。
+   * 老行为是"banner + 二维码留屏，扫码登录后再启全屏 TUI"——但多数用户嫌按 Enter 多余。
+   * 仅 TTY 模式有效；headless 永远立即 spawn。
+   */
+  waitConfirm?: boolean;
   /** 显示 help 后退出 */
   help?: boolean;
   /** 显示版本号后退出 */
@@ -224,6 +231,9 @@ function assignFlag(out: ParsedCliArgs, key: string, value: string | boolean): v
     case '--no-open':
       out.noOpen = value === true || value === 'true';
       return;
+    case '--wait-confirm':
+      out.waitConfirm = value === true || value === 'true';
+      return;
     case '--help':
       out.help = true;
       return;
@@ -316,6 +326,8 @@ otr — open-terminal-remote · 局域网内远程访问 PC 终端的代理
   --no-terminal         不在本进程 stdout 显示 PTY 输出
   --no-color            禁用彩色输出
   --no-open             不自动打开浏览器
+  --wait-confirm        启动 backend 后等用户按 Enter 才 spawn 子进程
+                        （默认立即 spawn；适合不希望全屏 TUI 立刻覆盖 banner 的场景）
   --help                显示本帮助
   --version             显示版本号
 

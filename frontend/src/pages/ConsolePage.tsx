@@ -43,6 +43,11 @@ export function ConsolePage(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [ipChange, setIpChange] = useState<IpChangeInfo | null>(null);
+  /**
+   * 是否已经收到过任何 PTY 输出。用于在 connection 已连上但 PTY 还没启动
+   * （--wait-confirm 等场景）时，告诉用户去服务端按 Enter，避免「页面空白」误解。
+   */
+  const [hasPtyOutput, setHasPtyOutput] = useState(false);
   const connectionStatus = useAppStore((s) => s.connectionStatus);
   const { config, save } = useUserConfig();
   const { instances, create: createInstance } = useInstances();
@@ -68,9 +73,11 @@ export function ConsolePage(): JSX.Element {
       switch (msg.type) {
         case 'terminal_output':
           write(msg.data);
+          if (msg.data.length > 0) setHasPtyOutput(true);
           break;
         case 'history_sync':
           write(msg.data);
+          if (msg.data.length > 0) setHasPtyOutput(true);
           if (typeof msg.cols === 'number' && typeof msg.rows === 'number') {
             adaptToPtySize(msg.cols, msg.rows);
           }
@@ -143,6 +150,18 @@ export function ConsolePage(): JSX.Element {
 
       <div className="relative min-h-0 flex-1 bg-[var(--color-bg)]">
         <TerminalView ref={containerRef} className="absolute inset-0 p-2" />
+        {connectionStatus === 'connected' && !hasPtyOutput && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+            <div className="pointer-events-auto max-w-[420px] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-5 py-4 text-center text-sm text-[var(--color-fg-muted)] shadow-lg">
+              <div className="mb-1 text-[var(--color-fg)] font-medium">等待终端启动</div>
+              <p className="m-0 leading-relaxed">
+                浏览器已连接，但服务端还没产生任何输出。
+                <br />
+                如果服务端用了 <code className="font-mono text-[var(--color-accent)]">--wait-confirm</code>，请回到启动 otr 的终端按一下 Enter。
+              </p>
+            </div>
+          </div>
+        )}
         <ScrollToBottomButton visible={showScrollHint} onClick={handleScrollToBottom} />
       </div>
 

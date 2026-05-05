@@ -61,6 +61,28 @@ export function isLinkLocal(ip: string): boolean {
   return a === 169 && b === 254;
 }
 
+/**
+ * 是否 Tailscale IP（CGNAT 100.64.0.0/10，即 100.64.0.0 – 100.127.255.255）
+ *
+ * Tailscale 默认给每个节点分配一个这个段内的 IPv4。检测它用来在 banner
+ * 上单独打一个二维码并标注，方便用户区分 LAN / Tailscale 两个入口。
+ */
+export function isTailscaleIp(ip: string): boolean {
+  if (ip.includes(':')) return false;
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  const [a, b] = parts.map((s) => Number(s));
+  if (
+    !Number.isInteger(a) ||
+    !Number.isInteger(b) ||
+    a === undefined ||
+    b === undefined
+  ) {
+    return false;
+  }
+  return a === 100 && b >= 64 && b <= 127;
+}
+
 /** 是否 IPv4 loopback（127.0.0.0/8） */
 export function isLoopbackIp(ip: string): boolean {
   if (ip.includes(':')) {
