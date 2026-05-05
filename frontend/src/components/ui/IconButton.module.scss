@@ -48,4 +48,12 @@
       0 0 0 1px rgba(182, 240, 156, 0.32),
       0 0 12px rgba(182, 240, 156, 0.4);
   }
+
+  // 禁用：完全切回中性灰，而不是半透明的 accent
+  &:disabled {
+    background: t.$bg-input;
+    color: t.$fg-low;
+    border-color: t.$border;
+    opacity: 1;
+  }
 }
