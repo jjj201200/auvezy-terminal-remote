@@ -28,7 +28,7 @@ void (async () => {
     cli = parseCliArgs(process.argv.slice(2));
   } catch (err) {
     process.stderr.write(
-      `[claude-remote] 参数解析失败：${err instanceof Error ? err.message : String(err)}\n`,
+      `[otr] 参数解析失败：${err instanceof Error ? err.message : String(err)}\n`,
     );
     process.exit(2);
   }
@@ -63,7 +63,7 @@ void (async () => {
   }
   if (cli.subcommand === 'attach') {
     if (!cli.attachUrl) {
-      process.stderr.write('[claude-remote] attach 需要 URL 参数\n');
+      process.stderr.write('[otr] attach 需要 URL 参数\n');
       process.exit(2);
     }
     const { runAttachCli } = await import('./attach.js');
@@ -75,7 +75,7 @@ void (async () => {
 })().catch((err: unknown) => {
   // 顶层兜底：任何启动错误都打印到 stderr 并 exit 1
   // 这里不能用 logger（它可能就是出错的源头）
-  process.stderr.write(`[claude-remote] 启动失败：${String(err)}\n`);
+  process.stderr.write(`[otr] 启动失败：${String(err)}\n`);
   if (err instanceof Error && err.stack) {
     process.stderr.write(`${err.stack}\n`);
   }

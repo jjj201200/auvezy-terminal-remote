@@ -10,17 +10,20 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "build": "pnpm --filter @ocr/shared build && pnpm --filter @ocr/frontend build && pnpm --filter @ocr/backend build && pnpm copy-frontend-dist",
+    "build": "pnpm prebuild && pnpm --filter @ocr/shared build && pnpm --filter @ocr/frontend build && pnpm --filter @drowsyflesh/open-terminal-remote build && pnpm copy-frontend-dist && pnpm bundle-backend",
+    "prebuild": "rm -rf backend/dist backend/tsconfig.tsbuildinfo",
     "copy-frontend-dist": "node scripts/copy-frontend-dist.js",
-    "dev": "pnpm copy-frontend-dist && concurrently --kill-others --handle-input -n backend,frontend -c blue,green \"pnpm --filter @ocr/backend dev\" \"pnpm --filter @ocr/frontend dev\"",
+    "bundle-backend": "node scripts/bundle-backend.js",
+    "dev": "pnpm copy-frontend-dist && concurrently --kill-others --handle-input -n backend,frontend -c blue,green \"pnpm --filter @drowsyflesh/open-terminal-remote dev\" \"pnpm --filter @ocr/frontend dev\"",
     "start": "node backend/dist/cli.js",
-    "stop": "pnpm --filter @ocr/backend exec tsx src/registry/stop-instances.ts",
-    "test": "pnpm --filter @ocr/shared test && pnpm --filter @ocr/backend test && pnpm --filter @ocr/frontend test",
+    "stop": "pnpm --filter @drowsyflesh/open-terminal-remote exec tsx src/registry/stop-instances.ts",
+    "test": "pnpm --filter @ocr/shared test && pnpm --filter @drowsyflesh/open-terminal-remote test && pnpm --filter @ocr/frontend test",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "clean": "pnpm -r exec rm -rf dist node_modules/.cache"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "esbuild": "^0.28.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

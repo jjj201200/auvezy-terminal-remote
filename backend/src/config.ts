@@ -448,8 +448,9 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
 
   const port = cli.port ?? toInt(env['PORT']) ?? DEFAULT_PORT;
   const host = cli.host ?? env['HOST'] ?? '0.0.0.0';
+  // 优先级：CLI 首位置参数 > env OCR_COMMAND > 兼容 CLAUDE_COMMAND > 默认 shell
   const explicitCommand =
-    env['OCR_COMMAND'] ?? readLegacyEnv(env, 'CLAUDE_COMMAND');
+    cli.command ?? env['OCR_COMMAND'] ?? readLegacyEnv(env, 'CLAUDE_COMMAND');
   const claudeCommand = explicitCommand ?? resolveDefaultShell(env);
   const claudeCwd =
     cli.workdir ?? env['OCR_CWD'] ?? readLegacyEnv(env, 'CLAUDE_CWD') ?? process.cwd();

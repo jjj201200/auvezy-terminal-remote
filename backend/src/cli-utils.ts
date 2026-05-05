@@ -1,23 +1,26 @@
 /**
- * CLI 参数解析（阶段 4）
+ * CLI 参数解析
  *
  * 仅做最小必要解析：把命令行 argv 解析成结构化对象，让 startServer 接收。
  * 不引入 yargs/commander：依赖小、行为可预期，且我们的参数集足够小。
  *
  * 支持形式：
- *   --flag                     → boolean = true
- *   --key value                → 空格分隔
- *   --key=value                → 等号分隔
- *   -- <剩余参数...>           → 透传给 claude（claudeArgs）
+ *   otr                          → 启动，PTY 跑默认 $SHELL
+ *   otr <program> [args...]      → 启动，PTY 跑 program（args 透传）
+ *                                  例：otr zsh / otr claude / otr claude --resume
+ *   otr attach <url>             → 接管已有实例
+ *   otr list                     → 列出本机所有实例
+ *   otr stop [pattern]           → 停止匹配的实例
  *
- * 解析后未识别的参数：
- *   - "未知 --flag" 报错（防止用户拼错关键参数被静默忽略）
- *   - "--" 之后的所有参数全部进 claudeArgs，包括以 -- 开头的
+ *   --flag                       → boolean = true
+ *   --key value                  → 空格分隔
+ *   --key=value                  → 等号分隔
+ *   -- <剩余参数...>             → 透传给子进程（与 program 后位置参数等价）
  *
- * 子命令：
- *   - 默认：启动 server（subcommand = 'start'）
- *   - 'attach <url>'：阶段 7 启用，预留口子但本阶段不实现
- *   - 'stop' / 'list'：阶段 6a 启用
+ * 第一个位置参数的判定规则：
+ *   - 'attach' / 'stop' / 'list'：保留子命令
+ *   - 其它非 flag 字符串：视为 PTY 子进程命令名（program）
+ *   - "--" 之后的所有参数全部进 commandArgs（即使以 -- 开头）
  */
 
 import { ConfigError } from './errors.js';
@@ -54,6 +57,8 @@ export interface ParsedCliArgs {
   attachUrl?: string;
   /** stop 子命令的过滤模式（可选；不传 = 全部） */
   stopPattern?: string;
+  /** 用户显式指定的 PTY 子进程命令名（来自首位置参数；优先于 env OCR_COMMAND） */
+  command?: string;
   /** 监听端口 */
   port?: number;
   /** 监听 host */
@@ -84,7 +89,11 @@ export interface ParsedCliArgs {
   help?: boolean;
   /** 显示版本号后退出 */
   version?: boolean;
-  /** "--" 之后的所有参数，原样透传给 claude */
+  /**
+   * 透传给子进程（PTY command）的位置参数。
+   * 来源：首位置参数后的非 flag 位置参数 + "--" 之后所有参数。
+   * 字段名保留 claudeArgs 是历史原因（早期项目限定 Claude）；语义已通用化。
+   */
   claudeArgs: string[];
 }
 
@@ -100,7 +109,14 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     claudeArgs: [],
   };
 
-  // 1. 子命令识别（仅在第一个非 flag 参数）
+  // 1. 首位置参数识别：保留子命令优先；其余视为 PTY 子进程 program
+  //
+  //   otr               → start (program=undefined，由 env/默认 shell 决定)
+  //   otr attach <url>  → attach
+  //   otr stop [pat]    → stop
+  //   otr list          → list
+  //   otr zsh           → start, command='zsh'
+  //   otr claude --resume foo → start, command='claude', claudeArgs=['--resume','foo']
   let cursor = 0;
   if (argv[0] && !argv[0].startsWith('-')) {
     const sub = argv[0];
@@ -111,7 +127,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         if (!argv[1] || argv[1].startsWith('-')) {
           throw new ConfigError(
             ErrorCode.CONFIG_VALIDATION_FAIL,
-            'attach 子命令需要 URL 参数：claude-remote attach <url>',
+            'attach 子命令需要 URL 参数：otr attach <url>',
           );
         }
         result.attachUrl = argv[1];
@@ -124,17 +140,26 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         }
       }
     } else {
-      throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `未知子命令：${sub}`);
+      // 任意其它非 flag 字符串：当 PTY program 用
+      result.command = sub;
+      cursor = 1;
     }
   }
 
   // 2. flag 解析（直到遇到 '--' 或结束）
+  //
+  // 当首位置参数已识别为 program 时，未知 flag 一律透传给子进程而非报错
+  // （让 `otr claude --resume task1` 这类调用直观可用）。
+  // 已知 flag（otr 自己的 --port / --workdir 等）仍按 otr 自身解析，不会被透传 ——
+  // 用户如果真要给子进程传 --port 这种与 otr 同名的 flag，必须用 `-- --port` 显式分隔。
+  const programGiven = (): boolean => result.command !== undefined;
+
   for (; cursor < argv.length; cursor++) {
     const arg = argv[cursor]!;
 
     if (arg === '--') {
-      // 剩余全部进 claudeArgs
-      result.claudeArgs = argv.slice(cursor + 1);
+      // 剩余全部追加到 claudeArgs
+      result.claudeArgs.push(...argv.slice(cursor + 1));
       return result;
     }
 
@@ -143,8 +168,15 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       const eq = arg.indexOf('=');
       const key = arg.slice(0, eq);
       const val = arg.slice(eq + 1);
-      assignFlag(result, key, val);
-      continue;
+      if (KNOWN_FLAGS_BOOL.has(key) || KNOWN_FLAGS_VALUE.has(key)) {
+        assignFlag(result, key, val);
+        continue;
+      }
+      if (programGiven()) {
+        result.claudeArgs.push(arg);
+        continue;
+      }
+      throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `未知参数：${arg}`);
     }
 
     // --flag 形式
@@ -164,6 +196,12 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       }
       assignFlag(result, arg, val);
       cursor++;
+      continue;
+    }
+
+    // 已识别 program → 任意未知参数透传
+    if (programGiven()) {
+      result.claudeArgs.push(arg);
       continue;
     }
 
@@ -254,19 +292,21 @@ function parsePositiveInt(name: string, value: string | boolean): number {
  * 帮助文本（--help 时输出）
  */
 export const HELP_TEXT = `\
-claude-remote — 远程访问 Claude Code 的 LAN 代理
+otr — open-terminal-remote · 局域网内远程访问 PC 终端的代理
 
 用法：
-  claude-remote [options] [-- <claude args>]
-  claude-remote attach <url>          连入已有实例（阶段 7）
-  claude-remote stop [pattern]        停止匹配实例（阶段 6a）
-  claude-remote list                  列出注册实例（阶段 6a）
+  otr                              启动，PTY 跑当前 $SHELL
+  otr <program> [args...]          启动，PTY 跑 program（args 透传）
+                                   例：otr zsh / otr claude / otr claude --resume
+  otr attach <url>                 接管已有实例
+  otr list                         列出本机所有实例
+  otr stop [pattern]               停止匹配的实例
 
 启动选项：
   --port <n>            监听端口（默认 3000，被占用自动 +1）
   --host <ip>           监听 host（默认自动检测 LAN IP）
   --token <hex>         指定 Token（默认从共享文件读或生成）
-  --workdir <path>      Claude 工作目录（默认当前目录）
+  --workdir <path>      子进程工作目录（默认当前目录）
   --instance-name <s>   实例显示名（默认工作目录最后一段）
   --config <path>       config.json 路径（默认 ~/.claude-remote/config.json）
   --max-buffer-lines    输出缓冲行数（默认 10000）
@@ -279,5 +319,9 @@ claude-remote — 远程访问 Claude Code 的 LAN 代理
   --help                显示本帮助
   --version             显示版本号
 
-  -- <claude args>      之后的参数原样透传给 claude
+  -- <args>             之后的参数也会透传给 program（与 program 后位置参数等价）
+
+多实例：
+  在不同终端多次执行 otr，会自动占用 3000、3001、3002…，
+  每个实例独立 PTY；浏览器顶栏的实例 tab 可一键切换。
 `;

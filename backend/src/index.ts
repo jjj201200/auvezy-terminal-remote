@@ -289,7 +289,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   if (!cfg.noTerminal && process.stdin.isTTY) {
     relay = new TerminalRelay(pty, {
       onExitRequest: () => {
-        process.stderr.write('\n[claude-remote] 检测到双 Ctrl+C，正在退出代理…\n');
+        process.stderr.write('\n[otr] 检测到双 Ctrl+C，正在退出代理…\n');
         shutdown(0);
       },
     });
@@ -373,7 +373,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
     process.stderr.write('\n');
     process.stderr.write('╔══════════════════════════════════════════════════╗\n');
-    process.stderr.write('║         Open-Claude-Remote · 阶段 5 启动         ║\n');
+    process.stderr.write('║         Open-Terminal-Remote · 启动              ║\n');
     process.stderr.write('╠══════════════════════════════════════════════════╣\n');
     process.stderr.write(`║  实例:    ${cfg.instanceName.padEnd(38)}║\n`);
     process.stderr.write(`║  监听:    http://${cfg.host}:${cfg.port}`.padEnd(53) + '║\n');

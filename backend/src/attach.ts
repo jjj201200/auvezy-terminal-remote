@@ -23,7 +23,7 @@ import { DOUBLE_CTRL_C_WINDOW_MS } from './constants.js';
 export async function runAttachCli(url: string): Promise<number> {
   // 终端必须是 TTY，否则原始 stdin/stdout 没法 raw mode
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    process.stderr.write('[claude-remote] attach 需要交互式终端\n');
+    process.stderr.write('[otr] attach 需要交互式终端\n');
     return 2;
   }
 
@@ -78,7 +78,7 @@ export async function runAttachCli(url: string): Promise<number> {
     if (chunk === '\x03') {
       const now = Date.now();
       if (now - lastCtrlC <= DOUBLE_CTRL_C_WINDOW_MS) {
-        process.stderr.write('\n[claude-remote] 双 Ctrl+C：断开 attach\n');
+        process.stderr.write('\n[otr] 双 Ctrl+C：断开 attach\n');
         finish(0);
         return;
       }

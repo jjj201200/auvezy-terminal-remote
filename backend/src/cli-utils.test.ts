@@ -53,8 +53,35 @@ describe('parseCliArgs', () => {
     expect(parseCliArgs(['list']).subcommand).toBe('list');
   });
 
-  it('未知子命令 → ConfigError', () => {
-    expect(() => parseCliArgs(['nope'])).toThrow(/未知子命令/);
+  it('首位置参数非保留子命令 → 视为 PTY program', () => {
+    const r = parseCliArgs(['zsh']);
+    expect(r.subcommand).toBe('start');
+    expect(r.command).toBe('zsh');
+    expect(r.claudeArgs).toEqual([]);
+  });
+
+  it('otr <prog> [args...] → command + 透传位置参数', () => {
+    const r = parseCliArgs(['claude', '--resume', 'task1']);
+    expect(r.command).toBe('claude');
+    expect(r.claudeArgs).toEqual(['--resume', 'task1']);
+  });
+
+  it('otr <prog> 与 --port 混用', () => {
+    const r = parseCliArgs(['claude', '--port', '3002']);
+    expect(r.command).toBe('claude');
+    expect(r.port).toBe(3002);
+    expect(r.claudeArgs).toEqual([]);
+  });
+
+  it('otr <prog> -- 后位置参数', () => {
+    const r = parseCliArgs(['zsh', '--', '-l']);
+    expect(r.command).toBe('zsh');
+    expect(r.claudeArgs).toEqual(['-l']);
+  });
+
+  it('未指定 program 时位置参数仍报错', () => {
+    // 没首位置参数 program，中间冒出来一个非 flag 字符串 → 报错防误触
+    expect(() => parseCliArgs(['--port', '3001', 'oops'])).toThrow(/未知参数/);
   });
 
   it('未知 flag → ConfigError', () => {

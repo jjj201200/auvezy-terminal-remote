@@ -36,7 +36,7 @@ export async function stopInstancesCli(pattern?: string): Promise<number> {
     return 0;
   } catch (err) {
     process.stderr.write(
-      `[claude-remote] stop 失败：${err instanceof Error ? err.message : String(err)}\n`,
+      `[otr] stop 失败：${err instanceof Error ? err.message : String(err)}\n`,
     );
     return 2;
   }

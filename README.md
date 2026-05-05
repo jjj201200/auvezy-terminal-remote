@@ -1,15 +1,14 @@
-# open-claude-remote-clone
+# @drowsyflesh/open-terminal-remote
 
-> 局域网内通过手机 / 平板浏览器远程控制 PC 上的 Claude Code CLI。
+> 局域网内通过手机 / 平板浏览器远程控制 PC 上的任意终端程序（zsh / bash / claude / 任何 CLI）。
 >
-> Clean-room 复刻自 `open-claude-remote@0.1.1`：协议字段保持兼容，
-> 实现完全独立。
+> 一行命令 `otr <program>`，多终端多实例自动出现在浏览器顶栏 tab 切换。
 
 ## 这是什么
 
-你坐在沙发上拿着手机，PC 上的 Claude 正在跑一个长任务。你希望：
+你坐在沙发上拿着手机，PC 上某个 CLI（Claude Code / 部署脚本 / 调试会话…）正在跑一个长任务。你希望：
 
-- 实时看到 Claude 的输出（包括 ANSI 颜色）
+- 实时看到终端输出（包括 ANSI 颜色）
 - 输入下一条指令、按方向键
 - Claude 触发审批 hook 时，手机锁屏弹通知
 - 不开公网、不依赖云
@@ -19,25 +18,40 @@
 
 ## 快速开始
 
+### 全局安装（npm 用户）
+
 ```bash
-# 一键安装（检查 Node 20+/pnpm 9+/编译依赖 → 装包 → 构建）
-bash install.sh
-
-# 启动（默认 0.0.0.0:3000，二维码会打到终端）
-pnpm start
-
-# 启动多实例
-pnpm start -- --port 3001
-pnpm start -- --port 3002 --name worker
-
-# 停止本机所有实例
-pnpm stop
-
-# attach 到某个实例的 stdin/stdout（命令行接管）
-node backend/dist/cli.js attach
+npm install -g @drowsyflesh/open-terminal-remote
 ```
 
-启动后扫描终端二维码 → webapp 自动登录（首启 token 写在 ~/.claude-remote/config.json）。
+之后任意终端：
+
+```bash
+otr                       # 跑当前 $SHELL（zsh / bash 自动检测）
+otr claude                # 跑 claude
+otr zsh                   # 跑 zsh
+otr claude --resume foo   # 透传任意参数给子进程
+```
+
+启动后扫终端打印的二维码 → webapp 自动登录（token 在 `~/.claude-remote/config.json`）。
+
+**多实例**：在不同终端多次 `otr <prog>`，每次会自动占一个新端口（3000、3001、3002…），
+浏览器顶栏会自动出现新 tab，点击即可切换。
+
+```bash
+otr list                  # 列出本机所有实例
+otr stop                  # 停止本机所有实例
+otr attach <url>          # 命令行接管已有实例
+```
+
+### 源码方式（开发或自构建）
+
+```bash
+git clone https://gitee.com/drowsyflesh/open-terminal-remote.git
+cd open-terminal-remote
+bash install.sh           # 检查 Node 20+/pnpm 9+/编译依赖 → 装包 → 构建
+node backend/dist/cli.js  # 等价于 otr
+```
 
 ## 功能矩阵
 
