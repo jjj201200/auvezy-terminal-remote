@@ -41,5 +41,5 @@ e2e/.auth/
 *.bak
 .cache/
 
-# 上游分析产物（仅本地参考，不入仓）
+# 上游参考材料（已删除；保留 ignore 防止再次导入）
 analysis/
