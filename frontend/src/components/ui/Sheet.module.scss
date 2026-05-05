@@ -60,10 +60,9 @@
   z-index: t.$z-modal;
   display: flex;
   flex-direction: column;
-  // 键盘弹起时 dvh 不变（dvh 是稳定测量），drawer 下半被键盘盖住。
-  // 不动容器位置，仅缩短可视高度——避免 vaul 把容器位置变化误识别为 drag-to-dismiss。
-  // useViewportFix 维护 --vv-bottom（键盘高度）。
-  height: calc(88dvh - var(--vv-bottom, 0px));
+  // 容器位置 / 高度保持稳定（变化会被 vaul 误识别为 drag-to-dismiss），
+  // 让 input 可见的责任交给 .body 的 padding-bottom（见下方）
+  height: 88dvh;
   background: t.$bg-elev;
   outline: none;
   box-shadow: t.$shadow-3;
@@ -154,10 +153,11 @@
 .body {
   flex: 1;
   overflow-y: auto;
-  padding: t.$sp-5 t.$sp-6;
-  // input 聚焦后浏览器调用 scrollIntoView 时给底部留余量，
-  // 避免被键盘 / footer 盖住
-  scroll-padding-bottom: 96px;
+  // 键盘弹起时（移动端 drawer），padding-bottom 给键盘让出空间，
+  // 使内部 input scrollIntoView 后能停在键盘以上
+  padding: t.$sp-5 t.$sp-6 calc(t.$sp-5 + var(--vv-bottom, 0px));
+  // input 聚焦后浏览器调用 scrollIntoView 时给底部留余量
+  scroll-padding-bottom: calc(96px + var(--vv-bottom, 0px));
   // 即使外层是 overflow: hidden，body 自身也允许触摸惯性滚动
   -webkit-overflow-scrolling: touch;
 }
