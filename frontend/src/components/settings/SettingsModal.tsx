@@ -73,8 +73,6 @@ export function SettingsModal({
       id="settings-modal"
       open={open}
       onOpenChange={(next) => {
-        // eslint-disable-next-line no-console
-        console.warn('[SettingsModal] sheet onOpenChange', next);
         if (!next) onClose();
       }}
       title={t('settings.title')}

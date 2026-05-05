@@ -78,22 +78,8 @@ export function Sheet({
     // 自动触发的关闭都视为误判（实测点别的 tab 切换会被 vaul 误识别为关闭意图）。
     // 真正的关闭路径：用户点 X / 取消按钮 / 主动 swipe down → 走 onOpenChange(true→false) 但
     // 此时焦点已不在 input 上，因为 swipe down 会先让 input blur。
+    // outside / focus 自动关闭已在 Drawer.Content 里屏蔽，这里直接透传
     const handleVaulOpenChange = (next: boolean): void => {
-      // 调试：标出关闭来源 + 当前焦点
-      // eslint-disable-next-line no-console
-      console.warn('[vaul] onOpenChange', {
-        next,
-        active: document.activeElement?.tagName,
-        activeId: (document.activeElement as HTMLElement | null)?.id,
-        stack: new Error().stack?.split('\n').slice(0, 8).join('\n'),
-      });
-      if (!next && document.activeElement instanceof HTMLElement) {
-        const ae = document.activeElement;
-        if (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable) {
-          ae.blur();
-          return;
-        }
-      }
       onOpenChange(next);
     };
     return (
@@ -108,8 +94,30 @@ export function Sheet({
         repositionInputs={false}
       >
         <Drawer.Portal>
-          <Drawer.Overlay className={s.overlay} />
-          <Drawer.Content id={id} className={clsx(s.drawerContent, className)}>
+          {/* 点遮罩 = 主动关闭。手动绑 click 而非依赖 Radix outside 检测，
+              避免 input blur 与 tab click 同时发生时被误判为 outside */}
+          <Drawer.Overlay
+            className={s.overlay}
+            onClick={() => {
+              if (
+                document.activeElement instanceof HTMLElement &&
+                (document.activeElement.tagName === 'INPUT' ||
+                  document.activeElement.tagName === 'TEXTAREA')
+              ) {
+                document.activeElement.blur();
+              }
+              onOpenChange(false);
+            }}
+          />
+          <Drawer.Content
+            id={id}
+            className={clsx(s.drawerContent, className)}
+            // Radix 默认的 outside / focus 自动关闭在键盘弹起时坐标判断不准，
+            // 会把 drawer 内点击误判为外部。完全屏蔽，由 Overlay onClick 显式接管
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+            onFocusOutside={(e) => e.preventDefault()}
+          >
             {/* a11y 必填：Drawer.Title 始终存在但 sr-only，避免 vaul/Radix 警告 */}
             <Drawer.Title className={s.srOnly}>{title}</Drawer.Title>
             <Drawer.Handle className={s.drawerGrip} />
@@ -161,8 +169,19 @@ export function Sheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className={s.overlay} />
-        <Dialog.Content id={id} className={clsx(s.dialogContent, className)}>
+        <Dialog.Overlay
+          className={s.overlay}
+          onClick={() => onOpenChange(false)}
+        />
+        <Dialog.Content
+          id={id}
+          className={clsx(s.dialogContent, className)}
+          // 屏蔽 Radix 默认 outside 检测（键盘弹起时坐标算不准），
+          // 由 Overlay onClick 显式接管"点外部关闭"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
+        >
           {/* tabs 模式下 Dialog.Title 隐藏到 sr-only（Radix 仍要求一个 Title 节点） */}
           {tabs && tabs.length > 0 && (
             <Dialog.Title className={s.srOnly}>{title}</Dialog.Title>
