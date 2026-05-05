@@ -555,15 +555,27 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 /**
  * 决定是否启用 alt-screen 过滤。
  *
- * 默认开启（ADR 007）能让 vim/htop 等"偶尔进 alt"的程序不污染重连回放。
- * 但对全程 alt-screen 的 TUI（claude 主界面、tmux 一类），过滤会丢掉
- * 几乎全部输出 → webapp 永远空白。
+ * 历史背景（ADR 007）：默认开启过滤，让 vim/htop 等"偶尔进 alt"的程序
+ * 不污染重连回放。但事实证明这有致命缺陷——
  *
- * 启发式：basename 是 'claude' / 'claude-*' / 'tmux' / 'screen' → 自动关闭。
- * 用户可显式 OCR_ANSI_FILTER=true|false 覆盖。
+ *  - 当 PTY 是交互式 shell（zsh / bash），用户可能在里面跑任何 TUI
+ *    （claude / tmux / vim / less / htop / fzf...）
+ *  - 全程 alt-screen 的 TUI（claude / tmux）启动后所有输出都被过滤吃掉，
+ *    webapp 永远空白
+ *  - 我们没法在启动时预测用户会跑什么
+ *
+ * 现在的策略：**默认关闭过滤**，只有用户显式 `OCR_ANSI_FILTER=true`
+ * 才开启。这样：
+ *
+ *  - 任何 TUI 都能在 webapp 里实时看到（包括交互 shell 里启动的）
+ *  - 代价：vim/htop 退出后，OutputBuffer 会留有该 TUI 的最终画面，
+ *    重连回放会看到一段"vim 残骸"——但这远比"看不到 claude"可接受。
+ *
+ * 用户如果只跑非 alt TUI（如纯 shell + 纯命令行工具）可以 `OCR_ANSI_FILTER=true`
+ * 找回原行为。
  */
-function resolveAnsiFilterEnabled(
-  command: string,
+export function resolveAnsiFilterEnabled(
+  _command: string,
   envOverride: string | undefined,
 ): boolean {
   if (envOverride !== undefined) {
@@ -571,11 +583,7 @@ function resolveAnsiFilterEnabled(
     if (v === 'true' || v === '1' || v === 'yes') return true;
     if (v === 'false' || v === '0' || v === 'no') return false;
   }
-  const base = (command.split('/').pop() ?? '').toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
-  // 全程 alt-screen 的 TUI：默认关掉过滤，否则什么都看不到
-  if (base === 'claude' || base.startsWith('claude-')) return false;
-  if (base === 'tmux' || base === 'screen') return false;
-  return true;
+  return false;
 }
 
 /**
