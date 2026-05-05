@@ -272,7 +272,7 @@ export function useTerminal(
         background: '#050608',
         foreground: '#dcdfe4',
         cursor: '#dcdfe4',
-        selectionBackground: 'rgba(229, 192, 123, 0.55)',
+        selectionBackground: 'rgba(120, 150, 200, 0.45)',
         black: '#3f4451',
         red: '#e06c75',
         green: '#98c379',
@@ -515,10 +515,10 @@ export function useTerminal(
       wholeWord: opts?.wholeWord,
       regex: opts?.regex,
       decorations: {
-        matchBackground: '#e5c07b',
-        matchOverviewRuler: '#e5c07b',
-        activeMatchBackground: '#e06c75',
-        activeMatchColorOverviewRuler: '#e06c75',
+        matchBackground: '#ff8c00',
+        matchOverviewRuler: '#ff8c00',
+        activeMatchBackground: '#ff3c78',
+        activeMatchColorOverviewRuler: '#ff3c78',
       },
     });
   }, []);
@@ -531,10 +531,10 @@ export function useTerminal(
       wholeWord: opts?.wholeWord,
       regex: opts?.regex,
       decorations: {
-        matchBackground: '#e5c07b',
-        matchOverviewRuler: '#e5c07b',
-        activeMatchBackground: '#e06c75',
-        activeMatchColorOverviewRuler: '#e06c75',
+        matchBackground: '#ff8c00',
+        matchOverviewRuler: '#ff8c00',
+        activeMatchBackground: '#ff3c78',
+        activeMatchColorOverviewRuler: '#ff3c78',
       },
     });
   }, []);

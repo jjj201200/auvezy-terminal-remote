@@ -6,12 +6,16 @@
   background: t.$bg-canvas;
 }
 
-// xterm SearchAddon 的 decoration 装饰只给 DOM 加 class，颜色靠 background
-// 但 registerDecoration 把 backgroundColor 传给了 webgl 后端 / 自定义层；
-// 在某些情况下渲染不出来，加 CSS 兜底
+// xterm SearchAddon 的 decoration 装饰只给 DOM 加 class，颜色靠 background。
+// CSS 兜底（webgl decoration 在某些版本不渲染颜色，DOM 层补上）。
+// 其他匹配：深橙底 + 1px 同色描边，与黄色字符 (#e5c07b) 不撞色
 :global(.xterm-find-result-decoration) {
-  background-color: rgba(229, 192, 123, 0.45) !important;
+  background-color: rgba(255, 140, 0, 0.42) !important;
+  outline: 1px solid rgba(255, 140, 0, 0.85);
 }
+// 当前匹配：纯亮品红，最醒目，高对比 + 内发光
 :global(.xterm-find-active-result-decoration) {
-  background-color: rgba(224, 108, 117, 0.65) !important;
+  background-color: rgba(255, 60, 120, 0.85) !important;
+  outline: 1px solid #ff3c78;
+  box-shadow: 0 0 6px rgba(255, 60, 120, 0.7);
 }
