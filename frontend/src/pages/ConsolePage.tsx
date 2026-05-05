@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
-import { IconSettings, IconShare2 } from '@tabler/icons-react';
+import { IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
 import type { ServerMessage, SessionStatus, ClientMessage } from '@otr/shared';
 import { useTerminal } from '../hooks/useTerminal.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
@@ -220,6 +220,13 @@ export function ConsolePage(): JSX.Element {
           session={sessionStatus}
           onReconnect={connect}
         />
+        <IconButton
+          onClick={() => setSearchOpen(true)}
+          aria-label={t('search.aria')}
+          title={t('search.aria')}
+        >
+          <IconSearch size={14} stroke={1.5} />
+        </IconButton>
         <IconButton
           onClick={() => setShareOpen(true)}
           aria-label={t('topBar.share')}

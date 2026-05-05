@@ -9,8 +9,15 @@
   @include m.row-flex(t.$bar-gap);
   border: 1px solid t.$border;
   background: t.$bg-elev;
-  padding: t.$sp-2 t.$sp-2;
+  padding: t.$sp-2;
   box-shadow: t.$shadow-3;
+
+  // 移动端：全宽横铺，方便手指操作
+  @include m.mobile {
+    top: t.$sp-2;
+    left: t.$sp-2;
+    right: t.$sp-2;
+  }
 }
 
 .input {
@@ -32,5 +39,12 @@
 
   &[aria-invalid='true'] {
     border-color: t.$warn;
+  }
+
+  // 移动端：input 撑满剩余空间；font-size 16px 防 iOS 自动缩放
+  @include m.mobile {
+    flex: 1 1 auto;
+    font-size: 16px;
+    padding: t.$sp-2 t.$sp-3;
   }
 }
