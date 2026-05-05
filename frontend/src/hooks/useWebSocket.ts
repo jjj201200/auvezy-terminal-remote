@@ -22,7 +22,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import type { ServerMessage, ClientMessage } from '@otr/shared';
 import { useAppStore } from '../stores/app-store.js';
-import { WS_RECONNECT_DELAYS_MS } from '../config/constants.js';
+import { WS_RECONNECT_DELAYS_MS, WS_RECONNECT_MAX_ATTEMPTS } from '../config/constants.js';
 
 export interface UseWebSocketReturn {
   /** 立即发起连接（首次 mount 自动调用一次） */
@@ -36,10 +36,12 @@ export interface UseWebSocketReturn {
 /**
  * @param onMessage 收到服务端消息的回调
  * @param wsUrl 可选显式 URL；默认根据 window.location 同源 ws://host/ws
+ * @param maxAttempts 自动重连硬上限；默认走 constants 里的 WS_RECONNECT_MAX_ATTEMPTS
  */
 export function useWebSocket(
   onMessage: (msg: ServerMessage) => void,
   wsUrl?: string,
+  maxAttempts?: number,
 ): UseWebSocketReturn {
   // ──────────────── refs ────────────────
   const wsRef = useRef<WebSocket | null>(null);
@@ -51,6 +53,9 @@ export function useWebSocket(
   /** 镜像 onMessage 避免父组件 prop 变化触发重连 */
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
+  // 镜像 maxAttempts 让用户改设置后立即生效，而不必重连
+  const maxAttemptsRef = useRef(maxAttempts ?? WS_RECONNECT_MAX_ATTEMPTS);
+  maxAttemptsRef.current = maxAttempts ?? WS_RECONNECT_MAX_ATTEMPTS;
 
   // store setter（zustand 的 setter 是稳定引用，不会触发 re-render）
   const setConnectionStatus = useAppStore((s) => s.setConnectionStatus);
@@ -64,6 +69,11 @@ export function useWebSocket(
 
   const scheduleReconnect = useCallback((token: number) => {
     if (isDisposedRef.current) return;
+    // 硬上限：超过最大次数停手，标记 gave_up 等用户手动点重连
+    if (reconnectAttemptRef.current >= maxAttemptsRef.current) {
+      setConnectionStatusRef.current('gave_up');
+      return;
+    }
     const idx = Math.min(reconnectAttemptRef.current, WS_RECONNECT_DELAYS_MS.length - 1);
     const delay = WS_RECONNECT_DELAYS_MS[idx] ?? 30_000;
     reconnectAttemptRef.current++;
@@ -77,23 +87,24 @@ export function useWebSocket(
 
   // ──────────────── 内部：建立连接 ────────────────
 
-  const connect = useCallback((): void => {
-    // 已 OPEN 则跳过（防重复）
+  /**
+   * 真正发起 WS 连接。不重置 attempt 计数，由调用方决定。
+   * - 来自 scheduleReconnect timer：保留计数（继续退避）
+   * - 来自公开 connect()（用户主动）：调用前先归零
+   */
+  const doConnect = useCallback((): void => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
 
-    // 解析 URL：默认同源
     const url = wsUrl ?? (() => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       return `${protocol}//${window.location.host}/ws`;
     })();
 
-    // 取消可能挂起的重连
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
 
-    // 重置 dispose 标记（同一个 hook 实例可多次 connect/disconnect）
     isDisposedRef.current = false;
     const myToken = ++connectionTokenRef.current;
 
@@ -103,7 +114,6 @@ export function useWebSocket(
     wsRef.current = ws;
 
     ws.onopen = () => {
-      // 校验：dispose 后 / 老连接的回调一律忽略
       if (isDisposedRef.current || myToken !== connectionTokenRef.current || wsRef.current !== ws) return;
       setConnectionStatusRef.current('connected');
       reconnectAttemptRef.current = 0;
@@ -123,7 +133,6 @@ export function useWebSocket(
       if (isDisposedRef.current || myToken !== connectionTokenRef.current || wsRef.current !== ws) return;
       wsRef.current = null;
       setConnectionStatusRef.current('disconnected');
-      // 阶段 1 不做重认证（阶段 2 加 cachedToken 重认证逻辑）
       scheduleReconnect(myToken);
     };
 
@@ -132,10 +141,19 @@ export function useWebSocket(
     };
   }, [wsUrl, scheduleReconnect]);
 
-  // 同步最新 connect 到 connectRef（让 scheduleReconnect 闭包能拿到最新版）
+  /**
+   * 公开 API：用户主动重连。归零 attempt 计数 → 跳出 gave_up 状态。
+   * 也是首次 mount 自动触发的入口。
+   */
+  const connect = useCallback((): void => {
+    reconnectAttemptRef.current = 0;
+    doConnect();
+  }, [doConnect]);
+
+  // 同步最新 doConnect 到 connectRef（scheduleReconnect timer 用它，不重置计数）
   useEffect(() => {
-    connectRef.current = connect;
-  }, [connect]);
+    connectRef.current = doConnect;
+  }, [doConnect]);
 
   // ──────────────── 公共 API ────────────────
 
@@ -167,15 +185,17 @@ export function useWebSocket(
       wsRef.current?.close();
     };
     // 切回网络时立即重连，不等指数退避 timer
+    // gave_up 状态下不自动重连，等用户手动点重连按钮
     const handleOnline = (): void => {
       if (isDisposedRef.current) return;
       if (wsRef.current?.readyState === WebSocket.OPEN) return;
+      if (useAppStore.getState().connectionStatus === 'gave_up') return;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
       reconnectAttemptRef.current = 0;
-      connect();
+      doConnect();
     };
     // tab 从后台切回时也尝试一次（手机锁屏后 ws 可能被系统 kill 但事件未触达）
     const handleVisible = (): void => {

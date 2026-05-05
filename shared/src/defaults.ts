@@ -385,7 +385,29 @@ export interface UserConfig {
   fontScale?: number;
   /** 显示偏好：xterm 自适应字号目标列数 + 字间距 */
   display?: DisplayPrefs;
+  /** 网络偏好：WS 自动重连上限等 */
+  network?: NetworkPrefs;
 }
+
+/**
+ * 网络偏好
+ *
+ * - reconnectMaxAttempts：WS 自动重连的硬上限。达到后停止自动重试，
+ *   只能由用户手动点击重连按钮恢复。范围 [1, 1000]，默认 60。
+ *   动机：移动端流量敏感——失联状态下持续 SYN 重连会真实产生流量
+ */
+export interface NetworkPrefs {
+  reconnectMaxAttempts?: number;
+}
+
+/** network 默认 */
+export const DEFAULT_NETWORK: Required<NetworkPrefs> = {
+  reconnectMaxAttempts: 60,
+};
+
+/** 重连上限 UI 范围 */
+export const RECONNECT_MAX_ATTEMPTS_MIN = 1;
+export const RECONNECT_MAX_ATTEMPTS_MAX = 1000;
 
 /**
  * 显示偏好

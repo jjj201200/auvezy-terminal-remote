@@ -128,7 +128,11 @@ export function ConsolePage(): JSX.Element {
     [write, adaptToPtySize, localNotify],
   );
 
-  const { send, connect } = useWebSocket(handleMessage);
+  const { send, connect } = useWebSocket(
+    handleMessage,
+    undefined,
+    config.network?.reconnectMaxAttempts,
+  );
   sendRef.current = send;
 
   const handleUserInput = useCallback(

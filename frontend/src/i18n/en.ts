@@ -64,6 +64,8 @@ export const en: Messages = {
     connected: 'Connected',
     disconnected: 'Disconnected',
     disconnectedReconnect: 'Disconnected · reconnect',
+    gaveUp: 'Gave up · tap to retry',
+    gaveUpReconnect: 'Gave up · tap to retry',
     reconnecting: 'Reconnecting…',
     reconnect: 'Reconnect',
     reconnectTooltip: 'Reconnect now',
@@ -83,6 +85,7 @@ export const en: Messages = {
       display: 'Display',
       general: 'General',
       notifications: 'Notifications',
+      network: 'Network',
     },
     saving: 'Saving…',
   },
@@ -111,6 +114,14 @@ export const en: Messages = {
   general: {
     languageTitle: 'Language',
     languageHint: 'Interface language. Stored on this device.',
+  },
+
+  network: {
+    reconnectMaxTitle: 'Auto-reconnect attempts',
+    reconnectMaxHint:
+      'Stop auto-retrying after this many tries. Mobile data is consumed even when retries fail. Tap the reconnect badge to resume after the cap.',
+    reconnectMaxAriaLabel: 'Max auto-reconnect attempts',
+    reconnectMaxValue: '{{n}} times',
   },
 
   list: {

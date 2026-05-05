@@ -59,6 +59,8 @@ export const zhCN: Messages = {
     connected: 'Connected',
     disconnected: 'Disconnected',
     disconnectedReconnect: 'Disconnected · 重连',
+    gaveUp: '已放弃 · 点击重试',
+    gaveUpReconnect: '已放弃 · 点击重试',
     reconnecting: 'Reconnecting…',
     reconnect: '重连',
     reconnectTooltip: '立即重新连接',
@@ -78,6 +80,7 @@ export const zhCN: Messages = {
       display: '显示',
       general: '常规',
       notifications: '通知',
+      network: '网络',
     },
     saving: '保存中…',
   },
@@ -104,6 +107,14 @@ export const zhCN: Messages = {
   general: {
     languageTitle: '语言',
     languageHint: '界面语言。仅保存于本设备。',
+  },
+
+  network: {
+    reconnectMaxTitle: '自动重连次数上限',
+    reconnectMaxHint:
+      '达到此次数后停止自动重试，避免移动端流量被无效重连消耗。超过上限后点状态栏的重连标签可以恢复。',
+    reconnectMaxAriaLabel: '自动重连次数上限',
+    reconnectMaxValue: '{{n}} 次',
   },
 
   list: {

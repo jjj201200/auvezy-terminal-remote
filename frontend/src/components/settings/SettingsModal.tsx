@@ -16,6 +16,7 @@ import { LanguageSwitch } from '../../i18n/LanguageSwitch.js';
 import { ShortcutSettings } from './ShortcutSettings.js';
 import { CommandSettings } from './CommandSettings.js';
 import { DisplaySettings } from './DisplaySettings.js';
+import { NetworkSettings } from './NetworkSettings.js';
 import { PushToggle } from '../common/PushToggle.js';
 import s from './SettingsModal.module.scss';
 
@@ -26,7 +27,7 @@ export interface SettingsModalProps {
   onClose: () => void;
 }
 
-type TabKey = 'shortcuts' | 'commands' | 'display' | 'general' | 'notifications';
+type TabKey = 'shortcuts' | 'commands' | 'display' | 'network' | 'general' | 'notifications';
 
 export function SettingsModal({
   open,
@@ -60,6 +61,7 @@ export function SettingsModal({
       { id: 'shortcuts', title: t('settings.tab.shortcuts') },
       { id: 'commands', title: t('settings.tab.commands') },
       { id: 'display', title: t('settings.tab.display') },
+      { id: 'network', title: t('settings.tab.network') },
       { id: 'general', title: t('settings.tab.general') },
       { id: 'notifications', title: t('settings.tab.notifications') },
     ],
@@ -111,6 +113,12 @@ export function SettingsModal({
         <DisplaySettings
           value={draft.display}
           onChange={(display) => setDraft({ ...draft, display })}
+        />
+      )}
+      {tab === 'network' && (
+        <NetworkSettings
+          value={draft.network}
+          onChange={(network) => setDraft({ ...draft, network })}
         />
       )}
       {tab === 'general' && <LanguageSwitch />}

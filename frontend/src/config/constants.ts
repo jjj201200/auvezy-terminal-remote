@@ -23,6 +23,14 @@ export const RESIZE_THROTTLE_MS = 50;
 /** WS 重连退避序列（ms），按尝试次数递增，超出索引后封顶最后一个 */
 export const WS_RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30_000];
 
+/**
+ * 自动重连的硬上限。达到后停止自动重试，等用户手动点 / online / visibilitychange 触发重置。
+ *
+ * 为什么要上限：移动端一直请求会消耗流量（即便对方不响应，TCP SYN / 握手包也走流量）。
+ * 60 次配合上面退避序列：1+2+4+8+16+30×55 ≈ 27.5 分钟后停手，相对保守。
+ */
+export const WS_RECONNECT_MAX_ATTEMPTS = 60;
+
 // ──────────────── xterm 显示 ────────────────
 
 /** xterm 滚回行数（与后端 OutputBuffer 上限保持对齐） */

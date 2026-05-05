@@ -82,6 +82,8 @@ export interface Messages {
     connected: string;
     disconnected: string;
     disconnectedReconnect: string;
+    gaveUp: string;
+    gaveUpReconnect: string;
     reconnecting: string;
     reconnect: string;
     reconnectTooltip: string;
@@ -102,6 +104,7 @@ export interface Messages {
       display: string;
       general: string;
       notifications: string;
+      network: string;
     };
     saving: string;
   };
@@ -130,6 +133,14 @@ export interface Messages {
   general: {
     languageTitle: string;
     languageHint: string;
+  };
+
+  // 设置 - 网络
+  network: {
+    reconnectMaxTitle: string;
+    reconnectMaxHint: string;
+    reconnectMaxAriaLabel: string;
+    reconnectMaxValue: string; // {{n}} times / 次
   };
 
   // 通用列表操作

@@ -25,6 +25,7 @@ const CONN_KEY: Record<ConnectionStatus, string> = {
   connecting: 'status.connecting',
   connected: 'status.connected',
   disconnected: 'status.disconnected',
+  gave_up: 'status.gaveUp',
 };
 
 const SESSION_KEY: Record<SessionStatus, string> = {
@@ -38,6 +39,7 @@ const CONN_TONE: Record<ConnectionStatus, PillTone> = {
   connecting: 'warn',
   connected: 'ok',
   disconnected: 'error',
+  gave_up: 'error',
 };
 
 const SESSION_TONE: Record<SessionStatus, PillTone> = {
@@ -49,9 +51,13 @@ const SESSION_TONE: Record<SessionStatus, PillTone> = {
 
 export function StatusBar({ connection, session, onReconnect }: StatusBarProps): JSX.Element {
   const t = useT();
-  const canReconnect = connection === 'disconnected' && typeof onReconnect === 'function';
+  const canReconnect =
+    (connection === 'disconnected' || connection === 'gave_up') &&
+    typeof onReconnect === 'function';
   const connectionLabel = canReconnect
-    ? t('status.disconnectedReconnect')
+    ? connection === 'gave_up'
+      ? t('status.gaveUpReconnect')
+      : t('status.disconnectedReconnect')
     : t(CONN_KEY[connection]);
 
   return (

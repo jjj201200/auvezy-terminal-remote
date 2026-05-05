@@ -10,7 +10,8 @@
 import { create } from 'zustand';
 
 /** WS 连接状态 */
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
+// 'gave_up'：达到最大重试次数后停止自动重连，等用户手动点 / 网络事件触发重置
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'gave_up';
 
 interface AppState {
   /** 默认实例的 WS 状态（多实例时各实例状态另存） */
