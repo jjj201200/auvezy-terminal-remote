@@ -22,14 +22,13 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 从 URL 自动填充（扫码场景）：?token=xxx
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const t = params.get('token');
       if (t) setToken(t);
     } catch {
-      // 解析失败忽略
+      /* 解析失败忽略 */
     }
   }, []);
 
@@ -40,21 +39,23 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
     setSubmitting(true);
     const msg = await onLogin(token);
     setSubmitting(false);
-    if (msg !== null) {
-      setError(msg);
-    }
+    if (msg !== null) setError(msg);
   };
 
   return (
-    <main className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-card__title">Open-Claude-Remote</h1>
-        <p className="auth-card__subtitle">输入服务端启动时显示的 Token</p>
+    <main className="flex flex-1 items-center justify-center px-4 py-6">
+      <div className="w-full max-w-[320px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5">
+        <h1 className="m-0 mb-1 text-lg font-medium text-[var(--color-fg)]">
+          Open-Claude-Remote
+        </h1>
+        <p className="mb-4 mt-0 text-xs text-[var(--color-fg-muted)]">
+          输入服务端启动时显示的 Token
+        </p>
 
-        <form className="auth-card__form" onSubmit={handleSubmit}>
+        <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
           <input
             type="password"
-            className="auth-card__input"
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 font-mono text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
             placeholder="64 位 Token"
             value={token}
             onChange={(e) => setToken(e.target.value)}
@@ -66,18 +67,18 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
             autoFocus
           />
 
-          {error && <p className="auth-card__error">{error}</p>}
+          {error && <p className="m-0 font-mono text-xs text-[var(--color-error)]">{error}</p>}
 
           <button
             type="submit"
-            className="auth-card__submit"
             disabled={submitting || token.trim().length === 0}
+            className="rounded-md bg-[var(--color-accent)] px-3 py-2.5 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? '验证中…' : '登录'}
           </button>
         </form>
 
-        <p className="auth-card__hint">
+        <p className="mt-4 text-2xs leading-relaxed text-[var(--color-fg-muted)]">
           扫描终端二维码或手动输入 Token；登录后 Token 会保存在本设备
         </p>
       </div>
