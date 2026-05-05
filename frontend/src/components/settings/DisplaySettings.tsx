@@ -15,9 +15,8 @@
  * 即时生效：用户调一项 → setDraft → useTerminal 收到 effect 立即重应用
  */
 
-import { useState, useEffect, useRef, type JSX } from 'react';
+import { useState, useEffect, useMemo, useRef, type JSX } from 'react';
 import {
-  COLS_PRESETS,
   DEFAULT_DISPLAY,
   FONT_SIZE_MIN,
   FONT_SIZE_MAX,
@@ -52,15 +51,28 @@ export interface DisplaySettingsProps {
   onChange: (next: DisplayPrefs) => void;
 }
 
-// 输入框接受的范围（可超出滑块）
+// 输入框接受的范围（可超出预设）
 const COLS_MIN = 40;
 const COLS_MAX = 240;
-// 滑块本身的范围：覆盖常用区间，超出靠输入框
-const SLIDER_MIN = 80;
-const SLIDER_MAX = 220;
-// thumb 视觉宽度的一半（用于 tick / fill 的 calc 修正端点 thumb 内缩）
-// 必须与 .colsSlider thumb width 保持同步
-const SLIDER_THUMB_HALF = 12;
+
+/**
+ * 根据当前屏幕宽度算"有意义的列数预设"
+ *
+ * 同一字号下相邻 cols 视觉无差别——`fontSize = floor(W / cols / 0.6)` clamp 到
+ * [8, 18]。所以对每个可能的 fontSize 反推一个 cols 即可覆盖所有视觉档位。
+ *
+ * 算法：fontSize 从 18 → 8 遍历，每个算 `cols = floor(W / fontSize / 0.6)`，
+ * 落在 [COLS_MIN, COLS_MAX] 内的去重收集。结果按升序返回。
+ */
+function computeMeaningfulPresets(width: number): number[] {
+  if (width <= 0) return [80, 100, 120];
+  const set = new Set<number>();
+  for (let fs = FONT_SIZE_MAX; fs >= FONT_SIZE_MIN; fs--) {
+    const cols = Math.floor(width / fs / CHAR_WIDTH_RATIO);
+    if (cols >= COLS_MIN && cols <= COLS_MAX) set.add(cols);
+  }
+  return Array.from(set).sort((a, b) => a - b);
+}
 
 export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.Element {
   const t = useT();
@@ -91,6 +103,19 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
   }, []);
 
   const previewFontSize = computePreviewFontSize(previewWidth, targetCols, letterSpacing);
+
+  // 用预览容器宽度反推预设——它跟终端宽度量级接近，比 window.innerWidth 更准
+  const presets = useMemo(() => computeMeaningfulPresets(previewWidth), [previewWidth]);
+  // Auto 模式下使用默认字号 XTERM_FONT_SIZE，对应一个 cols
+  // 把它从预设里去掉避免重复，并用来给 Auto 按钮显示具体数值
+  const autoCols = useMemo(() => {
+    if (previewWidth <= 0) return 0;
+    return Math.floor(previewWidth / XTERM_FONT_SIZE / CHAR_WIDTH_RATIO);
+  }, [previewWidth]);
+  const presetsWithoutAuto = useMemo(
+    () => presets.filter((p) => p !== autoCols),
+    [presets, autoCols],
+  );
 
   const setCols = (n: number): void => {
     onChange({ ...value, targetCols: n });
@@ -187,52 +212,24 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
             className={clsx(s.presetBtn, targetCols === 0 && s.presetBtnActive)}
             title={t('display.autoTooltip')}
           >
-            {t('display.autoLabel')}
+            {autoCols > 0 ? `${t('display.autoLabel')} · ${autoCols}` : t('display.autoLabel')}
           </button>
           {/*
-            拖拽条范围 [SLIDER_MIN, SLIDER_MAX]（80~220），下方显示预设 tick：
-            点 tick = 跳到该预设值。输入框接受超出滑块的值（[40, 240]）。
-            --fill 是已填充段百分比，由当前值与滑块范围算得；同样 tick 的 left 也按比例算
+            预设按钮：根据当前预览宽度反推"有意义的列数"——同字号下的相邻 cols
+            视觉无差别，只列出会真实改变 fontSize 的 cols 值。
+            过滤掉与 Auto 模式相同的 cols（避免按钮重复）。
+            数字输入框接受超出预设的值（[40, 240]）。
           */}
-          {(() => {
-            const v = targetCols > 0
-              ? Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, targetCols))
-              : SLIDER_MIN;
-            // thumb 中心在 [SLIDER_THUMB_HALF, 100% - SLIDER_THUMB_HALF] 区间内移动
-            // 必须用 calc 修正端点的 thumb 内缩，否则 tick 与 thumb 对不齐
-            const ratio = (v - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN);
-            const fill = `calc(${SLIDER_THUMB_HALF}px + ${ratio} * (100% - ${SLIDER_THUMB_HALF * 2}px))`;
-            return (
-              <div className={s.colsSliderWrap}>
-                <input
-                  type="range"
-                  min={SLIDER_MIN}
-                  max={SLIDER_MAX}
-                  step={1}
-                  value={v}
-                  onChange={(e) => setCols(Number(e.target.value))}
-                  className={s.colsSlider}
-                  style={{ ['--fill' as string]: fill }}
-                  aria-label={t('display.targetColsTitle')}
-                />
-                <div className={s.colsTicks} aria-hidden="true">
-                  {COLS_PRESETS.map((p) => {
-                    const r = (p - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN);
-                    const left = `calc(${SLIDER_THUMB_HALF}px + ${r} * (100% - ${SLIDER_THUMB_HALF * 2}px))`;
-                    return (
-                      <span
-                        key={p}
-                        className={clsx(s.colsTick, targetCols === p && s.colsTickActive)}
-                        style={{ left }}
-                      >
-                        {p}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
+          {presetsWithoutAuto.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setCols(p)}
+              className={clsx(s.presetBtn, targetCols === p && s.presetBtnActive)}
+            >
+              {p}
+            </button>
+          ))}
           <input
             type="number"
             inputMode="numeric"
