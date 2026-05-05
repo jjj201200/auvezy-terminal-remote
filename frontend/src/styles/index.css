@@ -1,0 +1,82 @@
+/**
+ * Tailwind v4 入口 + 主题 token + 极少全局基础规则
+ *
+ * 设计原则：
+ *  - 颜色 / 字号 / 字体 全部走 @theme，组件内一律 utility
+ *  - 仅 3 条全局规则：高度链路、body 默认色彩、#app flex 容器
+ *  - safe-area 不在 #app 上叠加；改由具体子元素（顶栏、InputBar）按需处理
+ */
+
+@import "tailwindcss";
+@import "@xterm/xterm/css/xterm.css";
+
+@theme {
+  /* 颜色（GitHub Dark） */
+  --color-bg: #0d1117;
+  --color-bg-elevated: #161b22;
+  --color-border: #30363d;
+  --color-fg: #e6edf3;
+  --color-fg-muted: #7d8590;
+  --color-accent: #58a6ff;
+  --color-success: #3fb950;
+  --color-error: #ff7b72;
+  --color-warning: #d29922;
+
+  /* 字体 */
+  --font-mono: 'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  /* 字号梯度（覆盖 Tailwind 默认） */
+  --text-2xs: 10px;
+  --text-2xs--line-height: 14px;
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 12px;
+  --text-sm--line-height: 18px;
+  --text-base: 13px;
+  --text-base--line-height: 20px;
+  --text-md: 14px;
+  --text-md--line-height: 22px;
+  --text-lg: 15px;
+  --text-lg--line-height: 22px;
+}
+
+/* ──────────────── 全局基础（仅 3 条） ──────────────── */
+
+html,
+body,
+#app {
+  height: var(--app-vh, 100dvh);
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ──────────────── 工具类：隐藏滚动条 ──────────────── */
+
+.scrollbar-hide {
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ──────────────── 键盘弹起时的全局 hook ──────────────── */
+
+body[data-keyboard="true"] .hide-on-keyboard {
+  display: none !important;
+}
