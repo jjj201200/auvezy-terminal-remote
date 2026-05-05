@@ -262,8 +262,18 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
   // 5. PTY + SessionController
   const pty = new PtyManager();
+  // alt-screen 过滤策略：
+  //   - 默认：bash/zsh/vim 等只是"偶尔进 alt"的程序 → 开启（重连体验好）
+  //   - claude 等全程 alt-screen 的 TUI → 自动关闭（否则 webapp 永远空白）
+  //   - OCR_ANSI_FILTER=true|false 显式覆盖
+  const ansiFilter = resolveAnsiFilterEnabled(
+    cfg.claudeCommand,
+    process.env['OCR_ANSI_FILTER'],
+  );
+  logger.info({ ansiFilter, command: cfg.claudeCommand }, 'AnsiFilter 策略');
   const ctrl = new SessionController(pty, ws, cfg.maxBufferLines, {
     writeToProcessStdout: !cfg.noTerminal,
+    ansiFilter,
   });
   ctrl.setHookReceiver(hookReceiver);
   ctrl.setPushService(pushService, {
@@ -429,4 +439,30 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       '服务已启动',
     );
   });
+}
+
+/**
+ * 决定是否启用 alt-screen 过滤。
+ *
+ * 默认开启（ADR 007）能让 vim/htop 等"偶尔进 alt"的程序不污染重连回放。
+ * 但对全程 alt-screen 的 TUI（claude 主界面、tmux 一类），过滤会丢掉
+ * 几乎全部输出 → webapp 永远空白。
+ *
+ * 启发式：basename 是 'claude' / 'claude-*' / 'tmux' / 'screen' → 自动关闭。
+ * 用户可显式 OCR_ANSI_FILTER=true|false 覆盖。
+ */
+function resolveAnsiFilterEnabled(
+  command: string,
+  envOverride: string | undefined,
+): boolean {
+  if (envOverride !== undefined) {
+    const v = envOverride.trim().toLowerCase();
+    if (v === 'true' || v === '1' || v === 'yes') return true;
+    if (v === 'false' || v === '0' || v === 'no') return false;
+  }
+  const base = (command.split('/').pop() ?? '').toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
+  // 全程 alt-screen 的 TUI：默认关掉过滤，否则什么都看不到
+  if (base === 'claude' || base.startsWith('claude-')) return false;
+  if (base === 'tmux' || base === 'screen') return false;
+  return true;
 }
