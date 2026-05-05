@@ -128,7 +128,9 @@ export class AuthModule {
   requireAuth = (req: Request, res: Response, next: NextFunction): void => {
     const sid = this.getSessionFromRequest(req);
     if (!sid || !this.validateSession(sid)) {
-      logger.warn(
+      // debug 级：cookie 过期 / 未登录是预期错误，401 响应已经告知客户端
+      // （之前是 warn，浏览器轮询时会刷屏污染日志）
+      logger.debug(
         { path: req.path, hasCookie: Boolean(sid) },
         '认证失败：无有效 session',
       );
