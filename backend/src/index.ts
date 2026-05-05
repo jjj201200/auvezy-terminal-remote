@@ -47,6 +47,7 @@ import {
   extractSettingsFromArgs,
   loadConfig,
   saveUserConfig,
+  shouldInjectSettings,
   type AppConfig,
 } from './config.js';
 import type { ParsedCliArgs } from './cli-utils.js';
@@ -140,15 +141,26 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   );
 
   // 1.5 Hook 配置 + Claude settings 文件
-  //   - 解析用户原始 --settings 参数（如有）
-  //   - 与 claude-remote 的 hooks 合并
-  //   - 写入 ~/.claude-remote/settings/<port>.json
-  //   - 把 --settings <path> 追加到 claudeArgs
+  //
+  // 仅当真正在跑 Claude 时才注入 --settings：
+  //  - 默认按 basename(command) === 'claude' 自动判定
+  //  - 别的命令（bash/zsh/python/...）不接受 --settings 会立刻退出
+  //  - 用户可设 OCR_INJECT_SETTINGS=true|false 强制开关
+  //
+  // 跳过时仍写一份 settings 文件（代价极低），方便用户日后切回 claude
+  // 直接 `claude --settings ~/.claude-remote/settings/<port>.json` 即可。
   const extracted = extractSettingsFromArgs(cfg.claudeArgs);
   const finalClaudeArgs = extracted ? extracted.remainingArgs : [...cfg.claudeArgs];
   const settings = createClaudeSettings(cfg.port, extracted?.value);
   const settingsPath = saveClaudeSettings(settings, cfg.port);
-  finalClaudeArgs.push('--settings', settingsPath);
+  if (shouldInjectSettings(cfg.claudeCommand, process.env['OCR_INJECT_SETTINGS'])) {
+    finalClaudeArgs.push('--settings', settingsPath);
+  } else {
+    logger.info(
+      { command: cfg.claudeCommand, settingsPath },
+      '检测到非 Claude 子进程，跳过 --settings 注入（hook 路由仍可用，但子进程不会自动调用）',
+    );
+  }
 
   // 2. AuthModule
   const cookieName = createSessionCookieName(cfg.port);

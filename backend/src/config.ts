@@ -136,6 +136,34 @@ export function saveClaudeSettings(
   return path;
 }
 
+/**
+ * 判断是否应该把 `--settings <path>` 注入到子进程参数。
+ *
+ * 策略：
+ *  - 显式指令 OCR_INJECT_SETTINGS=true / 1 → 强制开
+ *  - 显式指令 OCR_INJECT_SETTINGS=false / 0 → 强制关
+ *  - 否则按 command basename 自动判定（'claude' 或带前缀如 'claude-dev'）
+ *
+ * 这样跑 bash / zsh / python / node 等不认识 --settings 的程序时不会被坑死。
+ *
+ * @param command spawn 用的命令名（绝对路径或裸名都行）
+ * @param envOverride OCR_INJECT_SETTINGS 环境变量值
+ */
+export function shouldInjectSettings(
+  command: string,
+  envOverride: string | undefined,
+): boolean {
+  if (envOverride !== undefined) {
+    const v = envOverride.trim().toLowerCase();
+    if (v === 'true' || v === '1' || v === 'yes') return true;
+    if (v === 'false' || v === '0' || v === 'no') return false;
+    // 无法识别的值忽略，落回自动判定
+  }
+  // basename 后转小写，去掉 .exe / .cmd 等扩展（Windows 兼容）
+  const base = basename(command).toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
+  return base === 'claude' || base.startsWith('claude-');
+}
+
 // ==============================
 // 用户原参数中提取 --settings
 // ==============================

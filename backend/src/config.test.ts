@@ -18,6 +18,7 @@ import {
   loadUserConfig,
   saveUserConfig,
   loadConfig,
+  shouldInjectSettings,
 } from './config.js';
 import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from '@ocr/shared';
 import type { ParsedCliArgs } from './cli-utils.js';
@@ -338,5 +339,50 @@ describe('loadConfig（CLI > env > 默认）', () => {
       }),
     });
     expect(cfg.claudeCommand).toBe('zsh');
+  });
+});
+
+describe('shouldInjectSettings', () => {
+  it('command 是 claude → true', () => {
+    expect(shouldInjectSettings('claude', undefined)).toBe(true);
+  });
+
+  it('command 带绝对路径但 basename 是 claude → true', () => {
+    expect(shouldInjectSettings('/usr/local/bin/claude', undefined)).toBe(true);
+  });
+
+  it('command 带 claude- 前缀 → true（覆盖 claude-dev / claude-canary 等）', () => {
+    expect(shouldInjectSettings('claude-dev', undefined)).toBe(true);
+    expect(shouldInjectSettings('/opt/bin/claude-canary', undefined)).toBe(true);
+  });
+
+  it('.exe / .cmd 后缀也能识别（含大小写）', () => {
+    expect(shouldInjectSettings('claude.exe', undefined)).toBe(true);
+    expect(shouldInjectSettings('Claude.EXE', undefined)).toBe(true);
+    expect(shouldInjectSettings('claude.cmd', undefined)).toBe(true);
+  });
+
+  it('bash / zsh / sh 等 shell → false（不会被坑）', () => {
+    expect(shouldInjectSettings('bash', undefined)).toBe(false);
+    expect(shouldInjectSettings('zsh', undefined)).toBe(false);
+    expect(shouldInjectSettings('/bin/sh', undefined)).toBe(false);
+    expect(shouldInjectSettings('python3', undefined)).toBe(false);
+  });
+
+  it('OCR_INJECT_SETTINGS=true 强制开（即使是 bash）', () => {
+    expect(shouldInjectSettings('bash', 'true')).toBe(true);
+    expect(shouldInjectSettings('bash', '1')).toBe(true);
+    expect(shouldInjectSettings('bash', 'YES')).toBe(true);
+  });
+
+  it('OCR_INJECT_SETTINGS=false 强制关（即使是 claude）', () => {
+    expect(shouldInjectSettings('claude', 'false')).toBe(false);
+    expect(shouldInjectSettings('claude', '0')).toBe(false);
+    expect(shouldInjectSettings('claude', 'No')).toBe(false);
+  });
+
+  it('OCR_INJECT_SETTINGS 是无效值时落回自动判定', () => {
+    expect(shouldInjectSettings('claude', 'maybe')).toBe(true);
+    expect(shouldInjectSettings('bash', 'whatever')).toBe(false);
   });
 });
