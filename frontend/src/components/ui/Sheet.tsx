@@ -80,8 +80,10 @@ export function Sheet({
         onOpenChange={onOpenChange}
         // 仅顶部 grip 才能拖动关闭，避免列表 / 输入框纵向滚动被识别为拖拽
         handleOnly={true}
-        // 输入框聚焦时由 vaul 把内容上推让 input 可见，而不是被键盘盖
-        repositionInputs={true}
+        // vaul 默认会用 transform 把内容推上去，但和我们 CSS 里跟踪 --vv-bottom
+        // 调 bottom + height 会双重偏移，把 drawer 顶到屏幕外。
+        // 由 CSS 单独接管：禁掉 vaul 的 reposition
+        repositionInputs={false}
       >
         <Drawer.Portal>
           <Drawer.Overlay className={s.overlay} />

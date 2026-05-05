@@ -86,13 +86,25 @@ export function useViewportFix(): void {
     };
 
     const onFocusIn = (e: FocusEvent): void => {
-      const t = e.target;
+      const target = e.target;
       if (
-        t instanceof HTMLInputElement ||
-        t instanceof HTMLTextAreaElement ||
-        (t instanceof HTMLElement && t.isContentEditable)
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
       ) {
         startScrollGuard();
+        // 弹层内的 input 被键盘挡住时，浏览器不一定会自动 scrollIntoView。
+        // 等键盘动画 + 我们 CSS 的 bottom transition 都到位后再滚一次到可见。
+        // 主页 console 的 InputBar 不需要——它本身就钉死在 visualViewport 底部。
+        if (target.closest('#settings-modal, #create-instance-modal, #share-sheet')) {
+          window.setTimeout(() => {
+            try {
+              target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            } catch {
+              /* 旧浏览器没有 ScrollIntoViewOptions */
+            }
+          }, 300);
+        }
       }
     };
     const onFocusOut = (): void => {
