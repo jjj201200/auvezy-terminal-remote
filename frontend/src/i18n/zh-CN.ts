@@ -247,4 +247,12 @@ export const zhCN: Messages = {
   scrollToBottom: {
     label: '返回底部',
   },
+
+  search: {
+    aria: '在终端缓冲区搜索',
+    placeholder: '搜索… (Enter / Shift+Enter)',
+    next: '下一处',
+    prev: '上一处',
+    close: '关闭 (Esc)',
+  },
 };

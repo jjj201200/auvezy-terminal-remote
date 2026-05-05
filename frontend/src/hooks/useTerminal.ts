@@ -26,6 +26,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import {
   XTERM_WRITE_FLUSH_INTERVAL_MS,
@@ -73,8 +74,22 @@ export interface UseTerminalReturn {
   showScrollHint: boolean;
   /** 让 xterm 与 PTY 尺寸对齐（history_sync 后调用） */
   adaptToPtySize: (cols: number, rows: number) => void;
+  /** 在缓冲区里搜索，跳到下一处匹配 */
+  searchNext: (term: string, opts?: SearchOpts) => boolean;
+  /** 在缓冲区里搜索，跳到上一处匹配 */
+  searchPrev: (term: string, opts?: SearchOpts) => boolean;
+  /** 清除搜索高亮 */
+  clearSearch: () => void;
+  /** 获取当前选区文本，无选区返回空串 */
+  getSelection: () => string;
   /** 内部 Terminal 引用（极少数高级场景使用） */
   terminal: RefObject<Terminal | null>;
+}
+
+export interface SearchOpts {
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+  regex?: boolean;
 }
 
 export function useTerminal(
@@ -85,6 +100,7 @@ export function useTerminal(
   // ──────────────── refs ────────────────
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
 
   // 镜像 display 偏好（避免重建 xterm；ResizeObserver 也读这个 ref）
   const displayRef = useRef<DisplayOpts | undefined>(display);
@@ -277,6 +293,10 @@ export function useTerminal(
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
 
+    const searchAddon = new SearchAddon();
+    term.loadAddon(searchAddon);
+    searchAddonRef.current = searchAddon;
+
     // Unicode11 graceful 降级
     try {
       const u = new Unicode11Addon();
@@ -402,6 +422,7 @@ export function useTerminal(
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
+      searchAddonRef.current = null;
     };
   }, [containerRef, emitResize, flushWriteQueue]);
 
@@ -484,6 +505,46 @@ export function useTerminal(
     emitResize(term.cols, term.rows);
   }, [emitResize]);
 
+  const searchNext = useCallback((needle: string, opts?: SearchOpts): boolean => {
+    const sa = searchAddonRef.current;
+    if (!sa || !needle) return false;
+    return sa.findNext(needle, {
+      caseSensitive: opts?.caseSensitive,
+      wholeWord: opts?.wholeWord,
+      regex: opts?.regex,
+      decorations: {
+        matchBackground: '#e5c07b',
+        matchOverviewRuler: '#e5c07b',
+        activeMatchBackground: '#e06c75',
+        activeMatchColorOverviewRuler: '#e06c75',
+      },
+    });
+  }, []);
+
+  const searchPrev = useCallback((needle: string, opts?: SearchOpts): boolean => {
+    const sa = searchAddonRef.current;
+    if (!sa || !needle) return false;
+    return sa.findPrevious(needle, {
+      caseSensitive: opts?.caseSensitive,
+      wholeWord: opts?.wholeWord,
+      regex: opts?.regex,
+      decorations: {
+        matchBackground: '#e5c07b',
+        matchOverviewRuler: '#e5c07b',
+        activeMatchBackground: '#e06c75',
+        activeMatchColorOverviewRuler: '#e06c75',
+      },
+    });
+  }, []);
+
+  const clearSearch = useCallback((): void => {
+    searchAddonRef.current?.clearDecorations();
+  }, []);
+
+  const getSelection = useCallback((): string => {
+    return termRef.current?.getSelection() ?? '';
+  }, []);
+
   return {
     write,
     clear,
@@ -492,6 +553,10 @@ export function useTerminal(
     setAutoFollow,
     showScrollHint,
     adaptToPtySize,
+    searchNext,
+    searchPrev,
+    clearSearch,
+    getSelection,
     terminal: termRef,
   };
 }

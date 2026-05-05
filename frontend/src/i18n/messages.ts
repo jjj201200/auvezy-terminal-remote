@@ -284,6 +284,15 @@ export interface Messages {
   scrollToBottom: {
     label: string;
   };
+
+  // 终端搜索
+  search: {
+    aria: string;
+    placeholder: string;
+    next: string;
+    prev: string;
+    close: string;
+  };
 }
 
 /** 模板变量替换：'a {{x}} b' + { x: 1 } → 'a 1 b' */

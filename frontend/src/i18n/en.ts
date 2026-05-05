@@ -255,4 +255,12 @@ export const en: Messages = {
   scrollToBottom: {
     label: 'Back to bottom',
   },
+
+  search: {
+    aria: 'Search terminal buffer',
+    placeholder: 'Search… (Enter / Shift+Enter)',
+    next: 'Next match',
+    prev: 'Previous match',
+    close: 'Close (Esc)',
+  },
 };

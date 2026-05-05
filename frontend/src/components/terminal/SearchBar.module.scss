@@ -1,0 +1,36 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.root {
+  position: absolute;
+  top: t.$sp-3;
+  right: t.$sp-3;
+  z-index: 30;
+  @include m.row-flex(t.$bar-gap);
+  border: 1px solid t.$border;
+  background: t.$bg-elev;
+  padding: t.$sp-2 t.$sp-2;
+  box-shadow: t.$shadow-3;
+}
+
+.input {
+  flex: 0 1 240px;
+  min-width: 0;
+  border: 1px solid t.$border;
+  background: t.$bg-input;
+  color: t.$fg;
+  padding: t.$sp-1 t.$sp-2;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+
+  &:focus {
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+
+  &[aria-invalid='true'] {
+    border-color: t.$warn;
+  }
+}

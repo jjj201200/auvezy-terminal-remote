@@ -17,8 +17,8 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
-import { resolve, isAbsolute } from 'node:path';
+import { existsSync, statSync, openSync } from 'node:fs';
+import { resolve, isAbsolute, dirname } from 'node:path';
 import { ErrorCode } from '@otr/shared';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
@@ -70,9 +70,21 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
 
     const name = input.name && input.name.trim() ? input.name.trim() : basename(cwd);
 
+    // 解析子进程入口：
+    // 1) 若 cliJsPath 直接存在 → 用 node 跑（生产态：dist/cli.js）
+    // 2) 否则尝试同目录的 cli.ts → 用 tsx 跑（开发态：src/cli.ts）
+    // dev 态 spawner 注入的是 src/cli.js，文件不存在导致子进程瞬间死亡且 stdio:ignore 吞掉错误
+    const { execPath, args: entryArgs } = resolveEntry(this.opts.cliJsPath);
+
+    // 子进程日志重定向到 OTR_LOG_DIR/spawned-<pid>.log，便于排查派生失败
+    // 默认是 ignore（生产态稳定后无需占盘），但 OTR_DEBUG_SPAWN=1 时启用
+    const logFd = process.env.OTR_DEBUG_SPAWN
+      ? openSync(`/tmp/otr-spawn-${Date.now()}.log`, 'a')
+      : 'ignore';
+
     const child = spawn(
-      process.execPath,
-      [this.opts.cliJsPath, '--no-terminal'],
+      execPath,
+      [...entryArgs, '--no-terminal'],
       {
         cwd,
         env: {
@@ -82,7 +94,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
           // 不重置 HOME，让子进程读同一个 ~/.open-terminal-remote/config.json（共享 token）
         },
         detached: true,
-        stdio: 'ignore',
+        stdio: ['ignore', logFd, logFd],
       },
     );
     // 让父进程退出不杀子进程
@@ -96,9 +108,56 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
       );
     }
 
-    logger.info({ pid: child.pid, cwd, name }, '已派生 headless 实例');
+    logger.info(
+      { pid: child.pid, cwd, name, exec: execPath, args: entryArgs },
+      '已派生 headless 实例',
+    );
     return { pid: child.pid, cwd, name };
   }
+}
+
+/**
+ * 解析子进程入口：
+ * - dist/cli.js 存在（生产）→ node + cli.js
+ * - src/cli.ts 存在（开发）→ tsx + cli.ts（找 backend/node_modules/.bin/tsx）
+ *
+ * dev 态 spawner 默认拿到的 cliJsPath 是 src/cli.js（不存在），
+ * 旧实现直接 spawn 不存在的文件 + stdio:'ignore' → 子进程瞬间死亡且无任何报错。
+ */
+function resolveEntry(cliJsPath: string): { execPath: string; args: string[] } {
+  if (existsSync(cliJsPath)) {
+    return { execPath: process.execPath, args: [cliJsPath] };
+  }
+  const tsPath = cliJsPath.replace(/\.js$/, '.ts');
+  if (existsSync(tsPath)) {
+    // 向上找最近的 node_modules/.bin/tsx
+    const tsxBin = findTsxBin(dirname(tsPath));
+    if (tsxBin) {
+      return { execPath: tsxBin, args: [tsPath] };
+    }
+    // tsx 未装：尝试 node --import tsx（node >= 20.6）
+    return {
+      execPath: process.execPath,
+      args: ['--import', 'tsx', tsPath],
+    };
+  }
+  throw new InstanceError(
+    ErrorCode.INTERNAL_ERROR,
+    `找不到子进程入口：${cliJsPath} 或 ${tsPath}`,
+    500,
+  );
+}
+
+function findTsxBin(startDir: string): string | null {
+  let dir = startDir;
+  for (let i = 0; i < 10; i++) {
+    const candidate = resolve(dir, 'node_modules', '.bin', 'tsx');
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
 }
 
 /** path.basename 包一层兜底空字符串 */

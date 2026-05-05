@@ -28,6 +28,7 @@ import { useAppStore } from '../stores/app-store.js';
 import { useT } from '../i18n/i18n-context.js';
 import { TerminalView } from '../components/terminal/TerminalView.js';
 import { ScrollToBottomButton } from '../components/terminal/ScrollToBottomButton.js';
+import { SearchBar } from '../components/terminal/SearchBar.js';
 import { InputBar } from '../components/input/InputBar.js';
 import { Toolbar } from '../components/input/Toolbar.js';
 import { StatusBar } from '../components/status/StatusBar.js';
@@ -53,6 +54,7 @@ export function ConsolePage(): JSX.Element {
    * （--wait-confirm 等场景）时，告诉用户去服务端按 Enter，避免「页面空白」误解。
    */
   const [hasPtyOutput, setHasPtyOutput] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   /**
    * InputBar 的输入值。受控提到这里，是因为 Toolbar 中"非自动发送"的命令
    * 需要把命令文本灌进输入框等用户编辑。
@@ -79,6 +81,10 @@ export function ConsolePage(): JSX.Element {
     setAutoFollow,
     showScrollHint,
     adaptToPtySize,
+    searchNext,
+    searchPrev,
+    clearSearch,
+    getSelection,
   } = useTerminal(containerRef, handleResize, config.display);
 
   const handleMessage = useCallback(
@@ -161,6 +167,32 @@ export function ConsolePage(): JSX.Element {
     return () => target.removeEventListener('focusin', handler);
   }, []);
 
+  // Cmd+F / Ctrl+F 唤出终端搜索
+  // Cmd+C / Ctrl+C 复制终端选区（仅当 InputBar 没有自身选区时；不抢系统复制行为）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const k = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && k === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && k === 'c' && !e.shiftKey) {
+        // 输入框 / 文本元素已有选区时让浏览器走默认复制
+        const sel = window.getSelection();
+        if (sel && sel.toString().length > 0) return;
+        const text = getSelection();
+        if (!text) return;
+        e.preventDefault();
+        void navigator.clipboard.writeText(text).catch(() => {
+          // 不支持 Clipboard API：静默
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [getSelection]);
+
   return (
     <div id="console-page" className={s.root}>
       <header id="console-header" className={s.header}>
@@ -231,6 +263,13 @@ export function ConsolePage(): JSX.Element {
             </div>
           )}
         <ScrollToBottomButton visible={showScrollHint} onClick={handleScrollToBottom} />
+        <SearchBar
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          onNext={searchNext}
+          onPrev={searchPrev}
+          onClear={clearSearch}
+        />
       </div>
 
       <Toolbar

@@ -166,13 +166,34 @@ export function useWebSocket(
     const handleOffline = (): void => {
       wsRef.current?.close();
     };
+    // 切回网络时立即重连，不等指数退避 timer
+    const handleOnline = (): void => {
+      if (isDisposedRef.current) return;
+      if (wsRef.current?.readyState === WebSocket.OPEN) return;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      reconnectAttemptRef.current = 0;
+      connect();
+    };
+    // tab 从后台切回时也尝试一次（手机锁屏后 ws 可能被系统 kill 但事件未触达）
+    const handleVisible = (): void => {
+      if (document.visibilityState !== 'visible') return;
+      if (wsRef.current?.readyState === WebSocket.OPEN) return;
+      handleOnline();
+    };
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisible);
 
     // 首次 mount 自动连
     connect();
 
     return () => {
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisible);
       isDisposedRef.current = true;
       connectionTokenRef.current++;
       if (reconnectTimerRef.current) {
