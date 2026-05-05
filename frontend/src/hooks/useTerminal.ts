@@ -270,7 +270,7 @@ export function useTerminal(
         background: '#050608',
         foreground: '#dcdfe4',
         cursor: '#dcdfe4',
-        selectionBackground: 'rgba(220, 223, 228, 0.22)',
+        selectionBackground: 'rgba(229, 192, 123, 0.55)',
         black: '#3f4451',
         red: '#e06c75',
         green: '#98c379',
