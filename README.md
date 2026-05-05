@@ -99,7 +99,7 @@ ocr [子命令] [选项]
 
 | 变量 | 用途 |
 |---|---|
-| `OCR_COMMAND` | 子进程命令（默认 `claude`，可换 `bash` 等任意 PTY 程序）|
+| `OCR_COMMAND` | 子进程命令（默认 `$SHELL`，没有则 `/bin/sh`；显式设为 `claude` 跑 Claude）|
 | `OCR_ARGS`    | 命令参数（JSON 数组字符串，如 `'["-c","tail -f /dev/null"]'`）|
 | `OCR_CWD`     | 子进程工作目录（默认 `process.cwd()`）|
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | 注入 VAPID（高优先级，跳过文件）|

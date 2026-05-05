@@ -449,7 +449,7 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
   const port = cli.port ?? toInt(env['PORT']) ?? DEFAULT_PORT;
   const host = cli.host ?? env['HOST'] ?? '0.0.0.0';
   const claudeCommand =
-    env['OCR_COMMAND'] ?? readLegacyEnv(env, 'CLAUDE_COMMAND') ?? 'claude';
+    env['OCR_COMMAND'] ?? readLegacyEnv(env, 'CLAUDE_COMMAND') ?? resolveDefaultShell(env);
   const claudeCwd =
     cli.workdir ?? env['OCR_CWD'] ?? readLegacyEnv(env, 'CLAUDE_CWD') ?? process.cwd();
   const claudeArgs = mergeClaudeArgs(
@@ -522,6 +522,22 @@ function readLegacyEnv(
     );
   }
   return v;
+}
+
+/**
+ * 用户既没设 OCR_COMMAND 也没设旧名 CLAUDE_COMMAND 时，决定默认子进程命令。
+ *
+ * 优先级：
+ *  1. $SHELL 环境变量（macOS / Linux / WSL 都自动有；用户当前 shell）
+ *  2. 平台默认（Windows: cmd.exe；其它: /bin/sh）
+ *
+ * 选 $SHELL 而非硬编码 'claude'，因为不是所有用户都装了 Claude CLI；
+ * 跑 shell 至少能让 PTY 通路有东西可调。要跑 Claude，显式设 OCR_COMMAND=claude。
+ */
+function resolveDefaultShell(env: NodeJS.ProcessEnv): string {
+  const shell = env['SHELL'];
+  if (shell && shell.length > 0) return shell;
+  return process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
 }
 
 /** 把 CLI 的 claudeArgs 与 env OCR_ARGS（JSON 数组形式）合并；CLI 优先 */

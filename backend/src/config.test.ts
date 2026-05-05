@@ -340,6 +340,41 @@ describe('loadConfig（CLI > env > 默认）', () => {
     });
     expect(cfg.claudeCommand).toBe('zsh');
   });
+
+  it('未设置 OCR_COMMAND 时回退到 $SHELL', () => {
+    const cfg = loadConfig({
+      cli: baseCli,
+      env: { SHELL: '/usr/bin/zsh' },
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    expect(cfg.claudeCommand).toBe('/usr/bin/zsh');
+  });
+
+  it('既无 OCR_COMMAND 也无 $SHELL → 平台默认（非 win32 = /bin/sh）', () => {
+    const cfg = loadConfig({
+      cli: baseCli,
+      env: {}, // 显式空
+      generateToken: () => 'gen',
+      loadUser: () => ({
+        path: '/tmp/x.json',
+        value: {},
+        created: false,
+        recovered: false,
+      }),
+    });
+    // process.platform 在 vitest 跑 Linux/Mac 上是 'linux'/'darwin'，都走 /bin/sh
+    if (process.platform !== 'win32') {
+      expect(cfg.claudeCommand).toBe('/bin/sh');
+    } else {
+      expect(cfg.claudeCommand).toBe('cmd.exe');
+    }
+  });
 });
 
 describe('shouldInjectSettings', () => {
