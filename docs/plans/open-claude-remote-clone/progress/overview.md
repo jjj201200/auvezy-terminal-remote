@@ -23,7 +23,8 @@
 | 8  | IP 漂移 + ANSI 过滤         | ✅ 完成   | 7/7  | [stage-08.md](./stage-08.md) |
 | 9  | Web Push                    | ✅ 完成   | 7/7  | [stage-09.md](./stage-09.md) |
 | 10 | 打磨与发布                  | ✅ 完成   | 7/7  | [stage-10.md](./stage-10.md) |
-|    | **总计**                    |          | **96/96** ||
+| ✦  | 前端整体改造与移动端适配     | ✅ 完成   | 31/31 | [stage-frontend-overhaul.md](./stage-frontend-overhaul.md) |
+|    | **总计**                    |          | **127/127** ||
 
 **状态图例**：⏳ 待开始 · 🔄 进行中 · ✅ 完成 · ⚠ 阻塞
 
@@ -45,6 +46,7 @@
 | 008 | ✅ | Web Push VAPID 三优先级 |
 | 009 | ✅ | 错误体系（AppError + ErrorCode） |
 | 010 | ✅ | 裁剪 OnboardingGuide 与钉钉通知 |
+| 011 | ✅ | 前端样式栈选型 Tailwind v4 + Radix + vaul |
 
 ---
 
@@ -56,8 +58,14 @@
 
 ## 上次更新
 
-2026-05-05 · 阶段 10 完成（7/7 步骤）。install.sh 一键安装（Node/pnpm/编译依赖三检）
+2026-05-05 · 前端整体改造与移动端适配完成（31/31 步骤）。
+私货清扫 + 快捷键乱码修复（escape codec + 28 单测）+ Tailwind v4/Radix/vaul/lucide 样式重写
++ `100dvh` + visualViewport 修移动端布局根因。CSS 体积 24KB（gzip 6.2KB），
+JS 增量约 28KB gzip。frontend typecheck / build / 308 backend tests 全过。
+**累计进度 127/127，包含初版交付 + 前端整体改造。**
+
+2026-05-05（初版）· 阶段 10 完成（7/7 步骤）。install.sh 一键安装（Node/pnpm/编译依赖三检）
 + README 用户视角 + ARCHITECTURE 模块图与数据流 + CHANGELOG 0.1.0；smoke-cross 跨阶段集成
 6/6 全过（health / 登录 / WS 收发 / 配置双向 / instances / vapid）；
 backend 284 单测 + shared 15 单测 + frontend typecheck/build 全过；端口与临时 HOME 已清理。
-**总进度 96/96，项目交付完成。**
+总进度 96/96，项目交付完成。
