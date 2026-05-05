@@ -110,6 +110,31 @@ ocr [子命令] [选项]
 > 旧名 `CLAUDE_COMMAND` / `CLAUDE_ARGS` / `CLAUDE_CWD` 仍兼容（启动时会 warn 一次）。
 > 改名是为了说清楚：这个项目不绑定 Claude，能跑任何 PTY 程序。
 
+## 在 WSL 中跑、Windows 浏览器访问
+
+WSL2 的两种网络模式行为不同：
+
+- **mirrored 模式**（Win11 22H2+ 默认）：WSL 直接拿 Windows LAN IP（如 `192.168.x.x`），
+  Windows 浏览器可以直接用 banner 上的 IP 访问，无需任何额外配置
+- **NAT 模式**（默认）：WSL 在 `172.x.x.x` 私网，Windows 浏览器无法直连。
+  backend 启动时会自动检测并在 banner 末尾打印 PowerShell 配置命令
+
+**一键自动配置**（管理员 PowerShell）：
+
+```powershell
+# 转发常用端口范围（默认 3000-3010）
+.\scripts\wsl-port-forward.ps1
+
+# 仅转发指定端口
+.\scripts\wsl-port-forward.ps1 -Ports 3000,3001
+
+# 注册到登录时自动重配（WSL 重启后 IP 变了无需手动跑）
+.\scripts\wsl-port-forward.ps1 -Persist
+
+# 清理
+.\scripts\wsl-port-forward.ps1 -Reset
+```
+
 ## 架构 / 决策
 
 - 设计文档：[`docs/plans/open-claude-remote-clone/design.md`](./docs/plans/open-claude-remote-clone/design.md)

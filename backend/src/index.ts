@@ -57,6 +57,8 @@ import { InstanceRegistryManager } from './registry/instance-registry.js';
 import { DefaultInstanceSpawner } from './registry/instance-spawner.js';
 import { detectDisplayIp, buildPublicUrl } from './utils/network.js';
 import { renderQrCode } from './utils/qrcode-banner.js';
+import { isWsl } from './utils/wsl-detect.js';
+import { isWslNatIp, buildPortForwardHint } from './utils/wsl-port-hint.js';
 import { IpMonitor } from './utils/ip-monitor.js';
 import { PushService } from './push/push-service.js';
 import { randomUUID } from 'node:crypto';
@@ -363,6 +365,21 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }
     process.stderr.write(`\n  完整链接：${publicUrl}\n`);
     process.stderr.write('  双 Ctrl+C（500ms 内）退出代理；单次 Ctrl+C 透传给 Claude\n');
+
+    // WSL2 NAT 模式下 Windows 浏览器无法用 localhost 直连，给出 PowerShell 提示
+    if (isWsl() && isWslNatIp(displayIp)) {
+      const hint = buildPortForwardHint([cfg.port], displayIp);
+      process.stderr.write('\n');
+      process.stderr.write('  ┌── Windows 宿主访问提示 ──────────────────────────\n');
+      process.stderr.write(`  │ ${hint.title}\n`);
+      process.stderr.write('  │\n');
+      for (const line of hint.setupCommands) {
+        process.stderr.write(`  │   ${line}\n`);
+      }
+      process.stderr.write('  │\n');
+      process.stderr.write(`  │ ${hint.footer}\n`);
+      process.stderr.write('  └──────────────────────────────────────────────────\n');
+    }
     process.stderr.write('\n');
 
     // 注册到 instances.json（headless 派生的子进程也走这一步）
