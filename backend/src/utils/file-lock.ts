@@ -94,7 +94,9 @@ export function tryAcquireLock(lockDir: string, staleMs: number = FILE_LOCK_STAL
   // 先看是不是僵尸锁
   if (existsSync(lockDir)) {
     if (isStale(lockDir, staleMs)) {
-      logger.warn({ lockDir }, '检测到僵尸锁，强制清理');
+      // info 级：上次进程被强杀（kill -9 / 崩溃）留下的，自动清掉就行，
+      // 不是 warning。warning 之前会刷屏污染日志。
+      logger.info({ lockDir }, '检测到僵尸锁，自动清理');
       try {
         rmSync(lockDir, { recursive: true, force: true });
       } catch (err) {
