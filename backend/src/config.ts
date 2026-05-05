@@ -448,14 +448,21 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
 
   const port = cli.port ?? toInt(env['PORT']) ?? DEFAULT_PORT;
   const host = cli.host ?? env['HOST'] ?? '0.0.0.0';
-  const claudeCommand =
-    env['OCR_COMMAND'] ?? readLegacyEnv(env, 'CLAUDE_COMMAND') ?? resolveDefaultShell(env);
+  const explicitCommand =
+    env['OCR_COMMAND'] ?? readLegacyEnv(env, 'CLAUDE_COMMAND');
+  const claudeCommand = explicitCommand ?? resolveDefaultShell(env);
   const claudeCwd =
     cli.workdir ?? env['OCR_CWD'] ?? readLegacyEnv(env, 'CLAUDE_CWD') ?? process.cwd();
-  const claudeArgs = mergeClaudeArgs(
+  const explicitArgs = mergeClaudeArgs(
     cli.claudeArgs,
     env['OCR_ARGS'] ?? readLegacyEnv(env, 'CLAUDE_ARGS'),
   );
+  // 用户没指定 args 且我们用的是默认 shell 时，按 shell 类型补默认参数
+  // （避免 zsh-newuser-install 向导、用户 rc 文件里的 exit 之类奇葩问题）
+  const claudeArgs =
+    explicitArgs.length > 0 || explicitCommand !== undefined
+      ? explicitArgs
+      : defaultShellArgs(claudeCommand);
   const instanceName =
     cli.instanceName ?? env['INSTANCE_NAME'] ?? (basename(claudeCwd) || 'instance');
   const maxBufferLines =
@@ -538,6 +545,26 @@ function resolveDefaultShell(env: NodeJS.ProcessEnv): string {
   const shell = env['SHELL'];
   if (shell && shell.length > 0) return shell;
   return process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+}
+
+/**
+ * 当我们 fallback 到默认 shell 时给它一组合理的 default args。
+ *
+ * 目的：默认体验稳定，不被用户 ~/.zshrc / oh-my-zsh / zsh-newuser-install
+ * 向导之类拖死整个 PTY。
+ *
+ * 策略：
+ *  - bash / zsh / sh：`-i` 强制交互（保留 prompt + 行编辑）
+ *  - 其它：不加任何参数（fish / 自定义 shell 自己处理）
+ *
+ * 用户想用自己的 rc 文件 → 显式 OCR_COMMAND=zsh OCR_ARGS='["-i","-l"]'。
+ */
+function defaultShellArgs(command: string): string[] {
+  const base = command.split('/').pop()?.toLowerCase() ?? '';
+  if (base === 'bash' || base === 'zsh' || base === 'sh') {
+    return ['-i'];
+  }
+  return [];
 }
 
 /** 把 CLI 的 claudeArgs 与 env OCR_ARGS（JSON 数组形式）合并；CLI 优先 */
