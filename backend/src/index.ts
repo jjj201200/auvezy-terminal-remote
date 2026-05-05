@@ -23,6 +23,7 @@
 import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { networkInterfaces } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -200,7 +201,12 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   const app = express();
   app.use(express.json());
 
-  // CORS：同源 + localhost/127.0.0.1 + 检测到的 displayIp（任意端口）
+  // CORS：同源 + localhost/127.0.0.1 + 本机所有网卡 IP（含 Tailscale / VPN / 多网卡）
+  // 之所以放开本机所有网卡 IP：用户可能从 LAN IP / Tailscale IP / 临时 VPN
+  // IP 等不同入口访问，统一以"对端能 TCP 连到我们"作为信任前提（防火墙
+  // / Tailscale 已经在更外层拦截了不可信源）。
+  const localHostnames = collectLocalHostnames();
+  logger.info({ hostnames: Array.from(localHostnames) }, 'CORS 白名单');
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -211,11 +217,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
         }
         try {
           const url = new URL(origin);
-          if (
-            url.hostname === 'localhost' ||
-            url.hostname === '127.0.0.1' ||
-            url.hostname === displayIp
-          ) {
+          if (localHostnames.has(url.hostname)) {
             callback(null, true);
             return;
           }
@@ -396,6 +398,21 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       process.stderr.write(qr);
     }
     process.stderr.write(`\n  完整链接：${publicUrl}\n`);
+
+    // 列出所有本机网卡 IP 对应的备选链接（Tailscale / VPN / 多网卡场景）
+    const altIps = Array.from(localHostnames).filter(
+      (h) => h !== 'localhost' && h !== '127.0.0.1' && h !== '::1' && h !== displayIp,
+    );
+    if (altIps.length > 0) {
+      process.stderr.write('  其它可用入口（Tailscale / VPN / 多网卡）：\n');
+      for (const ip of altIps) {
+        // IPv6 加方括号
+        const host = ip.includes(':') ? `[${ip}]` : ip;
+        process.stderr.write(
+          `    http://${host}:${cfg.port}/?token=${encodeURIComponent(cfg.token)}\n`,
+        );
+      }
+    }
     process.stderr.write('  双 Ctrl+C（500ms 内）退出代理；单次 Ctrl+C 透传给 Claude\n');
 
     // WSL2 NAT 模式下 Windows 浏览器无法用 localhost 直连，给出 PowerShell 提示
@@ -514,6 +531,36 @@ function resolveAnsiFilterEnabled(
  * 实现：读 stdin 一行；若 stdin 不是 TTY（pipe 进来 / 守护进程模式）
  * 不阻塞，立即返回。
  */
+/**
+ * 收集本机所有网卡 IPv4 + IPv6 地址 + localhost / 127.0.0.1。
+ * 返回 Set 便于 O(1) 命中判断。
+ *
+ * 用途：CORS 白名单。把所有"对端能用来访问本机的合法 hostname"都放进来：
+ * 物理网卡 LAN IP、Tailscale 100.x.y.z、各种 VPN 网卡、loopback。
+ *
+ * 不主动加入域名：browser 里 origin 字段只会用 hostname 字面量，所以这里
+ * 列 IP 列表足以覆盖；用户如果用域名（如 mywsl.local）需要手动加 OCR_CORS_ALLOW。
+ */
+function collectLocalHostnames(): Set<string> {
+  const set = new Set<string>(['localhost', '127.0.0.1', '::1']);
+  const ifaces = networkInterfaces();
+  for (const list of Object.values(ifaces)) {
+    if (!list) continue;
+    for (const info of list) {
+      if (info.internal) continue;
+      set.add(info.address);
+    }
+  }
+  // 用户额外白名单：OCR_CORS_ALLOW="example.local,foo.bar" 逗号分隔
+  const extra = process.env['OCR_CORS_ALLOW'];
+  if (extra) {
+    for (const h of extra.split(',').map((s) => s.trim()).filter(Boolean)) {
+      set.add(h);
+    }
+  }
+  return set;
+}
+
 function waitForUserConfirm(): Promise<void> {
   if (!process.stdin.isTTY) return Promise.resolve();
   process.stderr.write('  按 Enter 启动子进程（或 Ctrl+C 退出 backend）...');
