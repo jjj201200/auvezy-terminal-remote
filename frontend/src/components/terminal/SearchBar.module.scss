@@ -28,7 +28,7 @@
   color: t.$fg;
   padding: t.$sp-1 t.$sp-2;
   font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  font-size: t.$fs-lg;
   outline: none;
   @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
 
@@ -44,7 +44,7 @@
   // 移动端：input 撑满剩余空间；font-size 16px 防 iOS 自动缩放
   @include m.mobile {
     flex: 1 1 auto;
-    font-size: 16px;
+    font-size: t.$fs-xl;
     padding: t.$sp-2 t.$sp-3;
   }
 }
