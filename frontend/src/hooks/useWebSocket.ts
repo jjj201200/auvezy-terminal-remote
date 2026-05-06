@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import type { ServerMessage, ClientMessage } from '@auvezy/terminal-remote-shared';
+import type { ServerMessage, ClientMessage } from 'auvezy-terminal-remote-shared';
 import type { ConnectionStatus } from '../stores/app-store.js';
 import { useAppStore } from '../stores/app-store.js';
 import { WS_RECONNECT_DELAYS_MS, WS_RECONNECT_MAX_ATTEMPTS } from '../config/constants.js';

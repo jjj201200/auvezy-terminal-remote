@@ -19,7 +19,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, statSync, openSync } from 'node:fs';
 import { resolve, isAbsolute, dirname } from 'node:path';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 

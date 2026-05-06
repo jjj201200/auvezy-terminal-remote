@@ -20,7 +20,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import * as cookie from 'cookie';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import { generateSessionId } from './token-generator.js';
 import { RateLimiter } from './rate-limiter.js';
 import { logger } from '../logger/logger.js';

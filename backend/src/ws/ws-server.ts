@@ -24,7 +24,7 @@ import {
   WS_HEARTBEAT_INTERVAL_MS,
   MAX_WS_MESSAGE_SIZE,
   type ServerMessage,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import { logger } from '../logger/logger.js';
 
 /** 客户端类型：webapp 是主控，attach 是从控（阶段 7 启用） */

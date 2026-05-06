@@ -28,7 +28,7 @@
  * ```
  */
 
-import { ErrorCode, type ErrorPayload } from '@auvezy/terminal-remote-shared';
+import { ErrorCode, type ErrorPayload } from 'auvezy-terminal-remote-shared';
 
 /**
  * 应用错误基类

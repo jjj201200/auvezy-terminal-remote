@@ -24,8 +24,8 @@ import type {
   ServerMessage,
   ClientMessage,
   SessionStatus,
-} from '@auvezy/terminal-remote-shared';
-import { isServerMessage } from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
+import { isServerMessage } from 'auvezy-terminal-remote-shared';
 import { logger } from '../logger/logger.js';
 import { ATTACH_RECONNECT_DELAYS_MS } from '../constants.js';
 

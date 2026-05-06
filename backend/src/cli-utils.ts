@@ -24,7 +24,7 @@
  */
 
 import { ConfigError } from './errors.js';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 
 /** 已识别的 CLI flags 集合 */
 const KNOWN_FLAGS_BOOL = new Set([

@@ -42,9 +42,6 @@ importers:
         specifier: ^8.18.0
         version: 8.20.0
     devDependencies:
-      '@auvezy/terminal-remote-shared':
-        specifier: workspace:*
-        version: link:../shared
       '@types/cors':
         specifier: ^2.8.17
         version: 2.8.19
@@ -63,6 +60,9 @@ importers:
       '@types/ws':
         specifier: ^8.5.13
         version: 8.18.1
+      auvezy-terminal-remote-shared:
+        specifier: workspace:*
+        version: link:../shared
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
@@ -78,9 +78,6 @@ importers:
 
   frontend:
     dependencies:
-      '@auvezy/terminal-remote-shared':
-        specifier: workspace:*
-        version: link:../shared
       '@dnd-kit/core':
         specifier: ^6.3.0
         version: 6.3.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -123,6 +120,9 @@ importers:
       '@xterm/xterm':
         specifier: ^5.5.0
         version: 5.5.0
+      auvezy-terminal-remote-shared:
+        specifier: workspace:*
+        version: link:../shared
       clsx:
         specifier: ^2.1.1
         version: 2.1.1

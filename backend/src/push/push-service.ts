@@ -25,7 +25,7 @@ import {
   VAPID_KEYS_FILENAME,
   PUSH_SUBSCRIPTIONS_FILENAME,
   ErrorCode,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import { PushError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 import { atomicWriteJson } from '../utils/atomic-write.js';

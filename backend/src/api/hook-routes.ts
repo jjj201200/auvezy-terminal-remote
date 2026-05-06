@@ -14,7 +14,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import type { HookReceiver } from '../hooks/hook-receiver.js';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import { HookError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 

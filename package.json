@@ -10,14 +10,14 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "build": "pnpm prebuild && pnpm --filter @auvezy/terminal-remote-shared build && pnpm --filter @auvezy/terminal-remote-frontend build && pnpm --filter @auvezy/terminal-remote build && pnpm copy-frontend-dist && pnpm bundle-backend",
+    "build": "pnpm prebuild && pnpm --filter auvezy-terminal-remote-shared build && pnpm --filter auvezy-terminal-remote-frontend build && pnpm --filter auvezy-terminal-remote build && pnpm copy-frontend-dist && pnpm bundle-backend",
     "prebuild": "rm -rf backend/dist backend/tsconfig.tsbuildinfo",
     "copy-frontend-dist": "node scripts/copy-frontend-dist.js",
     "bundle-backend": "node scripts/bundle-backend.js",
-    "dev": "pnpm copy-frontend-dist && concurrently --kill-others --handle-input -n backend,frontend -c blue,green \"pnpm --filter @auvezy/terminal-remote dev\" \"pnpm --filter @auvezy/terminal-remote-frontend dev\"",
+    "dev": "pnpm copy-frontend-dist && concurrently --kill-others --handle-input -n backend,frontend -c blue,green \"pnpm --filter auvezy-terminal-remote dev\" \"pnpm --filter auvezy-terminal-remote-frontend dev\"",
     "start": "node backend/dist/cli.js",
-    "stop": "pnpm --filter @auvezy/terminal-remote exec tsx src/registry/stop-instances.ts",
-    "test": "pnpm --filter @auvezy/terminal-remote-shared test && pnpm --filter @auvezy/terminal-remote test && pnpm --filter @auvezy/terminal-remote-frontend test",
+    "stop": "pnpm --filter auvezy-terminal-remote exec tsx src/registry/stop-instances.ts",
+    "test": "pnpm --filter auvezy-terminal-remote-shared test && pnpm --filter auvezy-terminal-remote test && pnpm --filter auvezy-terminal-remote-frontend test",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "clean": "pnpm -r exec rm -rf dist node_modules/.cache"
   },

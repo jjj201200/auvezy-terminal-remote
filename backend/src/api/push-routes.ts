@@ -12,7 +12,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import { PushService, type PushSubscriptionInfo } from '../push/push-service.js';
 import { PushError } from '../errors.js';

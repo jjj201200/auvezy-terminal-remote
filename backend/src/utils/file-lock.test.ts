@@ -19,7 +19,7 @@ import {
   releaseLock,
 } from './file-lock.js';
 import { LockError } from '../errors.js';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 
 describe('file-lock', () => {
   let baseDir: string;

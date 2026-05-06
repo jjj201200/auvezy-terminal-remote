@@ -24,7 +24,7 @@ import {
   ATR_DATA_DIR,
   CONFIG_FILENAME,
   type UserConfig,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import { withFileLock } from '../utils/file-lock.js';
 import { logger } from '../logger/logger.js';
 

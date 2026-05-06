@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
-import type { ServerMessage, SessionStatus, ClientMessage } from '@auvezy/terminal-remote-shared';
+import type { ServerMessage, SessionStatus, ClientMessage } from 'auvezy-terminal-remote-shared';
 import { useTerminal } from '../hooks/useTerminal.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useUserConfig } from '../hooks/useUserConfig.js';

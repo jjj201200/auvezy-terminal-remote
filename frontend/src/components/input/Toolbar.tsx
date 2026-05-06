@@ -29,7 +29,7 @@ import {
   type CommandGroupId,
   SHORTCUT_GROUPS,
   COMMAND_GROUPS,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import clsx from 'clsx';
 import { ScrollableTabs, type ScrollableTabItem } from './ScrollableTabs.js';
 import { HScroller } from '../ui/HScroller.js';

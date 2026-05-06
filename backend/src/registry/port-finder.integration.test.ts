@@ -17,7 +17,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { createServer as createNetServer, type Server as NetServer } from 'node:net';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import { bindAvailablePort } from './port-finder.js';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 
 const HOST = '127.0.0.1';
 

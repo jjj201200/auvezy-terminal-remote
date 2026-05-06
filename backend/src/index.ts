@@ -28,7 +28,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
-import { type UserConfig, ErrorCode } from '@auvezy/terminal-remote-shared';
+import { type UserConfig, ErrorCode } from 'auvezy-terminal-remote-shared';
 import { logger } from './logger/logger.js';
 import { createApiRouter } from './api/router.js';
 import type { ConfigStore } from './api/config-routes.js';

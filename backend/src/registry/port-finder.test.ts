@@ -7,7 +7,7 @@ import { createServer } from 'node:net';
 import { createServer as createHttpServer } from 'node:http';
 import { bindAvailablePort, findAvailablePort, probePort } from './port-finder.js';
 import { InstanceError } from '../errors.js';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 
 describe('probePort', () => {
   it('未占用端口 → true', async () => {

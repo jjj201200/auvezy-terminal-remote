@@ -35,7 +35,7 @@ import {
   XTERM_FONT_SIZE,
   RESIZE_THROTTLE_MS,
 } from '../config/constants.js';
-import { FONT_SIZE_MIN, FONT_SIZE_MAX } from '@auvezy/terminal-remote-shared';
+import { FONT_SIZE_MIN, FONT_SIZE_MAX } from 'auvezy-terminal-remote-shared';
 
 /**
  * xterm 显示偏好（来自 UserConfig.display）

@@ -20,7 +20,7 @@ import {
   loadConfig,
   shouldInjectSettings,
 } from './config.js';
-import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from '@auvezy/terminal-remote-shared';
+import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from 'auvezy-terminal-remote-shared';
 import type { ParsedCliArgs } from './cli-utils.js';
 
 describe('createClaudeSettings', () => {

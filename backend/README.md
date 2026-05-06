@@ -1,4 +1,4 @@
-# @auvezy/terminal-remote
+# auvezy-terminal-remote
 
 > 局域网内通过手机 / 平板浏览器远程控制 PC 上的任意终端程序（zsh / bash / claude / 任何 CLI）。
 >
@@ -19,7 +19,7 @@
 ## 安装
 
 ```bash
-npm install -g @auvezy/terminal-remote
+npm install -g auvezy-terminal-remote
 ```
 
 ## 使用

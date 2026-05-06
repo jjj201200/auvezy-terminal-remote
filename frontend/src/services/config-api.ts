@@ -8,7 +8,7 @@
  *    （后端虽然也会兜底，但前端组件常需要立刻读到默认值，无法等网络回来）
  */
 
-import type { UserConfig } from '@auvezy/terminal-remote-shared';
+import type { UserConfig } from 'auvezy-terminal-remote-shared';
 import { apiGet, apiPut, type ApiResult } from './api-client.js';
 
 interface ConfigEnvelope {

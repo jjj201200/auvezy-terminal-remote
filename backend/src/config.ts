@@ -42,7 +42,7 @@ import {
   ErrorCode,
   ensureDefaultUserConfig,
   type UserConfig,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import { ConfigError } from './errors.js';
 import { logger } from './logger/logger.js';
 import type { ParsedCliArgs } from './cli-utils.js';

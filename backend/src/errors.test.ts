@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import {
   AppError,
   AuthError,

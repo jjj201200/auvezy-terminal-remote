@@ -8,7 +8,7 @@
  */
 
 import type { JSX } from 'react';
-import type { SessionStatus } from '@auvezy/terminal-remote-shared';
+import type { SessionStatus } from 'auvezy-terminal-remote-shared';
 import type { ConnectionStatus } from '../../stores/app-store.js';
 import { Pill, type PillTone } from '../ui/Pill.js';
 import { useT } from '../../i18n/i18n-context.js';

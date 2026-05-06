@@ -18,7 +18,7 @@ import {
   InstanceRegistryManager,
   isPidAlive,
 } from './instance-registry.js';
-import type { InstanceInfo } from '@auvezy/terminal-remote-shared';
+import type { InstanceInfo } from 'auvezy-terminal-remote-shared';
 import { logger } from '../logger/logger.js';
 import {
   STOP_INSTANCE_GRACE_MS,

@@ -28,7 +28,7 @@ import {
   type ConfigurableCommand,
   type CommandGroupId,
   COMMAND_GROUPS,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import clsx from 'clsx';
 import { Toggle } from '../ui/Toggle.js';
 import { useDragReorder, type DropIndicator } from '../../hooks/useDragReorder.js';

@@ -8,7 +8,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { TOKEN_BYTES, SESSION_ID_BYTES } from '@auvezy/terminal-remote-shared';
+import { TOKEN_BYTES, SESSION_ID_BYTES } from 'auvezy-terminal-remote-shared';
 
 /** 生成认证 Token（64 hex 字符） */
 export function generateToken(): string {

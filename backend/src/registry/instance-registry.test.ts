@@ -10,7 +10,7 @@ import {
   InstanceRegistryManager,
   isPidAlive,
 } from './instance-registry.js';
-import type { InstanceInfo } from '@auvezy/terminal-remote-shared';
+import type { InstanceInfo } from 'auvezy-terminal-remote-shared';
 
 function fakeInfo(over: Partial<InstanceInfo> = {}): InstanceInfo {
   return {

@@ -26,7 +26,7 @@ import {
   REGISTRY_FILENAME,
   type InstanceInfo,
   type InstanceRegistry,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import { withFileLock } from '../utils/file-lock.js';
 import { atomicWriteJson } from '../utils/atomic-write.js';
 import { logger } from '../logger/logger.js';

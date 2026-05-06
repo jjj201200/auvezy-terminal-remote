@@ -49,20 +49,23 @@ docs/plans/<计划名>/
 
 ## 📦 包名与发布
 
-**项目命名空间**：`@auvezy` 是组织 scope（未来可扩展其它项目），
-本项目命名空间是 `@auvezy/terminal-remote-*`。
+**项目命名前缀**：所有包名以 `auvezy-` 开头（无 npm scope —— 早期尝试过
+`@auvezy/*` 但 npm 不允许新建该 organization；改用纯前缀绕过此限制，未来
+其它 auvezy 项目同样用 `auvezy-<project>-*` 前缀区分）。
+
+本项目下的命名空间：`auvezy-terminal-remote-*`。
 
 **workspace 包**（`pnpm-workspace.yaml`）：
-- `@auvezy/terminal-remote` — backend，**唯一发布到 npm 的包**（`bin: atr`）
-- `@auvezy/terminal-remote-shared` — 前后端共享类型/常量，`private: true`
-- `@auvezy/terminal-remote-frontend` — 前端 SPA，`private: true`
+- `auvezy-terminal-remote` — backend，**唯一发布到 npm 的包**（`bin: atr`）
+- `auvezy-terminal-remote-shared` — 前后端共享类型/常量，`private: true`
+- `auvezy-terminal-remote-frontend` — 前端 SPA，`private: true`
 
 **发布原则**：
-- 用户通过 `npm i -g @auvezy/terminal-remote` 一键安装
+- 用户通过 `npm i -g auvezy-terminal-remote` 一键安装
 - 内部 `-shared` / `-frontend` **从不发布**（已 `private: true`）
 - 发布前 `pnpm build` 会把 shared 内联进 backend bundle（`scripts/bundle-backend.js`）
 - frontend 编译产物 copy 到 `backend/frontend-dist/`，作为 backend 的静态资源
-- npm 包内**不应**出现 `@auvezy/terminal-remote-shared` 或 `@auvezy/terminal-remote-frontend`
+- npm 包内**不应**出现 `auvezy-terminal-remote-shared` 或 `auvezy-terminal-remote-frontend`
   作为 dependency（前者是 devDependencies workspace，后者根本不引用）
 
 **CLI 命令**：`atr`（不是 otr —— 旧名 OTR 已彻底替换为 ATR）

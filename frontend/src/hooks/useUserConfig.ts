@@ -16,7 +16,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   ensureDefaultUserConfig,
   type UserConfig,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import { fetchUserConfig, saveUserConfigRemote } from '../services/config-api.js';
 
 const LS_KEY = 'atr.userConfig.v1';

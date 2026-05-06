@@ -23,7 +23,7 @@
 
 import { mkdirSync, writeFileSync, readFileSync, rmSync, statSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { ErrorCode } from '@auvezy/terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import { LockError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 import {

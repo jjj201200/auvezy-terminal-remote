@@ -14,7 +14,7 @@ import {
   RECONNECT_MAX_ATTEMPTS_MIN,
   RECONNECT_MAX_ATTEMPTS_MAX,
   type NetworkPrefs,
-} from '@auvezy/terminal-remote-shared';
+} from 'auvezy-terminal-remote-shared';
 import { useT } from '../../i18n/i18n-context.js';
 import s from './DisplaySettings.module.scss';
 

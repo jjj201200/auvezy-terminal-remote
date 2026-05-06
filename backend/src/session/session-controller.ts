@@ -24,7 +24,7 @@
  */
 
 import type { WebSocket } from 'ws';
-import type { SessionStatus } from '@auvezy/terminal-remote-shared';
+import type { SessionStatus } from 'auvezy-terminal-remote-shared';
 import type { IPtyManager } from '../pty/types.js';
 import { PtyManager } from '../pty/pty-manager.js';
 import { OutputBuffer } from '../pty/output-buffer.js';

@@ -3,7 +3,7 @@
  * bundle-backend
  *
  * 把 backend ESM 多文件编译产物 bundle 成单文件 dist/cli.js，让 npm 发布时不依赖
- * @auvezy/terminal-remote-shared workspace 包（直接 inline 进 bundle）。
+ * auvezy-terminal-remote-shared workspace 包（直接 inline 进 bundle）。
  *
  * 调用时机：
  * - pnpm build 之后（即先 tsc -b 拿到 backend/dist 各 .js）
@@ -39,8 +39,9 @@ const outfile = resolve(backendRoot, 'dist', 'cli.bundle.js');
 // 真实运行时依赖，发布时 npm 会装；不要打进 bundle，避免重复 / native 失效
 const pkg = JSON.parse(readFileSync(resolve(backendRoot, 'package.json'), 'utf8'));
 const externals = Object.keys(pkg.dependencies ?? {})
-  // 只保留真实 npm 包，过滤掉 workspace:* 这种本地依赖（@auvezy/terminal-remote-shared 内联）
-  .filter((name) => !name.startsWith('@auvezy/'));
+  // 只保留真实 npm 包，过滤掉 workspace:* 这种本地依赖
+  // （auvezy-terminal-remote-shared / -frontend 都不发布，由 bundle 内联或 copy）
+  .filter((name) => !name.startsWith('auvezy-terminal-remote-'));
 
 // 临时入口：把 entry 的内容去掉 shebang 后写入 entry.tmp.js，bundle 完再 prepend shebang。
 // 原因：ESM 模式下 esbuild 把 shebang 当代码处理（不会自动剥），

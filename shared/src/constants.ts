@@ -62,7 +62,7 @@ export const MAX_WS_MESSAGE_SIZE = 1024 * 1024;
  * 用户数据目录（位于 ~ 之下，相对路径）
  *
  * 嵌套两层：~/.auvezy/terminal-remote/
- *  - .auvezy 是组织 scope 的 dotfile（未来 @auvezy 下别的工具也可挂在这里）
+ *  - .auvezy 是组织级 dotfile 目录（未来 auvezy 系列其它工具也可挂在这里）
  *  - terminal-remote 是本产品独占子目录
  *
  * `path.resolve(homedir(), ATR_DATA_DIR)` 会跨平台正确处理路径分隔符。
