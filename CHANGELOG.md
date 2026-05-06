@@ -5,6 +5,89 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-07
+
+本次重点解决移动端浏览器跑 Claude Code（React Ink TUI）的渲染稳定性 +
+多端共连同一实例时的尺寸主控冲突。同时清理 iOS 调起输入法的一系列连锁问题。
+
+### Fixed
+
+- **iOS 移动端键盘弹起触发的渲染错乱**（一系列连锁修复）：
+  - viewport meta 加 `interactive-widget=resizes-visual`（Chromium 系含
+    Android Chrome，iOS Chrome/Safari 由 JS 兜底）
+  - `useTerminal` resize 防抖三件套（参考 VS Code TerminalResizeDebouncer）：
+    入口去重 + 防抖 300ms + 键盘冻结
+  - 键盘弹起期跳过 `fitAddon.fit()`，xterm rows 维持原值，buffer 不抖
+  - `.xterm` 元素 absolute bottom:0 从底部锚定，溢出顶部裁切，光标行始终
+    贴键盘顶部（Blink/Termius 路线的 web 等价）
+  - InputBar / Toolbar 跟着 root padding-bottom 自然上推；不加 transition
+    避免键盘动画期 padding 滞后追赶
+  - `useViewportFix` 双路键盘高度推算：visualViewport 路径 + iOS WebKit
+    layout 缩小路径
+- **iOS 上 xterm helper-textarea 预测输入污染 PTY**：手动设
+  `autocomplete=off / autocorrect=off / autocapitalize=off / spellcheck=false`
+- **iOS 上 WebGL renderer 已知问题**（键盘期 GPU 限流到 30fps + sleep-resume
+  纹理 stale）：iOS 检测后跳过 `WebglAddon`，回退 DOM renderer
+- **直接输入模式（useInputBar=false）iOS 输入丢失**：xterm helper-textarea
+  在 iOS WebKit 上 input 事件不可靠（仅退格 keydown 有效）。新增
+  `DirectInputCapture` 自挂透明 textarea 接管输入，绕开 helper-textarea
+- **移动端键盘焦点闪烁** + 桌面焦点抢夺：终端区改用单一 `onClick` →
+  同步 focus InputBar / DirectInputCapture（在 user gesture 内 → iOS 软
+  键盘正常弹起）
+- **Claude Code (Ink) resize 后已渲染历史不 reflow**（架构限制）：
+  `pty-manager.ts` resize 路径加 double-pulse hack —— 先 resize(cols-1)
+  让 Ink 走 width-shrink 分支强制清屏，50ms 后 resize(cols) 回到目标尺寸。
+  alt-screen 内（vim/htop/tmux）和缩窄场景跳过此 hack。通过扫描 PTY 输出
+  的 DECSET 1049/1047/47 序列实时维护 `_inAltScreen` 标志
+- **`.terminalView` padding 双减导致最下方一行只渲染一半**：去掉 padding，
+  FitAddon `proposeDimensions` 用 parent 的 border-box height 减 `.xterm`
+  自身 padding（无），不会减 parent padding，结果会把 padding 算进可用 rows
+- **SearchBar 浮层遮挡终端**：从 absolute 改为 flex 普通项，open 时占行高
+  自然挤压 terminalWrap
+
+### Added
+
+- **多端共连主控（master）机制**：协议 `ResizeMessage` 加可选 `master?:
+  boolean`。SessionController 仲裁规则——master 声明最高优先级（覆盖客户端
+  类型仲裁），当前有主控且非自己则忽略 resize，主控连接断开自动释放。解决
+  PC 浏览器 ResizeObserver 反复发的宽 cols 覆盖手机的窄 cols 问题
+- **顶栏「适配当前设备」按钮**（IconArrowAutofitWidth）：active 实例可见时，
+  点击调用 `useTerminal.adaptToDevice()` —— fit + emit master=true，绕开
+  去重 / 防抖 / 键盘冻结，立即抢主控
+- **状态 pill 紧凑模式 + 点击弹说明 modal**：≤640px 窄屏下 Pill 仅显示圆点
+  （文字隐藏给读屏），节省顶栏空间。任一 pill 点击弹 ConfirmModal 解释当前
+  状态含义（每个状态有专门描述）
+- **设置面板「开发」tab**：
+  - eruda 调试浮层开关（屏幕角落注入 console / network / 元素，本地 storage
+    持久化）
+  - 控制台桥接（console-bridge）开关：把前端 console 输出经 WS 转到 backend
+    stderr，开发者可 `tail -f` 看；带设备 / 实例 tag 区分多端来源
+- **设置面板重构**：tab 顺序 常规 → 显示 → 快捷键 → 命令 → 网络 → 开发
+  （通知 tab 暂时隐藏）；新增「常规」tab 含语言切换 + 输入方式（底部输入栏 /
+  直接输入）
+- **直接输入模式（useInputBar=false）**：通过 `UserConfig.input.useInputBar`
+  持久化偏好，false 时隐藏 InputBar，xterm 直接接收键盘事件并实时透传 PTY
+- **Roadmap**：README 末尾补充按 ROI 排序的"值得抄"清单（基于成熟项目调研）
+
+### Changed
+
+- **InputBar 改为 textarea**：原生支持 IME composition / 中段编辑 / 方向键
+  原生光标移动（行编辑场景体验大幅提升）
+- **MobileInstanceSwitcher trigger 改透明按钮**：去边框 / 去背景，hover 背景
+  淡入 + active 缩放给交互反馈
+- **ScrollNavButtons 替换 ScrollToBottomButton**：方形主题 + 半透明背景
+  （`backdrop-filter: blur`）让用户能看到按钮下被遮挡的内容
+- **i18n 框架完善**：英文 / 中文双语 messages.ts 类型校验
+
+### Internal
+
+- 新增 backend `pty-manager.test.ts` double-pulse + alt-screen 检测测试
+  （+3 个用例）；新增 `config.test.ts` 配置相关补充测试
+- shared `ws-protocol.ts` 新增 `ClientLogMessage` 协议
+- backend `ws-handler` 新增 `client_log` 消息类型路由到 stderr
+- Gitee 仓库重命名 open-terminal-remote → auvezy-terminal-remote，git
+  remote URL 切换（之前依赖重定向）
+
 ## [0.3.1] - 2026-05-06
 
 ### Fixed
