@@ -190,7 +190,7 @@ export function ConsolePage(): JSX.Element {
       const k = e.key.toLowerCase();
       if ((e.metaKey || e.ctrlKey) && k === 'f') {
         e.preventDefault();
-        setSearchOpen(true);
+        setSearchOpen((v) => !v);
         return;
       }
       if ((e.metaKey || e.ctrlKey) && k === 'c' && !e.shiftKey) {
