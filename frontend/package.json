@@ -1,6 +1,6 @@
 {
   "name": "auvezy-terminal-remote-frontend",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "type": "module",
   "description": "Auvezy Terminal Remote 前端：React + Vite + xterm.js",

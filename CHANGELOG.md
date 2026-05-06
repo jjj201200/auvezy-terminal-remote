@@ -5,6 +5,14 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-05-07
+
+### Added
+
+- `detectDisplayIp` 在 banner 上方打印一行诊断输出（候选分组 + 最终选取的 IP），
+  方便诊断"为什么 displayIp 选了一个不该选的 IP"。可通过环境变量
+  `ATR_DEBUG_NETWORK=0` 关闭。
+
 ## [0.4.1] - 2026-05-07
 
 ### Fixed

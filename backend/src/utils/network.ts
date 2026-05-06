@@ -150,13 +150,23 @@ export function detectDisplayIp(hostHint?: string): string {
     }
   }
 
-  return (
+  const picked =
     tailscale[0] ??
     lanReal[0] ??
     lanVirtual[0] ??
     linkLocals[0] ??
-    '127.0.0.1'
-  );
+    '127.0.0.1';
+
+  // 临时诊断：写到 stderr，方便用户在 banner 上方看到候选分类
+  // 若误选 displayIp，能直接看出哪一类被错选了
+  if (process.env['ATR_DEBUG_NETWORK'] !== '0') {
+    process.stderr.write(
+      `[detectDisplayIp] tailscale=[${tailscale.join(',')}] lanReal=[${lanReal.join(',')}] ` +
+        `lanVirtual=[${lanVirtual.join(',')}] linkLocal=[${linkLocals.join(',')}] → picked=${picked}\n`,
+    );
+  }
+
+  return picked;
 }
 
 /**
