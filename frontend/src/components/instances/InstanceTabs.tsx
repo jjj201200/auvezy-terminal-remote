@@ -98,22 +98,41 @@ export function InstanceTabs({
   return (
     <nav id="instance-tabs" className={s.nav} aria-label={t('instance.instancesAriaLabel')}>
       {instances.map((i) => (
-        <button
-          key={i.instanceId}
-          type="button"
-          onClick={() => handleSwitch(i)}
-          onPointerDown={(e) => handlePointerDown(e, i)}
-          onPointerUp={cancelLongPress}
-          onPointerCancel={cancelLongPress}
-          onPointerLeave={cancelLongPress}
-          onContextMenu={(e) => handleContextMenu(e, i)}
-          title={`${i.cwd} · pid=${i.pid}`}
-          disabled={i.isCurrent}
-          className={clsx(s.tab, i.isCurrent && s.tabActive)}
-        >
-          <span>{i.name}</span>
-          <span className={s.tabPort}>:{i.port}</span>
-        </button>
+        <span key={i.instanceId} className={s.tabWrap}>
+          {/* 关闭按钮：放在 tab 名称前，当前服务进程禁用 */}
+          {onClose && !i.isCurrent && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!confirm(t('instance.closeConfirm', { name: i.name }))) return;
+                void onClose(i.instanceId).then((err) => {
+                  if (err) alert(`${t('instance.closeFailed')}: ${err}`);
+                });
+              }}
+              title={t('instance.close')}
+              aria-label={t('instance.close')}
+              className={s.tabClose}
+            >
+              <IconX size={10} stroke={1.5} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => handleSwitch(i)}
+            onPointerDown={(e) => handlePointerDown(e, i)}
+            onPointerUp={cancelLongPress}
+            onPointerCancel={cancelLongPress}
+            onPointerLeave={cancelLongPress}
+            onContextMenu={(e) => handleContextMenu(e, i)}
+            title={`${i.cwd} · pid=${i.pid}`}
+            disabled={i.isCurrent}
+            className={clsx(s.tab, i.isCurrent && s.tabActive)}
+          >
+            <span>{i.name}</span>
+            <span className={s.tabPort}>:{i.port}</span>
+          </button>
+        </span>
       ))}
       {pending.map((p) => (
         <button
@@ -145,29 +164,17 @@ export function InstanceTabs({
         <IconPlus size={12} stroke={1.5} />
       </button>
 
+      {/*
+        长按 / 右键菜单：基础设施保留以备未来扩展，目前菜单项为空。
+        关闭实例已下放到 tab 自身的 × 按钮，菜单不再承担此职责
+      */}
       {menuFor && (
         <div
           className={s.menu}
           style={{ left: menuFor.x, top: menuFor.y }}
           onPointerDown={(e) => e.stopPropagation()}
           role="menu"
-        >
-          <button
-            type="button"
-            className={s.menuItem}
-            disabled={!onClose || instances.find((i) => i.instanceId === menuFor.id)?.isCurrent}
-            onClick={async () => {
-              const id = menuFor.id;
-              setMenuFor(null);
-              if (!onClose) return;
-              const err = await onClose(id);
-              if (err) alert(`${t('instance.closeFailed')}: ${err}`);
-            }}
-          >
-            <IconX size={12} stroke={1.5} />
-            {t('instance.close')}
-          </button>
-        </div>
+        />
       )}
     </nav>
   );

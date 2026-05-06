@@ -136,3 +136,29 @@
     cursor: not-allowed;
   }
 }
+
+// 关闭按钮 + 主 tab 的容器：紧贴在一起
+.tabWrap {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tabClose {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 2px;
+  color: t.$fg-low;
+  border: 1px solid transparent;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover {
+    color: t.$warn;
+    border-color: t.$warn;
+    background: rgba(255, 99, 71, 0.08);
+  }
+}

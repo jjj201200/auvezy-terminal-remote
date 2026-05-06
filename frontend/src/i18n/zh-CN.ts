@@ -186,6 +186,7 @@ export const zhCN: Messages = {
     pendingNameless: '（无名称）',
     close: '关闭实例',
     closeFailed: '关闭失败',
+    closeConfirm: '关闭实例「{{name}}」？其 PTY 进程会被终止。',
   },
 
   push: {

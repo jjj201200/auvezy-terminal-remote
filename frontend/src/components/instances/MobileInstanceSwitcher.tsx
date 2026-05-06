@@ -6,7 +6,7 @@
  */
 
 import { useState, type JSX } from 'react';
-import { IconLayoutGrid, IconPlus } from '@tabler/icons-react';
+import { IconLayoutGrid, IconPlus, IconX } from '@tabler/icons-react';
 import type { InstanceListItem } from '@otr/shared';
 import clsx from 'clsx';
 import { Sheet } from '../ui/Sheet.js';
@@ -19,12 +19,15 @@ export interface MobileInstanceSwitcherProps {
   onCreateClick: () => void;
   /** 自定义切换：传了走本地切换；不传 fallback 到 location.assign */
   onSwitch?: (instanceId: string) => void;
+  /** 关闭实例 */
+  onClose?: (instanceId: string) => Promise<string | null>;
 }
 
 export function MobileInstanceSwitcher({
   instances,
   onCreateClick,
   onSwitch,
+  onClose,
 }: MobileInstanceSwitcherProps): JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -60,10 +63,17 @@ export function MobileInstanceSwitcher({
       <Sheet id="mobile-instance-sheet" open={open} onOpenChange={setOpen} title={t('instance.sheetTitle')}>
         <div className={s.list}>
           {instances.map((i) => (
-            <button
+            // 用 div 容器：button 不能嵌 button（关闭按钮在内部）
+            <div
               key={i.instanceId}
-              type="button"
+              role="button"
+              tabIndex={i.isCurrent ? -1 : 0}
               onClick={() => handleSwitch(i)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') handleSwitch(i);
+              }}
+              aria-pressed={i.isCurrent}
+              aria-disabled={i.isCurrent}
               className={clsx(s.item, i.isCurrent && s.itemActive)}
             >
               <div className={s.itemBody}>
@@ -71,7 +81,24 @@ export function MobileInstanceSwitcher({
                 <span className={s.itemCwd}>{i.cwd}</span>
               </div>
               <span className={s.itemPort}>:{i.port}</span>
-            </button>
+              {onClose && !i.isCurrent && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!confirm(t('instance.closeConfirm', { name: i.name }))) return;
+                    void onClose(i.instanceId).then((err) => {
+                      if (err) alert(`${t('instance.closeFailed')}: ${err}`);
+                    });
+                  }}
+                  aria-label={t('instance.close')}
+                  title={t('instance.close')}
+                  className={s.itemClose}
+                >
+                  <IconX size={12} stroke={1.5} />
+                </button>
+              )}
+            </div>
           ))}
           <button
             type="button"

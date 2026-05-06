@@ -193,6 +193,7 @@ export const en: Messages = {
     pendingNameless: '(unnamed)',
     close: 'Close instance',
     closeFailed: 'Close failed',
+    closeConfirm: 'Close instance "{{name}}"? Its PTY process will be terminated.',
   },
 
   push: {

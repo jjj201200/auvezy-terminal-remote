@@ -137,6 +137,7 @@ export function MultiInstanceConsole(): JSX.Element {
               instances={tabsInstances}
               onCreateClick={() => setCreateOpen(true)}
               onSwitch={handleSwitch}
+              onClose={removeInstance}
             />
           ) : (
             <InstanceTabs

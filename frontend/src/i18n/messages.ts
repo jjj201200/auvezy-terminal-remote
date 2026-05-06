@@ -217,6 +217,7 @@ export interface Messages {
     pendingNameless: string;
     close: string;
     closeFailed: string;
+    closeConfirm: string; // {{name}} 实例名
   };
 
   // 设置 - 通知（PushToggle）

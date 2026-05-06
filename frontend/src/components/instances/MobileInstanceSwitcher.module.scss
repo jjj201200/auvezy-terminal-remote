@@ -96,3 +96,23 @@
     background: t.$accent-soft;
   }
 }
+
+.itemClose {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 8px;
+  color: t.$fg-low;
+  border: 1px solid t.$border;
+  flex-shrink: 0;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover, &:active {
+    color: t.$warn;
+    border-color: t.$warn;
+    background: rgba(255, 99, 71, 0.08);
+  }
+}
