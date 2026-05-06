@@ -55,6 +55,7 @@ export interface InstanceViewHandle {
 }
 
 export function InstanceView({
+  instanceId,
   wsUrl,
   config,
   active,
@@ -201,8 +202,8 @@ export function InstanceView({
 
   return (
     <div
-      id="console-page"
-      className={s.root}
+      id={`instance-view-${instanceId}`}
+      className={s.instanceContent}
       style={{ display: active ? 'flex' : 'none' }}
       aria-hidden={!active}
     >

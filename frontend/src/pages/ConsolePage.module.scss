@@ -17,6 +17,16 @@
   transition: padding-top 0.18s ease-out, padding-bottom 0.18s ease-out;
 }
 
+// InstanceView 的内容容器：不再用 fixed 全屏（那会盖住 MultiInstanceConsole 的 header），
+// 而是作为 .root 内的 flex 项填充剩余空间
+.instanceContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .header {
   flex-shrink: 0;
   @include m.row-flex(t.$bar-gap);
