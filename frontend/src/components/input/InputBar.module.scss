@@ -12,13 +12,22 @@
   @include m.safe-bottom(t.$bar-pad);
 }
 
-.input {
+// input + 内嵌清空按钮的容器：撑满 form 剩余空间，让按钮绝对定位在右内侧
+.inputWrap {
+  position: relative;
   flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+}
+
+.input {
+  width: 100%;
   min-width: 0;
   border: 1px solid t.$border;
   background: t.$bg-input;
   color: t.$fg;
-  padding: t.$sp-0 t.$sp-3;
+  // 右内侧留出空间给 × 按钮（即使 value 为空也留着，避免布局抖动）
+  padding: t.$sp-0 28px t.$sp-0 t.$sp-3;
   font-family: t.$font-mono;
   font-size: t.$fs-sm;
   outline: none;
@@ -41,5 +50,29 @@
 
   &:disabled {
     opacity: 0.5;
+  }
+}
+
+.clearBtn {
+  appearance: none;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: t.$fg-low;
+  cursor: pointer;
+  border-radius: 2px;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    background: t.$bg-hover;
   }
 }

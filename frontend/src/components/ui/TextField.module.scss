@@ -52,6 +52,41 @@
   color: t.$fg-low;
 }
 
+// 清空按钮容器：让 input 与 × 按钮共占同一行；按钮绝对定位在 input 右内侧
+.inputWrap {
+  position: relative;
+  display: flex;
+}
+
+// input 有清空按钮时右侧让出空间
+.hasClear {
+  padding-right: 32px;
+}
+
+.clearBtn {
+  appearance: none;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: t.$fg-low;
+  cursor: pointer;
+  border-radius: 2px;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    background: t.$bg-hover;
+  }
+}
+
 .error {
   font-size: t.$fs-xs;
   color: t.$alarm;

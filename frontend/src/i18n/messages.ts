@@ -39,6 +39,7 @@ export interface Messages {
     no: string;
     auto: string;
     custom: string;
+    clear: string;
   };
 
   // 加载页 / 通用状态
@@ -303,6 +304,8 @@ export interface Messages {
     scrollLeft: string;
     scrollRight: string;
     showButtonList: string;
+    clearConfirmTitle: string;
+    clearConfirmBody: string;
   };
 
   // 创建实例

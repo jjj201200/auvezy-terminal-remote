@@ -147,6 +147,10 @@ export function CreateInstanceModal({
               value={cwd}
               mono
               onChange={(e) => setCwd(e.target.value)}
+              onClear={() => {
+                setCwd('');
+                cwdRef.current?.focus();
+              }}
               onFocus={() => setShowRecent(true)}
               onBlur={handleCwdBlur}
               onKeyDown={handleCwdKeyDown}
@@ -219,6 +223,10 @@ export function CreateInstanceModal({
             value={name}
             mono
             onChange={(e) => setName(e.target.value)}
+            onClear={() => {
+              setName('');
+              nameRef.current?.focus();
+            }}
             onKeyDown={handleNameKeyDown}
             autoComplete="off"
             autoCorrect="off"

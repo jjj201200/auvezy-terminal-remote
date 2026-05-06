@@ -11,11 +11,13 @@
 import {
   forwardRef,
   useCallback,
+  useState,
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { IconSend, IconSettings } from '@tabler/icons-react';
+import { IconSend, IconSettings, IconX } from '@tabler/icons-react';
 import { IconButton } from '../ui/IconButton.js';
+import { ConfirmModal } from '../ui/ConfirmModal.js';
 import { useT } from '../../i18n/i18n-context.js';
 import s from './InputBar.module.scss';
 
@@ -43,12 +45,24 @@ export const InputBar = forwardRef<HTMLInputElement, InputBarProps>(function Inp
   onOpenSettings,
 }, ref) {
   const t = useT();
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const send = useCallback((): void => {
     if (disabled) return;
     const data = value + '\r';
     if (value.length === 0) return;
     if (onSubmit(data)) onChange('');
   }, [value, disabled, onSubmit, onChange]);
+
+  // 阈值：少于 N 字符直接清，避免每次都打断；多了才二次确认
+  const CLEAR_CONFIRM_THRESHOLD = 10;
+  const handleClear = useCallback((): void => {
+    if (value.length === 0) return;
+    if (value.length < CLEAR_CONFIRM_THRESHOLD) {
+      onChange('');
+      return;
+    }
+    setConfirmClearOpen(true);
+  }, [value, onChange]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -69,34 +83,65 @@ export const InputBar = forwardRef<HTMLInputElement, InputBarProps>(function Inp
   );
 
   return (
-    <form id="input-bar" onSubmit={onFormSubmit} className={s.form}>
-      <input
-        ref={ref}
-        type="text"
-        placeholder={disabled ? t('input.placeholderDisabled') : t('input.placeholder')}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck={false}
-        className={s.input}
-      />
-      <IconButton
-        type="submit"
-        variant="accent"
-        disabled={disabled || value.length === 0}
-        aria-label={t('input.sendTooltip')}
-      >
-        <IconSend size={14} stroke={1.5} />
-      </IconButton>
-      {onOpenSettings && (
-        <IconButton onClick={onOpenSettings} aria-label={t('topBar.settings')} title={t('topBar.settingsTooltip')}>
-          <IconSettings size={14} stroke={1.5} />
+    <>
+      <form id="input-bar" onSubmit={onFormSubmit} className={s.form}>
+        <div className={s.inputWrap}>
+          <input
+            ref={ref}
+            type="text"
+            placeholder={disabled ? t('input.placeholderDisabled') : t('input.placeholder')}
+            value={value}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            className={s.input}
+          />
+          {!disabled && value.length > 0 && (
+            <button
+              type="button"
+              // 阻止默认避免按下时 input 失焦闪烁
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleClear}
+              aria-label={t('common.clear')}
+              title={t('common.clear')}
+              className={s.clearBtn}
+            >
+              <IconX size={12} stroke={1.5} />
+            </button>
+          )}
+        </div>
+        <IconButton
+          type="submit"
+          variant="accent"
+          disabled={disabled || value.length === 0}
+          aria-label={t('input.sendTooltip')}
+        >
+          <IconSend size={14} stroke={1.5} />
         </IconButton>
+        {onOpenSettings && (
+          <IconButton onClick={onOpenSettings} aria-label={t('topBar.settings')} title={t('topBar.settingsTooltip')}>
+            <IconSettings size={14} stroke={1.5} />
+          </IconButton>
+        )}
+      </form>
+      {confirmClearOpen && (
+        <ConfirmModal
+          open
+          title={t('input.clearConfirmTitle')}
+          message={t('input.clearConfirmBody')}
+          confirmTone="danger"
+          confirmLabel={t('common.clear')}
+          onConfirm={() => {
+            onChange('');
+            setConfirmClearOpen(false);
+          }}
+          onClose={() => setConfirmClearOpen(false)}
+        />
       )}
-    </form>
+    </>
   );
 });

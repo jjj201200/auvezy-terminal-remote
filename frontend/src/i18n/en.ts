@@ -24,6 +24,7 @@ export const en: Messages = {
     no: 'No',
     auto: 'Auto',
     custom: 'Custom',
+    clear: 'Clear',
   },
 
   app: {
@@ -276,6 +277,8 @@ export const en: Messages = {
     scrollLeft: 'Scroll left',
     scrollRight: 'Scroll right',
     showButtonList: 'Show button list',
+    clearConfirmTitle: 'Clear input',
+    clearConfirmBody: 'Clear the current input? This cannot be undone.',
   },
 
   createInstance: {

@@ -19,6 +19,7 @@ export const zhCN: Messages = {
     no: '否',
     auto: '自动',
     custom: '自定义',
+    clear: '清空',
   },
 
   app: {
@@ -268,6 +269,8 @@ export const zhCN: Messages = {
     scrollLeft: '向左滚动',
     scrollRight: '向右滚动',
     showButtonList: '显示按钮列表',
+    clearConfirmTitle: '清空输入',
+    clearConfirmBody: '确认清空当前输入框？此操作无法撤销。',
   },
 
   createInstance: {
