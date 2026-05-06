@@ -219,6 +219,8 @@ export interface Messages {
     closeFailed: string;
     closeConfirm: string; // {{name}} 实例名
     closeCurrentBlocked: string;
+    closeCurrentLast: string;
+    closeCurrentConfirm: string; // {{name}}
   };
 
   // 设置 - 通知（PushToggle）

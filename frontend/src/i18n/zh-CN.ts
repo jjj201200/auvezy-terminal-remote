@@ -188,6 +188,8 @@ export const zhCN: Messages = {
     closeFailed: '关闭失败',
     closeConfirm: '关闭实例「{{name}}」？其 PTY 进程会被终止。',
     closeCurrentBlocked: '不能关闭当前 webapp 所在的实例（会让全部客户端断开）。请用 CLI (otr stop) 或直接 kill 进程。',
+    closeCurrentLast: '不能关闭唯一的实例 —— 请先创建另一个。',
+    closeCurrentConfirm: '关闭实例「{{name}}」？将会先跳到另一个实例后再终止它。正在连接此实例的其他设备会被踢下线。',
   },
 
   push: {

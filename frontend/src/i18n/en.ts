@@ -195,6 +195,8 @@ export const en: Messages = {
     closeFailed: 'Close failed',
     closeConfirm: 'Close instance "{{name}}"? Its PTY process will be terminated.',
     closeCurrentBlocked: 'Cannot close the instance serving this webapp — it would disconnect everything. Use CLI (otr stop) or kill the process directly.',
+    closeCurrentLast: 'Cannot close the only instance — create another one first.',
+    closeCurrentConfirm: 'Close instance "{{name}}"? You will be redirected to another instance, then it will be terminated. Other devices connected to this instance will be disconnected.',
   },
 
   push: {

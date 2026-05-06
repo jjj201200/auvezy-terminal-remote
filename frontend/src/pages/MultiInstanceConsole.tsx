@@ -60,6 +60,27 @@ export function MultiInstanceConsole(): JSX.Element {
     [rawRemoveInstance, instances],
   );
 
+  // killAfterSwitch：用户从老 isCurrent 实例 × 跳转过来时，URL 上带的老 instanceId。
+  // 这边新前端 mount 后立即 DELETE 它，并清掉 URL 参数。
+  // useAuth 已经处理了 URL ?token= 自动登录，这里只管 kill 那一步
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const killId = params.get('killAfterSwitch');
+    if (!killId) return;
+    // 立刻清 URL 防止刷新重复执行
+    params.delete('killAfterSwitch');
+    const newSearch = params.toString();
+    const newUrl =
+      window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+    window.history.replaceState(null, '', newUrl);
+    void rawRemoveInstance(killId).then((err) => {
+      if (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[killAfterSwitch] DELETE failed', { killId, err });
+      }
+    });
+  }, [rawRemoveInstance]);
+
   // 共享 modal 开关
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);

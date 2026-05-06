@@ -104,11 +104,23 @@ export function InstanceTabs({
 
   const handleCloseClick = (i: InstanceListItem): void => {
     if (!onClose) return;
-    // isCurrent = serve 这个 webapp 的进程；关掉它整个 webapp 都会 down，
-    // 后端也会拒绝（DELETE 路由对 currentInstanceId 直接 400）。
-    // 给一个明显的提示告诉用户为什么不行
+    // isCurrent = serve 这个 webapp 的进程。关它会让本设备的整个 webapp 立刻
+    // "失去地基"（刷新就 404）+ 把其他正连这个 origin 的设备一并踢下线。
+    //
+    // 流程：先跳到另一个实例的 origin（带 token），新前端 mount 时通过
+    // ?killAfterSwitch=<oldId> query 发 DELETE 关掉老 isCurrent。
     if (i.isCurrent) {
-      alert(t('instance.closeCurrentBlocked'));
+      const others = instances.filter((x) => x.instanceId !== i.instanceId);
+      if (others.length === 0) {
+        alert(t('instance.closeCurrentLast'));
+        return;
+      }
+      if (!confirm(t('instance.closeCurrentConfirm', { name: i.name }))) return;
+      // 选一个目标实例（优先非 pending 的，第一个即可）
+      const target = others[0]!;
+      const url = new URL(buildInstanceUrl(target.host, target.port), window.location.href);
+      url.searchParams.set('killAfterSwitch', i.instanceId);
+      window.location.assign(url.toString());
       return;
     }
     if (!confirm(t('instance.closeConfirm', { name: i.name }))) return;

@@ -81,11 +81,27 @@ export function MobileInstanceSwitcher({
                 <span className={s.itemCwd}>{i.cwd}</span>
               </div>
               <span className={s.itemPort}>:{i.port}</span>
-              {onClose && !i.isCurrent && (
+              {onClose && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (i.isCurrent) {
+                      const others = instances.filter((x) => x.instanceId !== i.instanceId);
+                      if (others.length === 0) {
+                        alert(t('instance.closeCurrentLast'));
+                        return;
+                      }
+                      if (!confirm(t('instance.closeCurrentConfirm', { name: i.name }))) return;
+                      const target = others[0]!;
+                      const url = new URL(
+                        buildInstanceUrl(target.host, target.port),
+                        window.location.href,
+                      );
+                      url.searchParams.set('killAfterSwitch', i.instanceId);
+                      window.location.assign(url.toString());
+                      return;
+                    }
                     if (!confirm(t('instance.closeConfirm', { name: i.name }))) return;
                     void onClose(i.instanceId).then((err) => {
                       if (err) alert(`${t('instance.closeFailed')}: ${err}`);
