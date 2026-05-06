@@ -266,4 +266,12 @@ export const zhCN: Messages = {
     prev: '上一处',
     close: '关闭 (Esc)',
   },
+
+  pwa: {
+    installTitle: '安装 OTR',
+    installBody: '添加到主屏后可全屏使用，体验更接近原生应用。',
+    installAction: '安装',
+    updateReady: '新版本已就绪',
+    updateApply: '立即更新',
+  },
 };

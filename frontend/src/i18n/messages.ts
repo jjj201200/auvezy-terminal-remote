@@ -304,6 +304,15 @@ export interface Messages {
     prev: string;
     close: string;
   };
+
+  // PWA：安装 / 更新提示
+  pwa: {
+    installTitle: string;
+    installBody: string;
+    installAction: string;
+    updateReady: string;
+    updateApply: string;
+  };
 }
 
 /** 模板变量替换：'a {{x}} b' + { x: 1 } → 'a 1 b' */

@@ -102,7 +102,8 @@ export function usePushNotification(): UsePushNotificationResult {
     if (!isPushSupported()) return;
     (async (): Promise<void> => {
       try {
-        const reg = await navigator.serviceWorker.register('/service-worker.js');
+        // SW 现在由 src/pwa/register-sw.ts 统一注册，这里只取已 ready 的 registration
+        const reg = await navigator.serviceWorker.ready;
         const existing = await reg.pushManager.getSubscription();
         const perm = Notification.permission;
         if (perm === 'denied') setStatus('denied');

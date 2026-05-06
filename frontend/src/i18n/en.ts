@@ -274,4 +274,12 @@ export const en: Messages = {
     prev: 'Previous match',
     close: 'Close (Esc)',
   },
+
+  pwa: {
+    installTitle: 'Install OTR',
+    installBody: 'Add to home screen for a fullscreen, app-like experience.',
+    installAction: 'Install',
+    updateReady: 'New version ready',
+    updateApply: 'Reload',
+  },
 };

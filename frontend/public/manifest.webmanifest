@@ -9,12 +9,31 @@
   "theme_color": "#0e120e",
   "background_color": "#0e120e",
   "lang": "zh-CN",
+  "categories": ["productivity", "developer", "utilities"],
   "icons": [
+    {
+      "src": "/icons/otr-icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/otr-icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/otr-icon-512-maskable.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    },
     {
       "src": "/icons/otr-icon.svg",
       "type": "image/svg+xml",
       "sizes": "any",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

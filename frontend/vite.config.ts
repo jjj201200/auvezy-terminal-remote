@@ -11,11 +11,32 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 const includeDesign = process.env.INCLUDE_DESIGN === '1';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // PWA：injectManifest 模式——我们写自己的 src/sw.ts，让 vite-plugin-pwa
+    // 把预缓存清单注入到 self.__WB_MANIFEST。manifest 仍走 public/manifest.webmanifest
+    // （我们已有完整文件，禁用 plugin 的 manifest 生成）
+    VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectRegister: false, // main.tsx 自己注册，方便加更新提示
+      manifest: false, // 用 public/manifest.webmanifest（不让 plugin 重写）
+      injectManifest: {
+        // xterm 的 unicode 表 + WebGL shader 一个文件就 2MB，放宽预缓存大小限制
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      },
+      devOptions: {
+        // dev 模式不启用 SW（HMR 跟 SW 缓存冲突）
+        enabled: false,
+      },
+    }),
+  ],
   css: {
     modules: {
       // CSS Modules 类名生成：开发期可读 + 生产期短哈希
