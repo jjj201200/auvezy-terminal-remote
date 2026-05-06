@@ -195,21 +195,8 @@ MIT
 
 看了下当前状态，几个值得做的方向（按价值/成本排序）：
 
-短期高价值
-
-1. commit 累积的改动 — 自 v0.3.0 后已有大量未提交：display 设置 tab、i18n 框架、Sheet/HScroller 抽象、移动端键盘焦点修复、终端配色调整、按钮 preventDefault 修复。该攒一波 commit 了。
-2. 发布 v0.3.1 / v0.3.2 — 上述这些改动对用户都是直接体感，特别是移动端键盘修复 + i18n。
-
-中期
-
-3. 跨标签页 / 多端同步 — 目前每个浏览器标签独立连 WS，多端打开不会互相感知。可以加一个"已连接客户端"指示，或主动推 client_count。
-4. 断线重连体验 — 看 useWebSocket 是否有指数退避 + 用户可见的"正在重连"提示。手机切网（WiFi→4G）是常见场景。
-5. 终端搜索 — xterm 有 xterm-addon-search，加 Cmd+F 搜索历史输出，开发者刚需。
-6. 复制选中文本 — 移动端长按选词 + 复制按钮，桌面 Ctrl+C 复制选区（不冲突 SIGINT，因为 stdin 走 InputBar）。
-
 偏长期
 
-7. PWA / 离线 shell — service-worker 已存在，但应该确认安装到主屏后的体验，加个 manifest icon set。
 8. 会话录制 / 回放 — 把 PTY output 流存成 asciinema 格式，离线回看。
 9. 多窗格 / tmux 风格分屏 — 一个实例内开多个 PTY，前端做拆分布局。
 
