@@ -322,8 +322,12 @@ export function useTerminal(
       /* canvas renderer 是默认 fallback */
     }
 
-    fitAddon.fit();
-    // 等布局稳定后做首次 resize 上报
+    // 容器可能 hidden（多实例下非 active 实例 display:none），fit 抛异常 → 让 ResizeObserver 兜底
+    try {
+      fitAddon.fit();
+    } catch {
+      /* 容器尺寸为 0：等切到可见时 ResizeObserver 自愈 */
+    }
     requestAnimationFrame(() => {
       if (termRef.current) emitResize(term.cols, term.rows);
     });

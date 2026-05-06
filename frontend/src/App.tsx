@@ -12,7 +12,7 @@ import { useAuth } from './hooks/useAuth.js';
 import { useViewportFix } from './hooks/useViewportFix.js';
 import { useT } from './i18n/i18n-context.js';
 import { AuthPage } from './pages/AuthPage.js';
-import { ConsolePage } from './pages/ConsolePage.js';
+import { MultiInstanceConsole } from './pages/MultiInstanceConsole.js';
 import { UpdateToast } from './pwa/UpdateToast.js';
 import { InstallPrompt } from './pwa/InstallPrompt.js';
 import s from './App.module.scss';
@@ -33,7 +33,7 @@ export function App(): JSX.Element {
 
   return (
     <>
-      {status === 'unauthenticated' ? <AuthPage onLogin={login} /> : <ConsolePage />}
+      {status === 'unauthenticated' ? <AuthPage onLogin={login} /> : <MultiInstanceConsole />}
       <UpdateToast />
       <InstallPrompt />
     </>

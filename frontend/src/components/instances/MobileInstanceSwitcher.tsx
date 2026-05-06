@@ -11,16 +11,20 @@ import type { InstanceListItem } from '@otr/shared';
 import clsx from 'clsx';
 import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
+import { buildInstanceUrl } from '../../services/instance-url.js';
 import s from './MobileInstanceSwitcher.module.scss';
 
 export interface MobileInstanceSwitcherProps {
   instances: InstanceListItem[];
   onCreateClick: () => void;
+  /** 自定义切换：传了走本地切换；不传 fallback 到 location.assign */
+  onSwitch?: (instanceId: string) => void;
 }
 
 export function MobileInstanceSwitcher({
   instances,
   onCreateClick,
+  onSwitch,
 }: MobileInstanceSwitcherProps): JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -31,7 +35,12 @@ export function MobileInstanceSwitcher({
       setOpen(false);
       return;
     }
-    window.location.assign(`http://${i.host}:${i.port}/`);
+    if (onSwitch) {
+      onSwitch(i.instanceId);
+      setOpen(false);
+      return;
+    }
+    window.location.assign(buildInstanceUrl(i.host, i.port));
   };
 
   return (

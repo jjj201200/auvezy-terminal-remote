@@ -19,8 +19,9 @@
  * - dispose 时自增 token 让所有在飞回调静默失败
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import type { ServerMessage, ClientMessage } from '@otr/shared';
+import type { ConnectionStatus } from '../stores/app-store.js';
 import { useAppStore } from '../stores/app-store.js';
 import { WS_RECONNECT_DELAYS_MS, WS_RECONNECT_MAX_ATTEMPTS } from '../config/constants.js';
 
@@ -31,6 +32,8 @@ export interface UseWebSocketReturn {
   disconnect: () => void;
   /** 发送一条消息；OPEN 才发，非 OPEN 返回 false */
   send: (msg: ClientMessage) => boolean;
+  /** 当前连接状态（hook 内部管理，多实例下每个 hook 独立） */
+  connectionStatus: ConnectionStatus;
 }
 
 /**
@@ -57,10 +60,19 @@ export function useWebSocket(
   const maxAttemptsRef = useRef(maxAttempts ?? WS_RECONNECT_MAX_ATTEMPTS);
   maxAttemptsRef.current = maxAttempts ?? WS_RECONNECT_MAX_ATTEMPTS;
 
-  // store setter（zustand 的 setter 是稳定引用，不会触发 re-render）
-  const setConnectionStatus = useAppStore((s) => s.setConnectionStatus);
-  const setConnectionStatusRef = useRef(setConnectionStatus);
-  setConnectionStatusRef.current = setConnectionStatus;
+  // 连接状态：hook 内部 useState，每个实例 hook 独立
+  // 同时仍写全局 store（向后兼容：尚未迁移到 InstanceView 的页面用 store）。
+  // 多实例时全局 store 反映的是最后一个 mount 的实例，仅作 fallback
+  const [connectionStatus, setLocalConnectionStatus] = useState<ConnectionStatus>('connecting');
+  const setStoreConnectionStatus = useAppStore((s) => s.setConnectionStatus);
+  const setConnectionStatusRef = useRef((s: ConnectionStatus): void => {
+    setLocalConnectionStatus(s);
+    setStoreConnectionStatus(s);
+  });
+  setConnectionStatusRef.current = (s: ConnectionStatus): void => {
+    setLocalConnectionStatus(s);
+    setStoreConnectionStatus(s);
+  };
 
   /** 只让 connectRef 持有最新 connect 函数（避免依赖循环） */
   const connectRef = useRef<(() => void) | null>(null);
@@ -228,5 +240,5 @@ export function useWebSocket(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsUrl]);
 
-  return { connect, disconnect, send };
+  return { connect, disconnect, send, connectionStatus };
 }

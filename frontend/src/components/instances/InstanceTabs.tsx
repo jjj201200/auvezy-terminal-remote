@@ -10,18 +10,28 @@ import { IconPlus } from '@tabler/icons-react';
 import type { InstanceListItem } from '@otr/shared';
 import clsx from 'clsx';
 import { useT } from '../../i18n/i18n-context.js';
+import { buildInstanceUrl } from '../../services/instance-url.js';
 import s from './InstanceTabs.module.scss';
 
 export interface InstanceTabsProps {
   instances: InstanceListItem[];
   onCreateClick: () => void;
+  /**
+   * 自定义切换：传了就用本地切换（多实例同页内切显示），
+   * 不传则 fallback 到 location.assign（跨页跳转）
+   */
+  onSwitch?: (instanceId: string) => void;
 }
 
-export function InstanceTabs({ instances, onCreateClick }: InstanceTabsProps): JSX.Element {
+export function InstanceTabs({ instances, onCreateClick, onSwitch }: InstanceTabsProps): JSX.Element {
   const t = useT();
   const handleSwitch = (i: InstanceListItem): void => {
     if (i.isCurrent) return;
-    window.location.assign(`http://${i.host}:${i.port}/`);
+    if (onSwitch) {
+      onSwitch(i.instanceId);
+      return;
+    }
+    window.location.assign(buildInstanceUrl(i.host, i.port));
   };
 
   return (
