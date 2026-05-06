@@ -24,6 +24,7 @@ import type { ServerMessage, ClientMessage } from 'auvezy-terminal-remote-shared
 import type { ConnectionStatus } from '../stores/app-store.js';
 import { useAppStore } from '../stores/app-store.js';
 import { WS_RECONNECT_DELAYS_MS, WS_RECONNECT_MAX_ATTEMPTS } from '../config/constants.js';
+import { setConsoleBridgeSender } from '../utils/console-bridge.js';
 
 export interface UseWebSocketReturn {
   /** 立即发起连接（首次 mount 自动调用一次） */
@@ -133,6 +134,13 @@ export function useWebSocket(
       if (isDisposedRef.current || myToken !== connectionTokenRef.current || wsRef.current !== ws) return;
       setConnectionStatusRef.current('connected');
       reconnectAttemptRef.current = 0;
+      // console-bridge：注册 sender（仅在用户开启 bridge 时 install 过的话才有效）
+      // 这里无条件注册无副作用——bridge 没 install 时这个 sender 不会被调用
+      setConsoleBridgeSender((msg) => {
+        if (ws.readyState !== WebSocket.OPEN) return false;
+        ws.send(JSON.stringify(msg));
+        return true;
+      });
     };
 
     ws.onmessage = (event: MessageEvent<string>) => {
@@ -149,6 +157,8 @@ export function useWebSocket(
       if (isDisposedRef.current || myToken !== connectionTokenRef.current || wsRef.current !== ws) return;
       wsRef.current = null;
       setConnectionStatusRef.current('disconnected');
+      // bridge sender 失效，让 bridge 把后续日志暂存 buffer 等下次 OPEN
+      setConsoleBridgeSender(null);
       scheduleReconnect(myToken);
     };
 

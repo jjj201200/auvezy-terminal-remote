@@ -11,15 +11,30 @@ import { App } from './App.js';
 import { I18nProvider } from './i18n/i18n-context.js';
 import './styles/global.scss';
 
-// 移动端调试浮层（eruda）：默认关闭，可在「设置 → 开发」里打开。
-// 也支持 ?eruda=1 临时开启（不写入 localStorage）
-// iOS 上没法用 chrome://inspect 也没法连 macOS Safari 时，靠它看 console
+// 移动端调试：eruda（屏幕浮层）+ console-bridge（转发到 backend）
+// 都默认关闭，可在「设置 → 开发」里打开（也支持 ?eruda=1 / ?consolebridge=1）
+//
+// 顺序很重要：必须先 eruda init 后 install bridge。两者都通过 `console[lv] = ...`
+// 拦截输出，后 install 的会覆盖前一个。bridge 在外层（最后 install），它的封装
+// 内部调用 orig（eruda 的封装）→ orig 又调用真正的 console 原函数，eruda 仍能
+// 看到所有日志。反过来 eruda 在 bridge 之外则会覆盖 bridge → bridge 失效
 const ERUDA_KEY = 'atr.devtools.eruda';
-const erudaQuery = new URLSearchParams(location.search).get('eruda');
-const erudaEnabled = erudaQuery === '1' || localStorage.getItem(ERUDA_KEY) === '1';
-if (erudaEnabled) {
-  void import('eruda').then(({ default: eruda }) => eruda.init());
+const CB_KEY = 'atr.devtools.consoleBridge';
+const params = new URLSearchParams(location.search);
+const erudaEnabled = params.get('eruda') === '1' || localStorage.getItem(ERUDA_KEY) === '1';
+const cbEnabled = params.get('consolebridge') === '1' || localStorage.getItem(CB_KEY) === '1';
+
+async function setupDevTools(): Promise<void> {
+  if (erudaEnabled) {
+    const { default: eruda } = await import('eruda');
+    eruda.init();
+  }
+  if (cbEnabled) {
+    const { installConsoleBridge } = await import('./utils/console-bridge.js');
+    installConsoleBridge();
+  }
 }
+void setupDevTools();
 
 const container = document.getElementById('app');
 if (!container) {
