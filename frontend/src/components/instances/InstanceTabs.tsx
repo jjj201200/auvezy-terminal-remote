@@ -32,6 +32,12 @@ export interface InstanceTabsProps {
 
 const LONG_PRESS_MS = 500;
 
+/**
+ * 长按 / 右键菜单总开关。当前菜单为空 → 整个机制禁用，长按和右键都不响应。
+ * 未来如果加了菜单项（比如"重启实例" / "复制 URL"），改回 true 即可。
+ */
+const MENU_ENABLED = false;
+
 export function InstanceTabs({
   instances,
   pending = [],
@@ -79,6 +85,7 @@ export function InstanceTabs({
   };
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLButtonElement>, i: InstanceListItem): void => {
+    if (!MENU_ENABLED) return;
     longPressFiredRef.current = false;
     cancelLongPress();
     const x = e.clientX;
@@ -90,7 +97,7 @@ export function InstanceTabs({
   };
 
   const handleContextMenu = (e: React.MouseEvent<HTMLButtonElement>, i: InstanceListItem): void => {
-    // 桌面右键 = 直接弹菜单（无需等长按）
+    if (!MENU_ENABLED) return;
     e.preventDefault();
     setMenuFor({ id: i.instanceId, x: e.clientX, y: e.clientY });
   };
@@ -165,10 +172,10 @@ export function InstanceTabs({
       </button>
 
       {/*
-        长按 / 右键菜单：基础设施保留以备未来扩展，目前菜单项为空。
-        关闭实例已下放到 tab 自身的 × 按钮，菜单不再承担此职责
+        长按 / 右键菜单：基础设施保留（事件 + 渲染容器），由 MENU_ENABLED 控制启用。
+        当前菜单为空 → MENU_ENABLED=false，整个机制不响应。未来添加菜单项后开回 true
       */}
-      {menuFor && (
+      {MENU_ENABLED && menuFor && (
         <div
           className={s.menu}
           style={{ left: menuFor.x, top: menuFor.y }}
