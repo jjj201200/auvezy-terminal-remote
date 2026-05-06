@@ -38,6 +38,7 @@ export const en: Messages = {
     submit: 'Authenticate',
     submitting: 'Verifying…',
     hint: 'Scan the terminal QR code or paste the token shown on launch. Token is stored on this device only.',
+    back: 'Back to previous instance',
   },
 
   topBar: {

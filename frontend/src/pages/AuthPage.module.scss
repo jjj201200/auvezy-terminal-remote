@@ -212,3 +212,21 @@
   }
 }
 
+
+.backBtn {
+  @include m.btn-reset;
+  @include m.row-flex(t.$sp-2);
+  align-self: flex-start;
+  padding: t.$sp-2 t.$sp-3;
+  margin-bottom: t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  border: 1px solid t.$border;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    border-color: t.$border-hi;
+  }
+}

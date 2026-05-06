@@ -55,6 +55,7 @@ export interface Messages {
     submit: string;
     submitting: string;
     hint: string;
+    back: string;
   };
 
   // 顶栏

@@ -33,6 +33,7 @@ export const zhCN: Messages = {
     submit: '登录',
     submitting: '验证中…',
     hint: '扫描终端二维码或粘贴启动时显示的 token。token 仅保存在本设备。',
+    back: '返回上一个实例',
   },
 
   topBar: {

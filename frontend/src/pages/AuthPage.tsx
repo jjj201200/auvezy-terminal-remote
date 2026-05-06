@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState, type JSX, type FormEvent } from 'react';
+import { IconArrowLeft } from '@tabler/icons-react';
 import { useT } from '../i18n/i18n-context.js';
 import s from './AuthPage.module.scss';
 
@@ -43,6 +44,20 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
     if (msg !== null) setError(msg);
   };
 
+  // 如果是从其他实例 tab 跳过来的（document.referrer 同主机不同端口），
+  // 给一个"返回上一个实例"按钮。否则不显示——避免首次访问就有个莫名按钮
+  const referrerUrl = (() => {
+    try {
+      if (!document.referrer) return null;
+      const ref = new URL(document.referrer);
+      if (ref.hostname !== window.location.hostname) return null;
+      if (ref.port === window.location.port) return null;
+      return ref.toString();
+    } catch {
+      return null;
+    }
+  })();
+
   return (
     <main id="auth-page" className={s.root}>
       <div className={s.card}>
@@ -50,6 +65,21 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
           <span className={s.brandDot} />
           <span className={s.brandName}>open-terminal-remote</span>
         </div>
+
+        {referrerUrl && (
+          <button
+            type="button"
+            className={s.backBtn}
+            onClick={() => {
+              // 优先用浏览器 history（保留滚动位置等），无 history 则直接跳
+              if (window.history.length > 1) window.history.back();
+              else window.location.assign(referrerUrl);
+            }}
+          >
+            <IconArrowLeft size={14} stroke={1.5} />
+            {t('authPage.back')}
+          </button>
+        )}
 
         <h1 className={s.title}>{t('authPage.title')}</h1>
         <p className={s.subtitle}>{t('authPage.subtitle')}</p>
