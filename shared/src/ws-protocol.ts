@@ -172,6 +172,16 @@ export interface ResizeMessage {
   type: 'resize';
   cols: number;
   rows: number;
+  /**
+   * 主控声明：true 表示此客户端宣告自己为 PTY 尺寸主控。后端记此连接 ID
+   * 为当前主控；非主控客户端的 resize 在主控存在时被忽略，避免多端同连时
+   * 互相覆盖尺寸（典型场景：手机要的窄 cols 被 PC 浏览器的 ResizeObserver
+   * 反复覆盖回宽 cols，导致 zsh / claude 按错位 cols 重画）。
+   *
+   * 主控可以"抢"——任何客户端发 master=true 都立即成为新主控。主控连接断开
+   * 后自动释放，下一个发 resize 的客户端默认接管（即使没声明 master）。
+   */
+  master?: boolean;
 }
 
 /**
@@ -184,11 +194,29 @@ export interface ClientHeartbeatMessage {
   timestamp: number;
 }
 
+/**
+ * 客户端日志转发（仅 dev 调试用）
+ *
+ * 移动端浏览器没法接 chrome://inspect、不连 macOS Safari 时，靠这条消息把
+ * 前端 console 输出转到 backend stdout，开发者用 `tail -f` 看。
+ *
+ * 服务端在 dev 模式（或显式开启时）才记录，避免泄漏。
+ */
+export interface ClientLogMessage {
+  type: 'client_log';
+  level: 'log' | 'info' | 'warn' | 'error' | 'debug';
+  /** 已序列化的字符串（前端拼好，避免 JSON 传 unknown 类型） */
+  message: string;
+  /** 客户端时间戳，便于排序多客户端日志 */
+  ts: number;
+}
+
 /** 客户端可发送的所有消息类型（union） */
 export type ClientMessage =
   | UserInputMessage
   | ResizeMessage
-  | ClientHeartbeatMessage;
+  | ClientHeartbeatMessage
+  | ClientLogMessage;
 
 // ============================================================
 // 类型守卫
@@ -219,5 +247,10 @@ export function isServerMessage(value: unknown): value is ServerMessage {
 export function isClientMessage(value: unknown): value is ClientMessage {
   if (!value || typeof value !== 'object') return false;
   const type = (value as { type?: unknown }).type;
-  return type === 'user_input' || type === 'resize' || type === 'heartbeat';
+  return (
+    type === 'user_input' ||
+    type === 'resize' ||
+    type === 'heartbeat' ||
+    type === 'client_log'
+  );
 }

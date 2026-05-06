@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
-import { IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
+import { IconArrowAutofitWidth, IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
 import type { InstanceListItem, SessionStatus } from 'auvezy-terminal-remote-shared';
 import { useUserConfig } from '../hooks/useUserConfig.js';
 import { useInstances } from '../hooks/useInstances.js';
@@ -120,6 +120,8 @@ export function MultiInstanceConsole(): JSX.Element {
 
   // active 实例的 reconnect 回调（StatusBar 点击重连用）
   const [reconnectFn, setReconnectFn] = useState<(() => void) | null>(null);
+  // active 实例的 adaptToDevice 回调（顶栏"按当前设备适配"按钮用）
+  const [adaptFn, setAdaptFn] = useState<(() => void) | null>(null);
 
   // 默认选中：优先 isCurrent，回退第一个
   // active 实例消失（被关闭 / 进程死亡）时也走这条：自动选当前服务进程对应实例
@@ -236,6 +238,15 @@ export function MultiInstanceConsole(): JSX.Element {
     [],
   );
 
+  // active 实例注册它的 adaptToDevice 回调；切实例时旧回调被新值覆盖
+  const onInstanceRegisterAdapt = useCallback(
+    (instanceId: string, fn: () => void) => {
+      if (instanceId !== activeIdRef.current) return;
+      setAdaptFn(() => fn);
+    },
+    [],
+  );
+
   // 覆盖层"重连"按钮：稳定回调，内部读 ref 拿最新 reconnect
   const onInstanceReconnect = useCallback((instanceId: string) => {
     reconnectRef.current(instanceId);
@@ -285,6 +296,15 @@ export function MultiInstanceConsole(): JSX.Element {
           session={session}
           onReconnect={reconnectFn ?? undefined}
         />
+        {adaptFn && (
+          <IconButton
+            onClick={() => adaptFn()}
+            aria-label={t('input.adaptSize')}
+            title={t('input.adaptSizeTooltip')}
+          >
+            <IconArrowAutofitWidth size={14} stroke={1.5} />
+          </IconButton>
+        )}
         <IconButton
           onClick={() => setSearchOpen((v) => !v)}
           aria-label={t('search.aria')}
@@ -320,6 +340,7 @@ export function MultiInstanceConsole(): JSX.Element {
           active={i.instanceId === activeId}
           onStatusChange={onInstanceStatusChange}
           registerReconnect={onInstanceRegisterReconnect}
+          registerAdapt={onInstanceRegisterAdapt}
           searchOpen={searchOpen && i.instanceId === activeId}
           onSearchClose={onSearchClose}
           disabled={isDisconnected(i.instanceId)}

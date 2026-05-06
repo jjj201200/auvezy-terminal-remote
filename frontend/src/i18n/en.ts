@@ -76,6 +76,17 @@ export const en: Messages = {
     ptyPending: 'Pending',
     waitingInput: 'Awaiting approval',
     startingTerminal: 'Starting terminal…',
+
+    connectionDialogTitle: 'Connection status',
+    sessionDialogTitle: 'Session status',
+    descConnecting: 'Establishing WebSocket connection to backend. Will auto-retry if not connected within a few seconds.',
+    descConnected: 'WebSocket connected. PTY output / input flowing both ways.',
+    descDisconnected: 'WebSocket disconnected. Will auto-retry with exponential backoff. Tap to reconnect immediately.',
+    descGaveUp: 'Auto-reconnect gave up (reached attempt limit). Tap to manually reconnect.',
+    descPtyPending: 'Backend ready but PTY child process not yet spawned. Waiting for first browser connect / Enter / timeout.',
+    descIdle: 'PTY child exited; session has ended.',
+    descRunning: 'PTY child running normally.',
+    descWaitingInput: 'Claude triggered an approval hook and is waiting for confirmation in the terminal (Y / N or arrow keys).',
   },
 
   settings: {
@@ -138,6 +149,11 @@ export const en: Messages = {
     erudaToggleOn: 'Enabled — refresh page to show the debug button',
     erudaToggleOff: 'Disabled',
     reloadHint: 'Reload the page after toggling to take effect',
+    consoleBridgeTitle: 'Console bridge (remote dev)',
+    consoleBridgeHint:
+      'Forward browser console output to the backend stderr via WebSocket so developers can `tail -f` server logs. Reload to apply.',
+    consoleBridgeOn: 'Enabled — subsequent console logs forwarded to backend',
+    consoleBridgeOff: 'Disabled',
   },
 
   list: {
@@ -293,6 +309,8 @@ export const en: Messages = {
     showButtonList: 'Show button list',
     clearConfirmTitle: 'Clear input',
     clearConfirmBody: 'Clear the current input? This cannot be undone.',
+    adaptSize: 'Adapt to this device',
+    adaptSizeTooltip: 'Force PTY to wrap at this device\'s width (take over when multiple clients are connected)',
   },
 
   createInstance: {

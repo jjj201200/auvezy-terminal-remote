@@ -94,6 +94,17 @@ export interface Messages {
     ptyPending: string;
     waitingInput: string;
     startingTerminal: string;
+    // 状态点击弹出说明 modal 用
+    connectionDialogTitle: string;
+    sessionDialogTitle: string;
+    descConnecting: string;
+    descConnected: string;
+    descDisconnected: string;
+    descGaveUp: string;
+    descPtyPending: string;
+    descIdle: string;
+    descRunning: string;
+    descWaitingInput: string;
   };
 
   // 设置面板
@@ -157,6 +168,10 @@ export interface Messages {
     erudaToggleOn: string;
     erudaToggleOff: string;
     reloadHint: string;
+    consoleBridgeTitle: string;
+    consoleBridgeHint: string;
+    consoleBridgeOn: string;
+    consoleBridgeOff: string;
   };
 
   // 通用列表操作
@@ -320,6 +335,8 @@ export interface Messages {
     showButtonList: string;
     clearConfirmTitle: string;
     clearConfirmBody: string;
+    adaptSize: string;
+    adaptSizeTooltip: string;
   };
 
   // 创建实例

@@ -19,8 +19,14 @@ import { logger } from '../logger/logger.js';
 export interface WsHandlerCallbacks {
   /** 用户输入透传到 PTY */
   onUserInput: (data: string) => void;
-  /** 终端尺寸调整请求 */
-  onResize: (cols: number, rows: number) => void;
+  /**
+   * 终端尺寸调整请求
+   * @param cols / rows 目标尺寸
+   * @param source     连接来源（用作主控身份标识）
+   * @param master     true=声明此连接为新主控；false/undefined=普通 resize（仅在
+   *                   当前没主控或自己就是主控时生效）
+   */
+  onResize: (cols: number, rows: number, source: WebSocket, master?: boolean) => void;
 }
 
 /**
@@ -54,7 +60,7 @@ export function handleWsMessage(
 
     case 'resize':
       if (typeof msg.cols === 'number' && typeof msg.rows === 'number') {
-        cb.onResize(msg.cols, msg.rows);
+        cb.onResize(msg.cols, msg.rows, ws, msg.master === true);
       } else {
         logger.warn({ msg }, 'resize 缺 cols/rows 字段或类型错误');
       }
@@ -64,6 +70,16 @@ export function handleWsMessage(
       // 直接回包，不经业务层
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'heartbeat', timestamp: Date.now() }));
+      }
+      break;
+
+    case 'client_log':
+      // 前端 console 转发到 backend stdout（仅 dev 调试，生产环境前端不发）。
+      // 不走 logger（logger 输出 JSON 一行，可读性差）；直接 stderr.write
+      // 让开发者用 `tail -f` 看到原样字符串
+      if (typeof msg.message === 'string' && typeof msg.level === 'string') {
+        const ts = typeof msg.ts === 'number' ? new Date(msg.ts).toISOString().slice(11, 23) : '?';
+        process.stderr.write(`[client ${ts} ${msg.level}] ${msg.message}\n`);
       }
       break;
 

@@ -71,6 +71,17 @@ export const zhCN: Messages = {
     ptyPending: 'Pending',
     waitingInput: 'Awaiting approval',
     startingTerminal: '正在启动终端…',
+
+    connectionDialogTitle: '连接状态',
+    sessionDialogTitle: '会话状态',
+    descConnecting: '正在与后端建立 WebSocket 连接，几秒内若仍未连上会自动重试。',
+    descConnected: '已连接到后端 WebSocket，PTY 输出 / 输入正常双向。',
+    descDisconnected: 'WebSocket 已断开。会按指数退避自动重试，也可点击立即重连。',
+    descGaveUp: '已放弃自动重连（达到上限）。点此手动重新连接。',
+    descPtyPending: 'Backend 已就绪但 PTY 子进程尚未 spawn。等待第一个浏览器连入 / 按 Enter / 超时三选一触发。',
+    descIdle: 'PTY 子进程已退出，会话已结束。',
+    descRunning: 'PTY 子进程正常运行中。',
+    descWaitingInput: 'Claude 触发了审批 hook，等待用户在终端里确认（可用 Y / N 或方向键回复）。',
   },
 
   settings: {
@@ -131,6 +142,11 @@ export const zhCN: Messages = {
     erudaToggleOn: '已启用 — 刷新页面后右下角出现调试按钮',
     erudaToggleOff: '已关闭',
     reloadHint: '切换后请刷新页面以生效',
+    consoleBridgeTitle: '控制台桥接（开发者远程调试）',
+    consoleBridgeHint:
+      '把前端 console 输出经 WebSocket 转到 backend 进程的 stderr，开发者可用 `tail -f` 查看。需刷新页面生效。',
+    consoleBridgeOn: '已启用 — 后续 console 输出会发到 backend',
+    consoleBridgeOff: '已关闭',
   },
 
   list: {
@@ -285,6 +301,8 @@ export const zhCN: Messages = {
     showButtonList: '显示按钮列表',
     clearConfirmTitle: '清空输入',
     clearConfirmBody: '确认清空当前输入框？此操作无法撤销。',
+    adaptSize: '适配当前设备',
+    adaptSizeTooltip: '让 PTY 按当前设备宽度重新换行（多端共连时切回我这台主导）',
   },
 
   createInstance: {

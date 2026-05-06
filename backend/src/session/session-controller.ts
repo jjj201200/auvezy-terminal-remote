@@ -23,7 +23,7 @@
  *  - 配合手机端的 useTerminal 批写入实现两端协同
  */
 
-import type { WebSocket } from 'ws';
+import { WebSocket } from 'ws';
 import type { SessionStatus } from 'auvezy-terminal-remote-shared';
 import type { IPtyManager } from '../pty/types.js';
 import { PtyManager } from '../pty/pty-manager.js';
@@ -80,6 +80,13 @@ export class SessionController {
 
   /** 可选的 hook 接收器（阶段 3 启用） */
   private hookReceiver: HookReceiver | null = null;
+
+  /**
+   * PTY 尺寸主控连接：声明 master=true 的客户端 WebSocket 引用。
+   * 仅它能改 PTY cols/rows；其他客户端的 resize 被忽略。断开时自动释放
+   * （onDisconnect 处理）。null = 无主控，先到先得
+   */
+  private masterClient: WebSocket | null = null;
 
   /** ANSI 过滤器（阶段 8 启用；null = 关闭过滤直接透传） */
   private readonly ansiFilter: AnsiFilter | null;
@@ -312,14 +319,28 @@ export class SessionController {
           // 用户输入：所有客户端类型一律透传到 PTY
           this.pty.write(data);
         },
-        onResize: (cols: number, rows: number) => {
-          // 主从仲裁：webapp > attach > PC
-          //
-          // - 有 webapp 在线时：仅 webapp 的 resize 生效，attach 的 resize 被忽略
-          //   （webapp 通常是手机/小窗，更需要按它的尺寸渲染）
-          // - 仅 attach 在线时：attach 的 resize 生效
-          // - 没客户端时：本地 PC 终端通过 TerminalRelay 控制（这里不到达）
+        onResize: (cols: number, rows: number, source: WebSocket, master?: boolean) => {
+          // 仲裁规则（按顺序）：
+          //  1. 主控声明（master=true）—— 最高优先级。任何客户端（webapp /
+          //     attach 都可以）声明都立即接管。这必须覆盖客户端类型仲裁，因为
+          //     通过不同 IP / Tailscale / 跨子网访问的浏览器也会被识别为 attach
+          //     （只有同源 cookie 鉴权的才是 webapp）
+          //  2. 当前有主控且非自己 → 忽略此 resize（避免多端互相覆盖尺寸：
+          //     PC ResizeObserver 反复发宽 cols 会冲掉手机的窄 cols）
+          //  3. 客户端类型仲裁：webapp > attach。仅在没有主控时生效，让本地
+          //     CLI attach 不会覆盖浏览器 webapp 设定的尺寸
+          //  4. 主控释放：master 连接断开 → 自动释放（onDisconnect 处理）
           const counts = this.ws.getClientCounts();
+          if (master) {
+            this.masterClient = source;
+            logger.info({ cols, rows, type }, 'PTY 主控切换：客户端声明 master');
+            this.pty.resize(cols, rows);
+            return;
+          }
+          if (this.masterClient && this.masterClient !== source) {
+            logger.debug({ cols, rows }, '主控被其他客户端持有，忽略此 resize');
+            return;
+          }
           if (counts.webapp > 0 && type === 'attach') {
             logger.debug(
               { type, cols, rows, counts },
@@ -346,6 +367,11 @@ export class SessionController {
 
     this.ws.onDisconnect((counts: ClientCounts) => {
       logger.debug(counts, '客户端断开后剩余统计');
+      // 主控释放：如果当前主控连接已经不 OPEN，清掉它，下个 resize 自动接管
+      if (this.masterClient && this.masterClient.readyState !== WebSocket.OPEN) {
+        logger.info('PTY 主控连接已断开，释放主控锁');
+        this.masterClient = null;
+      }
       // webapp 全部断开但 attach 仍在 → 广播当前 PTY 尺寸让 attach 重新校准
       // （webapp 在线期间 attach 的 resize 被忽略，可能本地终端尺寸已偏离 PTY 尺寸）
       if (counts.webapp === 0 && counts.attach > 0) {

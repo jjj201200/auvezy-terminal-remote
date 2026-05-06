@@ -57,7 +57,13 @@ const CHAR_WIDTH_RATIO = 0.6;
  *  - true / undefined：发送成功，更新 lastReportedResize
  *  - false：未发送（如 WS 离线），保持 lastReportedResize 不变让下次能重发
  */
-export type ResizeCallback = (cols: number, rows: number) => boolean | void;
+/**
+ * onResize 回调
+ * @param cols / rows 目标尺寸
+ * @param master 可选；true 表示此次 resize 同时声明本客户端为 PTY 主控，
+ *   后端会拒绝其他客户端的非主控 resize 直到本连接断开 / 别人也声明 master
+ */
+export type ResizeCallback = (cols: number, rows: number, master?: boolean) => boolean | void;
 
 export interface UseTerminalReturn {
   /** 把数据写入 xterm（批合并） */
@@ -76,6 +82,11 @@ export interface UseTerminalReturn {
   showScrollHint: boolean;
   /** 让 xterm 与 PTY 尺寸对齐（history_sync 后调用） */
   adaptToPtySize: (cols: number, rows: number) => void;
+  /**
+   * 强制按当前容器尺寸 fit + 上报 PTY，绕过键盘冻结 / 防抖逻辑。
+   * 用于"用户主动点击 → 让此设备主导 PTY cols"场景（多端共连时切换主控）。
+   */
+  adaptToDevice: () => void;
   /** 在缓冲区里搜索，跳到下一处匹配 */
   searchNext: (term: string, opts?: SearchOpts) => boolean;
   /** 在缓冲区里搜索，跳到上一处匹配 */
@@ -437,17 +448,26 @@ export function useTerminal(
     } catch {
       /* 容器尺寸为 0：等切到可见时 ResizeObserver 自愈 */
     }
-    // 挂载稳定窗：移动端首屏 safe-area / 字体加载 / Toolbar lazy 渲染会
-    // 让 terminalWrap 高度在 ~500ms 内逐帧上涨（实测 27 → 45 行九次跳跃）。
-    // 每次 emit 都触发 PTY SIGWINCH → zsh 反复重画 prompt → autosuggestions
-    // 残留行无法擦除堆积。所以挂载首屏的所有 emit 都吞掉，等 INITIAL_QUIET_MS
-    // 后走正常 scheduleEmit 路径（同样会被键盘检测拦住）
+    // 挂载稳定窗：移动端首屏 safe-area / 字体加载 / Toolbar lazy 渲染会让
+    // terminalWrap 尺寸在 ~1.5s 内反复跳变。更关键的是 xterm 的 cellHeight
+    // 依赖等宽字体加载完成才能算准——字体未加载时 fit 算出的 rows 偏少
+    // (实测 27)，字体加载完才正确 (43)。
+    //
+    // 用 document.fonts.ready 等字体真正可用，再 fit + emit。fonts.ready 没
+    // 履行时退回 INITIAL_QUIET_MS（保底）。
+    const INITIAL_QUIET_MS = 1500;
     let initialQuiet = true;
-    setTimeout(() => {
+    const finishInitialQuiet = (): void => {
+      if (!initialQuiet) return;
       initialQuiet = false;
       try { fitAddon.fit(); } catch { /* 等下次 ResizeObserver */ }
       if (termRef.current) scheduleEmit(term.cols, term.rows);
-    }, 500);
+    };
+    if (document.fonts && typeof document.fonts.ready?.then === 'function') {
+      void document.fonts.ready.then(finishInitialQuiet);
+    }
+    // 兜底：fonts.ready 不支持 / 永远不解析 → INITIAL_QUIET_MS 后强制结束
+    setTimeout(finishInitialQuiet, INITIAL_QUIET_MS);
 
     termRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -571,16 +591,33 @@ export function useTerminal(
      * term.rows，必须够大才能容下 zsh-autosuggestions 的 N 行提示 + 上移 N 行）。
      * CSS 容器临时被键盘压小不影响 buffer，用户能滚动看到溢出部分。
      */
+    // 跟踪"键盘关闭时的稳态高度"，用于检测"容器突然变小是否是键盘弹起导致"。
+    // ResizeObserver 跟 visualViewport.resize 在 iOS 上事件顺序不固定：可能
+    // ResizeObserver 先触发（容器已被键盘 padding 压扁），但 vv 还没 update，
+    // 此时 isKeyboardOpen() 仍返回 false → fit() 把 xterm 按缩小后的容器算
+    // 出错位 rows。
+    // 解法：记录最近一次"键盘关闭态"的容器高度，如果当前 h 明显比那个值小，
+    // 认为是键盘正在弹起的过渡帧，跳过 fit（即使 isKeyboardOpen 还没确认）
+    let stableHeight = 0;
+    const SHRINK_THRESHOLD = 0.7;
+
     const fitAndSchedule = (): void => {
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w === 0 || h === 0) return;
       // 软键盘弹起期 + 初始挂载期：跳过 fit，避免把 term.rows 改成不可用的小值
-      if (isKeyboardOpen() || initialQuiet) return;
+      if (isKeyboardOpen() || initialQuiet) {
+        return;
+      }
+      // 容器突然显著变小 → 视为键盘正在弹起（vv update 还没到）→ 跳过
+      if (stableHeight > 0 && h < stableHeight * SHRINK_THRESHOLD) {
+        return;
+      }
       try {
         applyPrefs();
         fitAddon.fit();
         scheduleEmit(term.cols, term.rows);
+        stableHeight = h;
       } catch {
         // xterm RenderService 偶发 dimensions undefined（容器 portal 切换时序）
         // 下一帧再次触发 ResizeObserver 时会自愈
@@ -772,6 +809,20 @@ export function useTerminal(
     emitResize(term.cols, term.rows);
   }, [emitResize]);
 
+  const adaptToDevice = useCallback((): void => {
+    const fit = fitAddonRef.current;
+    const term = termRef.current;
+    if (!fit || !term) return;
+    try {
+      fit.fit();
+    } catch { /* RenderService 偶发未就绪，下次 ResizeObserver 兜底 */ }
+    // 用户显式操作 —— 绕开 emitResize 的入口去重 / 节流 / 键盘冻结。
+    // 同时声明 master=true 让此设备成为 PTY 尺寸主控，后续其他设备的非主控
+    // resize 会被 backend 忽略；用户在别的设备点适配按钮才会换主控
+    onResizeRef.current?.(term.cols, term.rows, true);
+    lastReportedResizeRef.current = { cols: term.cols, rows: term.rows };
+  }, []);
+
   // 注意：不传 decorations —— webgl renderer 与 SearchAddon 的 DOM decoration
   // 不兼容（位置不跟字符 + 不跟滚动）。仅靠 term.select() 显示当前匹配选区，
   // 牺牲"所有匹配同时高亮"，换来 webgl 性能 + 定位正确。
@@ -814,6 +865,7 @@ export function useTerminal(
     setAutoFollow,
     showScrollHint,
     adaptToPtySize,
+    adaptToDevice,
     searchNext,
     searchPrev,
     clearSearch,

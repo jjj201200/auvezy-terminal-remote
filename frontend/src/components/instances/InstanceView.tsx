@@ -45,6 +45,12 @@ export interface InstanceViewProps {
   ) => void;
   /** 上层提供 reconnect 回调；第一参数也是 instanceId（同上） */
   registerReconnect?: (instanceId: string, fn: () => void) => void;
+  /**
+   * active 实例向上层注册 adaptToDevice：上层顶栏的"按当前设备适配"按钮调它。
+   * 跟 registerReconnect 同模式：上层只用一个稳定回调注册，避免每次 InstanceView
+   * 内部 effect 重跑触发死循环
+   */
+  registerAdapt?: (instanceId: string, fn: () => void) => void;
   /** SearchBar 的 open 状态由上层控制（顶栏搜索按钮 + Cmd+F 全局快捷键） */
   searchOpen: boolean;
   onSearchClose: () => void;
@@ -76,6 +82,7 @@ export function InstanceView({
   active,
   onStatusChange,
   registerReconnect,
+  registerAdapt,
   searchOpen,
   onSearchClose,
   disabled = false,
@@ -95,8 +102,13 @@ export function InstanceView({
 
   const localNotify = useLocalNotification();
 
-  const handleResize = useCallback((cols: number, rows: number): boolean => {
-    return sendRef.current?.({ type: 'resize', cols, rows }) ?? false;
+  const handleResize = useCallback((cols: number, rows: number, master?: boolean): boolean => {
+    return sendRef.current?.({
+      type: 'resize',
+      cols,
+      rows,
+      ...(master ? { master: true } : {}),
+    }) ?? false;
   }, []);
 
   const {
@@ -105,6 +117,7 @@ export function InstanceView({
     setAutoFollow,
     showScrollHint,
     adaptToPtySize,
+    adaptToDevice,
     searchNext,
     searchPrev,
     clearSearch,
@@ -134,7 +147,11 @@ export function InstanceView({
           }
           break;
         case 'terminal_resize':
-          adaptToPtySize(msg.cols, msg.rows);
+          // PTY 主动 resize 通知（如 attach CLI 调用 stty / backend 的
+          // double-pulse hack 触发的两次 SIGWINCH）。这里**不要** fit() —— 否则
+          // 会让 xterm 跟着 PTY 缩，跟键盘期间 CSS 容器小尺寸叠加 → xterm
+          // 错误缩小。PTY 尺寸跟 xterm 物理尺寸是单向同步（前端 → PTY），
+          // 反向通知仅作记录用，不动 xterm
           break;
         case 'session_ended':
           write(`\r\n\x1b[33m[会话结束 · exit ${msg.exitCode} · ${msg.reason}]\x1b[0m\r\n`);
@@ -170,6 +187,27 @@ export function InstanceView({
   useEffect(() => {
     if (active) registerReconnect?.(instanceId, connect);
   }, [instanceId, active, connect, registerReconnect]);
+
+  // active 时把 adaptToDevice 注册给父组件（顶栏按钮用）
+  useEffect(() => {
+    if (active) registerAdapt?.(instanceId, adaptToDevice);
+  }, [instanceId, active, adaptToDevice, registerAdapt]);
+
+  // active 时把当前实例端口写入 console-bridge tag —— 多端共连同一 backend
+  // 看日志时能区分来源（[iPhone-Chrome-A3F2:3001]）
+  useEffect(() => {
+    if (!active) return;
+    // 从 wsUrl 抠端口（同源时 wsUrl=undefined，回退用 location.port 或 'self'）
+    let port = window.location.port || 'self';
+    if (wsUrl) {
+      try {
+        port = new URL(wsUrl).port || port;
+      } catch { /* invalid url */ }
+    }
+    void import('../../utils/console-bridge.js').then(({ setConsoleBridgeInstance }) => {
+      setConsoleBridgeInstance(port);
+    });
+  }, [active, wsUrl]);
 
   const handleUserInput = useCallback(
     (data: string): boolean => send({ type: 'user_input', data }),

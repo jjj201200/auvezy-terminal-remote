@@ -35,10 +35,20 @@ describe('handleWsMessage', () => {
     expect(cb.onResize).not.toHaveBeenCalled();
   });
 
-  it('合法 resize 触发 onResize', () => {
+  it('合法 resize 触发 onResize（带 source ws + master 标志）', () => {
     const ws = makeMockWs();
     handleWsMessage(ws, JSON.stringify({ type: 'resize', cols: 100, rows: 30 }), cb);
-    expect(cb.onResize).toHaveBeenCalledWith(100, 30);
+    expect(cb.onResize).toHaveBeenCalledWith(100, 30, ws, false);
+  });
+
+  it('resize 带 master=true 透传给 onResize', () => {
+    const ws = makeMockWs();
+    handleWsMessage(
+      ws,
+      JSON.stringify({ type: 'resize', cols: 100, rows: 30, master: true }),
+      cb,
+    );
+    expect(cb.onResize).toHaveBeenCalledWith(100, 30, ws, true);
   });
 
   it('heartbeat 直接回包，不触发业务回调', () => {
