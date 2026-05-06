@@ -34,7 +34,7 @@
   "scripts": {
     "build": "tsc -b",
     "bundle": "node ../scripts/bundle-backend.js",
-    "dev": "tsx watch src/cli.ts",
+    "dev": "tsx watch src/cli.ts --dev-proxy 5173",
     "start": "node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",

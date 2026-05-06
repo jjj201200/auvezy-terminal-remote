@@ -36,11 +36,11 @@
 }
 
 // 语义占位：左半快捷键分类区 / 右半命令分类区
-// 每边至少占 toolbar 的 33%（含 padding，approx），避免一边内容多就把另一边挤没；
+// 每边至少占 toolbar 的 15%（含 padding，approx），避免一边内容多就把另一边挤没；
 // 剩余空间按 max-content 比例分（HScroller wrap 默认 flex: 1 1 max-content）
 .shortcutCats,
 .commandCats {
-  min-width: 33%;
+  min-width: 15%;
 }
 
 // ──────────────── 下行：当前分类下的快捷键/命令按钮 ────────────────
