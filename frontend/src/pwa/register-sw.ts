@@ -18,7 +18,19 @@ export interface RegisterOptions {
 export function registerServiceWorker(opts: RegisterOptions): void {
   if (typeof window === 'undefined') return;
   if (!('serviceWorker' in navigator)) return;
-  if (import.meta.env.DEV) return;
+  if (import.meta.env.DEV) {
+    // dev 模式：主动 unregister 所有 SW + 清缓存，避免上一次 prod build 留下的
+    // SW 拦截 dev 请求返回缓存（导致 HMR 不生效 / 改动看不到）
+    void (async () => {
+      const all = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(all.map((r) => r.unregister()));
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    })();
+    return;
+  }
 
   window.addEventListener('load', () => {
     void (async () => {
