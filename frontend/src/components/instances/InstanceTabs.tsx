@@ -162,8 +162,6 @@ export function InstanceTabs({
           title={`${i.cwd} · pid=${i.pid}`}
           className={clsx(s.tab, i.isCurrent && s.tabActive)}
         >
-          <span>{i.name}</span>
-          <span className={s.tabPort}>:{i.port}</span>
           {onClose && (
             <button
               type="button"
@@ -178,6 +176,8 @@ export function InstanceTabs({
               <IconX size={10} stroke={1.5} />
             </button>
           )}
+          <span>{i.name}</span>
+          <span className={s.tabPort}>:{i.port}</span>
         </div>
       ))}
       {pending.map((p) => (

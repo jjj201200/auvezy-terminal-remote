@@ -12,7 +12,7 @@
   @include m.btn-reset;
   @include m.row-flex(t.$sp-2);
   white-space: nowrap;
-  padding: t.$sp-2 t.$sp-3 t.$sp-2 t.$sp-4;
+  padding: t.$sp-2 t.$sp-3 t.$sp-2 t.$sp-2;
   border: 1px solid t.$border;
   background: t.$bg;
   font-size: t.$fs-xs;
@@ -151,7 +151,7 @@
   justify-content: center;
   width: 14px;
   height: 14px;
-  margin-left: 2px;
+  margin-right: 2px;
   color: t.$fg-low;
   opacity: 0.5;
   @include m.transition(color t.$dur-fast, opacity t.$dur-fast);

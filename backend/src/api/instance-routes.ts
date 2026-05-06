@@ -121,10 +121,21 @@ export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
         res.status(e.httpStatus).json({ error: e.toPayload() });
         return;
       }
-      // stopInstances 走 substring 匹配；用 instanceId 是 uuid 唯一，不会误中
-      const results = await stopInstances(id, { registry });
-      const r = results[0];
-      res.json({ ok: true, outcome: r?.outcome ?? 'gone' });
+      // stopInstances 的 pattern 走 substring 匹配 name/cwd/host:port，
+      // 不能用 instanceId（uuid 不会匹配任何字段）。改用 host:port 唯一定位
+      const pattern = `${target.host}:${target.port}`;
+      const results = await stopInstances(pattern, { registry });
+      const r = results.find((x) => x.instance.instanceId === id);
+      if (!r) {
+        const e = new InstanceError(
+          ErrorCode.INTERNAL_ERROR,
+          `stopInstances 未命中 ${pattern}`,
+          500,
+        );
+        res.status(e.httpStatus).json({ error: e.toPayload() });
+        return;
+      }
+      res.json({ ok: true, outcome: r.outcome });
     } catch (err) {
       logger.error({ err, id }, 'DELETE /instances/:id 失败');
       const e =

@@ -66,18 +66,17 @@ export function MultiInstanceConsole(): JSX.Element {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const killId = params.get('killAfterSwitch');
+    // eslint-disable-next-line no-console
+    console.warn('[killAfterSwitch] effect fired', { killId, search: window.location.search });
     if (!killId) return;
-    // 立刻清 URL 防止刷新重复执行
     params.delete('killAfterSwitch');
     const newSearch = params.toString();
     const newUrl =
       window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
     window.history.replaceState(null, '', newUrl);
     void rawRemoveInstance(killId).then((err) => {
-      if (err) {
-        // eslint-disable-next-line no-console
-        console.warn('[killAfterSwitch] DELETE failed', { killId, err });
-      }
+      // eslint-disable-next-line no-console
+      console.warn('[killAfterSwitch] DELETE result', { killId, err });
     });
   }, [rawRemoveInstance]);
 
