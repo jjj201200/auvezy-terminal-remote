@@ -387,7 +387,27 @@ export interface UserConfig {
   display?: DisplayPrefs;
   /** 网络偏好：WS 自动重连上限等 */
   network?: NetworkPrefs;
+  /** 输入偏好：是否使用底部输入框 / 直接输入模式等 */
+  input?: InputPrefs;
 }
+
+/**
+ * 输入偏好
+ *
+ * - useInputBar：true（默认）= 显示底部输入框，行编辑后回车发送（适合中文/长命令）；
+ *   false = 隐藏输入框，让 xterm 自己接管按键（实时发到 PTY），更接近桌面终端。
+ *   桌面端建议 true（用户期望行编辑），移动端用户可按需切换。
+ *   实验性：移动端中文 IME 在 false 模式下可能行为异常（候选词期间不应发，
+ *   但浏览器实现差异较大）。
+ */
+export interface InputPrefs {
+  useInputBar?: boolean;
+}
+
+/** input 字段的硬默认 */
+export const DEFAULT_INPUT: Required<InputPrefs> = {
+  useInputBar: true,
+};
 
 /**
  * 网络偏好
@@ -471,5 +491,13 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
   const commands =
     userCommands === null || commandsLegacy ? DEFAULT_COMMANDS : userCommands;
 
-  return { ...src, shortcuts, commands };
+  // input 子块：仅 normalize boolean 字段，缺失/非法 → 默认 true
+  // 变量名故意不叫 input，避免与函数参数 input 同名引起 TS 推断混乱
+  const useInputBarValue =
+    typeof src.input?.useInputBar === 'boolean'
+      ? src.input.useInputBar
+      : DEFAULT_INPUT.useInputBar;
+  const inputPrefs: Required<InputPrefs> = { useInputBar: useInputBarValue };
+
+  return { ...src, shortcuts, commands, input: inputPrefs };
 }

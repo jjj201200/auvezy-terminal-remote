@@ -10,8 +10,11 @@
   min-height: 0;
   overflow: hidden;
 
-  // 键盘弹起时给顶 / 底让出空间，flex 内容（含 Toolbar + InputBar）自然回到 visualViewport 内
-  // useViewportFix 实时维护 --vv-top / --vv-bottom（无键盘时都是 0px）
+  // 顶 / 底都让出空间：top safe-area / 键盘高度。这样 InputBar / Toolbar
+  // 自然贴在键盘顶部，terminalWrap (flex:1) 也跟着压缩。压缩后 xterm canvas
+  // 因为 useTerminal 在 isKeyboardOpen 时跳过 fit()，物理高度不变 → canvas
+  // 比容器大，溢出由 overflow:hidden 裁切。配合 .terminalView 的 transform
+  // 让 canvas 底部对齐容器底部（光标行可见 = Blink/Termius 路线的 web 等价）。
   padding-top: var(--vv-top, 0px);
   padding-bottom: var(--vv-bottom, 0px);
   transition: padding-top 0.18s ease-out, padding-bottom 0.18s ease-out;
@@ -51,12 +54,37 @@
   // 窗口缩小瞬间 fit 还没追上时，xterm 子元素会临时超出 flex 容器高度溢出到下方的 Toolbar 上
   // overflow:hidden 严格裁切，确保 xterm 永远不会越界覆盖工具栏
   overflow: hidden;
+
+  // 永远屏蔽 xterm helper-textarea 的点击 —— 不论 useInputBar=true 还是 false，
+  // 焦点都由我们自己的 textarea 接管：
+  //   - useInputBar=true  → InputBar 的 textarea
+  //   - useInputBar=false → DirectInputCapture 的透明 textarea（绕开 iOS bug）
+  // helper-textarea 仍能接收键盘事件（如果碰巧获焦），但点击穿透不会再误抢焦
+  :global(.xterm-helper-textarea) {
+    pointer-events: none;
+  }
 }
 
 .terminalView {
   position: absolute;
   inset: 0;
-  padding: t.$sp-3;
+  // 不能在这里加 padding —— xterm FitAddon.proposeDimensions 用的是
+  // parentElement 的 getComputedStyle.height（border-box），但只减去 .xterm
+  // 元素自己的 padding（无），不会减 parent（terminalView）的 padding。
+  // 结果是 fit() 把 padding 也算进可用 rows → 最下方一行只渲染一半。
+  // 需要"内边距"请加到 terminalWrap 的 padding，并改用其他方式补齐 absolute 子元素。
+
+  // 借鉴 Blink/Termius：键盘弹起时 CSS 容器（terminalWrap）被压缩，但 xterm
+  // 内部 rows 保持原值（buffer 大、canvas 物理高度大）。让 .xterm 子元素
+  // 从底部锚定 —— 顶部溢出被 overflow:hidden 裁掉，底部光标行始终贴在容器
+  // 底部紧挨键盘顶部 → 用户输入时光标行永远可见
+  & > :global(.xterm) {
+    position: absolute !important;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto !important;
+  }
 }
 
 // idle overlay

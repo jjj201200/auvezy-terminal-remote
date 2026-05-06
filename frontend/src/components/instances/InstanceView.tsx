@@ -18,9 +18,10 @@ import { useWebSocket } from '../../hooks/useWebSocket.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useLocalNotification } from '../../hooks/useLocalNotification.js';
 import { TerminalView } from '../terminal/TerminalView.js';
-import { ScrollToBottomButton } from '../terminal/ScrollToBottomButton.js';
+import { ScrollNavButtons } from '../terminal/ScrollNavButtons.js';
 import { SearchBar } from '../terminal/SearchBar.js';
 import { InputBar } from '../input/InputBar.js';
+import { DirectInputCapture } from '../input/DirectInputCapture.js';
 import { Toolbar } from '../input/Toolbar.js';
 import { IpChangeToast, type IpChangeInfo } from '../common/IpChangeToast.js';
 import s from '../../pages/ConsolePage.module.scss';
@@ -82,10 +83,10 @@ export function InstanceView({
 }: InstanceViewProps): JSX.Element {
   const t = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const inputBarRef = useRef<HTMLInputElement | null>(null);
+  const inputBarRef = useRef<HTMLTextAreaElement | null>(null);
+  // 直接输入模式专用：自挂的透明 textarea（替代 xterm helper-textarea，绕开 iOS bug）
+  const directCaptureRef = useRef<HTMLTextAreaElement | null>(null);
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
-  const terminalTapRef = useRef<{ id: number; x: number; y: number; t: number } | null>(null);
-  const terminalReleaseTsRef = useRef<number>(0);
 
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [hasPtyOutput, setHasPtyOutput] = useState(false);
@@ -108,6 +109,7 @@ export function InstanceView({
     searchPrev,
     clearSearch,
     getSelection,
+    setOnData,
   } = useTerminal(containerRef, handleResize, config.display);
 
   const handleMessage = useCallback(
@@ -174,29 +176,32 @@ export function InstanceView({
     [send],
   );
 
+  const useInputBar = config.input?.useInputBar !== false;
+
+  // 直接输入模式不再依赖 xterm.onData —— 桌面端能用，但 iOS WebKit 下 xterm
+  // 的 helper-textarea input 事件不可靠（仅退格 keydown 有效）。改成自挂
+  // DirectInputCapture，所有按键 / IME 经过我们自己的 textarea，事件可靠。
+  // 因此 onData 永远置空，不再注册回调
+  useEffect(() => {
+    setOnData(null);
+  }, [setOnData]);
+
+  const sendDirect = useCallback(
+    (data: string): void => {
+      send({ type: 'user_input', data });
+    },
+    [send],
+  );
+
   const handleScrollToBottom = useCallback(() => {
     setAutoFollow(true);
     scrollToBottom();
   }, [scrollToBottom, setAutoFollow]);
 
-  // 焦点劫持：xterm helper-textarea 抢焦点 → 回 InputBar
-  useEffect(() => {
-    if (!active) return; // 非 active 不抢焦点
-    const target = containerRef.current;
-    if (!target) return;
-    const handler = (e: FocusEvent): void => {
-      const el = e.target as HTMLElement | null;
-      if (!el || !el.classList.contains('xterm-helper-textarea')) return;
-      if (terminalTapRef.current !== null) return;
-      if (performance.now() - terminalReleaseTsRef.current < 250) return;
-      if (getSelection()) return;
-      requestAnimationFrame(() => {
-        inputBarRef.current?.focus({ preventScroll: true });
-      });
-    };
-    target.addEventListener('focusin', handler);
-    return () => target.removeEventListener('focusin', handler);
-  }, [active, getSelection]);
+  // useInputBar=true 时通过 CSS 让 xterm helper-textarea 不接收点击
+  // （pointer-events: none），点击穿透到 .terminalWrap → 走下面 onClick 转
+  // focus 到 InputBar。helper-textarea 永远不获焦 → 没有焦点抢夺 / 闪烁。
+  // useInputBar=false 时不加这个 class，xterm 自己处理 focus + IME（中文也走它）
 
   // Cmd+C 复制选区（仅 active 实例）
   useEffect(() => {
@@ -224,32 +229,39 @@ export function InstanceView({
       style={{ display: active ? 'flex' : 'none' }}
       aria-hidden={!active}
     >
+      {/*
+        SearchBar：active 实例可见时挂在终端区上方，作为 flex 容器一项占行高。
+        open 时挤压 terminalWrap → xterm ResizeObserver 触发 fit() 自适应行数；
+        close 时不渲染（不留空行高，flex 自然收回）。这样不再悬浮遮挡终端内容。
+      */}
+      {active && searchOpen && (
+        <SearchBar
+          open
+          onClose={onSearchClose}
+          onNext={searchNext}
+          onPrev={searchPrev}
+          onClear={clearSearch}
+        />
+      )}
       <div
         id="console-terminal-wrap"
         className={s.terminalWrap}
-        onPointerDown={(e) => {
-          const el = e.target as HTMLElement | null;
-          if (!el?.closest('.xterm')) return;
-          terminalTapRef.current = {
-            id: e.pointerId,
-            x: e.clientX,
-            y: e.clientY,
-            t: e.timeStamp,
-          };
-        }}
-        onPointerUp={(e) => {
-          const start = terminalTapRef.current;
-          terminalTapRef.current = null;
-          terminalReleaseTsRef.current = e.timeStamp;
-          if (!start || start.id !== e.pointerId) return;
-          const dx = e.clientX - start.x;
-          const dy = e.clientY - start.y;
-          const dt = e.timeStamp - start.t;
-          if (Math.hypot(dx, dy) > 8 || dt > 400) return;
-          inputBarRef.current?.focus({ preventScroll: true });
-        }}
-        onPointerCancel={() => {
-          terminalTapRef.current = null;
+        // 不论哪种模式 —— xterm helper-textarea 都 pointer-events:none，焦点
+        // 由我们的 textarea 接管：useInputBar=true → InputBar；
+        // useInputBar=false → DirectInputCapture（绕开 iOS xterm helper bug）。
+        // 用 onClick 而不是 onPointerDown：避免滚动手势的 pointerdown 也触发
+        // focus（click 只在 tap 完成且非滚动时才合成）。iOS 上 click 仍保留
+        // user gesture 资格 → 软键盘正常弹起。
+        onClick={(e) => {
+          // 文本选区场景跳过：让用户能选择/复制
+          const sel = window.getSelection();
+          if (sel && sel.toString().length > 0) return;
+          if (!(e.target as HTMLElement | null)?.closest?.('.xterm')) return;
+          if (useInputBar) {
+            inputBarRef.current?.focus({ preventScroll: true });
+          } else {
+            directCaptureRef.current?.focus({ preventScroll: true });
+          }
         }}
       >
         <TerminalView ref={containerRef} className={s.terminalView} />
@@ -288,16 +300,8 @@ export function InstanceView({
               </div>
             </div>
           )}
-        <ScrollToBottomButton visible={showScrollHint} onClick={handleScrollToBottom} />
-        {active && (
-          <SearchBar
-            open={searchOpen}
-            onClose={onSearchClose}
-            onNext={searchNext}
-            onPrev={searchPrev}
-            onClear={clearSearch}
-          />
-        )}
+        <ScrollNavButtons visible={showScrollHint} onScrollToBottom={handleScrollToBottom} />
+        {!useInputBar && <DirectInputCapture ref={directCaptureRef} onSend={sendDirect} />}
       </div>
 
       <Toolbar
@@ -309,13 +313,15 @@ export function InstanceView({
         disabled={disabled || connectionStatus !== 'connected'}
       />
 
-      <InputBar
-        ref={inputBarRef}
-        value={inputValue}
-        onChange={setInputValue}
-        onSubmit={handleUserInput}
-        disabled={disabled || connectionStatus !== 'connected'}
-      />
+      {useInputBar && (
+        <InputBar
+          ref={inputBarRef}
+          value={inputValue}
+          onChange={setInputValue}
+          onSubmit={handleUserInput}
+          disabled={disabled || connectionStatus !== 'connected'}
+        />
+      )}
 
       {active && <IpChangeToast info={ipChange} onDismiss={() => setIpChange(null)} />}
     </div>

@@ -27,7 +27,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery.js';
 import { useAppStore } from '../stores/app-store.js';
 import { useT } from '../i18n/i18n-context.js';
 import { TerminalView } from '../components/terminal/TerminalView.js';
-import { ScrollToBottomButton } from '../components/terminal/ScrollToBottomButton.js';
+import { ScrollNavButtons } from '../components/terminal/ScrollNavButtons.js';
 import { SearchBar } from '../components/terminal/SearchBar.js';
 import { InputBar } from '../components/input/InputBar.js';
 import { Toolbar } from '../components/input/Toolbar.js';
@@ -69,7 +69,7 @@ export function ConsolePage(): JSX.Element {
 
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
   // 让点击 terminal 区也能把焦点接到 InputBar 输入框
-  const inputBarRef = useRef<HTMLInputElement | null>(null);
+  const inputBarRef = useRef<HTMLTextAreaElement | null>(null);
   // 终端区 tap 检测：pointerdown 记起点，pointerup 时判定是 tap 还是 swipe
   const terminalTapRef = useRef<{ id: number; x: number; y: number; t: number } | null>(null);
   // 最近一次终端 pointerup 时间戳：focus hijack 在它之后 250ms 内不抢，给系统复制菜单留出现的时间
@@ -262,7 +262,7 @@ export function ConsolePage(): JSX.Element {
         // swipe / 长按 → 视为查看历史 / 选词，不动焦点（也不弹键盘）
         // 用 pointerdown 记起点，pointerup 时按移动距离 + 时长判定是不是 tap
         onPointerDown={(e) => {
-          // 浮层（SearchBar / ScrollToBottomButton / idleCard）的事件会冒泡到这里，
+          // 浮层（SearchBar / ScrollNavButtons / idleCard）的事件会冒泡到这里，
           // 但它们的 tap 不应触发 InputBar 聚焦。检查 target 是否在 xterm 渲染层内。
           const el = e.target as HTMLElement | null;
           if (!el?.closest('.xterm')) return;
@@ -310,7 +310,7 @@ export function ConsolePage(): JSX.Element {
               </div>
             </div>
           )}
-        <ScrollToBottomButton visible={showScrollHint} onClick={handleScrollToBottom} />
+        <ScrollNavButtons visible={showScrollHint} onScrollToBottom={handleScrollToBottom} />
         <SearchBar
           open={searchOpen}
           onClose={() => setSearchOpen(false)}

@@ -20,7 +20,12 @@
   display: flex;
 }
 
+// textarea：单行外观但底层是 textarea（IME / 中段编辑 / 方向键原生支持）
 .input {
+  // textarea 默认 vertical-align:baseline 会让父 flex 行高异常，强制 middle
+  vertical-align: middle;
+  // textarea 默认 box-sizing:content-box —— padding 会撑开整体高度；改 border-box 与 input 一致
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   border: 1px solid t.$border;
@@ -30,6 +35,13 @@
   padding: t.$sp-0 28px t.$sp-0 t.$sp-3;
   font-family: t.$font-mono;
   font-size: t.$fs-sm;
+  line-height: 1.5;
+  // 单行高度感（rows=1 + 隐藏 resize 把柄）
+  resize: none;
+  // 隐藏滚动条（输入超长会内部滚，不出现滚动条更接近 input 视觉）
+  overflow-y: hidden;
+  // 强制单行外观：长内容横向滚不换行
+  white-space: nowrap;
   outline: none;
   @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
 

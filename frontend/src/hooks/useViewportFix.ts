@@ -21,25 +21,44 @@ export function useViewportFix(): void {
     if (typeof window === 'undefined') return;
     const vv = window.visualViewport;
 
+    // 记录键盘弹起前的窗口高度作为"无键盘时的应有高度"，用于推算键盘真实占用：
+    // - 桌面 / interactive-widget=resizes-content 路径：window.innerHeight 跟着
+    //   键盘一起缩小，光看 (innerH - vvH) 永远是 0
+    // - 必须用"键盘弹起前的 innerH"减"当前 innerH"，才能拿到键盘高度
+    let baselineInnerH = window.innerHeight;
+    let keyboardOpenLast = false;
+
     const update = (): void => {
       const vvH = vv?.height ?? window.innerHeight;
       const vvTop = vv?.offsetTop ?? 0;
       const innerH = window.innerHeight;
 
       // visualViewport 在 layout 内的"底部空白"= layout 高度 - 可视区底端
-      // = innerH - (vvTop + vvH)。键盘弹起时这个差就是键盘所占的空间。
-      // 同时考虑 iOS visualViewport.offsetTop 可能 > 0 的情况。
       const bottomGap = vv ? Math.max(0, innerH - (vvTop + vvH)) : 0;
-      document.documentElement.style.setProperty('--vv-bottom', `${bottomGap}px`);
-
       // visualViewport 顶端在 layout 内的偏移（iOS 上键盘弹起时会出现 > 0）
       document.documentElement.style.setProperty('--vv-top', `${vvTop}px`);
 
-      // 键盘高度（兼容旧 CSS 变量）
-      const kbH = vv ? Math.max(0, innerH - vvH) : 0;
+      // 键盘高度推算：
+      //  1. visualViewport 路径（resizes-visual / 现代浏览器）：innerH - vvH
+      //  2. layout 缩小路径（iOS WebKit 默认）：baselineInnerH - innerH
+      // 取两者最大值
+      const kbVv = vv ? Math.max(0, innerH - vvH) : 0;
+      const kbLayout = Math.max(0, baselineInnerH - innerH);
+      const kbH = Math.max(kbVv, kbLayout, bottomGap);
       document.documentElement.style.setProperty('--keyboard-h', `${kbH}px`);
+      // --vv-bottom 现在是"键盘 + 视口底部空白"的统一值
+      document.documentElement.style.setProperty('--vv-bottom', `${kbH}px`);
 
       const keyboardOpen = kbH >= KEYBOARD_THRESHOLD_PX;
+      // 键盘从开 → 关：当前 innerH 可能就是新的 baseline（用户旋屏 / 缩放也走这）
+      if (keyboardOpenLast && !keyboardOpen) {
+        baselineInnerH = innerH;
+      }
+      // 键盘从关 → 开：第一次升起时锁定 baseline
+      if (!keyboardOpenLast && !keyboardOpen) {
+        baselineInnerH = Math.max(baselineInnerH, innerH);
+      }
+      keyboardOpenLast = keyboardOpen;
       if (keyboardOpen) {
         document.body.setAttribute('data-keyboard', 'true');
       } else {

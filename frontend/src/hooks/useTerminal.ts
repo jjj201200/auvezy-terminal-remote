@@ -68,6 +68,8 @@ export interface UseTerminalReturn {
   reset: () => void;
   /** 滚动到底部（程序触发） */
   scrollToBottom: () => void;
+  /** 滚动到顶部（程序触发） */
+  scrollToTop: () => void;
   /** 设置 auto-follow 开关 */
   setAutoFollow: (enabled: boolean) => void;
   /** 是否显示"返回底部"按钮（绑定到组件 state） */
@@ -82,6 +84,11 @@ export interface UseTerminalReturn {
   clearSearch: () => void;
   /** 获取当前选区文本，无选区返回空串 */
   getSelection: () => string;
+  /**
+   * 注册 xterm 的 onData 回调（键盘 / paste / IME 输出统一从这里出）。
+   * 调用方传 null 取消注册。直接输入模式下用它把按键实时发给 PTY。
+   */
+  setOnData: (cb: ((data: string) => void) | null) => void;
   /** 内部 Terminal 引用（极少数高级场景使用） */
   terminal: RefObject<Terminal | null>;
 }
@@ -99,6 +106,8 @@ export function useTerminal(
 ): UseTerminalReturn {
   // ──────────────── refs ────────────────
   const termRef = useRef<Terminal | null>(null);
+  // 直接输入模式下的 onData 回调；setOnData 切换它而不重挂 xterm listener
+  const onDataRef = useRef<((data: string) => void) | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
 
@@ -260,7 +269,14 @@ export function useTerminal(
 
     const initial = computeFontPrefs();
     const term = new Terminal({
-      disableStdin: true, // 前端是只读视图，输入走独立 InputBar
+      // disableStdin=false：让 xterm 自己监听 helper-textarea 的 keydown/input
+      // 事件并触发 onData。我们通过 setOnData(cb) 决定是否转发到 PTY：
+      //   - useInputBar=true: setOnData(null)，xterm 内部仍处理（但 helper
+      //     pointer-events:none，焦点永远在我们的 InputBar，所以 xterm 实际
+      //     收不到键 → onData 不触发）
+      //   - useInputBar=false: setOnData(send → WS)，焦点在 helper-textarea，
+      //     用户按键 / IME 输入 → xterm.onData → 直发 PTY
+      disableStdin: false,
       // SearchAddon 用 registerDecoration 画匹配高亮，xterm 把它归为 proposed API
       allowProposedApi: true,
       fontSize: initial.fontSize,
@@ -311,6 +327,67 @@ export function useTerminal(
 
     term.open(container);
 
+    // ──────────────── 移动端单指 swipe → 滚动 scrollback ────────────────
+    //
+    // 原因：xterm 默认依赖 wheel 事件滚动 viewport，触屏拖拽不会触发 wheel。
+    // 原生 viewport 的 overflow:auto 在 webgl 渲染下也基本无效（GPU 自己画
+    // canvas，scrollHeight 为 0）。所以手动监听 touchstart/touchmove，把垂直
+    // 位移按 cell 高度换算成行数，调 term.scrollLines()。
+    //
+    // 仅响应"主屏幕"（!buffer.alternate）：alt-screen 是 TUI 程序自己的画布，
+    // 滚 xterm 会让程序视图错位；alt-screen 内的滚动应该是程序自己接管
+    // （vim Ctrl+B / less b 等），未来如需要可加 wheel-report 转发。
+    //
+    // 多指 / 选中文本场景跳过：避免与 xterm 的选中 / pinch zoom 等冲突
+    let touchStartY = 0;
+    let touchAccumPx = 0;
+    let touchPointerId: number | null = null;
+    const onTouchStart = (e: TouchEvent): void => {
+      if (e.touches.length !== 1) {
+        touchPointerId = null;
+        return;
+      }
+      // alt-screen 不接管
+      if (term.buffer.active.type === 'alternate') {
+        touchPointerId = null;
+        return;
+      }
+      touchPointerId = e.touches[0]!.identifier;
+      touchStartY = e.touches[0]!.clientY;
+      touchAccumPx = 0;
+    };
+    const onTouchMove = (e: TouchEvent): void => {
+      if (touchPointerId === null) return;
+      // 找到本次 swipe 的 touch；多指中途插入则放弃
+      const t = Array.from(e.touches).find((x) => x.identifier === touchPointerId);
+      if (!t) return;
+      // 选中文本时不接管（让 xterm / 浏览器处理选区）
+      const sel = window.getSelection();
+      if (sel && sel.toString().length > 0) return;
+
+      const dy = t.clientY - touchStartY;
+      const newDelta = dy - touchAccumPx;
+      // 把 px 累积到至少 1 个 cell 高才滚一行（减少抖动）
+      const cellH = (term as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: { height?: number } } } } } })
+        ._core?._renderService?.dimensions?.css?.cell?.height ?? 18;
+      if (Math.abs(newDelta) < cellH) return;
+      const lines = Math.trunc(newDelta / cellH);
+      if (lines === 0) return;
+      // 手指下拉(dy>0) → 看历史(scrollLines 负数)
+      term.scrollLines(-lines);
+      touchAccumPx += lines * cellH;
+      // 阻止默认避免页面整体被拖动 / iOS 弹性回弹
+      e.preventDefault();
+    };
+    const onTouchEnd = (): void => {
+      touchPointerId = null;
+    };
+    // touchmove 必须 passive:false 才能 preventDefault
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
     // WebGL graceful 降级到 canvas
     // 注意：webgl 与 SearchAddon 的 decoration 不兼容，所以 search 不传 decorations，
     // 只靠 term.select() 渲染当前匹配（webgl 下 selection 走 GPU，定位正确）
@@ -328,9 +405,17 @@ export function useTerminal(
     } catch {
       /* 容器尺寸为 0：等切到可见时 ResizeObserver 自愈 */
     }
-    requestAnimationFrame(() => {
-      if (termRef.current) emitResize(term.cols, term.rows);
-    });
+    // 挂载稳定窗：移动端首屏 safe-area / 字体加载 / Toolbar lazy 渲染会
+    // 让 terminalWrap 高度在 ~500ms 内逐帧上涨（实测 27 → 45 行九次跳跃）。
+    // 每次 emit 都触发 PTY SIGWINCH → zsh 反复重画 prompt → autosuggestions
+    // 残留行无法擦除堆积。所以挂载首屏的所有 emit 都吞掉，等 INITIAL_QUIET_MS
+    // 后走正常 scheduleEmit 路径（同样会被键盘检测拦住）
+    let initialQuiet = true;
+    setTimeout(() => {
+      initialQuiet = false;
+      try { fitAddon.fit(); } catch { /* 等下次 ResizeObserver */ }
+      if (termRef.current) scheduleEmit(term.cols, term.rows);
+    }, 500);
 
     termRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -373,20 +458,136 @@ export function useTerminal(
     };
     applyPrefsRef.current = applyPrefs;
 
-    const resizeObserver = new ResizeObserver(() => {
+    // ──────────────── resize → PTY 防抖（参考 VS Code TerminalResizeDebouncer）────────────────
+    //
+    // 桌面端无此问题，移动端（特别是 iOS WebKit / iOS Chrome）软键盘弹起会让
+    // visualViewport 抖动 → 容器高度从 ~45 行压缩到 ~5 行再恢复，期间
+    // ResizeObserver 高频回调。每次都 fit + emit 给 PTY 的话：
+    //  - PTY 的 cols 在 10/45/70 之间狂跳
+    //  - zsh + autosuggestions 按多个不同 cols 反复重画 prompt
+    //  - 残留行擦不掉 → 视觉上"堆积"
+    //
+    // 第一道防御（CSS 平台层）：index.html 的 viewport meta 加了
+    // `interactive-widget=resizes-visual`，Chromium 系（含 Android Chrome）键盘
+    // 弹起只压 visual viewport 不动 layout viewport → ResizeObserver 根本不触发。
+    // iOS 上所有浏览器底层强制 WebKit，meta 不生效，下面的 JS 兜底。
+    //
+    // 第二道防御（JS 三件套）：
+    //  1. 入口去重：cols/rows 跟上次 emit 的相同直接 short-circuit
+    //  2. 防抖 300ms：连续抖动只在最终稳态 emit 一次。300ms 足以等到 iOS 软
+    //     键盘动画结束（约 250ms），又不让用户感觉到延迟
+    //  3. 键盘冻结：visualViewport.height < 75% innerHeight 视为键盘弹起，
+    //     期间完全跳过 fit + emit；键盘收起的 visualViewport.resize 会触发
+    //     新一轮 fit 走正常路径
+    //  4. 最小尺寸阈值：cols<20 / rows<8 直接丢弃（xterm font metrics 未就绪
+    //     时偶发瞬态垃圾值，emit 后污染 PTY）
+    const COLS_DEBOUNCE_MS = 300;
+    let colsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let pendingCols = 0;
+    let pendingRows = 0;
+    let lastEmittedCols = 0;
+    let lastEmittedRows = 0;
+
+    /** 软键盘弹起检测（仅 visualViewport 可用时） */
+    const isKeyboardOpen = (): boolean => {
+      const vv = window.visualViewport;
+      if (!vv) return false;
+      return vv.height < window.innerHeight * 0.75;
+    };
+
+    /** 真正下发 SIGWINCH 给 PTY，做入口去重 */
+    const tryEmit = (cols: number, rows: number): void => {
+      if (cols === lastEmittedCols && rows === lastEmittedRows) return;
+      lastEmittedCols = cols;
+      lastEmittedRows = rows;
+      emitResize(cols, rows);
+    };
+
+    // 最小可用尺寸：zsh + autosuggestions 在极小 cols/rows 下 CUU/EL 必出错；
+    // 容器尺寸瞬态过小（xterm font metrics 未就绪时偶发 cols=10 r=5）的 emit
+    // 会污染 PTY，下一帧恢复正常尺寸时 zsh 已经按错位 cols 重画过 prompt
+    const MIN_USABLE_COLS = 20;
+    const MIN_USABLE_ROWS = 8;
+
+    /** 按 VS Code 策略调度：所有变化都防抖到 COLS_DEBOUNCE_MS 后一次 emit */
+    const scheduleEmit = (cols: number, rows: number): void => {
+      // 太小的尺寸直接丢弃（不缓存到 pending，避免防抖回调拿到旧的小值）
+      if (cols < MIN_USABLE_COLS || rows < MIN_USABLE_ROWS) return;
+      // 初始挂载窗口 + 键盘弹起期：完全冻结 emit，只缓存意图
+      if (isKeyboardOpen() || initialQuiet) {
+        pendingCols = cols;
+        pendingRows = rows;
+        return;
+      }
+      pendingCols = cols;
+      pendingRows = rows;
+      // 不再分横纵：实测 zsh-autosuggestions 在 rows 变化时也会重画 prompt
+      // 导致残留堆积，所以 rows 也走防抖。100ms 内的连续变化合并成一次 emit
+      if (colsDebounceTimer) clearTimeout(colsDebounceTimer);
+      colsDebounceTimer = setTimeout(() => {
+        colsDebounceTimer = null;
+        tryEmit(pendingCols, pendingRows);
+      }, COLS_DEBOUNCE_MS);
+    };
+
+    /**
+     * fit + scheduleEmit 的统一入口。
+     *
+     * 关键：fit() 不只算尺寸，还会真的修改 term.rows / term.cols 和重排 buffer。
+     * 键盘弹起期 / 初始 quiet 期跳过 fit()，让 xterm 维持上次稳定 rows，使
+     * zsh 的 CUU/EL 等"原地刷新"序列在大 buffer 内正常工作（buffer 行数 =
+     * term.rows，必须够大才能容下 zsh-autosuggestions 的 N 行提示 + 上移 N 行）。
+     * CSS 容器临时被键盘压小不影响 buffer，用户能滚动看到溢出部分。
+     */
+    const fitAndSchedule = (): void => {
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w === 0 || h === 0) return;
+      // 软键盘弹起期 + 初始挂载期：跳过 fit，避免把 term.rows 改成不可用的小值
+      if (isKeyboardOpen() || initialQuiet) return;
       try {
         applyPrefs();
         fitAddon.fit();
-        emitResize(term.cols, term.rows);
+        scheduleEmit(term.cols, term.rows);
       } catch {
         // xterm RenderService 偶发 dimensions undefined（容器 portal 切换时序）
         // 下一帧再次触发 ResizeObserver 时会自愈
       }
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      fitAndSchedule();
     });
+
+    // visualViewport 变化（键盘弹起 / 收起 / 旋屏）→ 复用同一 fit 路径，
+    // 同时键盘刚弹起时把 xterm viewport 滚到底部，确保当前命令行 / 光标在
+    // 缩小的 CSS 可视区里能看到（buffer 不变但 viewport 变小，autoFollow 还
+    // 没触发就先主动滚一下）
+    const onVvResize = (): void => {
+      requestAnimationFrame(() => {
+        fitAndSchedule();
+        if (isKeyboardOpen() && autoFollowRef.current) {
+          scrollSkipRef.current = 1;
+          termRef.current?.scrollToBottom();
+        }
+      });
+    };
+    window.visualViewport?.addEventListener('resize', onVvResize);
     resizeObserver.observe(container);
+    // 同时观察 parent：FitAddon 实际读取的是 .xterm 的 parentElement (即
+    // container) 的 getComputedStyle.height。在 SearchBar 作为 flex 兄弟出现 /
+    // 消失时 container 自身高度也跟着变会触发 ResizeObserver，但少数浏览器对
+    // absolute + flex 子项的回调有时序差，多观察一层做兜底
+    if (container.parentElement) {
+      resizeObserver.observe(container.parentElement);
+    }
+
+    // 输入转发（直接输入模式）：xterm 的 onData 把所有用户输入（按键、IME 提交、
+    // paste）合并成一个字符串流；调用方注册 setOnData(cb) 后，这里把 data 转给 cb。
+    // 只挂一次 listener；onDataRef.current 在 setOnData 调用时切换，无需重挂
+    const onDataDispose = term.onData((data: string) => {
+      onDataRef.current?.(data);
+    });
 
     // 滚动监听：智能 auto-follow
     const onScrollDispose = term.onScroll(() => {
@@ -405,8 +606,18 @@ export function useTerminal(
 
     return () => {
       window.removeEventListener('error', errorSuppressor);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+      if (colsDebounceTimer) {
+        clearTimeout(colsDebounceTimer);
+        colsDebounceTimer = null;
+      }
+      window.visualViewport?.removeEventListener('resize', onVvResize);
       resizeObserver.disconnect();
       onScrollDispose.dispose();
+      onDataDispose.dispose();
 
       // 清理所有挂起的定时器与 RAF
       if (pendingResizeTimeoutRef.current) {
@@ -500,9 +711,24 @@ export function useTerminal(
     term.scrollToBottom();
   }, []);
 
+  const scrollToTop = useCallback(() => {
+    const term = termRef.current;
+    if (!term) return;
+    // 跟 scrollToBottom 同样吞一次 onScroll 事件，避免被识别为"用户滚动"
+    scrollSkipRef.current = 1;
+    scrollRafIdRef.current = requestAnimationFrame(() => {
+      scrollRafIdRef.current = null;
+    });
+    term.scrollToTop();
+  }, []);
+
   const setAutoFollow = useCallback((enabled: boolean) => {
     autoFollowRef.current = enabled;
     if (enabled) setShowScrollHint(false);
+  }, []);
+
+  const setOnData = useCallback((cb: ((data: string) => void) | null): void => {
+    onDataRef.current = cb;
   }, []);
 
   const adaptToPtySize = useCallback((_cols: number, _rows: number): void => {
@@ -551,6 +777,8 @@ export function useTerminal(
     clear,
     reset,
     scrollToBottom,
+    scrollToTop,
+    setOnData,
     setAutoFollow,
     showScrollHint,
     adaptToPtySize,

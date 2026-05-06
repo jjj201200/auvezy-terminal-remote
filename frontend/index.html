@@ -3,11 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <!--
-      不用 interactive-widget=resizes-content：键盘弹起时让 layout viewport 不变，
-      整个页面保持原样，输入法浮在上面（更像原生终端 / 播放器类应用）。
-      _reset.scss 用 100lvh + fixed + overflow:hidden 锁死根，避免视口被 pan。
+      interactive-widget=resizes-visual（Chromium 108+ / Firefox 132+，含 iOS Chrome）：
+      键盘弹起时只压缩 visual viewport，layout viewport 保持原尺寸 → ResizeObserver
+      不会因键盘触发 → xterm 的 cols/rows 不抖 → PTY 收不到错位 SIGWINCH
+      → zsh-autosuggestions 之类的"原地刷新"序列正常工作。
+      iOS Safari 仍未支持，靠 useViewportFix + visualViewport 检测兜底。
     -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual" />
     <!-- 与 manifest theme_color 一致：浏览器 / PWA 顶栏背景色 -->
     <meta name="theme-color" content="#0e120e" />
 

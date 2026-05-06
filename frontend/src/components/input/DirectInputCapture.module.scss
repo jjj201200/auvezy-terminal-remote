@@ -1,0 +1,27 @@
+// 直接输入捕获层：透明真实 textarea，承担 iOS 的 focus + IME。
+// 视觉不可见但 iOS 把它当真实输入控件 → input / compositionend 事件正常派发。
+
+.capture {
+  position: absolute;
+  // 贴最底部一行：iOS 软键盘弹起后该行处于可视区底部，焦点元素不会被
+  // visualViewport 的 scrollIntoView 扯走（已经在底部了）。height:1px
+  // 也足够 iOS 当成"真实输入控件"派发事件。
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 1px;
+  // opacity:0 视觉透明；不能用 visibility:hidden / display:none，那样不获焦
+  opacity: 0;
+  // 防止 iOS 自动放大（input font-size < 16px 触发 zoom）
+  font-size: 16px;
+  // 隐藏光标 / 边框 / 背景：纯粹的事件捕获面
+  caret-color: transparent;
+  border: none;
+  outline: none;
+  background: transparent;
+  resize: none;
+  // 不挡住 .xterm 的滚动 / 选择手势：只在被 onClick 显式 focus 时获焦
+  pointer-events: none;
+  // 但 textarea 自己 focus 后还能接收键盘事件（焦点已得到，不需要 pointer）
+  z-index: 5;
+}
