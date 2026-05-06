@@ -100,3 +100,22 @@
   background: t.$accent-soft;
   padding: 1px 6px;
 }
+
+// 断开覆盖层里的"重连"按钮
+.idleAction {
+  appearance: none;
+  margin-top: t.$sp-4;
+  padding: t.$sp-3 t.$sp-5;
+  border: 1px solid t.$accent;
+  background: t.$accent;
+  color: #0a0c0f;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  letter-spacing: t.$tracking-tight;
+  cursor: pointer;
+  @include m.transition(background t.$dur-fast);
+
+  &:hover {
+    background: color-mix(in srgb, t.$accent 92%, white 8%);
+  }
+}

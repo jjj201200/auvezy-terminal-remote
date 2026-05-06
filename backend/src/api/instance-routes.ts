@@ -17,6 +17,7 @@ import type { AuthModule } from '../auth/auth-middleware.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner, SpawnInstanceInput } from '../registry/instance-spawner.js';
 import { stopInstances } from '../registry/stop-instances.js';
+import { onInstanceChange } from '../registry/instance-events.js';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 
@@ -50,6 +51,60 @@ export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
           : new InstanceError(ErrorCode.INTERNAL_ERROR, '注册表读取失败', 500, err);
       res.status(e.httpStatus).json({ error: e.toPayload() });
     }
+  });
+
+  /**
+   * GET /instances/stream — SSE
+   *
+   * instances.json 文件变更（任何 backend 调 register/unregister/list-with-prune）
+   * → 推一条 event: 'instances' + 最新 list 给所有连着的客户端。
+   *
+   * 鉴权：cookie（EventSource 不支持自定义 header，credentials:include 即走 cookie）。
+   * 心跳：每 25s 发 `:keepalive` 注释行，避免代理 / 浏览器 close idle 连接。
+   */
+  router.get('/instances/stream', authModule.requireAuth, async (req, res) => {
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      // 防 nginx 缓冲（即使我们没 nginx，加上无害）
+      'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders();
+
+    // 推一条当前快照，让客户端不必再单独调 GET 拉一次
+    const sendSnapshot = async (): Promise<void> => {
+      try {
+        const list = await registry.list();
+        const items: InstanceListItem[] = list.map((i) => ({
+          ...i,
+          isCurrent: i.instanceId === currentInstanceId,
+        }));
+        res.write(`event: instances\ndata: ${JSON.stringify({ instances: items })}\n\n`);
+      } catch (err) {
+        logger.warn({ err }, 'SSE snapshot 推送失败（非致命）');
+      }
+    };
+
+    await sendSnapshot();
+
+    const unsubscribe = onInstanceChange(() => {
+      void sendSnapshot();
+    });
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(`:keepalive\n\n`);
+      } catch {
+        /* socket 已关；cleanup 由 close 事件接管 */
+      }
+    }, 25_000);
+
+    const cleanup = (): void => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+    req.on('close', cleanup);
+    req.on('aborted', cleanup);
   });
 
   router.post('/instances', authModule.requireAuth, async (req: Request, res: Response) => {
@@ -99,7 +154,7 @@ export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
    */
   router.delete('/instances/:id', authModule.requireAuth, async (req: Request, res: Response) => {
     const id = req.params.id;
-    logger.info({ id, ip: req.ip, currentInstanceId }, 'DELETE /instances/:id 进入');
+    logger.debug({ id, ip: req.ip, currentInstanceId }, 'DELETE /instances/:id');
     if (!id || typeof id !== 'string') {
       const e = new InstanceError(ErrorCode.CWD_NOT_EXIST, 'instanceId 必填', 400);
       res.status(e.httpStatus).json({ error: e.toPayload() });

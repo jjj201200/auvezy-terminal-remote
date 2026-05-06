@@ -109,7 +109,10 @@ Claude 进程子进程通过 ~/.claude/hooks 调 loopback POST /api/hook
 | `hooks/hook-receiver.ts` | 仅 loopback 的 /api/hook 路由 |
 | `push/push-service.ts` | VAPID 三优先级 + 订阅持久化 + 410 自动 prune |
 | `registry/instance-registry.ts` | 多实例注册表（mkdir-lock）|
+| `registry/instance-events.ts` | fs.watch instances.json + EventEmitter，给 SSE 推变更 |
+| `registry/instance-spawner.ts` | 派生 headless 实例（dev 走 tsx，prod 走 node dist）|
 | `registry/port-finder.ts` | 端口冲突自动递增 |
+| `api/instance-routes.ts` | /instances 列表 / 创建 / 删除 + SSE /instances/stream |
 | `attach/attach-client.ts` | attach 子命令的 stdin/stdout 桥接核心 |
 | `network/ip-monitor.ts` | 30s 轮询 LAN IP，含稳定阈值 |
 | `utils/ansi-filter.ts` | 备用屏幕缓冲区（1049）状态机过滤 |
@@ -127,12 +130,18 @@ Claude 进程子进程通过 ~/.claude/hooks 调 loopback POST /api/hook
 | `hooks/usePushNotification.ts` | Web Push 订阅生命周期 |
 | `hooks/useLocalNotification.ts` | iOS < 16.4 fallback |
 | `hooks/useUserConfig.ts` | /api/config 双向同步 |
-| `hooks/useInstances.ts` | /api/instances 列表 + 创建 |
+| `hooks/useInstances.ts` | 实例列表 = SSE /api/instances/stream（30s 兜底轮询）+ 创建 / 删除 / pending 占位 |
+| `hooks/useDisconnected.ts` | 本机"已断开"实例 id 集合（localStorage 持久化 + 跨 tab 同步）|
 | `components/input/InputBar.tsx` | 输入框 + 快捷键条（dnd-kit）|
-| `components/instances/InstanceTabs.tsx` | 多实例切换 |
+| `components/instances/InstanceTabs.tsx` | 桌面多实例切换 + 占位 / 失败 / 关闭按钮 |
+| `components/instances/MobileInstanceSwitcher.tsx` | 移动端实例切换 sheet（同上） |
+| `components/instances/CreateInstanceModal.tsx` | 创建实例表单 + cwd 最近列表（LRU 5）|
+| `components/ui/ConfirmModal.tsx` | 通用页内确认 modal（替代 window.confirm）|
 | `components/common/PushToggle.tsx` | 推送订阅按钮 |
 | `components/common/IpChangeToast.tsx` | IP 漂移底部 toast |
 | `services/api-client.ts` | fetch 包装（统一 ErrorPayload）|
+| `services/recent-instances.ts` | 最近创建过的 cwd LRU（localStorage） |
+| `services/disconnected-instances.ts` | 本机"已断开"实例集合（localStorage） |
 
 ## 关键决策（ADR 索引）
 

@@ -116,3 +116,29 @@
     background: rgba(255, 99, 71, 0.08);
   }
 }
+
+// pending 项：与真实 item 一致的布局，左侧多一个状态图标
+.itemPending {
+  opacity: 0.75;
+  cursor: default;
+  font-style: italic;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+.itemPendingFailed {
+  color: t.$warn;
+  border-color: t.$warn !important;
+  font-style: normal;
+  opacity: 1;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

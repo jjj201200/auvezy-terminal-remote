@@ -215,12 +215,28 @@ export interface Messages {
     pendingTooltip: string;
     pendingFailed: string;
     pendingNameless: string;
+    pendingRetry: string;
+    pendingDismiss: string;
+    disconnect: string;
+    reconnect: string;
+    disconnectedTitle: string;
+    disconnectedBody: string;
+    closeOrDisconnectTitle: string;
+    closeOrDisconnectBody: string;
+    recentTitle: string;
+    recentRemove: string;
+    recentEmpty: string;
     close: string;
     closeFailed: string;
+    closeFailedTitle: string;
+    closeConfirmTitle: string;
     closeConfirm: string; // {{name}} 实例名
     closeCurrentBlocked: string;
+    closeCurrentLastTitle: string;
     closeCurrentLast: string;
+    closeCurrentConfirmTitle: string;
     closeCurrentConfirm: string; // {{name}}
+    pendingFailedTitle: string;
   };
 
   // 设置 - 通知（PushToggle）

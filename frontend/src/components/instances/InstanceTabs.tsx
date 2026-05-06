@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useRef, useState, type JSX, type PointerEvent as ReactPointerEvent } from 'react';
-import { IconPlus, IconLoader2, IconX, IconAlertTriangle } from '@tabler/icons-react';
+import { IconPlus, IconLoader2, IconX, IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 import type { InstanceListItem } from '@otr/shared';
 import clsx from 'clsx';
 import { useT } from '../../i18n/i18n-context.js';
@@ -22,12 +22,25 @@ import s from './InstanceTabs.module.scss';
 
 export interface InstanceTabsProps {
   instances: InstanceListItem[];
+  /**
+   * 当前激活的 tab id（前端 UI 状态；决定 tab 视觉高亮）。
+   * 与 InstanceListItem.isCurrent（后端真实"serve webapp 的进程"）是不同概念。
+   * 不传 = 不走本地切换语义，回退到 isCurrent 作为高亮（旧行为）
+   */
+  activeId?: string | null;
   pending?: PendingInstance[];
   onCreateClick: () => void;
   /** 切实例：传了走本地切换；不传 fallback 到 location.assign */
   onSwitch?: (instanceId: string) => void;
-  /** 关闭实例（DELETE /api/instances/:id）；返回 null 成功，否则错误信息 */
-  onClose?: (instanceId: string) => Promise<string | null>;
+  /**
+   * 请求关闭某个实例 —— 由父组件接管确认 modal + 实际删除调用。
+   * 不传 = 不显示 × 按钮
+   */
+  onCloseRequest?: (instance: InstanceListItem) => void;
+  /** 重新等一个 failed pending（重置超时 + 立即拉一次 list） */
+  onPendingRetry?: (pendingId: string) => void;
+  /** 关闭一个 pending tab（仅 UI 层移除，不调 DELETE） */
+  onPendingDismiss?: (pendingId: string) => void;
 }
 
 const LONG_PRESS_MS = 500;
@@ -40,10 +53,13 @@ const MENU_ENABLED = false;
 
 export function InstanceTabs({
   instances,
+  activeId,
   pending = [],
   onCreateClick,
   onSwitch,
-  onClose,
+  onCloseRequest,
+  onPendingRetry,
+  onPendingDismiss,
 }: InstanceTabsProps): JSX.Element {
   const t = useT();
   // 长按菜单：哪个实例在显示菜单 + 锚定坐标
@@ -70,10 +86,13 @@ export function InstanceTabs({
     }
   };
 
+  // 高亮态用 activeId 优先（多实例同页切换场景）；fallback 到 backend isCurrent
+  const isHighlight = (i: InstanceListItem): boolean =>
+    activeId !== undefined ? i.instanceId === activeId : i.isCurrent;
+
   const handleSwitch = (i: InstanceListItem): void => {
-    if (i.isCurrent) return;
+    if (isHighlight(i)) return; // 已激活，无需切换
     if (longPressFiredRef.current) {
-      // 长按已经弹了菜单，不走切换
       longPressFiredRef.current = false;
       return;
     }
@@ -102,44 +121,24 @@ export function InstanceTabs({
     setMenuFor({ id: i.instanceId, x: e.clientX, y: e.clientY });
   };
 
+  // 关闭按钮 → 上提到父组件做 modal 确认 + 真实 DELETE / killAfterSwitch 跳转
   const handleCloseClick = (i: InstanceListItem): void => {
-    if (!onClose) return;
-    // isCurrent = serve 这个 webapp 的进程。关它会让本设备的整个 webapp 立刻
-    // "失去地基"（刷新就 404）+ 把其他正连这个 origin 的设备一并踢下线。
-    //
-    // 流程：先跳到另一个实例的 origin（带 token），新前端 mount 时通过
-    // ?killAfterSwitch=<oldId> query 发 DELETE 关掉老 isCurrent。
-    if (i.isCurrent) {
-      const others = instances.filter((x) => x.instanceId !== i.instanceId);
-      if (others.length === 0) {
-        alert(t('instance.closeCurrentLast'));
-        return;
-      }
-      if (!confirm(t('instance.closeCurrentConfirm', { name: i.name }))) return;
-      // 选一个目标实例（优先非 pending 的，第一个即可）
-      const target = others[0]!;
-      const url = new URL(buildInstanceUrl(target.host, target.port), window.location.href);
-      url.searchParams.set('killAfterSwitch', i.instanceId);
-      window.location.assign(url.toString());
-      return;
-    }
-    if (!confirm(t('instance.closeConfirm', { name: i.name }))) return;
-    void onClose(i.instanceId).then((err) => {
-      if (err) alert(`${t('instance.closeFailed')}: ${err}`);
-    });
+    onCloseRequest?.(i);
   };
 
   return (
     <nav id="instance-tabs" className={s.nav} aria-label={t('instance.instancesAriaLabel')}>
-      {instances.map((i) => (
+      {instances.map((i) => {
+        const highlight = isHighlight(i);
+        return (
         // 用 div role=button：内部要嵌关闭按钮（button 不能嵌 button）
         // 整个 div 为切换实例的命中区，关闭 × 只占 tab 右侧一小块
         <div
           key={i.instanceId}
           role="button"
-          tabIndex={i.isCurrent ? -1 : 0}
-          aria-pressed={i.isCurrent}
-          aria-disabled={i.isCurrent}
+          tabIndex={highlight ? -1 : 0}
+          aria-pressed={highlight}
+          aria-disabled={highlight}
           onClick={() => handleSwitch(i)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') handleSwitch(i);
@@ -159,10 +158,10 @@ export function InstanceTabs({
               i,
             )
           }
-          title={`${i.cwd} · pid=${i.pid}`}
-          className={clsx(s.tab, i.isCurrent && s.tabActive)}
+          title={`${i.cwd} · pid=${i.pid}${i.isCurrent ? ' · 当前服务进程' : ''}`}
+          className={clsx(s.tab, highlight && s.tabActive)}
         >
-          {onClose && (
+          {onCloseRequest && (
             <button
               type="button"
               onClick={(e) => {
@@ -179,27 +178,56 @@ export function InstanceTabs({
           <span>{i.name}</span>
           <span className={s.tabPort}>:{i.port}</span>
         </div>
-      ))}
-      {pending.map((p) => (
-        <button
-          key={p.pendingId}
-          type="button"
-          onClick={() => {
-            if (p.state === 'failed' && p.error) {
-              alert(`${t('instance.pendingFailed')}: ${p.error}`);
-            }
-          }}
-          title={p.state === 'failed' ? p.error : t('instance.pendingTooltip')}
-          className={clsx(s.tab, s.tabPending, p.state === 'failed' && s.tabPendingFailed)}
-        >
-          {p.state === 'creating' ? (
-            <IconLoader2 size={10} stroke={1.5} className={s.spin} />
-          ) : (
-            <IconAlertTriangle size={10} stroke={1.5} />
-          )}
-          <span className={s.pendingName}>{p.name || t('instance.pendingNameless')}</span>
-        </button>
-      ))}
+        );
+      })}
+      {pending.map((p) => {
+        const failed = p.state === 'failed';
+        return (
+          // div role=button：失败态需要内嵌 retry/× 按钮（button 不能嵌 button）
+          <div
+            key={p.pendingId}
+            role="button"
+            tabIndex={0}
+            title={failed ? p.error : t('instance.pendingTooltip')}
+            className={clsx(s.tab, s.tabPending, failed && s.tabPendingFailed)}
+          >
+            {failed ? (
+              <IconAlertTriangle size={10} stroke={1.5} />
+            ) : (
+              <IconLoader2 size={10} stroke={1.5} className={s.spin} />
+            )}
+            <span className={s.pendingName}>{p.name || t('instance.pendingNameless')}</span>
+            {failed && onPendingRetry && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPendingRetry(p.pendingId);
+                }}
+                title={t('instance.pendingRetry')}
+                aria-label={t('instance.pendingRetry')}
+                className={s.tabClose}
+              >
+                <IconRefresh size={10} stroke={1.5} />
+              </button>
+            )}
+            {failed && onPendingDismiss && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPendingDismiss(p.pendingId);
+                }}
+                title={t('instance.pendingDismiss')}
+                aria-label={t('instance.pendingDismiss')}
+                className={s.tabClose}
+              >
+                <IconX size={10} stroke={1.5} />
+              </button>
+            )}
+          </div>
+        );
+      })}
       <button
         type="button"
         onClick={onCreateClick}

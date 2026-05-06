@@ -34,13 +34,27 @@ export interface InstanceViewProps {
   config: UserConfig;
   /** 是否当前激活：决定 SearchBar / 全局快捷键监听是否在本实例上生效 */
   active: boolean;
-  /** 状态变化时上报：让上层 StatusBar 显示 active 实例的状态 */
-  onStatusChange?: (s: { connection: 'connecting' | 'connected' | 'disconnected' | 'gave_up'; session: SessionStatus }) => void;
-  /** 上层提供 reconnect 回调（透传给 active 实例的 StatusBar） */
-  registerReconnect?: (fn: () => void) => void;
+  /**
+   * 状态变化时上报。第一参数是 instanceId，让父组件用同一个回调处理多实例
+   * （回调对所有实例稳定 → 不会因 instanceId 不同而生成新闭包 → 不触发死循环）
+   */
+  onStatusChange?: (
+    instanceId: string,
+    s: { connection: 'connecting' | 'connected' | 'disconnected' | 'gave_up'; session: SessionStatus },
+  ) => void;
+  /** 上层提供 reconnect 回调；第一参数也是 instanceId（同上） */
+  registerReconnect?: (instanceId: string, fn: () => void) => void;
   /** SearchBar 的 open 状态由上层控制（顶栏搜索按钮 + Cmd+F 全局快捷键） */
   searchOpen: boolean;
   onSearchClose: () => void;
+  /**
+   * 本设备主动断开（不影响其他设备 / backend 进程仍在）。
+   * - true：useWebSocket 不开 WS，渲染"已断开 — 点击重连"覆盖层
+   * - false（默认）：正常自动连
+   */
+  disabled?: boolean;
+  /** 用户点覆盖层重连按钮的回调（清掉 disabled 状态由父组件做） */
+  onReconnect?: (instanceId: string) => void;
 }
 
 /**
@@ -63,6 +77,8 @@ export function InstanceView({
   registerReconnect,
   searchOpen,
   onSearchClose,
+  disabled = false,
+  onReconnect,
 }: InstanceViewProps): JSX.Element {
   const t = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -139,18 +155,19 @@ export function InstanceView({
     handleMessage,
     wsUrl,
     config.network?.reconnectMaxAttempts,
+    disabled,
   );
   sendRef.current = send;
 
   // 把状态变化上报给父组件（active 时父组件会显示）
   useEffect(() => {
-    onStatusChange?.({ connection: connectionStatus, session: sessionStatus });
-  }, [connectionStatus, sessionStatus, onStatusChange]);
+    onStatusChange?.(instanceId, { connection: connectionStatus, session: sessionStatus });
+  }, [instanceId, connectionStatus, sessionStatus, onStatusChange]);
 
   // active 时把 reconnect 函数注册给父组件
   useEffect(() => {
-    if (active) registerReconnect?.(connect);
-  }, [active, connect, registerReconnect]);
+    if (active) registerReconnect?.(instanceId, connect);
+  }, [instanceId, active, connect, registerReconnect]);
 
   const handleUserInput = useCallback(
     (data: string): boolean => send({ type: 'user_input', data }),
@@ -236,7 +253,22 @@ export function InstanceView({
         }}
       >
         <TerminalView ref={containerRef} className={s.terminalView} />
-        {connectionStatus === 'connected' && sessionStatus === 'pty_pending' && (
+        {disabled && (
+          <div className={s.idleOverlay}>
+            <div className={s.idleCard}>
+              <div className={s.idleTitle}>{t('instance.disconnectedTitle')}</div>
+              <p className={s.idleBody}>{t('instance.disconnectedBody')}</p>
+              <button
+                type="button"
+                onClick={() => onReconnect?.(instanceId)}
+                className={s.idleAction}
+              >
+                {t('instance.reconnect')}
+              </button>
+            </div>
+          </div>
+        )}
+        {!disabled && connectionStatus === 'connected' && sessionStatus === 'pty_pending' && (
           <div className={s.idleOverlay}>
             <div className={s.idleCard}>
               <div className={s.idleTitle}>{t('console.startingTitle')}</div>
@@ -246,7 +278,7 @@ export function InstanceView({
             </div>
           </div>
         )}
-        {connectionStatus === 'connected' &&
+        {!disabled && connectionStatus === 'connected' &&
           sessionStatus !== 'pty_pending' &&
           !hasPtyOutput && (
             <div className={s.idleOverlay}>
@@ -274,7 +306,7 @@ export function InstanceView({
         onSendData={(data) => send({ type: 'user_input', data })}
         onSubmitCommand={(text) => send({ type: 'user_input', data: text + '\r' })}
         onPrefillCommand={(text) => setInputValue(text)}
-        disabled={connectionStatus !== 'connected'}
+        disabled={disabled || connectionStatus !== 'connected'}
       />
 
       <InputBar
@@ -282,7 +314,7 @@ export function InstanceView({
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleUserInput}
-        disabled={connectionStatus !== 'connected'}
+        disabled={disabled || connectionStatus !== 'connected'}
       />
 
       {active && <IpChangeToast info={ipChange} onDismiss={() => setIpChange(null)} />}

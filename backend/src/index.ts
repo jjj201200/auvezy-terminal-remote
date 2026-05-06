@@ -58,6 +58,7 @@ import { bindAvailablePort } from './registry/port-finder.js';
 import { InstanceError } from './errors.js';
 import { InstanceRegistryManager } from './registry/instance-registry.js';
 import { DefaultInstanceSpawner } from './registry/instance-spawner.js';
+import { startInstanceWatcher, stopInstanceWatcher } from './registry/instance-events.js';
 import {
   detectDisplayIp,
   buildPublicUrl,
@@ -232,6 +233,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   const spawner = new DefaultInstanceSpawner({
     cliJsPath: resolve(__dirname, 'cli.js'),
   });
+  // 启动 instances.json 文件 watcher → 给 SSE /instances/stream 推 change 事件
+  startInstanceWatcher(registry.filePath);
 
   // 3. Express 路由（app + httpServer 已在 1.10 创建并 listen，这里只往同一个 app 上挂中间件/路由）
   // CORS：同源 + localhost/127.0.0.1 + 本机所有网卡 IP（含 Tailscale / VPN / 多网卡）
@@ -388,6 +391,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     ws.destroy();
     authModule.destroy();
     devProxy?.dispose();
+    stopInstanceWatcher();
     // 注销实例（best-effort，不阻塞关闭）
     void registry.unregister(instanceId).catch((err) => {
       logger.warn({ err }, '关闭时注销实例失败');

@@ -1,0 +1,85 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.body {
+  margin: 0;
+  font-size: t.$fs-sm;
+  color: t.$fg;
+  line-height: 1.55;
+  letter-spacing: t.$tracking-tight;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// 实例名 / 关键参数高亮：等宽 + 加粗 + accent 颜色 + 背景微底
+.highlight {
+  font-family: t.$font-mono;
+  font-weight: 600;
+  color: t.$accent;
+  background: t.$accent-soft;
+  padding: 0 6px;
+  border-radius: 3px;
+  margin: 0 1px;
+  word-break: break-all;
+}
+
+// 与 CreateInstanceModal 同款基础按钮风格
+.cancelBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  border: 1px solid t.$border;
+  background: transparent;
+  color: t.$fg;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover {
+    background: t.$bg-hover;
+    border-color: t.$border-hi;
+  }
+}
+
+.confirmBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, opacity t.$dur-fast);
+}
+
+// 次选按钮（"断开"等中性偏温和操作）
+.extraBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  border: 1px solid t.$accent;
+  background: transparent;
+  color: t.$accent;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast);
+
+  &:hover {
+    background: t.$accent-soft;
+  }
+}
+
+.confirmBtnDefault {
+  background: t.$accent;
+  color: #0a0c0f;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, t.$accent 92%, white 8%);
+  }
+}
+
+// 危险确认：警告色按钮
+.confirmBtnDanger {
+  background: t.$alarm;
+  color: #0a0c0f;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, t.$alarm 90%, white 10%);
+  }
+}

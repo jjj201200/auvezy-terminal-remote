@@ -40,11 +40,15 @@ export interface UseWebSocketReturn {
  * @param onMessage 收到服务端消息的回调
  * @param wsUrl 可选显式 URL；默认根据 window.location 同源 ws://host/ws
  * @param maxAttempts 自动重连硬上限；默认走 constants 里的 WS_RECONNECT_MAX_ATTEMPTS
+ * @param disabled 标记为"暂停"——不自动连，已连的会主动 close。
+ *                 用户在 UI 里"断开"某实例（仅本设备）走这条路。
+ *                 从 true → false 时（用户点"重连"）自动重新建连。
  */
 export function useWebSocket(
   onMessage: (msg: ServerMessage) => void,
   wsUrl?: string,
   maxAttempts?: number,
+  disabled?: boolean,
 ): UseWebSocketReturn {
   // ──────────────── refs ────────────────
   const wsRef = useRef<WebSocket | null>(null);
@@ -192,6 +196,24 @@ export function useWebSocket(
   // ──────────────── 自动启动 + 离线监听 ────────────────
 
   useEffect(() => {
+    // disabled = true：完全不开；已连的关掉
+    if (disabled) {
+      // 取消任何排队的重连
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      // 让在飞回调失效；不设 isDisposedRef（disabled 是"暂停"非"销毁"，
+      // 后续 disabled→false 时还要重新连）
+      connectionTokenRef.current++;
+      const ws = wsRef.current;
+      wsRef.current = null;
+      ws?.close();
+      // UI 状态：disconnected（让 InstanceView 显示"已断开"覆盖层）
+      setConnectionStatusRef.current('disconnected');
+      return; // 不订阅 offline/online/visibility，不自动连
+    }
+
     // 浏览器从 wifi 切到蜂窝时会触发 offline，主动 close 让重连接管
     const handleOffline = (): void => {
       wsRef.current?.close();
@@ -219,7 +241,7 @@ export function useWebSocket(
     window.addEventListener('online', handleOnline);
     document.addEventListener('visibilitychange', handleVisible);
 
-    // 首次 mount 自动连
+    // 首次 mount（或 disabled 从 true→false）自动连
     connect();
 
     return () => {
@@ -236,9 +258,9 @@ export function useWebSocket(
       wsRef.current = null;
       ws?.close();
     };
-    // 仅在 wsUrl 变化时重建连接
+    // wsUrl 或 disabled 变化时重建效应
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsUrl]);
+  }, [wsUrl, disabled]);
 
   return { connect, disconnect, send, connectionStatus };
 }

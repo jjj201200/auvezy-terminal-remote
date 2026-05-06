@@ -5,6 +5,44 @@
 
 ## [Unreleased]
 
+### Added
+
+- **多实例 SSE 实时同步**：新增 `GET /api/instances/stream` SSE 端点，
+  backend 用 `fs.watch(instances.json)` 监听文件变更（任何 backend 调
+  register/unregister/list-with-prune 都会推一条 `instances` 事件）。前端
+  `useInstances` 主路径切到 EventSource，30s 轮询降级为兜底。pending →
+  real 的延迟从最长 3.7s 拍超时降到几十毫秒级
+- **页内 ConfirmModal**：新增通用 `components/ui/ConfirmModal.tsx`（基于
+  Sheet 的双形态），替代 `window.confirm`/`alert`。支持单/双/三按钮、
+  default/danger 色调、模板插值高亮关键变量（实例名等）
+- **关闭 vs 断开 二选一**：tab 关闭按钮触发 ConfirmModal，提供：
+  - **关闭**（红色）：DELETE 进程，所有设备失去连接
+  - **断开**（绿框）：仅本设备关 WS，backend 进程仍在跑、其他设备照常用
+  - 取消
+- **本机断开持久化**：新增 `services/disconnected-instances.ts` +
+  `hooks/useDisconnected.ts`（localStorage 持久化 + 跨 tab 同步）。被本机
+  断开的实例 InstanceView 显示"已断开 — 点击重连"覆盖层；StatusBar 重连
+  也会清掉这个标记
+- **创建实例最近列表**：`services/recent-instances.ts`（localStorage LRU
+  5 条，cwd 去重）。CreateInstanceModal 的 cwd 输入框 focus 弹下拉，
+  点击填充（不自动 submit），每条右侧 × 删除单条。回车顺序：cwd → name → submit
+- **占位 tab 原地变真实**：dev 模式下 spawner 拿到的是 tsx wrapper pid（≠
+  backend 子进程的 process.pid），用 (cwd 一致 && instance.startedAt ≥
+  pending.startedAt - 1s) 兜底命中规则；claimed Set 防多 pending 抢同一
+  real。pending 60s 兜底超时，可手动重连或关闭占位
+
+### Fixed
+
+- **关闭活跃实例后老 tab 残留**：跳转到新 origin 后 `?killAfterSwitch=<oldId>`
+  query 让新 backend DELETE 老进程；isCurrent vs activeId 拆分为两个 prop
+  避免覆盖；stopInstances pattern 用 `host:port` 而非 instanceId（uuid 不
+  会 substring 命中 name/cwd/host:port）
+- **ConfirmModal 死循环**：`MultiInstanceConsole` 给 InstanceView 派发的
+  `onStatusChange` / `registerReconnect` 在每次 render 都生成新闭包，触发
+  InstanceView effect setState → 父重 render → 又新闭包。改成稳定签名
+  `(instanceId, ...)` + ref 镜像可变依赖；`useDisconnected` setSet 加内容
+  比对，相同内容不更新引用
+
 ## [0.3.0] - 2026-05-06
 
 ### Added

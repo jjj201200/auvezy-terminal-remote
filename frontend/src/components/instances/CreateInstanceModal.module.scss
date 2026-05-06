@@ -21,6 +21,109 @@
   color: t.$alarm;
 }
 
+// cwd 输入框 + 下拉历史 anchor 容器
+.cwdWrap {
+  position: relative;
+}
+
+.recentList {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  border: 1px solid t.$border;
+  background: t.$bg-elev;
+  backdrop-filter: t.$overlay-blur;
+  -webkit-backdrop-filter: t.$overlay-blur;
+  box-shadow: t.$shadow-3;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.recentHeader {
+  display: flex;
+  align-items: center;
+  gap: t.$sp-2;
+  padding: t.$sp-2 t.$sp-3;
+  font-size: t.$fs-2xs;
+  text-transform: uppercase;
+  letter-spacing: t.$tracking-tight;
+  color: t.$fg-low;
+  border-bottom: 1px solid t.$border;
+}
+
+.recentEmpty {
+  padding: t.$sp-3;
+  text-align: center;
+  color: t.$fg-low;
+  font-size: t.$fs-xs;
+  font-style: italic;
+}
+
+.recentItem {
+  display: flex;
+  align-items: center;
+  gap: t.$sp-2;
+  padding: t.$sp-2 t.$sp-3;
+  cursor: pointer;
+  font-size: t.$fs-xs;
+  color: t.$fg;
+
+  &:hover, &:focus {
+    background: t.$bg-hover;
+  }
+  // 点击高亮反馈：mousedown / 键盘 active
+  &:active {
+    background: t.$accent-soft;
+  }
+}
+
+.recentBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recentCwd {
+  font-family: t.$font-mono;
+  color: t.$fg;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recentName {
+  font-size: t.$fs-2xs;
+  color: t.$fg-dim;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recentRemove {
+  appearance: none;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: t.$fg-low;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color t.$dur-fast;
+
+  &:hover {
+    color: t.$warn;
+  }
+}
+
 .cancelBtn {
   @include m.btn-reset;
   padding: t.$sp-3 t.$sp-5;
