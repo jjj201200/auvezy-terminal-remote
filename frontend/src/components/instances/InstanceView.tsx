@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
-import type { ServerMessage, SessionStatus, ClientMessage, UserConfig } from '@otr/shared';
+import type { ServerMessage, SessionStatus, ClientMessage, UserConfig } from '@auvezy/terminal-remote-shared';
 import { useTerminal } from '../../hooks/useTerminal.js';
 import { useWebSocket } from '../../hooks/useWebSocket.js';
 import { useT } from '../../i18n/i18n-context.js';

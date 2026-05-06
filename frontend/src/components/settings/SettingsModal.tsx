@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useState, type JSX } from 'react';
-import type { UserConfig } from '@otr/shared';
+import type { UserConfig } from '@auvezy/terminal-remote-shared';
 import { Sheet, type SheetTab } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { LanguageSwitch } from '../../i18n/LanguageSwitch.js';

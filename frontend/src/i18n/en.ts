@@ -55,10 +55,10 @@ export const en: Messages = {
   console: {
     startingTitle: 'Starting terminal',
     startingBody:
-      'Browser connected, PTY child process starting…\nIf it stalls, press Enter in the otr terminal.',
+      'Browser connected, PTY child process starting…\nIf it stalls, press Enter in the atr terminal.',
     awaitingTitle: 'Awaiting terminal output',
     awaitingBody:
-      'PTY started but no output yet. If you used --wait-confirm, press Enter in the otr terminal.',
+      'PTY started but no output yet. If you used --wait-confirm, press Enter in the atr terminal.',
   },
 
   status: {
@@ -207,7 +207,7 @@ export const en: Messages = {
     closeFailed: 'Close failed',
     closeConfirmTitle: 'Close instance',
     closeConfirm: 'Close instance {{name}}? Its PTY process will be terminated.',
-    closeCurrentBlocked: 'Cannot close the instance serving this webapp — it would disconnect everything. Use CLI (otr stop) or kill the process directly.',
+    closeCurrentBlocked: 'Cannot close the instance serving this webapp — it would disconnect everything. Use CLI (atr stop) or kill the process directly.',
     closeCurrentLastTitle: 'Cannot close',
     closeCurrentLast: 'Cannot close the only instance — create another one first.',
     closeCurrentConfirmTitle: 'Close serving instance',
@@ -305,7 +305,7 @@ export const en: Messages = {
   },
 
   pwa: {
-    installTitle: 'Install OTR',
+    installTitle: 'Install ATR',
     installBody: 'Add to home screen for a fullscreen, app-like experience.',
     installAction: 'Install',
     updateReady: 'New version ready',

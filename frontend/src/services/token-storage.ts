@@ -13,7 +13,7 @@
  *   localStorage 只是"重连方便"的副本
  */
 
-const STORAGE_KEY = 'ocr.token';
+const STORAGE_KEY = 'atr.token';
 
 /** 读取已保存的 token；不存在返回 null */
 export function loadToken(): string | null {

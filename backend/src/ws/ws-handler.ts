@@ -12,7 +12,7 @@
  */
 
 import { WebSocket } from 'ws';
-import type { ClientMessage } from '@otr/shared';
+import type { ClientMessage } from '@auvezy/terminal-remote-shared';
 import { logger } from '../logger/logger.js';
 
 /** 业务回调集合 */

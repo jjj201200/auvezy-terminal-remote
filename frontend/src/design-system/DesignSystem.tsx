@@ -74,7 +74,7 @@ export function DesignSystem(): JSX.Element {
         <div className={s.heroSection}>
           <div className={s.heroBrand}>
             <span className={s.heroDot} />
-            <span className={s.heroBrandName}>open-terminal-remote · design system</span>
+            <span className={s.heroBrandName}>auvezy/terminal-remote · design system</span>
           </div>
           <h1 className={s.heroTitle}>
             Industrial mono.<br />
@@ -344,7 +344,7 @@ export function DesignSystem(): JSX.Element {
         </Section>
 
         <footer className={s.footer}>
-          design system v0.1 · open-terminal-remote
+          design system v0.1 · auvezy/terminal-remote
         </footer>
       </div>
     </div>
@@ -445,7 +445,7 @@ function AuthDemo(): JSX.Element {
     <div className={s.authCard}>
       <div className={s.authBrand}>
         <span className={s.heroDot} />
-        <span className={s.authBrandName}>open-terminal-remote</span>
+        <span className={s.authBrandName}>auvezy/terminal-remote</span>
       </div>
       <h3 className={s.authTitle}>Authenticate</h3>
       <p className={s.authSubtitle}>Enter the access token shown when the server started.</p>

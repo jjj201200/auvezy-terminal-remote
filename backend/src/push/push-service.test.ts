@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'no
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { PushService, type PushSubscriptionInfo } from './push-service.js';
-import { ErrorCode } from '@otr/shared';
+import { ErrorCode } from '@auvezy/terminal-remote-shared';
 
 /** 一个长度合法的 p256dh / auth 占位串 */
 const VALID_P256DH = 'a'.repeat(87);

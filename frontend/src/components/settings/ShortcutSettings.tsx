@@ -27,7 +27,7 @@ import {
   type ConfigurableShortcut,
   type ShortcutGroupId,
   SHORTCUT_GROUPS,
-} from '@otr/shared';
+} from '@auvezy/terminal-remote-shared';
 import clsx from 'clsx';
 import { encodeForInput, decodeFromInput } from '../../utils/escape-codec.js';
 import { Toggle } from '../ui/Toggle.js';

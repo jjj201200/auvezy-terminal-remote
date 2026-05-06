@@ -5,7 +5,7 @@
  * 把当前 token 拼到 URL，新 origin 加载时由 useAuth 自动拿 token 登录 + 写入新
  * origin 的 localStorage（参见 hooks/useAuth.ts 内 URL ?token= 处理）。
  *
- * 共享 token 前提：所有实例读同一个 ~/.open-terminal-remote/config.json
+ * 共享 token 前提：所有实例读同一个 ~/.auvezy/terminal-remote/config.json
  * （由 backend 共享 token 设计保证），所以 token 值在所有实例间通用。
  */
 

@@ -109,7 +109,7 @@ async function main() {
           } catch (err) {
             failed++;
             process.stderr.write(
-              `[otr postinstall] chmod 失败：${file} (${err && err.message ? err.message : err})\n`,
+              `[atr postinstall] chmod 失败：${file} (${err && err.message ? err.message : err})\n`,
             );
           }
         }
@@ -118,13 +118,13 @@ async function main() {
   } catch (err) {
     // 全局兜底：任何意外都不应该让 install 失败
     process.stderr.write(
-      `[otr postinstall] 扫描出错（已忽略）：${err && err.message ? err.message : err}\n`,
+      `[atr postinstall] 扫描出错（已忽略）：${err && err.message ? err.message : err}\n`,
     );
     return;
   }
   if (fixed > 0) {
     process.stderr.write(
-      `[otr postinstall] 修复 ${fixed} 个 native helper 执行权限${
+      `[atr postinstall] 修复 ${fixed} 个 native helper 执行权限${
         failed > 0 ? `（${failed} 个失败）` : ''
       }\n`,
     );

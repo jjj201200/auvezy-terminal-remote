@@ -11,7 +11,7 @@
  * 后续阶段会扩展 config / instances / push 等。
  */
 
-import { ErrorCode, type ErrorPayload } from '@otr/shared';
+import { ErrorCode, type ErrorPayload } from '@auvezy/terminal-remote-shared';
 import { clearToken } from './token-storage.js';
 
 export interface ApiResult<T> {

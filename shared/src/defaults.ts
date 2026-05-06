@@ -2,7 +2,7 @@
  * 默认快捷键与命令 + UserConfig 类型（前后端共享）
  *
  * UserConfig：
- *   - 文件层（~/.open-terminal-remote/config.json），所有字段可选
+ *   - 文件层（~/.auvezy/terminal-remote/config.json），所有字段可选
  *   - 仅描述"用户偏好"，不含运行期决定的端口、token、命令路径
  *
  * 默认值规则：

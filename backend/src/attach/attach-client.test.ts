@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { WebSocketServer } from 'ws';
 import { AttachClient, normalizeAttachUrl } from './attach-client.js';
-import type { ClientMessage, ServerMessage } from '@otr/shared';
+import type { ClientMessage, ServerMessage } from '@auvezy/terminal-remote-shared';
 
 describe('normalizeAttachUrl', () => {
   it('http → ws', () => {

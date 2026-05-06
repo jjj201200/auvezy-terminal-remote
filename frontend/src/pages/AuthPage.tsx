@@ -63,7 +63,7 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
       <div className={s.card}>
         <div className={s.brand}>
           <span className={s.brandDot} />
-          <span className={s.brandName}>open-terminal-remote</span>
+          <span className={s.brandName}>auvezy/terminal-remote</span>
         </div>
 
         {referrerUrl && (

@@ -1,7 +1,7 @@
 /**
  * AttachClient
  *
- * `otr attach <url>` 的核心逻辑（解耦 stdin/stdout 让单测可控）。
+ * `atr attach <url>` 的核心逻辑（解耦 stdin/stdout 让单测可控）。
  *
  * 数据流：
  *   远端 WS terminal_output → emit 'output'（CLI 入口写到 stdout）
@@ -24,8 +24,8 @@ import type {
   ServerMessage,
   ClientMessage,
   SessionStatus,
-} from '@otr/shared';
-import { isServerMessage } from '@otr/shared';
+} from '@auvezy/terminal-remote-shared';
+import { isServerMessage } from '@auvezy/terminal-remote-shared';
 import { logger } from '../logger/logger.js';
 import { ATTACH_RECONNECT_DELAYS_MS } from '../constants.js';
 

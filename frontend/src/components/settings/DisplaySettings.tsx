@@ -23,7 +23,7 @@ import {
   LETTER_SPACING_MIN,
   LETTER_SPACING_MAX,
   type DisplayPrefs,
-} from '@otr/shared';
+} from '@auvezy/terminal-remote-shared';
 import clsx from 'clsx';
 import { XTERM_FONT_SIZE } from '../../config/constants.js';
 import { useT } from '../../i18n/i18n-context.js';

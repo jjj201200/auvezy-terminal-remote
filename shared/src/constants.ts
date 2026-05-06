@@ -58,8 +58,17 @@ export const MAX_WS_MESSAGE_SIZE = 1024 * 1024;
 // 文件系统路径
 // ============================================================
 
-/** 用户配置目录名（位于 ~ 之下） */
-export const OTR_DATA_DIR = '.open-terminal-remote';
+/**
+ * 用户数据目录（位于 ~ 之下，相对路径）
+ *
+ * 嵌套两层：~/.auvezy/terminal-remote/
+ *  - .auvezy 是组织 scope 的 dotfile（未来 @auvezy 下别的工具也可挂在这里）
+ *  - terminal-remote 是本产品独占子目录
+ *
+ * `path.resolve(homedir(), ATR_DATA_DIR)` 会跨平台正确处理路径分隔符。
+ * 所有 mkdir 调用必须传 `recursive: true`，否则父目录不会自动创建。
+ */
+export const ATR_DATA_DIR = '.auvezy/terminal-remote';
 
 /** 配置文件名 */
 export const CONFIG_FILENAME = 'config.json';

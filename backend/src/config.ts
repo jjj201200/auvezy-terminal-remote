@@ -3,9 +3,9 @@
  *
  * 实现：
  *  - createClaudeSettings：生成 Claude Code 的 hooks 配置（指向 /api/hook）
- *  - saveClaudeSettings：把 settings 落到 ~/.open-terminal-remote/settings/<port>.json
+ *  - saveClaudeSettings：把 settings 落到 ~/.auvezy/terminal-remote/settings/<port>.json
  *  - extractSettingsFromArgs：从用户原始 --settings 参数中分离出 settings 内容
- *  - loadUserConfig：读取 ~/.open-terminal-remote/config.json，缺失/损坏时落默认
+ *  - loadUserConfig：读取 ~/.auvezy/terminal-remote/config.json，缺失/损坏时落默认
  *  - saveUserConfig：写入 config.json（atomic：tmp + rename）
  *  - loadConfig：把 ParsedCliArgs + 环境变量 + UserConfig + 默认值 合并成 AppConfig
  *
@@ -31,7 +31,7 @@ import {
 import { resolve, basename } from 'node:path';
 import { homedir } from 'node:os';
 import {
-  OTR_DATA_DIR,
+  ATR_DATA_DIR,
   CONFIG_FILENAME,
   SETTINGS_DIRNAME,
   DEFAULT_PORT,
@@ -42,7 +42,7 @@ import {
   ErrorCode,
   ensureDefaultUserConfig,
   type UserConfig,
-} from '@otr/shared';
+} from '@auvezy/terminal-remote-shared';
 import { ConfigError } from './errors.js';
 import { logger } from './logger/logger.js';
 import type { ParsedCliArgs } from './cli-utils.js';
@@ -102,7 +102,7 @@ export function createClaudeSettings(
   if (overlapped.length > 0) {
     logger.warn(
       { overlapped },
-      '用户已有同名 hook 事件被 otr 覆盖（这是必需的）',
+      '用户已有同名 hook 事件被 atr 覆盖（这是必需的）',
     );
   }
 
@@ -113,7 +113,7 @@ export function createClaudeSettings(
 }
 
 /**
- * 落盘 Claude settings 到 ~/.open-terminal-remote/settings/<port>.json
+ * 落盘 Claude settings 到 ~/.auvezy/terminal-remote/settings/<port>.json
  *
  * 使用同步 IO，仅在启动阶段调用。
  *
@@ -124,7 +124,7 @@ export function saveClaudeSettings(
   port: number,
   baseDir?: string,
 ): string {
-  const dir = baseDir ?? resolve(homedir(), OTR_DATA_DIR);
+  const dir = baseDir ?? resolve(homedir(), ATR_DATA_DIR);
   const settingsDir = resolve(dir, SETTINGS_DIRNAME);
 
   if (!existsSync(settingsDir)) {
@@ -141,14 +141,14 @@ export function saveClaudeSettings(
  * 判断是否应该把 `--settings <path>` 注入到子进程参数。
  *
  * 策略：
- *  - 显式指令 OCR_INJECT_SETTINGS=true / 1 → 强制开
- *  - 显式指令 OCR_INJECT_SETTINGS=false / 0 → 强制关
+ *  - 显式指令 ATR_INJECT_SETTINGS=true / 1 → 强制开
+ *  - 显式指令 ATR_INJECT_SETTINGS=false / 0 → 强制关
  *  - 否则按 command basename 自动判定（'claude' 或带前缀如 'claude-dev'）
  *
  * 这样跑 bash / zsh / python / node 等不认识 --settings 的程序时不会被坑死。
  *
  * @param command spawn 用的命令名（绝对路径或裸名都行）
- * @param envOverride OCR_INJECT_SETTINGS 环境变量值
+ * @param envOverride ATR_INJECT_SETTINGS 环境变量值
  */
 export function shouldInjectSettings(
   command: string,
@@ -275,7 +275,7 @@ export interface LoadedUserConfig {
 
 /** 计算 config.json 默认完整路径 */
 export function defaultUserConfigPath(): string {
-  return resolve(homedir(), OTR_DATA_DIR, CONFIG_FILENAME);
+  return resolve(homedir(), ATR_DATA_DIR, CONFIG_FILENAME);
 }
 
 /**
@@ -397,7 +397,7 @@ export interface AppConfig {
    * Token 来源：
    *  - cli       --token
    *  - env       AUTH_TOKEN 环境变量
-   *  - shared    从 ~/.open-terminal-remote/config.json 共享文件读到（多实例共享）
+   *  - shared    从 ~/.auvezy/terminal-remote/config.json 共享文件读到（多实例共享）
    *  - generated 共享文件未含 token，本进程刚生成并写盘
    */
   tokenSource: 'cli' | 'env' | 'shared' | 'generated';
@@ -422,7 +422,7 @@ export interface AppConfig {
   spawnTimeoutSec: number;
   /**
    * dev 反代目标端口（vite dev server）；非 /api、/ws 的 HTTP/WS 转发到该端口。
-   * 来源 CLI > env(OCR_DEV_PROXY) > undefined（默认不启用）。
+   * 来源 CLI > env(ATR_DEV_PROXY) > undefined（默认不启用）。
    * 仅本地调试用：让手机扫码访问真后端端口也能拿到 vite HMR 实时前端。
    */
   devProxyPort?: number;
@@ -494,7 +494,7 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
   const strictPort = cli.strictPort ?? env['STRICT_PORT'] === 'true';
   const spawnTimeoutSec =
     cli.spawnTimeoutSec ?? toInt(env['OCR_SPAWN_TIMEOUT']) ?? DEFAULT_SPAWN_TIMEOUT_SEC;
-  const devProxyPort = cli.devProxy ?? toInt(env['OCR_DEV_PROXY']);
+  const devProxyPort = cli.devProxy ?? toInt(env['ATR_DEV_PROXY']);
 
   // Token 三级
   let token: string;

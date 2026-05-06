@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState, type JSX, type PointerEvent as ReactPointerEvent } from 'react';
 import { IconPlus, IconLoader2, IconX, IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
-import type { InstanceListItem } from '@otr/shared';
+import type { InstanceListItem } from '@auvezy/terminal-remote-shared';
 import clsx from 'clsx';
 import { useT } from '../../i18n/i18n-context.js';
 import { buildInstanceUrl } from '../../services/instance-url.js';

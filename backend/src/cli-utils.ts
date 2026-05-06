@@ -5,12 +5,12 @@
  * 不引入 yargs/commander：依赖小、行为可预期，且我们的参数集足够小。
  *
  * 支持形式：
- *   otr                          → 启动，PTY 跑默认 $SHELL
- *   otr <program> [args...]      → 启动，PTY 跑 program（args 透传）
- *                                  例：otr zsh / otr claude / otr claude --resume
- *   otr attach <url>             → 接管已有实例
- *   otr list                     → 列出本机所有实例
- *   otr stop [pattern]           → 停止匹配的实例
+ *   atr                          → 启动，PTY 跑默认 $SHELL
+ *   atr <program> [args...]      → 启动，PTY 跑 program（args 透传）
+ *                                  例：atr zsh / atr claude / atr claude --resume
+ *   atr attach <url>             → 接管已有实例
+ *   atr list                     → 列出本机所有实例
+ *   atr stop [pattern]           → 停止匹配的实例
  *
  *   --flag                       → boolean = true
  *   --key value                  → 空格分隔
@@ -24,7 +24,7 @@
  */
 
 import { ConfigError } from './errors.js';
-import { ErrorCode } from '@otr/shared';
+import { ErrorCode } from '@auvezy/terminal-remote-shared';
 
 /** 已识别的 CLI flags 集合 */
 const KNOWN_FLAGS_BOOL = new Set([
@@ -150,12 +150,12 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
 
   // 1. 首位置参数识别：保留子命令优先；其余视为 PTY 子进程 program
   //
-  //   otr               → start (program=undefined，由 env/默认 shell 决定)
-  //   otr attach <url>  → attach
-  //   otr stop [pat]    → stop
-  //   otr list          → list
-  //   otr zsh           → start, command='zsh'
-  //   otr claude --resume foo → start, command='claude', claudeArgs=['--resume','foo']
+  //   atr               → start (program=undefined，由 env/默认 shell 决定)
+  //   atr attach <url>  → attach
+  //   atr stop [pat]    → stop
+  //   atr list          → list
+  //   atr zsh           → start, command='zsh'
+  //   atr claude --resume foo → start, command='claude', claudeArgs=['--resume','foo']
   let cursor = 0;
   if (argv[0] && !argv[0].startsWith('-')) {
     const sub = argv[0];
@@ -166,7 +166,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         if (!argv[1] || argv[1].startsWith('-')) {
           throw new ConfigError(
             ErrorCode.CONFIG_VALIDATION_FAIL,
-            'attach 子命令需要 URL 参数：otr attach <url>',
+            'attach 子命令需要 URL 参数：atr attach <url>',
           );
         }
         result.attachUrl = argv[1];
@@ -188,9 +188,9 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   // 2. flag 解析（直到遇到 '--' 或结束）
   //
   // 当首位置参数已识别为 program 时，未知 flag 一律透传给子进程而非报错
-  // （让 `otr claude --resume task1` 这类调用直观可用）。
-  // 已知 flag（otr 自己的 --port / --workdir 等）仍按 otr 自身解析，不会被透传 ——
-  // 用户如果真要给子进程传 --port 这种与 otr 同名的 flag，必须用 `-- --port` 显式分隔。
+  // （让 `atr claude --resume task1` 这类调用直观可用）。
+  // 已知 flag（atr 自己的 --port / --workdir 等）仍按 atr 自身解析，不会被透传 ——
+  // 用户如果真要给子进程传 --port 这种与 atr 同名的 flag，必须用 `-- --port` 显式分隔。
   const programGiven = (): boolean => result.command !== undefined;
 
   for (; cursor < argv.length; cursor++) {
@@ -363,15 +363,15 @@ function parseNonNegativeInt(name: string, value: string | boolean): number {
  * 帮助文本（--help 时输出）
  */
 export const HELP_TEXT = `\
-otr — open-terminal-remote · 局域网内远程访问 PC 终端的代理
+atr — auvezy/terminal-remote · 局域网内远程访问 PC 终端的代理
 
 用法：
-  otr                              启动，PTY 跑当前 $SHELL
-  otr <program> [args...]          启动，PTY 跑 program（args 透传）
-                                   例：otr zsh / otr claude / otr claude --resume
-  otr attach <url>                 接管已有实例
-  otr list                         列出本机所有实例
-  otr stop [pattern]               停止匹配的实例
+  atr                              启动，PTY 跑当前 $SHELL
+  atr <program> [args...]          启动，PTY 跑 program（args 透传）
+                                   例：atr zsh / atr claude / atr claude --resume
+  atr attach <url>                 接管已有实例
+  atr list                         列出本机所有实例
+  atr stop [pattern]               停止匹配的实例
 
 启动选项：
   -p, --port <n>        监听端口（默认 3000，被占用自动 +1，除非启用 -S）
@@ -382,7 +382,7 @@ otr — open-terminal-remote · 局域网内远程访问 PC 终端的代理
   --token <hex>         指定 Token（默认从共享文件读或生成）
   --workdir <path>      子进程工作目录（默认当前目录）
   --instance-name <s>   实例显示名（默认工作目录最后一段）
-  --config <path>       config.json 路径（默认 ~/.open-terminal-remote/config.json）
+  --config <path>       config.json 路径（默认 ~/.auvezy/terminal-remote/config.json）
   --max-buffer-lines    输出缓冲行数（默认 10000）
   --session-ttl <ms>    Session 有效期，毫秒（默认 24h）
   --auth-rate-limit <n> 每分钟每 IP 认证次数上限（默认 20）
@@ -398,6 +398,6 @@ otr — open-terminal-remote · 局域网内远程访问 PC 终端的代理
   -- <args>             之后的参数也会透传给 program（与 program 后位置参数等价）
 
 多实例：
-  在不同终端多次执行 otr，会自动占用 3000、3001、3002…，
+  在不同终端多次执行 atr，会自动占用 3000、3001、3002…，
   每个实例独立 PTY；浏览器顶栏的实例 tab 可一键切换。
 `;

@@ -2,7 +2,7 @@
  * push-api：与 /api/push 通信
  */
 
-import { ErrorCode, type ErrorPayload } from '@otr/shared';
+import { ErrorCode, type ErrorPayload } from '@auvezy/terminal-remote-shared';
 import { apiGet, apiPost, type ApiResult } from './api-client.js';
 
 interface VapidEnvelope {

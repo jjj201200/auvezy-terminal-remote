@@ -137,7 +137,7 @@ export class TerminalRelay {
    *   PTY 子进程（claude / vim / htop / fzf 等）通过 escape 序列改了**本地终端**的
    *   状态——开启鼠标追踪、切到 alt-screen、应用键盘模式、bracketed paste、隐藏光标。
    *   这些状态写在 termios / 终端 emulator 里，PTY 退出时**不会自动还原**。
-   *   不复位的后果（用户实测）：otr 退出后本地终端
+   *   不复位的后果（用户实测）：atr 退出后本地终端
    *     - 鼠标移动 / 点击被解析成坐标字符串疯狂 echo
    *     - 终端"看似无响应"（实则在 alt-screen 里）
    *     - 方向键发的序列错位

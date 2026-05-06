@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { InstanceListItem } from '@otr/shared';
+import type { InstanceListItem } from '@auvezy/terminal-remote-shared';
 import { fetchInstances, createInstance, deleteInstance } from '../services/instance-api.js';
 
 const FALLBACK_POLL_INTERVAL_MS = 30_000;

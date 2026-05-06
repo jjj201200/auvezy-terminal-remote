@@ -1,5 +1,5 @@
 /**
- * 把 public/icons/otr-icon.svg 渲染成 PWA 需要的 PNG 尺寸。
+ * 把 public/icons/atr-icon.svg 渲染成 PWA 需要的 PNG 尺寸。
  *
  * iOS / Android / Windows 不同时期对 PWA 图标尺寸要求不一致：
  *  - 192×192：Android Chrome 主屏图标 + 通知 badge
@@ -19,18 +19,18 @@ import { Resvg } from '@resvg/resvg-js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
-const svgPath = resolve(root, 'public/icons/otr-icon.svg');
+const svgPath = resolve(root, 'public/icons/atr-icon.svg');
 const outDir = resolve(root, 'public/icons');
 mkdirSync(outDir, { recursive: true });
 
 const svg = readFileSync(svgPath);
 
 const targets = [
-  { name: 'otr-icon-192.png', size: 192 },
-  { name: 'otr-icon-512.png', size: 512 },
-  { name: 'otr-icon-180.png', size: 180 },
+  { name: 'atr-icon-192.png', size: 192 },
+  { name: 'atr-icon-512.png', size: 512 },
+  { name: 'atr-icon-180.png', size: 180 },
   // maskable 版本：背景填满，原图缩到 safe zone（80% 内）以便 Android 切圆
-  { name: 'otr-icon-512-maskable.png', size: 512, maskable: true },
+  { name: 'atr-icon-512-maskable.png', size: 512, maskable: true },
 ];
 
 for (const t of targets) {

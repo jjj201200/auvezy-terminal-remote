@@ -1,8 +1,8 @@
-# @jjj201200/open-terminal-remote
+# @auvezy/terminal-remote
 
 > 局域网内通过手机 / 平板浏览器远程控制 PC 上的任意终端程序（zsh / bash / claude / 任何 CLI）。
 >
-> 一行命令 `otr <program>`，多终端多实例自动出现在浏览器顶栏 tab 切换。
+> 一行命令 `atr <program>`，多终端多实例自动出现在浏览器顶栏 tab 切换。
 
 ## 这是什么
 
@@ -21,27 +21,27 @@
 ### 全局安装（npm 用户）
 
 ```bash
-npm install -g @jjj201200/open-terminal-remote
+npm install -g @auvezy/terminal-remote
 ```
 
 之后任意终端：
 
 ```bash
-otr                       # 跑当前 $SHELL（zsh / bash 自动检测）
-otr claude                # 跑 claude
-otr zsh                   # 跑 zsh
-otr claude --resume foo   # 透传任意参数给子进程
+atr                       # 跑当前 $SHELL（zsh / bash 自动检测）
+atr claude                # 跑 claude
+atr zsh                   # 跑 zsh
+atr claude --resume foo   # 透传任意参数给子进程
 ```
 
-启动后扫终端打印的二维码 → webapp 自动登录（token 在 `~/.claude-remote/config.json`）。
+启动后扫终端打印的二维码 → webapp 自动登录（token 在 `~/.auvezy/terminal-remote/config.json`）。
 
-**多实例**：在不同终端多次 `otr <prog>`，每次会自动占一个新端口（3000、3001、3002…），
+**多实例**：在不同终端多次 `atr <prog>`，每次会自动占一个新端口（3000、3001、3002…），
 浏览器顶栏会自动出现新 tab，点击即可切换。
 
 ```bash
-otr list                  # 列出本机所有实例
-otr stop                  # 停止本机所有实例
-otr attach <url>          # 命令行接管已有实例
+atr list                  # 列出本机所有实例
+atr stop                  # 停止本机所有实例
+atr attach <url>          # 命令行接管已有实例
 ```
 
 ### 源码方式（开发或自构建）
@@ -50,7 +50,7 @@ otr attach <url>          # 命令行接管已有实例
 git clone https://gitee.com/drowsyflesh/open-terminal-remote.git
 cd open-terminal-remote
 bash install.sh           # 检查 Node 20+/pnpm 9+/编译依赖 → 装包 → 构建
-node backend/dist/cli.js  # 等价于 otr
+node backend/dist/cli.js  # 等价于 atr
 ```
 
 ## 功能矩阵
@@ -68,7 +68,7 @@ node backend/dist/cli.js  # 等价于 otr
 
 ## 配置
 
-启动时自动读 `~/.claude-remote/config.json`，结构：
+启动时自动读 `~/.auvezy/terminal-remote/config.json`，结构：
 
 ```json
 {
@@ -93,7 +93,7 @@ VAPID 也放同目录：`vapid.json`（0o600，自动生成或读环境变量
 ## 启动选项
 
 ```
-ocr [子命令] [选项]
+atr [子命令] [选项]
 
 子命令：
   start          启动 backend（默认）

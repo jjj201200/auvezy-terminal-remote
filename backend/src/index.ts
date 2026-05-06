@@ -4,7 +4,7 @@
  * 启动流程：
  *  1. loadConfig（CLI > env > config.json > 默认）→ AppConfig
  *  1.4 共享 Token：cli/env 都没指定时，走 acquireSharedToken（withFileLock）
- *  1.5 解析用户 --settings + 合并 otr hooks → 写 settings 文件
+ *  1.5 解析用户 --settings + 合并 atr hooks → 写 settings 文件
  *  1.6 detectDisplayIp 选 LAN IP，构造扫码 URL
  *  1.7 多实例：findAvailablePort（preferred 起递增）+ 生成 instanceId
  *  2. 创建 AuthModule（cookie 名按"实际端口"绑）+ HookReceiver
@@ -28,7 +28,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
-import { type UserConfig, ErrorCode } from '@otr/shared';
+import { type UserConfig, ErrorCode } from '@auvezy/terminal-remote-shared';
 import { logger } from './logger/logger.js';
 import { createApiRouter } from './api/router.js';
 import type { ConfigStore } from './api/config-routes.js';
@@ -156,7 +156,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       const hint = cfg.strictPort
         ? '提示：换用 --port <n> 或去掉 --strict-port 启用自适应'
         : '提示：换用 --port <n> 指定其他起始端口';
-      process.stderr.write(`otr: ${err.message}\n${hint}\n`);
+      process.stderr.write(`atr: ${err.message}\n${hint}\n`);
       process.exit(1);
     }
     // 其他错误（EACCES / 其他不可恢复）外抛
@@ -186,15 +186,15 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   // 仅当真正在跑 Claude 时才注入 --settings：
   //  - 默认按 basename(command) === 'claude' 自动判定
   //  - 别的命令（bash/zsh/python/...）不接受 --settings 会立刻退出
-  //  - 用户可设 OCR_INJECT_SETTINGS=true|false 强制开关
+  //  - 用户可设 ATR_INJECT_SETTINGS=true|false 强制开关
   //
   // 跳过时仍写一份 settings 文件（代价极低），方便用户日后切回 claude
-  // 直接 `claude --settings ~/.open-terminal-remote/settings/<port>.json` 即可。
+  // 直接 `claude --settings ~/.auvezy/terminal-remote/settings/<port>.json` 即可。
   const extracted = extractSettingsFromArgs(cfg.claudeArgs);
   const finalClaudeArgs = extracted ? extracted.remainingArgs : [...cfg.claudeArgs];
   const settings = createClaudeSettings(cfg.port, extracted?.value);
   const settingsPath = saveClaudeSettings(settings, cfg.port);
-  if (shouldInjectSettings(cfg.claudeCommand, process.env['OCR_INJECT_SETTINGS'])) {
+  if (shouldInjectSettings(cfg.claudeCommand, process.env['ATR_INJECT_SETTINGS'])) {
     finalClaudeArgs.push('--settings', settingsPath);
   } else {
     logger.info(
@@ -282,7 +282,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }),
   );
 
-  // dev 反代：当 --dev-proxy <port> / OCR_DEV_PROXY 设置时，把非 /api、/ws 的
+  // dev 反代：当 --dev-proxy <port> / ATR_DEV_PROXY 设置时，把非 /api、/ws 的
   // HTTP/WS 请求转到 vite dev server。让手机访问真后端端口也能拿到 HMR 实时前端。
   // 必须在 static / SPA fallback 之前 mount —— 命中即转发，不再走静态。
   // shutdown 路径会调 dispose() 摘 upgrade 监听 + 销毁所有进行中的 socket。
@@ -347,7 +347,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   if (!cfg.noTerminal && process.stdin.isTTY) {
     relay = new TerminalRelay(pty, {
       onExitRequest: () => {
-        process.stderr.write('\n[otr] 检测到双 Ctrl+C，正在退出代理…\n');
+        process.stderr.write('\n[atr] 检测到双 Ctrl+C，正在退出代理…\n');
         shutdown(0);
       },
     });
@@ -443,7 +443,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
     process.stderr.write('\n');
     process.stderr.write('╔══════════════════════════════════════════════════╗\n');
-    process.stderr.write('║         Open-Terminal-Remote · 启动              ║\n');
+    process.stderr.write('║          Auvezy Terminal Remote · 启动           ║\n');
     process.stderr.write('╠══════════════════════════════════════════════════╣\n');
     process.stderr.write(`║  实例:    ${cfg.instanceName.padEnd(38)}║\n`);
     process.stderr.write(`║  监听:    http://${cfg.host}:${cfg.port}`.padEnd(53) + '║\n');

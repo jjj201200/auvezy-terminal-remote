@@ -1,7 +1,7 @@
 /**
  * instance-registry：跨实例的进程注册表
  *
- * 数据落地：~/.open-terminal-remote/instances.json
+ * 数据落地：~/.auvezy/terminal-remote/instances.json
  *
  * 设计：
  *  - 文件结构带 version=1，向前兼容
@@ -22,18 +22,18 @@ import {
 import { resolve } from 'node:path';
 import { homedir } from 'node:os';
 import {
-  OTR_DATA_DIR,
+  ATR_DATA_DIR,
   REGISTRY_FILENAME,
   type InstanceInfo,
   type InstanceRegistry,
-} from '@otr/shared';
+} from '@auvezy/terminal-remote-shared';
 import { withFileLock } from '../utils/file-lock.js';
 import { atomicWriteJson } from '../utils/atomic-write.js';
 import { logger } from '../logger/logger.js';
 
 /** Manager 构造选项 */
 export interface InstanceRegistryOptions {
-  /** 注册表文件目录；默认 ~/.open-terminal-remote/ */
+  /** 注册表文件目录；默认 ~/.auvezy/terminal-remote/ */
   baseDir?: string;
   /** 注册表文件名；默认 'instances.json' */
   filename?: string;
@@ -50,7 +50,7 @@ export class InstanceRegistryManager {
   private readonly lockDir: string;
 
   constructor(opts: InstanceRegistryOptions = {}) {
-    this.baseDir = opts.baseDir ?? resolve(homedir(), OTR_DATA_DIR);
+    this.baseDir = opts.baseDir ?? resolve(homedir(), ATR_DATA_DIR);
     this.path = resolve(this.baseDir, opts.filename ?? REGISTRY_FILENAME);
     this.lockDir = `${this.path}.lock`;
   }

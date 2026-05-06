@@ -1,6 +1,6 @@
 {
-  "name": "Open Terminal Remote",
-  "short_name": "OTR",
+  "name": "Auvezy Terminal Remote",
+  "short_name": "ATR",
   "description": "局域网内通过手机/平板浏览器远程控制 PC 终端",
   "start_url": "/",
   "scope": "/",
@@ -12,25 +12,25 @@
   "categories": ["productivity", "developer", "utilities"],
   "icons": [
     {
-      "src": "/icons/otr-icon-192.png",
+      "src": "/icons/atr-icon-192.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "/icons/otr-icon-512.png",
+      "src": "/icons/atr-icon-512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any"
     },
     {
-      "src": "/icons/otr-icon-512-maskable.png",
+      "src": "/icons/atr-icon-512-maskable.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/otr-icon.svg",
+      "src": "/icons/atr-icon.svg",
       "type": "image/svg+xml",
       "sizes": "any",
       "purpose": "any"

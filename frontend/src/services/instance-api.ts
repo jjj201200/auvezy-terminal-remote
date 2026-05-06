@@ -6,7 +6,7 @@
  *   POST /api/instances { cwd, name? }  → 派生 headless 实例
  */
 
-import type { InstanceListItem } from '@otr/shared';
+import type { InstanceListItem } from '@auvezy/terminal-remote-shared';
 import { apiGet, apiPost, apiDelete, type ApiResult } from './api-client.js';
 
 interface ListEnvelope {

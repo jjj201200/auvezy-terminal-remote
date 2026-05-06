@@ -3,7 +3,7 @@
  *
  * 设计：
  *  - VAPID 密钥三优先级：env（VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY） > 文件 > 生成
- *  - 订阅持久化到 ~/.open-terminal-remote/push-subscriptions.json（atomic 写）
+ *  - 订阅持久化到 ~/.auvezy/terminal-remote/push-subscriptions.json（atomic 写）
  *  - sendNotification 失败 410（Gone） → 自动从订阅列表移除
  *  - p256dh 长度防御性校验（合法 65 字节，base64url ≈ 87 字符）
  *
@@ -21,11 +21,11 @@ import { resolve } from 'node:path';
 import { homedir } from 'node:os';
 import webPush from 'web-push';
 import {
-  OTR_DATA_DIR,
+  ATR_DATA_DIR,
   VAPID_KEYS_FILENAME,
   PUSH_SUBSCRIPTIONS_FILENAME,
   ErrorCode,
-} from '@otr/shared';
+} from '@auvezy/terminal-remote-shared';
 import { PushError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 import { atomicWriteJson } from '../utils/atomic-write.js';
@@ -56,13 +56,13 @@ export interface PushPayload {
 }
 
 export interface PushServiceOptions {
-  /** 工作目录；默认 ~/.open-terminal-remote/ */
+  /** 工作目录；默认 ~/.auvezy/terminal-remote/ */
   baseDir?: string;
   /** 注入便于单测 */
   env?: NodeJS.ProcessEnv;
   /** 注入 webPush 模块（测试可 mock） */
   pushImpl?: typeof webPush;
-  /** 联系邮箱（VAPID subject 用，默认 mailto:otr@local） */
+  /** 联系邮箱（VAPID subject 用，默认 mailto:atr@local） */
   contactEmail?: string;
 }
 
@@ -87,12 +87,12 @@ export class PushService {
   private subscriptions: PushSubscriptionInfo[] = [];
 
   constructor(opts: PushServiceOptions = {}) {
-    this.baseDir = opts.baseDir ?? resolve(homedir(), OTR_DATA_DIR);
+    this.baseDir = opts.baseDir ?? resolve(homedir(), ATR_DATA_DIR);
     this.vapidPath = resolve(this.baseDir, VAPID_KEYS_FILENAME);
     this.subPath = resolve(this.baseDir, PUSH_SUBSCRIPTIONS_FILENAME);
     this.env = opts.env ?? process.env;
     this.pushImpl = opts.pushImpl ?? webPush;
-    this.contactEmail = opts.contactEmail ?? 'mailto:otr@local';
+    this.contactEmail = opts.contactEmail ?? 'mailto:atr@local';
   }
 
   /**

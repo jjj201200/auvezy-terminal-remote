@@ -1,5 +1,5 @@
 /**
- * stop-instances：CLI `otr stop [pattern]` 子命令的核心逻辑
+ * stop-instances：CLI `atr stop [pattern]` 子命令的核心逻辑
  *
  * 设计：
  *  - 从 InstanceRegistryManager 拉列表，按 pattern 过滤
@@ -18,7 +18,7 @@ import {
   InstanceRegistryManager,
   isPidAlive,
 } from './instance-registry.js';
-import type { InstanceInfo } from '@otr/shared';
+import type { InstanceInfo } from '@auvezy/terminal-remote-shared';
 import { logger } from '../logger/logger.js';
 import {
   STOP_INSTANCE_GRACE_MS,

@@ -20,7 +20,7 @@ import {
   loadConfig,
   shouldInjectSettings,
 } from './config.js';
-import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from '@otr/shared';
+import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from '@auvezy/terminal-remote-shared';
 import type { ParsedCliArgs } from './cli-utils.js';
 
 describe('createClaudeSettings', () => {
@@ -488,19 +488,19 @@ describe('shouldInjectSettings', () => {
     expect(shouldInjectSettings('python3', undefined)).toBe(false);
   });
 
-  it('OCR_INJECT_SETTINGS=true 强制开（即使是 bash）', () => {
+  it('ATR_INJECT_SETTINGS=true 强制开（即使是 bash）', () => {
     expect(shouldInjectSettings('bash', 'true')).toBe(true);
     expect(shouldInjectSettings('bash', '1')).toBe(true);
     expect(shouldInjectSettings('bash', 'YES')).toBe(true);
   });
 
-  it('OCR_INJECT_SETTINGS=false 强制关（即使是 claude）', () => {
+  it('ATR_INJECT_SETTINGS=false 强制关（即使是 claude）', () => {
     expect(shouldInjectSettings('claude', 'false')).toBe(false);
     expect(shouldInjectSettings('claude', '0')).toBe(false);
     expect(shouldInjectSettings('claude', 'No')).toBe(false);
   });
 
-  it('OCR_INJECT_SETTINGS 是无效值时落回自动判定', () => {
+  it('ATR_INJECT_SETTINGS 是无效值时落回自动判定', () => {
     expect(shouldInjectSettings('claude', 'maybe')).toBe(true);
     expect(shouldInjectSettings('bash', 'whatever')).toBe(false);
   });

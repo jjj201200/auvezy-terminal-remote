@@ -11,7 +11,7 @@
  *  - 实例被真正删除(不在 list 里)时,顺手清理(避免集合无限增长)
  */
 
-const STORAGE_KEY = 'ocr.disconnectedInstances';
+const STORAGE_KEY = 'atr.disconnectedInstances';
 
 function read(): string[] {
   try {

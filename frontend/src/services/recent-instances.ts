@@ -4,13 +4,13 @@
  * 最近创建过的实例(本机持久化,LRU)。
  *
  * 设计:
- *  - localStorage key: 'ocr.recentInstances'
+ *  - localStorage key: 'atr.recentInstances'
  *  - 上限 5 条;新条目从头部插入,超出 push 出尾部
  *  - 按 cwd 去重(同 cwd 多次创建 → 留最新 name + 提到头部)
  *  - 仅本机持久化,不同步给其他设备
  */
 
-const STORAGE_KEY = 'ocr.recentInstances';
+const STORAGE_KEY = 'atr.recentInstances';
 const MAX_ENTRIES = 5;
 
 export interface RecentInstance {

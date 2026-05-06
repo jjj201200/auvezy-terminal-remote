@@ -17,13 +17,13 @@
  *  - 单文件系统下行为可预期，对多实例本地协作够用
  *
  * 不保证：
- *  - 跨主机的 NFS 锁（otr 仅本机使用）
+ *  - 跨主机的 NFS 锁（atr 仅本机使用）
  *  - 异步信号安全（持有时进程被 SIGKILL 后留 stale，靠僵尸清理兜底）
  */
 
 import { mkdirSync, writeFileSync, readFileSync, rmSync, statSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { ErrorCode } from '@otr/shared';
+import { ErrorCode } from '@auvezy/terminal-remote-shared';
 import { LockError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 import {
@@ -51,7 +51,7 @@ export interface FileLockOptions {
  * @throws LockError(LOCK_TIMEOUT) 重试用尽仍拿不到
  *
  * @example
- * await withFileLock('~/.open-terminal-remote/.shared-token.lock', async () => {
+ * await withFileLock('~/.auvezy/terminal-remote/.shared-token.lock', async () => {
  *   if (!existsSync(tokenPath)) writeToken();
  * });
  */

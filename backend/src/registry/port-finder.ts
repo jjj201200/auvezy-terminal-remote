@@ -24,7 +24,7 @@
 
 import { createServer, type Server as NetServer } from 'node:net';
 import type { Server as HttpServer } from 'node:http';
-import { ErrorCode } from '@otr/shared';
+import { ErrorCode } from '@auvezy/terminal-remote-shared';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 import { PORT_FINDER_MAX_ATTEMPTS } from '../constants.js';

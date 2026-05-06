@@ -1,5 +1,5 @@
 /**
- * `otr stop [pattern]`：把匹配的实例停掉
+ * `atr stop [pattern]`：把匹配的实例停掉
  *
  * 输出每个目标的处理结果，最后总结杀掉个数。
  * 退出码：
@@ -36,7 +36,7 @@ export async function stopInstancesCli(pattern?: string): Promise<number> {
     return 0;
   } catch (err) {
     process.stderr.write(
-      `[otr] stop 失败：${err instanceof Error ? err.message : String(err)}\n`,
+      `[atr] stop 失败：${err instanceof Error ? err.message : String(err)}\n`,
     );
     return 2;
   }

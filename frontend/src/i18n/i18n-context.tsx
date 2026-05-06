@@ -6,7 +6,7 @@
  *    （如 'authPage.title'）。缺 key 返回 key 本身（debug 友好）
  *  - useLocale()：[locale, setLocale]，setLocale 同步写 localStorage
  *
- * 持久化：localStorage key = 'ocr.locale'。读不到 / 不在白名单内 → 用 DEFAULT_LOCALE
+ * 持久化：localStorage key = 'atr.locale'。读不到 / 不在白名单内 → 用 DEFAULT_LOCALE
  *
  * 默认 en：第一次访问时写入 localStorage，之后用户选了别的语言以用户为准
  */
@@ -32,7 +32,7 @@ import {
 import { en } from './en.js';
 import { zhCN } from './zh-CN.js';
 
-const STORAGE_KEY = 'ocr.locale';
+const STORAGE_KEY = 'atr.locale';
 
 const TABLES: Record<Locale, Messages> = {
   en,

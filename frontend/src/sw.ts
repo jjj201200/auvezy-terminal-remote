@@ -33,7 +33,7 @@ registerRoute(
     if (url.pathname.startsWith('/ws')) return false;
     return request.method === 'GET';
   },
-  new StaleWhileRevalidate({ cacheName: 'otr-runtime' }),
+  new StaleWhileRevalidate({ cacheName: 'atr-runtime' }),
 );
 
 // ─────────────── 生命周期 ───────────────
@@ -67,7 +67,7 @@ self.addEventListener('push', (event: PushEvent) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? 'OTR', {
+    self.registration.showNotification(payload.title ?? 'ATR', {
       body: payload.body ?? '',
       tag: 'claude-approval',
       renotify: true,

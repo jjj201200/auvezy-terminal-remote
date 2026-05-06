@@ -50,10 +50,10 @@ export const zhCN: Messages = {
   console: {
     startingTitle: '正在启动终端',
     startingBody:
-      '浏览器已连接，PTY 子进程正在启动…\n若长时间无响应，请回到 otr 终端按一下 Enter。',
+      '浏览器已连接，PTY 子进程正在启动…\n若长时间无响应，请回到 atr 终端按一下 Enter。',
     awaitingTitle: '等待终端输出',
     awaitingBody:
-      'PTY 已启动但暂无输出。如果使用了 --wait-confirm，请回到 otr 终端按一下 Enter。',
+      'PTY 已启动但暂无输出。如果使用了 --wait-confirm，请回到 atr 终端按一下 Enter。',
   },
 
   status: {
@@ -200,7 +200,7 @@ export const zhCN: Messages = {
     closeFailed: '关闭失败',
     closeConfirmTitle: '关闭实例',
     closeConfirm: '确认关闭实例 {{name}}？其 PTY 进程会被终止。',
-    closeCurrentBlocked: '不能关闭当前 webapp 所在的实例（会让全部客户端断开）。请用 CLI (otr stop) 或直接 kill 进程。',
+    closeCurrentBlocked: '不能关闭当前 webapp 所在的实例（会让全部客户端断开）。请用 CLI (atr stop) 或直接 kill 进程。',
     closeCurrentLastTitle: '无法关闭',
     closeCurrentLast: '不能关闭唯一的实例 —— 请先创建另一个。',
     closeCurrentConfirmTitle: '关闭当前服务实例',
@@ -297,7 +297,7 @@ export const zhCN: Messages = {
   },
 
   pwa: {
-    installTitle: '安装 OTR',
+    installTitle: '安装 ATR',
     installBody: '添加到主屏后可全屏使用，体验更接近原生应用。',
     installAction: '安装',
     updateReady: '新版本已就绪',

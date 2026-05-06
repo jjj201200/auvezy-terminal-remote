@@ -14,7 +14,7 @@ import {
   IconAlertTriangle,
   IconRefresh,
 } from '@tabler/icons-react';
-import type { InstanceListItem } from '@otr/shared';
+import type { InstanceListItem } from '@auvezy/terminal-remote-shared';
 import clsx from 'clsx';
 import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';

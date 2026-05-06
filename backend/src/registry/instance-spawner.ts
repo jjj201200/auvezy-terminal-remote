@@ -1,5 +1,5 @@
 /**
- * InstanceSpawner：派生 headless otr 子进程
+ * InstanceSpawner：派生 headless atr 子进程
  *
  * 用途：前端"创建新实例"按钮 → POST /api/instances → 这里 fork 一个新进程
  *
@@ -19,7 +19,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, statSync, openSync } from 'node:fs';
 import { resolve, isAbsolute, dirname } from 'node:path';
-import { ErrorCode } from '@otr/shared';
+import { ErrorCode } from '@auvezy/terminal-remote-shared';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 
@@ -76,10 +76,10 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
     // dev 态 spawner 注入的是 src/cli.js，文件不存在导致子进程瞬间死亡且 stdio:ignore 吞掉错误
     const { execPath, args: entryArgs } = resolveEntry(this.opts.cliJsPath);
 
-    // 子进程日志重定向到 OTR_LOG_DIR/spawned-<pid>.log，便于排查派生失败
-    // 默认是 ignore（生产态稳定后无需占盘），但 OTR_DEBUG_SPAWN=1 时启用
-    const logFd = process.env.OTR_DEBUG_SPAWN
-      ? openSync(`/tmp/otr-spawn-${Date.now()}.log`, 'a')
+    // 子进程日志重定向到 /tmp/atr-spawn-*.log，便于排查派生失败
+    // 默认是 ignore（生产态稳定后无需占盘），但 ATR_DEBUG_SPAWN=1 时启用
+    const logFd = process.env.ATR_DEBUG_SPAWN
+      ? openSync(`/tmp/atr-spawn-${Date.now()}.log`, 'a')
       : 'ignore';
 
     const child = spawn(
@@ -91,7 +91,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
           ...process.env,
           ...this.opts.env,
           INSTANCE_NAME: name,
-          // 不重置 HOME，让子进程读同一个 ~/.open-terminal-remote/config.json（共享 token）
+          // 不重置 HOME，让子进程读同一个 ~/.auvezy/terminal-remote/config.json（共享 token）
         },
         detached: true,
         stdio: ['ignore', logFd, logFd],
@@ -114,7 +114,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
     if (earlyExit !== null) {
       throw new InstanceError(
         ErrorCode.INTERNAL_ERROR,
-        `子进程瞬间退出（exit=${earlyExit.code} signal=${earlyExit.signal}），常见原因：cli 入口缺失 / 端口冲突 / node_modules 不全。开 OTR_DEBUG_SPAWN=1 重启服务器看 /tmp/otr-spawn-*.log`,
+        `子进程瞬间退出（exit=${earlyExit.code} signal=${earlyExit.signal}），常见原因：cli 入口缺失 / 端口冲突 / node_modules 不全。开 OTR_DEBUG_SPAWN=1 重启服务器看 /tmp/atr-spawn-*.log`,
         500,
       );
     }

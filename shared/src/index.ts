@@ -1,7 +1,7 @@
 /**
- * @otr/shared 公共导出
+ * @auvezy/terminal-remote-shared 公共导出
  *
- * 前后端通过 import { ... } from '@otr/shared' 访问所有协议类型与常量。
+ * 前后端通过 import { ... } from '@auvezy/terminal-remote-shared' 访问所有协议类型与常量。
  */
 
 export * from './constants.js';

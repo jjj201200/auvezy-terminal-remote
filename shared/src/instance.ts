@@ -1,14 +1,14 @@
 /**
  * 实例注册表类型（前后端共享）
  *
- * 多实例场景下，每个 otr 进程在 ~/.open-terminal-remote/instances.json
+ * 多实例场景下，每个 atr 进程在 ~/.auvezy/terminal-remote/instances.json
  * 注册自己的元信息，前端可拉取此列表实现 Tab 切换。
  *
  * 文件结构带版本号是为了向前兼容——以后如要升级 schema，
  * 旧版进程读到不识别的 version 就放弃使用，避免数据破坏。
  */
 
-/** 一个 otr 实例的元信息 */
+/** 一个 atr 实例的元信息 */
 export interface InstanceInfo {
   /** UUID，进程内生成，代表本次启动的唯一身份 */
   instanceId: string;

@@ -60,20 +60,20 @@ describe('parseCliArgs', () => {
     expect(r.claudeArgs).toEqual([]);
   });
 
-  it('otr <prog> [args...] → command + 透传位置参数', () => {
+  it('atr <prog> [args...] → command + 透传位置参数', () => {
     const r = parseCliArgs(['claude', '--resume', 'task1']);
     expect(r.command).toBe('claude');
     expect(r.claudeArgs).toEqual(['--resume', 'task1']);
   });
 
-  it('otr <prog> 与 --port 混用', () => {
+  it('atr <prog> 与 --port 混用', () => {
     const r = parseCliArgs(['claude', '--port', '3002']);
     expect(r.command).toBe('claude');
     expect(r.port).toBe(3002);
     expect(r.claudeArgs).toEqual([]);
   });
 
-  it('otr <prog> -- 后位置参数', () => {
+  it('atr <prog> -- 后位置参数', () => {
     const r = parseCliArgs(['zsh', '--', '-l']);
     expect(r.command).toBe('zsh');
     expect(r.claudeArgs).toEqual(['-l']);

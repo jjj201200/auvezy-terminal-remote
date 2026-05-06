@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
-import type { InstanceListItem, SessionStatus } from '@otr/shared';
+import type { InstanceListItem, SessionStatus } from '@auvezy/terminal-remote-shared';
 import { useUserConfig } from '../hooks/useUserConfig.js';
 import { useInstances } from '../hooks/useInstances.js';
 import { useMediaQuery } from '../hooks/useMediaQuery.js';

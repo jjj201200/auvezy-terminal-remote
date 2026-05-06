@@ -17,7 +17,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-const DISMISS_KEY = 'otr.installPromptDismissedUntil';
+const DISMISS_KEY = 'atr.installPromptDismissedUntil';
 // 用户点过"以后再说"后，至少 7 天不再展示
 const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 

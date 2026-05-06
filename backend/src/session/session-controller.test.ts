@@ -19,7 +19,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import type { ServerMessage } from '@otr/shared';
+import type { ServerMessage } from '@auvezy/terminal-remote-shared';
 import type { WebSocket } from 'ws';
 import type { ClientType, ClientCounts, WsServer } from '../ws/ws-server.js';
 import { SessionController } from './session-controller.js';
