@@ -42,7 +42,23 @@ export function MultiInstanceConsole(): JSX.Element {
   const t = useT();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const { config, save } = useUserConfig();
-  const { instances, pending, create: createInstance, remove: removeInstance } = useInstances();
+  const { instances, pending, create: createInstance, remove: rawRemoveInstance } = useInstances();
+
+  // 关闭实例的包装：成功且没有别的实例了 → 弹出"创建实例"modal，
+  // 让用户立刻有路可走（前端 token 已存，新实例创建后能直接用）
+  const removeInstance = useCallback(
+    async (instanceId: string): Promise<string | null> => {
+      const err = await rawRemoveInstance(instanceId);
+      if (err === null) {
+        const remaining = instances.filter((i) => i.instanceId !== instanceId);
+        if (remaining.length === 0) {
+          setCreateOpen(true);
+        }
+      }
+      return err;
+    },
+    [rawRemoveInstance, instances],
+  );
 
   // 共享 modal 开关
   const [settingsOpen, setSettingsOpen] = useState(false);

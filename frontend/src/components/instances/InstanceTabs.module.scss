@@ -12,18 +12,23 @@
   @include m.btn-reset;
   @include m.row-flex(t.$sp-2);
   white-space: nowrap;
-  padding: t.$sp-2 t.$sp-4;
+  padding: t.$sp-2 t.$sp-3 t.$sp-2 t.$sp-4;
   border: 1px solid t.$border;
   background: t.$bg;
   font-size: t.$fs-xs;
   color: t.$fg-dim;
   letter-spacing: t.$tracking-tight;
+  cursor: pointer;
   @include m.transition(background t.$dur-fast, border-color t.$dur-fast, color t.$dur-fast);
 
-  &:hover:not(:disabled) {
+  &:hover:not([aria-disabled='true']):not(:disabled) {
     color: t.$fg;
     background: t.$bg-hover;
     border-color: t.$border-hi;
+  }
+
+  &[aria-disabled='true'] {
+    cursor: default;
   }
 }
 
@@ -137,28 +142,27 @@
   }
 }
 
-// 关闭按钮 + 主 tab 的容器：紧贴在一起
-.tabWrap {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
+// 关闭按钮：内嵌在 tab 内部（端口右侧），与 tab 视觉一体
+// 默认半透明，hover 整个 tab 才完全显现，避免视觉噪音
 .tabClose {
   @include m.btn-reset;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-right: 2px;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
   color: t.$fg-low;
-  border: 1px solid transparent;
-  @include m.transition(color t.$dur-fast, background t.$dur-fast, border-color t.$dur-fast);
+  opacity: 0.5;
+  @include m.transition(color t.$dur-fast, opacity t.$dur-fast);
 
+  // 父 tab hover 时显现
+  .tab:hover & {
+    opacity: 1;
+  }
+
+  // 自身 hover：变 warn 红
   &:hover {
     color: t.$warn;
-    border-color: t.$warn;
-    background: rgba(255, 99, 71, 0.08);
   }
 }

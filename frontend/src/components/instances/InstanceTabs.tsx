@@ -102,20 +102,62 @@ export function InstanceTabs({
     setMenuFor({ id: i.instanceId, x: e.clientX, y: e.clientY });
   };
 
+  const handleCloseClick = (i: InstanceListItem): void => {
+    if (!onClose) return;
+    // isCurrent = serve 这个 webapp 的进程；关掉它整个 webapp 都会 down，
+    // 后端也会拒绝（DELETE 路由对 currentInstanceId 直接 400）。
+    // 给一个明显的提示告诉用户为什么不行
+    if (i.isCurrent) {
+      alert(t('instance.closeCurrentBlocked'));
+      return;
+    }
+    if (!confirm(t('instance.closeConfirm', { name: i.name }))) return;
+    void onClose(i.instanceId).then((err) => {
+      if (err) alert(`${t('instance.closeFailed')}: ${err}`);
+    });
+  };
+
   return (
     <nav id="instance-tabs" className={s.nav} aria-label={t('instance.instancesAriaLabel')}>
       {instances.map((i) => (
-        <span key={i.instanceId} className={s.tabWrap}>
-          {/* 关闭按钮：放在 tab 名称前，当前服务进程禁用 */}
-          {onClose && !i.isCurrent && (
+        // 用 div role=button：内部要嵌关闭按钮（button 不能嵌 button）
+        // 整个 div 为切换实例的命中区，关闭 × 只占 tab 右侧一小块
+        <div
+          key={i.instanceId}
+          role="button"
+          tabIndex={i.isCurrent ? -1 : 0}
+          aria-pressed={i.isCurrent}
+          aria-disabled={i.isCurrent}
+          onClick={() => handleSwitch(i)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleSwitch(i);
+          }}
+          onPointerDown={(e) =>
+            handlePointerDown(
+              e as unknown as ReactPointerEvent<HTMLButtonElement>,
+              i,
+            )
+          }
+          onPointerUp={cancelLongPress}
+          onPointerCancel={cancelLongPress}
+          onPointerLeave={cancelLongPress}
+          onContextMenu={(e) =>
+            handleContextMenu(
+              e as unknown as React.MouseEvent<HTMLButtonElement>,
+              i,
+            )
+          }
+          title={`${i.cwd} · pid=${i.pid}`}
+          className={clsx(s.tab, i.isCurrent && s.tabActive)}
+        >
+          <span>{i.name}</span>
+          <span className={s.tabPort}>:{i.port}</span>
+          {onClose && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (!confirm(t('instance.closeConfirm', { name: i.name }))) return;
-                void onClose(i.instanceId).then((err) => {
-                  if (err) alert(`${t('instance.closeFailed')}: ${err}`);
-                });
+                handleCloseClick(i);
               }}
               title={t('instance.close')}
               aria-label={t('instance.close')}
@@ -124,22 +166,7 @@ export function InstanceTabs({
               <IconX size={10} stroke={1.5} />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => handleSwitch(i)}
-            onPointerDown={(e) => handlePointerDown(e, i)}
-            onPointerUp={cancelLongPress}
-            onPointerCancel={cancelLongPress}
-            onPointerLeave={cancelLongPress}
-            onContextMenu={(e) => handleContextMenu(e, i)}
-            title={`${i.cwd} · pid=${i.pid}`}
-            disabled={i.isCurrent}
-            className={clsx(s.tab, i.isCurrent && s.tabActive)}
-          >
-            <span>{i.name}</span>
-            <span className={s.tabPort}>:{i.port}</span>
-          </button>
-        </span>
+        </div>
       ))}
       {pending.map((p) => (
         <button
