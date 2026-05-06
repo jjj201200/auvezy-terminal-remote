@@ -187,3 +187,58 @@ pnpm test         # shared + backend + frontend 单测
 pnpm typecheck
 pnpm build        # 交付构件（含 frontend 拷入 backend/frontend-dist）
 ```
+
+
+第一档（移动端必加，工作量小，明显改善体验）
+
+1. Local Echo 本地预回显（Mosh/Blink/code-server）
+移动端 4G/弱网下输入延迟杀手。在 xterm 里用预测插件让按键立刻显示，PTY 回包覆盖。投入低收益巨大。
+2. 多行粘贴警告 + bracketed paste（VS Code、Tabby）
+移动端从微信/邮件粘贴 5 行命令，目前直接发，危险。检测多行 → 弹确认。
+3. Shell Integration 子集（OSC 633/133）
+  - command decorations（绿/红圆点）
+  - Run Recent Command 跨会话 fuzzy 历史 quick pick
+  - 这两个对手机用户极友好（手机打字慢 → 跨会话历史搜索是核心需求）
+4. Auto Reply（自动应答）（VS Code）
+匹配 prompt 自动回 y/N。手机用户输 [y/N] 太麻烦。
+5. Process Revive（VS Code 终端复活）
+你已有 instances.json，把 scrollback 序列化进去，重启后 webapp 能看到上次的内容。LAN-only 路线下唯一难点是序列化 size，扩 5MB 即可。
+
+第二档（移动端体验加分）
+
+6. SmartKeys 长按出菜单（Blink）
+屏幕键盘扩展行，长按 Tab 出 Shift+Tab；长按 Esc 出 ^[; 长按 Ctrl 黏住直到下个键。我们已有 Toolbar 快捷键面板，差「长按弹菜单」+「修饰键黏滞」。
+7. 拇指拖光标条（Termius：长按空格当 trackpad）
+终端区底部留个 8px 透明条，拖动 = 发方向键序列。手机精确移光标的最优解。
+8. OSC 8 hyperlinks + word-link / file-link（VS Code）
+xterm.js 原生 LinkProvider，加几行就能让 src/foo.ts:42 变可点击。
+9. 多 chord 快捷键 / 修饰键黏滞（Tabby、Blink）
+手机虚拟修饰键 + Cmd-K Cmd-S 这类两步组合，比堆按钮节省屏幕。
+10. Quick Fixes（VS Code）
+扫描输出推荐修复。fatal: ... --set-upstream 一键应用。投入大但很出彩。
+
+第三档（写权限 / 安全 / 协作）
+
+11. Writable / Read-only 分离（ttyd -W、gotty -w）
+多设备同时连入同一实例时，可设其他人只读。投入很小（WS 握手时区分）。
+12. Broadcast Input 多终端同步输入（Termius）
+多个 webapp 同时连一个实例时，把同一输入广播给所有 PTY。我们多实例架构很容易加。
+13. TLS 自签证书（ttyd -S、gotty -t）
+LAN 内 https 让 Web Push API 在更多浏览器上能用（目前 LAN HTTP 下 Push API 受限）。
+14. OAuth / 客户端证书鉴权（ttyd 客户端证书）
+我们当前 token，可加客户端证书做硬鉴权。优先级低，token 已经够。
+
+第四档（明确不抄）
+
+- ❌ 插件系统（Tabby）：LAN-only 单 binary 没必要
+- ❌ 云端 Settings Sync（VS Code）：跟 LAN-only 红线冲突
+- ❌ Sixel/iTerm 图像协议：移动端价值低，xterm.js 不原生
+- ❌ asciinema 公网分享：跟 LAN-only 冲突；要做就只做本地 .cast 导出
+- ❌ SFTP/SCP 文件管理（Termius/Wetty）：偏离"远程 PTY 控制"定位
+- ❌ 端到端加密 Vault：用户家庭 LAN 不需要
+
+---
+我们独特但其他都没做的"痛点"
+
+- Tailscale / VPN 二维码标注：你们已经做了 LAN+Tailscale 双码，这个是 LAN-only 路线非常贴心的细节
+- Webapp 弹通知 + iOS LocalNotification fallback：iOS PWA 推送限制下，这个 fallback 思路别家完全没考虑过
