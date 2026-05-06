@@ -33,7 +33,8 @@ export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
   const router = Router();
   const { authModule, registry, currentInstanceId } = opts;
 
-  router.get('/instances', authModule.requireAuth, async (_req, res) => {
+  router.get('/instances', authModule.requireAuth, async (req, res) => {
+    logger.debug({ ip: req.ip }, 'GET /instances');
     try {
       const list = await registry.list();
       const items: InstanceListItem[] = list.map((i) => ({
@@ -98,6 +99,7 @@ export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
    */
   router.delete('/instances/:id', authModule.requireAuth, async (req: Request, res: Response) => {
     const id = req.params.id;
+    logger.info({ id, ip: req.ip, currentInstanceId }, 'DELETE /instances/:id 进入');
     if (!id || typeof id !== 'string') {
       const e = new InstanceError(ErrorCode.CWD_NOT_EXIST, 'instanceId 必填', 400);
       res.status(e.httpStatus).json({ error: e.toPayload() });
