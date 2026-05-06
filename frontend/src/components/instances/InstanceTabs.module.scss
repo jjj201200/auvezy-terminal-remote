@@ -66,3 +66,73 @@
     background: t.$bg-hover;
   }
 }
+
+.tabPending {
+  opacity: 0.7;
+  cursor: default;
+  font-style: italic;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+.tabPendingFailed {
+  color: t.$warn;
+  border-color: t.$warn !important;
+  cursor: pointer;
+  font-style: normal;
+  opacity: 1;
+}
+
+.pendingName {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.menu {
+  position: fixed;
+  z-index: 1000;
+  border: 1px solid t.$border;
+  background: t.$bg-elev;
+  backdrop-filter: t.$overlay-blur;
+  -webkit-backdrop-filter: t.$overlay-blur;
+  box-shadow: t.$shadow-3;
+  padding: 4px;
+  min-width: 120px;
+}
+
+.menuItem {
+  @include m.btn-reset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  color: t.$fg;
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    background: t.$bg-hover;
+  }
+
+  &:disabled {
+    color: t.$fg-low;
+    cursor: not-allowed;
+  }
+}

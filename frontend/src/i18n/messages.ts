@@ -212,6 +212,11 @@ export interface Messages {
     submitting: string;
     errorEmptyCwd: string;
     errorCreateFailed: string;
+    pendingTooltip: string;
+    pendingFailed: string;
+    pendingNameless: string;
+    close: string;
+    closeFailed: string;
   };
 
   // 设置 - 通知（PushToggle）

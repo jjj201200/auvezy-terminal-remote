@@ -188,6 +188,11 @@ export const en: Messages = {
     submitting: 'Creating…',
     errorEmptyCwd: 'cwd cannot be empty',
     errorCreateFailed: 'Create failed: check that the cwd exists',
+    pendingTooltip: 'Spawning…',
+    pendingFailed: 'Create failed',
+    pendingNameless: '(unnamed)',
+    close: 'Close instance',
+    closeFailed: 'Close failed',
   },
 
   push: {

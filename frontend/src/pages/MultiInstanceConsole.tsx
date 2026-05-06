@@ -42,7 +42,7 @@ export function MultiInstanceConsole(): JSX.Element {
   const t = useT();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const { config, save } = useUserConfig();
-  const { instances, create: createInstance } = useInstances();
+  const { instances, pending, create: createInstance, remove: removeInstance } = useInstances();
 
   // 共享 modal 开关
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -60,10 +60,11 @@ export function MultiInstanceConsole(): JSX.Element {
   const [reconnectFn, setReconnectFn] = useState<(() => void) | null>(null);
 
   // 默认选中：优先 isCurrent，回退第一个
+  // active 实例消失（被关闭 / 进程死亡）时也走这条：自动选当前服务进程对应实例
   useEffect(() => {
     if (activeId && instances.some((i) => i.instanceId === activeId)) return;
     const cur = instances.find((i) => i.isCurrent) ?? instances[0];
-    if (cur) setActiveId(cur.instanceId);
+    setActiveId(cur?.instanceId ?? null);
   }, [instances, activeId]);
 
   // 全局 Cmd+F：toggle SearchBar（active 实例处理实际搜索）
@@ -140,8 +141,10 @@ export function MultiInstanceConsole(): JSX.Element {
           ) : (
             <InstanceTabs
               instances={tabsInstances}
+              pending={pending}
               onCreateClick={() => setCreateOpen(true)}
               onSwitch={handleSwitch}
+              onClose={removeInstance}
             />
           )}
         </div>

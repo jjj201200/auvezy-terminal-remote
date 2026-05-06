@@ -16,36 +16,65 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { InstanceListItem } from '@otr/shared';
-import { fetchInstances, createInstance } from '../services/instance-api.js';
+import { fetchInstances, createInstance, deleteInstance } from '../services/instance-api.js';
 
 const INSTANCE_POLL_INTERVAL_MS = 5_000;
 
+/**
+ * 占位实例：modal 关闭后到 backend 注册前，前端用它撑出"骨架 tab"
+ * 让用户立刻看到反馈
+ */
+export interface PendingInstance {
+  /** 占位 id（uuid），区别于真实 instanceId */
+  pendingId: string;
+  cwd: string;
+  name: string;
+  /** 期望的 pid，用来匹配 backend 的真实记录 */
+  expectedPid: number;
+  /** 'creating' 创建中 / 'failed' 创建失败（短暂展示后移除） */
+  state: 'creating' | 'failed';
+  /** 失败时的错误信息 */
+  error?: string;
+  /** 创建时间戳，用于超时移除 */
+  startedAt: number;
+}
+
 export interface UseInstancesResult {
   instances: InstanceListItem[];
+  pending: PendingInstance[];
   loading: boolean;
   error: string | null;
-  /** 强制立即重新 fetch */
-  reload: () => Promise<void>;
+  /** 强制立即重新 fetch；返回最新列表（也写到内部 state） */
+  reload: () => Promise<InstanceListItem[]>;
   /** 创建新实例；成功返回 null，失败返回错误信息 */
   create: (cwd: string, name?: string) => Promise<string | null>;
+  /** 删除（关闭）实例 */
+  remove: (instanceId: string) => Promise<string | null>;
 }
 
 export function useInstances(): UseInstancesResult {
   const [instances, setInstances] = useState<InstanceListItem[]>([]);
+  const [pending, setPending] = useState<PendingInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const reload = useCallback(async (): Promise<void> => {
+  const reload = useCallback(async (): Promise<InstanceListItem[]> => {
     const r = await fetchInstances();
     if (r.ok && r.data) {
       setInstances(r.data.instances);
       setError(null);
-    } else if (r.status !== 0) {
-      // status=0 表示网络/取消导致的瞬时失败，不显示错误
+      // 拿到列表后，把对应到的 pending 项移除（pid 命中）
+      setPending((prev) =>
+        prev.filter((p) => !r.data!.instances.some((i) => i.pid === p.expectedPid)),
+      );
+      return r.data.instances;
+    }
+    if (r.status !== 0) {
       setError(r.error?.message ?? '实例列表加载失败');
     }
     setLoading(false);
+    return [];
   }, []);
 
   // 首次 + 定时轮询
@@ -68,19 +97,40 @@ export function useInstances(): UseInstancesResult {
     async (cwd: string, name?: string): Promise<string | null> => {
       const r = await createInstance({ cwd, name });
       if (r.ok && r.data) {
-        // 子进程派生成功 ≠ 立刻在 instances.json 注册——子进程要起 PTY、findPort、
-        // 写 registry，整个过程约 200~1500ms。立即 reload 大概率拿不到。
-        // 多次重试直到看到新 pid，或等到下一次轮询兜底（5s）。
+        // 立即插入一个 pending 占位项，让 InstanceTabs 显示骨架 tab
+        const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const expectedPid = r.data.instance.pid;
+        setPending((prev) => [
+          ...prev,
+          {
+            pendingId,
+            cwd: r.data!.instance.cwd,
+            name: r.data!.instance.name,
+            expectedPid,
+            state: 'creating',
+            startedAt: Date.now(),
+          },
+        ]);
+
+        // 多次重试 reload，直到 backend 注册了新 pid
         const delays = [200, 500, 1000, 2000];
         void (async () => {
           for (const delay of delays) {
             await new Promise((res) => setTimeout(res, delay));
-            await reload();
-            // setInstances 是异步的，用 fetchInstances 直接取一次确认是否到了
-            const check = await fetchInstances();
-            if (check.ok && check.data?.instances.some((i) => i.pid === expectedPid)) return;
+            const list = await reload();
+            if (list.some((i) => i.pid === expectedPid)) return; // 命中 → reload 内已移除 pending
           }
+          // 超时（轮询会兜底；这里把 pending 标记 failed 短暂展示再移除）
+          setPending((prev) =>
+            prev.map((p) =>
+              p.pendingId === pendingId
+                ? { ...p, state: 'failed', error: '注册超时' }
+                : p,
+            ),
+          );
+          setTimeout(() => {
+            setPending((prev) => prev.filter((p) => p.pendingId !== pendingId));
+          }, 4000);
         })();
         return null;
       }
@@ -91,5 +141,18 @@ export function useInstances(): UseInstancesResult {
     [reload],
   );
 
-  return { instances, loading, error, reload, create };
+  const remove = useCallback(
+    async (instanceId: string): Promise<string | null> => {
+      const r = await deleteInstance(instanceId);
+      if (r.ok) {
+        // 立即从本地列表移除（后端已 SIGTERM，下次 reload 也会清掉）
+        setInstances((prev) => prev.filter((i) => i.instanceId !== instanceId));
+        return null;
+      }
+      return r.error?.message ?? '关闭实例失败';
+    },
+    [],
+  );
+
+  return { instances, pending, loading, error, reload, create, remove };
 }

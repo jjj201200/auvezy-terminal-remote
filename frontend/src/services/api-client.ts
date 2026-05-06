@@ -80,6 +80,26 @@ export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   }
 }
 
+/** 通用 DELETE 包装 */
+export async function apiDelete<T>(path: string): Promise<ApiResult<T>> {
+  try {
+    const res = await fetch(path, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    return parseResponse<T>(res);
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      error: {
+        code: ErrorCode.INTERNAL_ERROR,
+        message: err instanceof Error ? err.message : '网络请求失败',
+      },
+    };
+  }
+}
+
 /** 通用 PUT 包装：与 POST 同结构，区别只是方法 */
 export async function apiPut<T>(path: string, body: unknown): Promise<ApiResult<T>> {
   try {

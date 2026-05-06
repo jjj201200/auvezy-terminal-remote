@@ -181,6 +181,11 @@ export const zhCN: Messages = {
     submitting: '创建中…',
     errorEmptyCwd: 'cwd 不能为空',
     errorCreateFailed: '创建失败：请检查 cwd 是否存在',
+    pendingTooltip: '正在创建…',
+    pendingFailed: '创建失败',
+    pendingNameless: '（无名称）',
+    close: '关闭实例',
+    closeFailed: '关闭失败',
   },
 
   push: {

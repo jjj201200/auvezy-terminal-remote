@@ -16,6 +16,7 @@ import { ErrorCode, type InstanceListItem } from '@otr/shared';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner, SpawnInstanceInput } from '../registry/instance-spawner.js';
+import { stopInstances } from '../registry/stop-instances.js';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 
@@ -85,6 +86,51 @@ export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
         err instanceof InstanceError
           ? err
           : new InstanceError(ErrorCode.INTERNAL_ERROR, '派生实例失败', 500, err);
+      res.status(e.httpStatus).json({ error: e.toPayload() });
+    }
+  });
+
+  /**
+   * DELETE /instances/:id
+   *
+   * 停止指定实例（SIGTERM → 宽限期 → SIGKILL）。当前实例不能停自己——会让 master
+   * 进程一并死亡，导致其他客户端断开。前端禁止通过 UI 触发；后端额外校验。
+   */
+  router.delete('/instances/:id', authModule.requireAuth, async (req: Request, res: Response) => {
+    const id = req.params.id;
+    if (!id || typeof id !== 'string') {
+      const e = new InstanceError(ErrorCode.CWD_NOT_EXIST, 'instanceId 必填', 400);
+      res.status(e.httpStatus).json({ error: e.toPayload() });
+      return;
+    }
+    if (id === currentInstanceId) {
+      const e = new InstanceError(
+        ErrorCode.INTERNAL_ERROR,
+        '不能通过 API 停止当前实例（会让连接你自己的进程退出）',
+        400,
+      );
+      res.status(e.httpStatus).json({ error: e.toPayload() });
+      return;
+    }
+
+    try {
+      const all = await registry.list();
+      const target = all.find((i) => i.instanceId === id);
+      if (!target) {
+        const e = new InstanceError(ErrorCode.INTERNAL_ERROR, '实例不存在', 404);
+        res.status(e.httpStatus).json({ error: e.toPayload() });
+        return;
+      }
+      // stopInstances 走 substring 匹配；用 instanceId 是 uuid 唯一，不会误中
+      const results = await stopInstances(id, { registry });
+      const r = results[0];
+      res.json({ ok: true, outcome: r?.outcome ?? 'gone' });
+    } catch (err) {
+      logger.error({ err, id }, 'DELETE /instances/:id 失败');
+      const e =
+        err instanceof InstanceError
+          ? err
+          : new InstanceError(ErrorCode.INTERNAL_ERROR, '停止实例失败', 500, err);
       res.status(e.httpStatus).json({ error: e.toPayload() });
     }
   });
