@@ -1,27 +1,15 @@
 @use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
+// 作为顶栏与终端之间的常规 flex 项：不再 absolute，
+// open 时占行高 → terminalWrap 自动收缩 → xterm 自适应行数
 .root {
-  position: absolute;
-  top: t.$sp-3;
-  right: t.$sp-3;
-  z-index: 30;
+  flex-shrink: 0;
   @include m.row-flex(t.$bar-gap);
-  border: 1px solid t.$border;
-  // bg-elev 自带 0.5 alpha 在 webgl 终端上会"穿透"看不清，
-  // 配合 backdrop-filter 模糊后面的内容形成磨砂玻璃效果
+  border-top: 1px solid t.$border;
+  border-bottom: 1px solid t.$border;
   background: t.$bg-elev;
-  backdrop-filter: t.$overlay-blur;
-  -webkit-backdrop-filter: t.$overlay-blur;
-  padding: t.$sp-2;
-  box-shadow: t.$shadow-3;
-
-  // 移动端：全宽横铺，方便手指操作
-  @include m.mobile {
-    top: t.$sp-2;
-    left: t.$sp-2;
-    right: t.$sp-2;
-  }
+  padding: t.$sp-2 t.$sp-3;
 }
 
 .input {

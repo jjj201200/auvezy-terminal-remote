@@ -1,0 +1,35 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.root {
+  position: absolute;
+  right: t.$sp-4;
+  bottom: t.$sp-4;
+  z-index: t.$z-sticky;
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-2;
+}
+
+// 背景半透明 → 按钮底下被遮挡的终端内容仍可见；
+// 图标保持完整不透明（不用 opacity 全局变淡，否则图标也跟着糊）
+.btn {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 9, 11, 0.35);
+  color: t.$fg-dim;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover, &:active {
+    color: t.$accent;
+    border-color: t.$accent;
+    background: t.$accent-soft;
+  }
+}
