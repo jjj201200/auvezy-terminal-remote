@@ -45,6 +45,8 @@ export const en: Messages = {
     settingsTooltip: 'Settings',
     share: 'Share this instance',
     shareTooltip: 'Share this instance (with QR)',
+    copy: 'Copy',
+    copyTooltip: 'Copy selection (or visible viewport if no selection)',
     instances: 'Instances',
     createInstance: 'Create instance',
     switchInstance: 'Switch instance',

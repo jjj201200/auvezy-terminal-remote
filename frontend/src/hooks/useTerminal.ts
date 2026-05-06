@@ -82,6 +82,8 @@ export interface UseTerminalReturn {
   clearSearch: () => void;
   /** 获取当前选区文本，无选区返回空串 */
   getSelection: () => string;
+  /** 拿当前可见视口的全部文本（用作"无选区时复制全屏" fallback） */
+  getViewportText: () => string;
   /** 内部 Terminal 引用（极少数高级场景使用） */
   terminal: RefObject<Terminal | null>;
 }
@@ -542,6 +544,20 @@ export function useTerminal(
     return termRef.current?.getSelection() ?? '';
   }, []);
 
+  const getViewportText = useCallback((): string => {
+    const term = termRef.current;
+    if (!term) return '';
+    const buf = term.buffer.active;
+    const start = buf.viewportY;
+    const end = Math.min(start + term.rows, buf.length);
+    const lines: string[] = [];
+    for (let i = start; i < end; i++) {
+      const line = buf.getLine(i);
+      if (line) lines.push(line.translateToString(true));
+    }
+    return lines.join('\n');
+  }, []);
+
   return {
     write,
     clear,
@@ -554,6 +570,7 @@ export function useTerminal(
     searchPrev,
     clearSearch,
     getSelection,
+    getViewportText,
     terminal: termRef,
   };
 }

@@ -40,6 +40,8 @@ export const zhCN: Messages = {
     settingsTooltip: '设置',
     share: '分享此实例',
     shareTooltip: '分享此实例（含二维码）',
+    copy: '复制',
+    copyTooltip: '复制选中文本（无选区则复制当前可见区域）',
     instances: '实例',
     createInstance: '新建实例',
     switchInstance: '切换实例',
