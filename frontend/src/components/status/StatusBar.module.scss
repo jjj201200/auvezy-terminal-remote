@@ -10,6 +10,14 @@
 .statusConnection { display: inline-flex; }
 .statusSession { display: inline-flex; }
 
+// 包 Pill 的 <span> 提供 title / aria-label，紧凑模式下要跟 reconnect button
+// 一起在 row-flex 里垂直居中：默认 inline 的 baseline 跟 inline-flex 的 14px
+// 不对齐，圆点会偏。统一 inline-flex + center 让它跟兄弟元素齐平。
+.statusWrap {
+  display: inline-flex;
+  align-items: center;
+}
+
 // 把 Pill 包成 button 时去掉浏览器默认的 button 样式，保留 Pill 自身视觉
 .reconnectBtn {
   appearance: none;
