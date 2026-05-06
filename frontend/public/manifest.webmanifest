@@ -35,5 +35,21 @@
       "sizes": "any",
       "purpose": "any"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile — terminal in standalone mode"
+    },
+    {
+      "src": "/screenshots/desktop.png",
+      "sizes": "3840x1582",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop — full terminal with toolbar and settings"
+    }
   ]
 }
