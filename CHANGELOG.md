@@ -5,6 +5,38 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-06
+
+### Fixed
+
+- **`atr claude` 启动后本地键盘失控**（仅在"先开浏览器扫码登录后再回到本地敲键"
+  这条路径触发；zsh 等非 TUI 程序不易复现）。
+  根因：默认 race 路径里 `waitForUserConfirm({silent:true})` 在 stdin 上挂的
+  `'data'` listener，在 webapp 触发 `startPty` 后没被清理。用户回本地按第一个键
+  时它先 `cleanup() → process.stdin.pause()`，后续 `TerminalRelay` 永远收不到
+  data。
+  修法：`waitForUserConfirm` 返回 `{ promise, cancel }` 句柄，webapp / timeout
+  触发 spawn 时主动 `cancel()`（移除 listener 但**不**调 `pause()`）。
+
+## [0.3.0] - 2026-05-06
+
+> ⚠️ 包名 / CLI / 数据目录 / 缩写全面迁移：旧版 `@jjj201200/open-terminal-remote`
+> （CLI: `otr`，数据: `~/.open-terminal-remote/`）已停止发布；新包
+> `auvezy-terminal-remote`（CLI: `atr`，数据: `~/.auvezy/terminal-remote/`）。
+> 老用户需手动迁移配置文件。
+
+### Changed (rename)
+
+- npm 包名: `@jjj201200/open-terminal-remote` → `auvezy-terminal-remote`
+  - 早期试过 `@auvezy/terminal-remote` scope，但 npm 拒绝创建 `@auvezy`
+    organization（疑似保留词），改用纯前缀 `auvezy-`
+- CLI 命令: `otr` → `atr`
+- 环境变量: `OTR_DEBUG_SPAWN` / `OCR_INJECT_SETTINGS` / `OCR_DEV_PROXY` → `ATR_*`
+- 数据目录: `~/.open-terminal-remote/` → `~/.auvezy/terminal-remote/`
+- localStorage prefix: `ocr.*` → `atr.*`
+- PWA 资源: 应用名 `Open Terminal Remote` → `Auvezy Terminal Remote`，
+  图标 `otr-icon-*` → `atr-icon-*`
+
 ### Added
 
 - **多实例 SSE 实时同步**：新增 `GET /api/instances/stream` SSE 端点，
@@ -43,7 +75,11 @@
   `(instanceId, ...)` + ref 镜像可变依赖；`useDisconnected` setSet 加内容
   比对，相同内容不更新引用
 
-## [0.3.0] - 2026-05-06
+## [0.3.0-legacy] - 2026-05-06
+
+> 旧包名时期（`@jjj201200/open-terminal-remote`，CLI: `otr`）的最后一个版本，
+> 已从 npm 下架。保留此节作历史记录；当前 npm 上的 `auvezy-terminal-remote@0.3.0`
+> 对应上方"0.3.0"节。
 
 ### Added
 
