@@ -15,9 +15,12 @@
   // 因为 useTerminal 在 isKeyboardOpen 时跳过 fit()，物理高度不变 → canvas
   // 比容器大，溢出由 overflow:hidden 裁切。配合 .terminalView 的 transform
   // 让 canvas 底部对齐容器底部（光标行可见 = Blink/Termius 路线的 web 等价）。
+  //
+  // 不加 transition：visualViewport.resize 在键盘收起期间会持续 fire，每次
+  // 都把 --vv-bottom 写新值，CSS transition 的目标也在持续变 → 视觉上看起来
+  // padding 滞后追赶 ~1 秒才到 0。直接 layout 跟键盘同步反而更顺滑。
   padding-top: var(--vv-top, 0px);
   padding-bottom: var(--vv-bottom, 0px);
-  transition: padding-top 0.18s ease-out, padding-bottom 0.18s ease-out;
 }
 
 // InstanceView 的内容容器：不再用 fixed 全屏（那会盖住 MultiInstanceConsole 的 header），

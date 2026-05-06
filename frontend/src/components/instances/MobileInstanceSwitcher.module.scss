@@ -5,15 +5,25 @@
   @include m.btn-reset;
   @include m.row-flex(t.$sp-2);
   padding: t.$sp-2 t.$sp-3;
-  border: 1px solid t.$border;
-  background: t.$bg;
+  border: 0;
+  background: transparent;
   font-size: t.$fs-xs;
   color: t.$fg-dim;
-  @include m.transition(border-color t.$dur-fast, color t.$dur-fast);
+  // 用 hover 背景淡入 + active 缩放给交互反馈，不依赖边框
+  @include m.transition(color t.$dur-fast, background t.$dur-fast, transform t.$dur-fast);
 
   &:hover {
     color: t.$fg;
-    border-color: t.$border-hi;
+    background: t.$bg-hover;
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.$shadow-focus;
   }
 }
 
