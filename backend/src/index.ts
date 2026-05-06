@@ -595,25 +595,37 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     if (isHeadless) {
       startPty('immediate');
     } else if (mustWaitEnter) {
-      void waitForUserConfirm()
-        .then(() => startPty('enter'))
+      const wait = waitForUserConfirm();
+      void wait.promise
+        .then((r) => {
+          if (r.done === 'enter') startPty('enter');
+        })
         .catch((err) => {
           logger.error({ err }, '等待 Enter 失败');
           shutdown(1);
         });
     } else {
-      // 默认 race：webapp / Enter / 超时
+      // 默认 race：webapp / Enter / 超时 —— 任一触发就 spawn，
+      // 同时 cancel 还在挂着的 stdin listener，否则后续 TerminalRelay 收不到本地按键
+      const wait = waitForUserConfirm({ silent: true });
+      const triggerSpawn = (reason: 'webapp' | 'enter' | 'timeout'): void => {
+        wait.cancel();
+        startPty(reason);
+      };
+
       // 1) webapp 连入 → spawn（attach 类型不算，attach 是命令行接管，不是浏览器）
       ws.onConnect((_ws, type) => {
-        if (type === 'webapp') startPty('webapp');
+        if (type === 'webapp') triggerSpawn('webapp');
       });
 
       // 2) Enter 键 → spawn
-      void waitForUserConfirm({ silent: true }).then(() => startPty('enter'));
+      void wait.promise.then((r) => {
+        if (r.done === 'enter') triggerSpawn('enter');
+      });
 
       // 3) 超时兜底（cfg.spawnTimeoutSec=0 时禁用）
       if (cfg.spawnTimeoutSec > 0) {
-        setTimeout(() => startPty('timeout'), cfg.spawnTimeoutSec * 1000).unref();
+        setTimeout(() => triggerSpawn('timeout'), cfg.spawnTimeoutSec * 1000).unref();
       }
     }
 
@@ -799,29 +811,62 @@ function collectLocalHostnames(): Set<string> {
  *
  * @param opts.silent 不打印"按 Enter 启动"提示行（默认模式下 banner 已含等待提示）
  */
-function waitForUserConfirm(opts: { silent?: boolean } = {}): Promise<void> {
-  if (!process.stdin.isTTY) return Promise.resolve();
+/** waitForUserConfirm 的句柄，让外部能在别的触发源（如 webapp）抢先时主动取消等待 */
+interface WaitConfirmHandle {
+  /** Promise；resolve = 用户按键 / cancel 任一发生（用 done 字段区分） */
+  promise: Promise<{ done: 'enter' | 'cancelled' }>;
+  /**
+   * 主动取消：移除 stdin listener，但**不**调 pause()
+   *  - 让 TerminalRelay 后续可以正常 resume + on('data')
+   *  - 如果调了 pause，后续 relay.start() 内的 process.stdin.resume()
+   *    虽会重开，但若 race 路径里 webapp 先到 → 我们 cancel → resume() ✓ → 实际相同
+   *    然而**多余的 pause**容易掩盖问题，干脆别 pause
+   */
+  cancel: () => void;
+}
+
+function waitForUserConfirm(opts: { silent?: boolean } = {}): WaitConfirmHandle {
+  if (!process.stdin.isTTY) {
+    return {
+      promise: Promise.resolve({ done: 'enter' as const }),
+      cancel: () => { /* no-op */ },
+    };
+  }
   if (!opts.silent) {
     process.stderr.write('  按 Enter 启动子进程（或 Ctrl+C 退出 backend）...');
   }
-  return new Promise<void>((resolve) => {
-    const onData = (chunk: Buffer): void => {
-      // 任何字节（包括 \r 或 \n）都算确认
-      if (chunk.length === 0) return;
-      cleanup();
-      // 清掉提示行（不留痕）；silent 模式下没打印提示，无需清
-      if (!opts.silent) {
-        process.stderr.write('\r\x1b[K');
-      }
-      resolve();
-    };
-    const cleanup = (): void => {
+  let cancelled = false;
+  let onData: ((chunk: Buffer) => void) | null = null;
+  let resolveFn: ((v: { done: 'enter' | 'cancelled' }) => void) | null = null;
+
+  const detach = (): void => {
+    if (onData) {
       process.stdin.removeListener('data', onData);
-      // pause 是为了把 stdin 还给后续接管者（TerminalRelay）；
-      // 不 pause 的话 raw mode 的 keystroke 会先被这里"吃"掉
-      process.stdin.pause();
+      onData = null;
+    }
+  };
+
+  const promise = new Promise<{ done: 'enter' | 'cancelled' }>((resolve) => {
+    resolveFn = resolve;
+    onData = (chunk: Buffer): void => {
+      if (cancelled) return;
+      if (chunk.length === 0) return;
+      detach();
+      if (!opts.silent) process.stderr.write('\r\x1b[K');
+      resolve({ done: 'enter' });
     };
     process.stdin.resume();
     process.stdin.on('data', onData);
   });
+
+  return {
+    promise,
+    cancel: () => {
+      if (cancelled) return;
+      cancelled = true;
+      detach();
+      if (!opts.silent) process.stderr.write('\r\x1b[K');
+      resolveFn?.({ done: 'cancelled' });
+    },
+  };
 }
