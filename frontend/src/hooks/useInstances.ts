@@ -68,8 +68,20 @@ export function useInstances(): UseInstancesResult {
     async (cwd: string, name?: string): Promise<string | null> => {
       const r = await createInstance({ cwd, name });
       if (r.ok && r.data) {
-        // 立即触发一次刷新；即便派生进程还没注册，过几秒轮询也能看到
-        void reload();
+        // 子进程派生成功 ≠ 立刻在 instances.json 注册——子进程要起 PTY、findPort、
+        // 写 registry，整个过程约 200~1500ms。立即 reload 大概率拿不到。
+        // 多次重试直到看到新 pid，或等到下一次轮询兜底（5s）。
+        const expectedPid = r.data.instance.pid;
+        const delays = [200, 500, 1000, 2000];
+        void (async () => {
+          for (const delay of delays) {
+            await new Promise((res) => setTimeout(res, delay));
+            await reload();
+            // setInstances 是异步的，用 fetchInstances 直接取一次确认是否到了
+            const check = await fetchInstances();
+            if (check.ok && check.data?.instances.some((i) => i.pid === expectedPid)) return;
+          }
+        })();
         return null;
       }
       const msg = r.error?.message ?? '创建实例失败';
