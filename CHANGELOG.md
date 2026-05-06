@@ -5,6 +5,23 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-05-07
+
+### Fixed
+
+- **多网卡宿主机（Hyper-V / WSL / VMware / Docker bridge）跨设备访问无限重连**：
+  Windows 上同时挂 Tailscale + 真实 LAN + 一堆虚拟桥时，`detectDisplayIp` 早期
+  按 `networkInterfaces()` 枚举顺序取第一个 RFC1918 私网 IP，结果常被
+  `vEthernet (WSL) 172.27.16.1` 这种宿主机本地虚拟网卡抢走 → 写进 instances
+  registry → 手机走 Tailscale 打开页面后，前端拿到的 host 是 `172.27.16.1`，
+  跨网段连不上 → WS 死循环重连。两层修复：
+  - 后端 `detectDisplayIp` 调整优先级：Tailscale (100.64/10) > 真实 LAN
+    (192.168 / 10) > 172.16/12 段（多数为虚拟桥）> link-local > 127.0.0.1
+  - 前端 `buildWsUrl` 同源判定从 `hostname === host` 改为 `port === port`：
+    一台机的 backend 只能 bind 一个端口，端口相同就是同 backend，直接走同源
+    cookie；跨实例（跨 port）时用当前页面 hostname 拼 URL 而不是 registry 里
+    的 host，确保用户能 reach 的路径不被覆盖。`buildInstanceUrl` 同思路修复。
+
 ## [0.4.0] - 2026-05-07
 
 本次重点解决移动端浏览器跑 Claude Code（React Ink TUI）的渲染稳定性 +

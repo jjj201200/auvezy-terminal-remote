@@ -97,6 +97,21 @@ export function isLoopbackIp(ip: string): boolean {
 /**
  * detectDisplayIp：选一个最适合写到 banner / 二维码上的 IPv4
  *
+ * 优先级（高 → 低）：
+ *   1. 用户显式 --host（非 0.0.0.0 / loopback）
+ *   2. Tailscale CGNAT（100.64.0.0/10）—— 用户主动装的远程访问通道，跨网络可达
+ *   3. 真实家庭/办公 LAN（192.168.x.x、10.x.x.x）
+ *   4. 172.16/12 段（多数情况下是 Hyper-V / WSL / Docker bridge / VPN，
+ *      仅本机或同 Hypervisor 内可达，跨设备访问几乎都不通——放最后）
+ *   5. link-local（169.254/16）兜底
+ *   6. 127.0.0.1
+ *
+ * 设计动机：宿主机经常装一堆虚拟网卡（Hyper-V "172.27.x.x"、WSL eth0、
+ * VMware vmnet、Docker bridge……），它们都是 RFC1918 私网，但跨设备不可达。
+ * 早期版本简单按 networkInterfaces 顺序取第一个 private，结果 Windows 上经常
+ * 被 vEthernet 抢走，手机看到 banner 上是 172.27.16.1 → registry 里写的也是
+ * 它 → 前端跨实例 wsUrl 拼出 ws://172.27.16.1:3000 → 手机连不上死循环重连。
+ *
  * @param hostHint 用户显式指定的 --host；如果不是 0.0.0.0 / 空 / loopback
  *                 视作"用户已指定"直接返回（即便它不是私有段，也尊重用户）
  */
@@ -111,7 +126,9 @@ export function detectDisplayIp(hostHint?: string): string {
   }
 
   const ifaces = networkInterfaces();
-  const privates: string[] = [];
+  const tailscale: string[] = [];
+  const lanReal: string[] = []; // 192.168 / 10
+  const lanVirtual: string[] = []; // 172.16-31（多数是 Hyper-V/WSL/Docker）
   const linkLocals: string[] = [];
 
   for (const list of Object.values(ifaces)) {
@@ -120,16 +137,26 @@ export function detectDisplayIp(hostHint?: string): string {
       if (info.internal) continue;
       if (info.family !== 'IPv4') continue;
       const ip = info.address;
-      if (isPrivateIp(ip)) {
-        privates.push(ip);
+      if (isTailscaleIp(ip)) {
+        tailscale.push(ip);
+      } else if (isPrivateIp(ip)) {
+        // RFC1918 内再分两档：192.168 / 10 = 真实 LAN；172.16-31 = 大概率虚拟桥
+        const first = Number(ip.split('.')[0]);
+        if (first === 172) lanVirtual.push(ip);
+        else lanReal.push(ip);
       } else if (isLinkLocal(ip)) {
         linkLocals.push(ip);
       }
     }
   }
 
-  // 私有优先；link-local 兜底；最差 fallback 127.0.0.1
-  return privates[0] ?? linkLocals[0] ?? '127.0.0.1';
+  return (
+    tailscale[0] ??
+    lanReal[0] ??
+    lanVirtual[0] ??
+    linkLocals[0] ??
+    '127.0.0.1'
+  );
 }
 
 /**

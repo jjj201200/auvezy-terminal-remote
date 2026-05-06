@@ -196,14 +196,22 @@ export function MultiInstanceConsole(): JSX.Element {
     setCloseDialog({ kind: 'idle' });
   }, [closeDialog, disconnect]);
 
-  // 给每个实例算 wsUrl：当前 origin 命中的实例传 undefined（同源 /ws）
-  const buildWsUrl = useCallback((host: string, port: number): string | undefined => {
-    const sameHost = window.location.hostname === host;
-    const samePort = String(window.location.port || (window.location.protocol === 'https:' ? 443 : 80)) === String(port);
-    if (sameHost && samePort) return undefined; // 同源默认
+  // 给每个实例算 wsUrl
+  // 关键：用"端口相同 = 同 backend = 同源"判断，而不是 hostname === host。
+  // 一台机器可能同时挂 LAN/Tailscale/虚拟网卡多个 IP，backend 写进 registry 的 host
+  // 只是其中一个；用户从任意 IP 访问页面都应走同源 cookie。跨 port（多实例）才用
+  // 当前页面 hostname 拼跨实例 URL（用户能 reach 当前 host，姊妹实例也大概率 bind
+  // 在 0.0.0.0，从同一 host 能连上）。
+  const buildWsUrl = useCallback((_host: string, port: number): string | undefined => {
+    const currentPort = String(
+      window.location.port || (window.location.protocol === 'https:' ? 443 : 80),
+    );
+    if (currentPort === String(port)) return undefined; // 同 port → 同源默认
     const token = loadToken();
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const hostPart = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+    const currentHost = window.location.hostname;
+    const hostPart =
+      currentHost.includes(':') && !currentHost.startsWith('[') ? `[${currentHost}]` : currentHost;
     return `${proto}//${hostPart}:${port}/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`;
   }, []);
 
