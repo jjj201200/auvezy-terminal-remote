@@ -63,8 +63,6 @@ export interface Messages {
     settingsTooltip: string;
     share: string;
     shareTooltip: string;
-    copy: string;
-    copyTooltip: string;
     instances: string;
     createInstance: string;
     switchInstance: string;

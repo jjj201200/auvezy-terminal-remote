@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
-import { IconCopy, IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
+import { IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
 import type { ServerMessage, SessionStatus, ClientMessage } from '@otr/shared';
 import { useTerminal } from '../hooks/useTerminal.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
@@ -89,7 +89,6 @@ export function ConsolePage(): JSX.Element {
     searchPrev,
     clearSearch,
     getSelection,
-    getViewportText,
   } = useTerminal(containerRef, handleResize, config.display);
 
   const handleMessage = useCallback(
@@ -239,20 +238,6 @@ export function ConsolePage(): JSX.Element {
           variant={searchOpen ? 'accent' : undefined}
         >
           <IconSearch size={14} stroke={1.5} />
-        </IconButton>
-        <IconButton
-          onClick={() => {
-            // 有选区复制选区，否则复制当前可视区域全文（移动端无拖选时的兜底）
-            const text = getSelection() || getViewportText();
-            if (!text) return;
-            void navigator.clipboard.writeText(text).catch(() => {
-              /* 非 secure context / 老浏览器：静默 */
-            });
-          }}
-          aria-label={t('topBar.copy')}
-          title={t('topBar.copyTooltip')}
-        >
-          <IconCopy size={14} stroke={1.5} />
         </IconButton>
         <IconButton
           onClick={() => setShareOpen(true)}
