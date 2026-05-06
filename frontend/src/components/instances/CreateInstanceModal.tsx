@@ -14,7 +14,8 @@ import s from './CreateInstanceModal.module.scss';
 
 export interface CreateInstanceModalProps {
   open: boolean;
-  onSubmit: (cwd: string, name?: string) => Promise<boolean>;
+  /** 成功返回 null；失败返回错误信息（直接显示给用户） */
+  onSubmit: (cwd: string, name?: string) => Promise<string | null>;
   onClose: () => void;
 }
 
@@ -46,10 +47,14 @@ export function CreateInstanceModal({
     }
     setSubmitting(true);
     setError(null);
-    const ok = await onSubmit(cwd.trim(), name.trim() || undefined);
+    const errMsg = await onSubmit(cwd.trim(), name.trim() || undefined);
     setSubmitting(false);
-    if (ok) onClose();
-    else setError(t('instance.errorCreateFailed'));
+    if (errMsg === null) {
+      onClose();
+    } else {
+      // 直接显示后端返回的真实错误信息（不再用泛化的 errorCreateFailed 文案）
+      setError(errMsg);
+    }
   };
 
   return (

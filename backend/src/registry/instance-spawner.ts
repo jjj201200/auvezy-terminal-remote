@@ -108,12 +108,49 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
       );
     }
 
+    // 等 600ms 看子进程是否瞬间死亡（路径错 / 端口冲突 / 依赖缺失等）
+    // 死了就直接报错，不让前端误以为创建成功
+    const earlyExit = await waitForEarlyExit(child, 600);
+    if (earlyExit !== null) {
+      throw new InstanceError(
+        ErrorCode.INTERNAL_ERROR,
+        `子进程瞬间退出（exit=${earlyExit.code} signal=${earlyExit.signal}），常见原因：cli 入口缺失 / 端口冲突 / node_modules 不全。开 OTR_DEBUG_SPAWN=1 重启服务器看 /tmp/otr-spawn-*.log`,
+        500,
+      );
+    }
+
     logger.info(
       { pid: child.pid, cwd, name, exec: execPath, args: entryArgs },
       '已派生 headless 实例',
     );
     return { pid: child.pid, cwd, name };
   }
+}
+
+/**
+ * 等子进程在 timeout ms 内是否退出。
+ * - 退出：返回 { code, signal }
+ * - 没退出（仍在跑）：返回 null
+ */
+function waitForEarlyExit(
+  child: import('node:child_process').ChildProcess,
+  timeoutMs: number,
+): Promise<{ code: number | null; signal: NodeJS.Signals | null } | null> {
+  return new Promise((res) => {
+    let settled = false;
+    const onExit = (code: number | null, signal: NodeJS.Signals | null): void => {
+      if (settled) return;
+      settled = true;
+      res({ code, signal });
+    };
+    child.once('exit', onExit);
+    setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.off('exit', onExit);
+      res(null);
+    }, timeoutMs);
+  });
 }
 
 /**

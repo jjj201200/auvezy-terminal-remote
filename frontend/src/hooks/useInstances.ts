@@ -26,8 +26,8 @@ export interface UseInstancesResult {
   error: string | null;
   /** 强制立即重新 fetch */
   reload: () => Promise<void>;
-  /** 创建新实例；返回是否成功 */
-  create: (cwd: string, name?: string) => Promise<boolean>;
+  /** 创建新实例；成功返回 null，失败返回错误信息 */
+  create: (cwd: string, name?: string) => Promise<string | null>;
 }
 
 export function useInstances(): UseInstancesResult {
@@ -65,15 +65,16 @@ export function useInstances(): UseInstancesResult {
   }, [reload]);
 
   const create = useCallback(
-    async (cwd: string, name?: string): Promise<boolean> => {
+    async (cwd: string, name?: string): Promise<string | null> => {
       const r = await createInstance({ cwd, name });
       if (r.ok && r.data) {
         // 立即触发一次刷新；即便派生进程还没注册，过几秒轮询也能看到
         void reload();
-        return true;
+        return null;
       }
-      setError(r.error?.message ?? '创建实例失败');
-      return false;
+      const msg = r.error?.message ?? '创建实例失败';
+      setError(msg);
+      return msg;
     },
     [reload],
   );
