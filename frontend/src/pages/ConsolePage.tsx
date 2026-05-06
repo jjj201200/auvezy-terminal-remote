@@ -72,6 +72,8 @@ export function ConsolePage(): JSX.Element {
   const inputBarRef = useRef<HTMLInputElement | null>(null);
   // 终端区 tap 检测：pointerdown 记起点，pointerup 时判定是 tap 还是 swipe
   const terminalTapRef = useRef<{ id: number; x: number; y: number; t: number } | null>(null);
+  // 最近一次终端 pointerup 时间戳：focus hijack 在它之后 250ms 内不抢，给系统复制菜单留出现的时间
+  const terminalReleaseTsRef = useRef<number>(0);
 
   const handleResize = useCallback((cols: number, rows: number): boolean => {
     return sendRef.current?.({ type: 'resize', cols, rows }) ?? false;
@@ -165,13 +167,21 @@ export function ConsolePage(): JSX.Element {
     const handler = (e: FocusEvent): void => {
       const el = e.target as HTMLElement | null;
       if (!el || !el.classList.contains('xterm-helper-textarea')) return;
+      // 移动端长按选词时 xterm 需要 helper-textarea 保持焦点才能弹系统复制菜单。
+      // 三种"不应该抢焦点"的情况：
+      //  1. pointer 还按着（terminalTapRef !== null）→ 长按选词进行中
+      //  2. 刚释放后 250ms 内 → 给系统复制菜单出现的时间
+      //  3. 终端有选区 → 用户在做选区操作
+      if (terminalTapRef.current !== null) return;
+      if (performance.now() - terminalReleaseTsRef.current < 250) return;
+      if (getSelection()) return;
       requestAnimationFrame(() => {
         inputBarRef.current?.focus({ preventScroll: true });
       });
     };
     target.addEventListener('focusin', handler);
     return () => target.removeEventListener('focusin', handler);
-  }, []);
+  }, [getSelection]);
 
   // Cmd+F / Ctrl+F 唤出终端搜索
   // Cmd+C / Ctrl+C 复制终端选区（仅当 InputBar 没有自身选区时；不抢系统复制行为）
@@ -266,6 +276,7 @@ export function ConsolePage(): JSX.Element {
         onPointerUp={(e) => {
           const start = terminalTapRef.current;
           terminalTapRef.current = null;
+          terminalReleaseTsRef.current = e.timeStamp;
           if (!start || start.id !== e.pointerId) return;
           const dx = e.clientX - start.x;
           const dy = e.clientY - start.y;

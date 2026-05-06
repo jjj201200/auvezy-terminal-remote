@@ -27,7 +27,7 @@
 .input {
   flex: 0 1 240px;
   min-width: 0;
-  border: 1px solid t.$border;
+  border: none;
   background: t.$bg-input;
   color: t.$fg;
   padding: t.$sp-1 t.$sp-2;
@@ -48,7 +48,7 @@
   // 移动端：input 撑满剩余空间；font-size 16px 防 iOS 自动缩放
   @include m.mobile {
     flex: 1 1 auto;
-    font-size: t.$fs-xl;
+    font-size: t.$fs-sm;
     padding: t.$sp-2 t.$sp-3;
   }
 }
