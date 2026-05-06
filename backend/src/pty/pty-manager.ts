@@ -20,6 +20,7 @@ import {
   PTY_DEFAULT_COLS,
   PTY_DEFAULT_ROWS,
   PTY_TERM_NAME,
+  DOUBLE_PULSE_DELAY_MS,
 } from '../constants.js';
 import { PtyError } from '../errors.js';
 import { ErrorCode } from 'auvezy-terminal-remote-shared';
@@ -46,6 +47,16 @@ export class PtyManager extends EventEmitter implements IPtyManager {
   private _exited = false;
   private _cols = PTY_DEFAULT_COLS;
   private _rows = PTY_DEFAULT_ROWS;
+  /**
+   * 当前是否处于 alt-screen（DECSET 1049 / 1047 / 47）。
+   * 通过扫描 PTY 输出序列实时维护：
+   *  - vim/htop/tmux/less 等全屏 TUI 进入时切 true（它们自己整屏重画，对
+   *    resize 反应正常，不需要 double-pulse hack）
+   *  - claude/zsh prompt 等增量重画 TUI 始终为 false → 需要 double-pulse
+   */
+  private _inAltScreen = false;
+  /** double-pulse resize 的中间帧定时器 */
+  private _doublePulseTimer: ReturnType<typeof setTimeout> | null = null;
 
   get cols(): number {
     return this._cols;
@@ -95,6 +106,7 @@ export class PtyManager extends EventEmitter implements IPtyManager {
       });
 
       this.process.onData((data: string) => {
+        this.scanAltScreenToggle(data);
         this.emit('data', data);
       });
 
@@ -142,6 +154,18 @@ export class PtyManager extends EventEmitter implements IPtyManager {
    *   webapp resize → ws → PTY.resize → emit 'resize' → broadcast →
    *   webapp 收到 terminal_resize → 触发 fit → 又算出同尺寸 → 再发 resize → ...
    * 同尺寸跳过让链路在第二步就断掉
+   *
+   * Double-pulse hack（仅 normal-screen / 增量重画 TUI）：
+   *   Claude Code (Ink) / blessed / prompt-toolkit / readline REPL 等用相对
+   *   坐标增量重画的程序，收到 SIGWINCH 后只对"宽度变窄"分支才会清屏 +
+   *   重新 layout（Ink 源码：`if (currentWidth < lastTerminalWidth) clear()`）。
+   *   宽度变宽时既不清前帧也不重排已渲染历史 → 视觉上"没响应"。
+   *
+   *   workaround：先 resize(cols-1) 让 Ink 走 width-shrink 分支强制清屏，
+   *   50ms 后再 resize(cols) 回到目标尺寸。代价是程序会多一帧重画。
+   *
+   *   alt-screen 程序（vim/tmux/htop/less）自己会在 SIGWINCH 时整屏重画，
+   *   不需要也不应该 double-pulse（多余 SIGWINCH 让它们闪一下）→ 短路。
    */
   resize(cols: number, rows: number): void {
     if (!this.process || this._exited) return;
@@ -150,10 +174,38 @@ export class PtyManager extends EventEmitter implements IPtyManager {
       return;
     }
     logger.info(
-      { cols, rows, prevCols: this._cols, prevRows: this._rows },
+      { cols, rows, prevCols: this._cols, prevRows: this._rows, alt: this._inAltScreen },
       'PTY resize 执行',
     );
     try {
+      // 取消上一次未完成的 double-pulse（用户连续 resize 不应叠加多个定时器）
+      if (this._doublePulseTimer) {
+        clearTimeout(this._doublePulseTimer);
+        this._doublePulseTimer = null;
+      }
+
+      // alt-screen 内 / 缩窄场景 / cols 太小（<= 2）：单次 resize
+      const shouldDoublePulse =
+        !this._inAltScreen && cols > this._cols && cols > 2;
+
+      if (shouldDoublePulse) {
+        // 第一脉冲：cols-1 触发 Ink 的 width-shrink 分支（清屏 + 重排）
+        this.process.resize(cols - 1, rows);
+        this._doublePulseTimer = setTimeout(() => {
+          this._doublePulseTimer = null;
+          if (!this.process || this._exited) return;
+          try {
+            this.process.resize(cols, rows);
+            this._cols = cols;
+            this._rows = rows;
+            this.emit('resize', cols, rows);
+          } catch (err) {
+            logger.error({ err, cols, rows }, 'PTY resize 第二脉冲失败');
+          }
+        }, DOUBLE_PULSE_DELAY_MS);
+        return;
+      }
+
       this.process.resize(cols, rows);
       this._cols = cols;
       this._rows = rows;
@@ -170,6 +222,10 @@ export class PtyManager extends EventEmitter implements IPtyManager {
    * 幂等：多次调用安全
    */
   destroy(): void {
+    if (this._doublePulseTimer) {
+      clearTimeout(this._doublePulseTimer);
+      this._doublePulseTimer = null;
+    }
     if (!this.process) return;
     try {
       this.process.kill();
@@ -178,5 +234,34 @@ export class PtyManager extends EventEmitter implements IPtyManager {
       logger.error({ err }, 'kill PTY 进程失败');
     }
     this.process = null;
+  }
+
+  /**
+   * 当前是否处于 alt-screen（仅供 resize 决策用，不暴露给上层）
+   */
+  get inAltScreen(): boolean {
+    return this._inAltScreen;
+  }
+
+  /**
+   * 扫描 PTY 输出，识别 alt-screen 切换序列：
+   *  - DECSET 1049（最常用，xterm 标准 + 保存光标位置）：进入 / 退出
+   *  - DECSET 1047（仅 alt buffer 切换）：进入 / 退出
+   *  - DECSET 47（最老的 alt-buffer，无光标保存）：进入 / 退出
+   *
+   * 不需要完整 ANSI 解析器——这三个序列形态固定，正则简单匹配即可。
+   * 同一 chunk 内可能既有 enter 又有 exit（罕见，但可能），按顺序处理。
+   */
+  private scanAltScreenToggle(data: string): void {
+    // 用全局正则一次找出所有 alt-screen 切换序列，按出现顺序更新状态
+    const re = /\x1b\[\?(1049|1047|47)([hl])/g;
+    let m;
+    while ((m = re.exec(data)) !== null) {
+      const isEnter = m[2] === 'h';
+      if (this._inAltScreen !== isEnter) {
+        this._inAltScreen = isEnter;
+        logger.debug({ inAltScreen: isEnter }, 'PTY alt-screen 状态切换');
+      }
+    }
   }
 }

@@ -48,6 +48,18 @@ export const PTY_DEFAULT_ROWS = 24;
 /** PTY 终端类型（影响 ANSI 渲染能力） */
 export const PTY_TERM_NAME = 'xterm-256color';
 
+/**
+ * Double-pulse resize 的两次脉冲间隔（ms）。
+ *
+ * 针对 Claude Code (Ink) 等增量重画 TUI 的"变宽不 reflow"架构限制：
+ * 先 resize(cols-1) 让 Ink 的 width-shrink 分支触发整屏清屏 + 重新 layout，
+ * 再 resize(cols) 回到目标。两次必须有间隔，让 Ink 完成 render cycle。
+ *
+ * 40-60ms 经验值：足够 React 完成一次 commit + Ink renderer flush；太短
+ * 第二次 SIGWINCH 可能跟第一次合并。
+ */
+export const DOUBLE_PULSE_DELAY_MS = 50;
+
 // ──────────────── 关闭流程 ────────────────
 
 /** PTY exit 后等待 WS flush 的延迟（ms） */

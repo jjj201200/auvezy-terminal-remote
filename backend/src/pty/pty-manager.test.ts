@@ -64,15 +64,84 @@ describe('PtyManager', () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(resizeCount).toBe(0);
 
-    mgr.resize(100, 30); // 不同尺寸——应该触发
-    await new Promise((r) => setTimeout(r, 50));
-    expect(resizeCount).toBe(1);
+    // 80 → 100 = 变宽 → double-pulse（先 cols-1 后 cols，间隔 50ms）
+    // 等 200ms 让两个脉冲都跑完
+    mgr.resize(100, 30);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(resizeCount).toBe(1); // double-pulse 只在最终态 emit 一次
     expect(mgr.cols).toBe(100);
     expect(mgr.rows).toBe(30);
 
     mgr.resize(100, 30); // 又同尺寸——再跳过
     await new Promise((r) => setTimeout(r, 50));
     expect(resizeCount).toBe(1);
+  });
+
+  it('resize 缩窄不走 double-pulse（单次 resize）', async () => {
+    mgr.spawn({ command: 'cat', cols: 100, rows: 30 });
+
+    let resizeCount = 0;
+    mgr.on('resize', () => {
+      resizeCount++;
+    });
+
+    // 100 → 80 = 变窄 → 单次 resize（Ink 已经会自己整屏重画）
+    mgr.resize(80, 24);
+    // 应该立即更新，不需要 50ms 延迟
+    await new Promise((r) => setTimeout(r, 30));
+    expect(resizeCount).toBe(1);
+    expect(mgr.cols).toBe(80);
+    expect(mgr.rows).toBe(24);
+  });
+
+  it('alt-screen 扫描：onData 收到 1049h/l / 1047h/l / 47h/l 维护 inAltScreen', () => {
+    // 直接调私有方法（test 范围用 any 强转访问）
+    const internal = mgr as unknown as {
+      scanAltScreenToggle: (data: string) => void;
+    };
+    expect(mgr.inAltScreen).toBe(false);
+
+    internal.scanAltScreenToggle('\x1b[?1049h');
+    expect(mgr.inAltScreen).toBe(true);
+
+    internal.scanAltScreenToggle('\x1b[?1049l');
+    expect(mgr.inAltScreen).toBe(false);
+
+    // 老序列也能识别
+    internal.scanAltScreenToggle('\x1b[?47h');
+    expect(mgr.inAltScreen).toBe(true);
+
+    internal.scanAltScreenToggle('\x1b[?1047l');
+    expect(mgr.inAltScreen).toBe(false);
+
+    // 同 chunk 内多次切换：按出现顺序更新，最后状态生效
+    internal.scanAltScreenToggle('\x1b[?1049h some output \x1b[?1049l end');
+    expect(mgr.inAltScreen).toBe(false);
+
+    // 不含切换序列的普通输出不影响状态
+    internal.scanAltScreenToggle('\x1b[?1049h'); // 进入
+    internal.scanAltScreenToggle('hello world\r\n');
+    expect(mgr.inAltScreen).toBe(true);
+  });
+
+  it('alt-screen 内 resize 不走 double-pulse（vim/htop 自己会整屏重画）', async () => {
+    mgr.spawn({ command: 'cat', cols: 80, rows: 24 });
+
+    // 直接置 alt-screen 标志（绕过 PTY echo 的不确定性）
+    const internal = mgr as unknown as { _inAltScreen: boolean };
+    internal._inAltScreen = true;
+    expect(mgr.inAltScreen).toBe(true);
+
+    let resizeCount = 0;
+    mgr.on('resize', () => {
+      resizeCount++;
+    });
+
+    // alt-screen 内变宽：应该立即单次 resize，不延迟
+    mgr.resize(100, 30);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(resizeCount).toBe(1);
+    expect(mgr.cols).toBe(100);
   });
 
   it('未 spawn 直接 write 不抛错（静默丢弃）', () => {
