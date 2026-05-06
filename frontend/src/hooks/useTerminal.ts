@@ -327,6 +327,25 @@ export function useTerminal(
 
     term.open(container);
 
+    // ──────────────── iOS 兼容：抑制 helper-textarea 的预测输入污染 ────────────────
+    //
+    // xterm 内部创建的 .xterm-helper-textarea 默认没有禁用 iOS WebKit 的
+    // predictive text / autocorrect / autocapitalize。iOS 的预测输入会把
+    // 候选词提前 input 进 textarea，xterm 当作真实按键发到 PTY。对 Claude
+    // Code（基于 Ink，相对坐标重画 + 不进 alt-screen）杀伤巨大：非预期字符
+    // 触发 React 状态变更 → 整树 re-render → 在错位画面上又画一遍 → 视觉混乱。
+    //
+    // xterm 没暴露公共 API 配置 helper-textarea 属性，只能 DOM 查询后设置。
+    // 同时设 inputmode="none" 让 xterm 自己用 onKey 路径，避免 IME composition
+    // 把候选词回灌（直接输入模式我们用自挂的 DirectInputCapture 接 IME）。
+    const helperTextarea = container.querySelector<HTMLTextAreaElement>('.xterm-helper-textarea');
+    if (helperTextarea) {
+      helperTextarea.setAttribute('autocomplete', 'off');
+      helperTextarea.setAttribute('autocorrect', 'off');
+      helperTextarea.setAttribute('autocapitalize', 'off');
+      helperTextarea.setAttribute('spellcheck', 'false');
+    }
+
     // ──────────────── 移动端单指 swipe → 滚动 scrollback ────────────────
     //
     // 原因：xterm 默认依赖 wheel 事件滚动 viewport，触屏拖拽不会触发 wheel。
@@ -388,15 +407,28 @@ export function useTerminal(
     container.addEventListener('touchend', onTouchEnd, { passive: true });
     container.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
-    // WebGL graceful 降级到 canvas
-    // 注意：webgl 与 SearchAddon 的 decoration 不兼容，所以 search 不传 decorations，
-    // 只靠 term.select() 渲染当前匹配（webgl 下 selection 走 GPU，定位正确）
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
-      term.loadAddon(webgl);
-    } catch {
-      /* canvas renderer 是默认 fallback */
+    // WebGL graceful 降级到 canvas（iOS 跳过）
+    //
+    // 不加 WebglAddon：xterm 默认 DOM renderer，DOM 比 GPU canvas 慢但更稳。
+    // 加 WebglAddon：性能更好但有已知问题：
+    //  - 与 SearchAddon 的 decoration 不兼容（我们已不传 decorations，只靠
+    //    term.select() 渲染当前匹配规避）
+    //  - iOS WebKit 上软键盘弹起 / sleep-resume 后 GPU canvas 纹理偶发 stale
+    //  - iOS 在键盘期间限流 rAF 到 30fps，alt-screen TUI（Claude/vim）的高频
+    //    重画追不上 → 部分 erase-line 序列被丢帧 → 视觉错乱
+    //
+    // iOS 检测：navigator.platform === 'MacIntel' && maxTouchPoints>1 是
+    // iPadOS 13+ 把 UA 报成 Mac 后的兜底
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!isIOS) {
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => webgl.dispose());
+        term.loadAddon(webgl);
+      } catch {
+        /* DOM renderer 是默认 fallback */
+      }
     }
 
     // 容器可能 hidden（多实例下非 active 实例 display:none），fit 抛异常 → 让 ResizeObserver 兜底
