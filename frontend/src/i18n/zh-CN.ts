@@ -83,6 +83,7 @@ export const zhCN: Messages = {
       general: '常规',
       notifications: '通知',
       network: '网络',
+      dev: '开发',
     },
     saving: '保存中…',
   },
@@ -109,6 +110,10 @@ export const zhCN: Messages = {
   general: {
     languageTitle: '语言',
     languageHint: '界面语言。仅保存于本设备。',
+    inputModeTitle: '输入方式',
+    inputModeHint: '关闭后隐藏底部输入框，直接在终端区域输入；移动端可享受桌面级实时按键体验，但中文输入法的兼容性可能因浏览器而异（实验性）。',
+    inputModeUseBar: '使用底部输入框（行编辑后回车发送）',
+    inputModeDirect: '直接在终端区输入（按键实时发往 PTY）',
   },
 
   network: {
@@ -117,6 +122,15 @@ export const zhCN: Messages = {
       '达到此次数后停止自动重试，避免移动端流量被无效重连消耗。超过上限后点状态栏的重连标签可以恢复。',
     reconnectMaxAriaLabel: '自动重连次数上限',
     reconnectMaxUnit: '次',
+  },
+
+  dev: {
+    erudaTitle: '移动端调试浮层（eruda）',
+    erudaHint:
+      '在屏幕右下角注入一个调试控制台，可在移动端浏览器查看 console / network / 元素。仅本设备生效，需刷新页面。',
+    erudaToggleOn: '已启用 — 刷新页面后右下角出现调试按钮',
+    erudaToggleOff: '已关闭',
+    reloadHint: '切换后请刷新页面以生效',
   },
 
   list: {
@@ -286,6 +300,9 @@ export const zhCN: Messages = {
 
   scrollToBottom: {
     label: '返回底部',
+  },
+  scrollToTop: {
+    label: '回到顶部',
   },
 
   search: {

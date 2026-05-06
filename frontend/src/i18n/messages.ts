@@ -107,6 +107,7 @@ export interface Messages {
       general: string;
       notifications: string;
       network: string;
+      dev: string;
     };
     saving: string;
   };
@@ -135,6 +136,10 @@ export interface Messages {
   general: {
     languageTitle: string;
     languageHint: string;
+    inputModeTitle: string;
+    inputModeHint: string;
+    inputModeUseBar: string;
+    inputModeDirect: string;
   };
 
   // 设置 - 网络
@@ -143,6 +148,15 @@ export interface Messages {
     reconnectMaxHint: string;
     reconnectMaxAriaLabel: string;
     reconnectMaxUnit: string;
+  };
+
+  // 设置 - 开发者
+  dev: {
+    erudaTitle: string;
+    erudaHint: string;
+    erudaToggleOn: string;
+    erudaToggleOff: string;
+    reloadHint: string;
   };
 
   // 通用列表操作
@@ -320,8 +334,11 @@ export interface Messages {
     cancel: string;
   };
 
-  // 滚动到底部按钮
+  // 滚动控制按钮
   scrollToBottom: {
+    label: string;
+  };
+  scrollToTop: {
     label: string;
   };
 

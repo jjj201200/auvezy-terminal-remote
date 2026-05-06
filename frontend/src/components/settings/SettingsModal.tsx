@@ -12,11 +12,12 @@ import { useEffect, useMemo, useState, type JSX } from 'react';
 import type { UserConfig } from 'auvezy-terminal-remote-shared';
 import { Sheet, type SheetTab } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
-import { LanguageSwitch } from '../../i18n/LanguageSwitch.js';
 import { ShortcutSettings } from './ShortcutSettings.js';
 import { CommandSettings } from './CommandSettings.js';
 import { DisplaySettings } from './DisplaySettings.js';
 import { NetworkSettings } from './NetworkSettings.js';
+import { GeneralSettings } from './GeneralSettings.js';
+import { DevSettings } from './DevSettings.js';
 import { PushToggle } from '../common/PushToggle.js';
 import s from './SettingsModal.module.scss';
 
@@ -27,7 +28,7 @@ export interface SettingsModalProps {
   onClose: () => void;
 }
 
-type TabKey = 'shortcuts' | 'commands' | 'display' | 'network' | 'general' | 'notifications';
+type TabKey = 'general' | 'display' | 'shortcuts' | 'commands' | 'network' | 'dev' | 'notifications';
 
 export function SettingsModal({
   open,
@@ -36,14 +37,14 @@ export function SettingsModal({
   onClose,
 }: SettingsModalProps): JSX.Element {
   const t = useT();
-  const [tab, setTab] = useState<TabKey>('shortcuts');
+  const [tab, setTab] = useState<TabKey>('general');
   const [draft, setDraft] = useState<UserConfig>(current);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setDraft(current);
-      setTab('shortcuts');
+      setTab('general');
     }
   }, [open, current]);
 
@@ -56,14 +57,16 @@ export function SettingsModal({
   };
 
   // tabs 直接喂给 Sheet header（用 ScrollableTabs 自带溢出处理，与 Toolbar 同款）
+  // 顺序：常识"最一般在最左" → 通用 → 显示 → 快捷键 → 命令 → 网络
+  // 通知 tab 暂时隐藏（PushToggle 渲染逻辑保留，方便后续重新暴露）
   const tabs: SheetTab[] = useMemo(
     () => [
+      { id: 'general', title: t('settings.tab.general') },
+      { id: 'display', title: t('settings.tab.display') },
       { id: 'shortcuts', title: t('settings.tab.shortcuts') },
       { id: 'commands', title: t('settings.tab.commands') },
-      { id: 'display', title: t('settings.tab.display') },
       { id: 'network', title: t('settings.tab.network') },
-      { id: 'general', title: t('settings.tab.general') },
-      { id: 'notifications', title: t('settings.tab.notifications') },
+      { id: 'dev', title: t('settings.tab.dev') },
     ],
     [t],
   );
@@ -80,7 +83,8 @@ export function SettingsModal({
       activeTab={tab}
       onTabChange={(id) => setTab(id as TabKey)}
       footer={
-        tab !== 'notifications' && tab !== 'general' ? (
+        // notifications / dev tab 内的控件即时生效，不需要 Save 条
+        tab !== 'notifications' && tab !== 'dev' ? (
           <>
             <button type="button" onClick={onClose} className={s.cancelBtn}>
               {t('common.cancel')}
@@ -97,6 +101,13 @@ export function SettingsModal({
         ) : undefined
       }
     >
+      {tab === 'general' && <GeneralSettings value={draft} onChange={setDraft} />}
+      {tab === 'display' && (
+        <DisplaySettings
+          value={draft.display}
+          onChange={(display) => setDraft({ ...draft, display })}
+        />
+      )}
       {tab === 'shortcuts' && (
         <ShortcutSettings
           value={draft.shortcuts ?? []}
@@ -109,19 +120,13 @@ export function SettingsModal({
           onChange={(commands) => setDraft({ ...draft, commands })}
         />
       )}
-      {tab === 'display' && (
-        <DisplaySettings
-          value={draft.display}
-          onChange={(display) => setDraft({ ...draft, display })}
-        />
-      )}
       {tab === 'network' && (
         <NetworkSettings
           value={draft.network}
           onChange={(network) => setDraft({ ...draft, network })}
         />
       )}
-      {tab === 'general' && <LanguageSwitch />}
+      {tab === 'dev' && <DevSettings />}
       {tab === 'notifications' && <PushToggle />}
     </Sheet>
   );

@@ -55,7 +55,8 @@ export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.
   const t = useT();
   const CUSTOM_GROUP_TITLE = t('toolbar.customGroup');
   const CUSTOM_GROUP_DESC = t('commands.descPlaceholder');
-  const [expanded, setExpanded] = useState<Set<CommandGroupId>>(new Set(['session']));
+  // 默认全部折叠，让用户主动选择要编辑的分组
+  const [expanded, setExpanded] = useState<Set<CommandGroupId>>(() => new Set());
   const [editing, setEditing] = useState<EditingState | null>(null);
 
   const { register, getHandleProps, dragState, dropIndicator, isDragging } =

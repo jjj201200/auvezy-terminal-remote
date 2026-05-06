@@ -1,0 +1,36 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-6;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-3;
+  padding: t.$sp-2 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-1;
+}
+
+.title {
+  margin: 0;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.hint {
+  margin: 0;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-base;
+}

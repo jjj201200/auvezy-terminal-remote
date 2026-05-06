@@ -88,6 +88,7 @@ export const en: Messages = {
       general: 'General',
       notifications: 'Notifications',
       network: 'Network',
+      dev: 'Developer',
     },
     saving: 'Saving…',
   },
@@ -116,6 +117,10 @@ export const en: Messages = {
   general: {
     languageTitle: 'Language',
     languageHint: 'Interface language. Stored on this device.',
+    inputModeTitle: 'Input mode',
+    inputModeHint: 'Turn off to hide the bottom input bar and type directly in the terminal area — desktop-like real-time keystrokes. IME (Chinese/Japanese) support varies by browser (experimental).',
+    inputModeUseBar: 'Use bottom input bar (line-edit, send on Enter)',
+    inputModeDirect: 'Type directly in terminal (real-time keystrokes to PTY)',
   },
 
   network: {
@@ -124,6 +129,15 @@ export const en: Messages = {
       'Stop auto-retrying after this many tries. Mobile data is consumed even when retries fail. Tap the reconnect badge to resume after the cap.',
     reconnectMaxAriaLabel: 'Max auto-reconnect attempts',
     reconnectMaxUnit: 'times',
+  },
+
+  dev: {
+    erudaTitle: 'Mobile DevTools overlay (eruda)',
+    erudaHint:
+      'Inject a floating debug console (console / network / elements) at the bottom-right corner. Local to this device; reload to apply.',
+    erudaToggleOn: 'Enabled — refresh page to show the debug button',
+    erudaToggleOff: 'Disabled',
+    reloadHint: 'Reload the page after toggling to take effect',
   },
 
   list: {
@@ -294,6 +308,9 @@ export const en: Messages = {
 
   scrollToBottom: {
     label: 'Back to bottom',
+  },
+  scrollToTop: {
+    label: 'Back to top',
   },
 
   search: {
