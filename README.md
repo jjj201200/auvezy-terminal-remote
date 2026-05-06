@@ -47,8 +47,8 @@ atr attach <url>          # 命令行接管已有实例
 ### 源码方式（开发或自构建）
 
 ```bash
-git clone https://gitee.com/drowsyflesh/open-terminal-remote.git
-cd open-terminal-remote
+git clone https://gitee.com/drowsyflesh/auvezy-terminal-remote.git
+cd auvezy-terminal-remote
 bash install.sh           # 检查 Node 20+/pnpm 9+/编译依赖 → 装包 → 构建
 node backend/dist/cli.js  # 等价于 atr
 ```
@@ -187,19 +187,3 @@ pnpm test         # shared + backend + frontend 单测
 pnpm typecheck
 pnpm build        # 交付构件（含 frontend 拷入 backend/frontend-dist）
 ```
-
-## 许可
-
-MIT
-
-
-看了下当前状态，几个值得做的方向（按价值/成本排序）：
-
-偏长期
-
-8. 会话录制 / 回放 — 把 PTY output 流存成 asciinema 格式，离线回看。
-9. 多窗格 / tmux 风格分屏 — 一个实例内开多个 PTY，前端做拆分布局。
-
-我个人会优先做 1+2（先 commit + 发版），然后挑 4（断线重连）+ 6（复制选区）——这两个是日常用最容易踩到的痛点。
-
-要我先开始哪个？

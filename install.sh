@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install.sh — open-claude-remote-clone 一键安装脚本
+# install.sh — auvezy-terminal-remote 一键安装脚本
 #
 # 流程：
 #   1) 检查 Node >= 20、pnpm >= 9
@@ -92,20 +92,20 @@ info "✅ 安装完成"
 cat <<'EOF'
 
 下一步：
-  node backend/dist/cli.js              # 等价于全局 otr，跑当前 $SHELL
+  node backend/dist/cli.js              # 等价于全局 atr，跑当前 $SHELL
   node backend/dist/cli.js zsh          # 跑 zsh
   node backend/dist/cli.js claude       # 跑 claude
   node backend/dist/cli.js list         # 列出本机所有实例
   node backend/dist/cli.js stop         # 停止本机所有实例
 
-如果想全局 `otr` 命令：
-  pnpm link --global                    # 把本仓库链到 PATH，立即用 otr
-  # 或发布后：npm install -g @drowsyflesh/open-terminal-remote
+如果想全局 `atr` 命令：
+  pnpm link --global                    # 把本仓库链到 PATH，立即用 atr
+  # 或发布后：npm install -g auvezy-terminal-remote
 
-多终端多次 `otr` 会自动占用 3000、3001、3002…
+多终端多次 `atr` 会自动占用 3000、3001、3002…
 浏览器顶栏的实例 tab 会自动出现新实例，一键切换。
 
-配置文件位置：~/.claude-remote/
+配置文件位置：~/.auvezy/terminal-remote/
   ├── config.json              （token / shortcuts / 启动命令）
   ├── vapid.json               （Web Push 私钥，0o600）
   ├── push-subscriptions.json  （已订阅设备）
