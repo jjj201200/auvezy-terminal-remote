@@ -9,8 +9,10 @@ import { useState, type JSX } from 'react';
 import { useT } from '../../i18n/i18n-context.js';
 import s from './AboutSettings.module.scss';
 
-const REPO_URL = 'https://gitee.com/drowsyflesh/auvezy-terminal-remote';
-const ISSUES_URL = 'https://gitee.com/drowsyflesh/auvezy-terminal-remote/issues';
+const REPO_GITHUB_URL = 'https://github.com/jjj201200/auvezy-terminal-remote';
+const REPO_GITEE_URL = 'https://gitee.com/drowsyflesh/auvezy-terminal-remote';
+const ISSUES_GITHUB_URL = 'https://github.com/jjj201200/auvezy-terminal-remote/issues';
+const ISSUES_GITEE_URL = 'https://gitee.com/drowsyflesh/auvezy-terminal-remote/issues';
 const NPM_URL = 'https://www.npmjs.com/package/auvezy-terminal-remote';
 
 export function AboutSettings(): JSX.Element {
@@ -76,13 +78,23 @@ export function AboutSettings(): JSX.Element {
         <h3 className={s.title}>{t('about.linksTitle')}</h3>
         <ul className={s.linkList}>
           <li>
-            <a href={REPO_URL} target="_blank" rel="noreferrer noopener">
-              {t('about.repoLabel')}
+            <a href={REPO_GITHUB_URL} target="_blank" rel="noreferrer noopener">
+              {t('about.repoGithubLabel')}
             </a>
           </li>
           <li>
-            <a href={ISSUES_URL} target="_blank" rel="noreferrer noopener">
-              {t('about.issuesLabel')}
+            <a href={REPO_GITEE_URL} target="_blank" rel="noreferrer noopener">
+              {t('about.repoGiteeLabel')}
+            </a>
+          </li>
+          <li>
+            <a href={ISSUES_GITHUB_URL} target="_blank" rel="noreferrer noopener">
+              {t('about.issuesGithubLabel')}
+            </a>
+          </li>
+          <li>
+            <a href={ISSUES_GITEE_URL} target="_blank" rel="noreferrer noopener">
+              {t('about.issuesGiteeLabel')}
             </a>
           </li>
           <li>

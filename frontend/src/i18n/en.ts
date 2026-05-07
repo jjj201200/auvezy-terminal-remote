@@ -180,8 +180,10 @@ export const en: Messages = {
     noteVirtualNic:
       'On multi-NIC hosts (Hyper-V / WSL / Docker bridge / VPN), the banner picks the display IP in this order: Tailscale > real LAN > 172.x — which may differ from what you expect. Trust the IP shown on the banner "scan" line.',
     linksTitle: 'Links',
-    repoLabel: 'Source (Gitee)',
-    issuesLabel: 'Feedback / file an issue',
+    repoGithubLabel: 'Source (GitHub)',
+    repoGiteeLabel: 'Source (Gitee mirror, faster from mainland China)',
+    issuesGithubLabel: 'Feedback / file an issue (GitHub)',
+    issuesGiteeLabel: 'Feedback / file an issue (Gitee)',
     npmLabel: 'npm package',
     licenseTitle: 'License',
     licenseBody:

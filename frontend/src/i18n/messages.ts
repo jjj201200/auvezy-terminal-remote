@@ -194,8 +194,10 @@ export interface Messages {
     noteMasterResize: string;
     noteVirtualNic: string;
     linksTitle: string;
-    repoLabel: string;
-    issuesLabel: string;
+    repoGithubLabel: string;
+    repoGiteeLabel: string;
+    issuesGithubLabel: string;
+    issuesGiteeLabel: string;
     npmLabel: string;
     licenseTitle: string;
     licenseBody: string;

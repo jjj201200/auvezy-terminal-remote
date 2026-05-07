@@ -173,8 +173,10 @@ export const zhCN: Messages = {
     noteVirtualNic:
       '多虚拟网卡（Hyper-V / WSL / Docker bridge）的宿主机上，banner 自动按 Tailscale > 真实 LAN > 172.x 顺序选展示 IP，跟你预期的网卡可能不同——按 banner 上"扫码"那行显示的为准。',
     linksTitle: '链接',
-    repoLabel: '源码（Gitee）',
-    issuesLabel: '反馈 / 提 issue',
+    repoGithubLabel: '源码（GitHub）',
+    repoGiteeLabel: '源码（Gitee 镜像，国内更快）',
+    issuesGithubLabel: '反馈 / 提 issue（GitHub）',
+    issuesGiteeLabel: '反馈 / 提 issue（Gitee）',
     npmLabel: 'npm 包页面',
     licenseTitle: '许可',
     licenseBody:

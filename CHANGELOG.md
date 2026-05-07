@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-05-07
+
+### Changed
+
+- **GitHub 上线为主仓库，Gitee 作国内镜像**：
+  - backend `package.json` 的 `homepage` / `repository` / `bugs` 改指
+    `https://github.com/jjj201200/auvezy-terminal-remote`，npm 页面右侧
+    "Repository" 按钮跳到 GitHub
+  - 关于面板"链接"区改为列出 5 项：源码（GitHub）/ 源码（Gitee 镜像）/
+    Issues GitHub / Issues Gitee / npm 包页面
+  - README "源码方式" 同时给两个 clone URL
+
 ## [0.4.3] - 2026-05-07
 
 ### Added
