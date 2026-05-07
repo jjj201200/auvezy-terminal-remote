@@ -37,7 +37,8 @@ export function createWsAuthenticate(authModule: AuthModule) {
         logger.info({ remoteAddress: req.socket.remoteAddress }, 'WS 通过 URL token 认证（attach）');
         return 'attach';
       }
-      logger.warn({ remoteAddress: req.socket.remoteAddress }, 'WS URL token 无效');
+      // debug 级：旧 URL / token 改了之后浏览器自动重连会反复触发，不应刷屏
+      logger.debug({ remoteAddress: req.socket.remoteAddress }, 'WS URL token 无效');
       return null;
     }
 
@@ -48,7 +49,10 @@ export function createWsAuthenticate(authModule: AuthModule) {
       return 'webapp';
     }
 
-    logger.warn(
+    // debug 级：cookie 过期 / 多 tab 时序竞争 / 跨设备旧 cookie 都属预期失败，
+    // 默认 LOG_LEVEL=info 时不输出，避免污染 PowerShell PTY 终端。
+    // 排查时用 LOG_LEVEL=debug 仍可看到完整 cookieNames / expectedCookie。
+    logger.debug(
       {
         remoteAddress: req.socket.remoteAddress,
         cookieNames: cookieHeader

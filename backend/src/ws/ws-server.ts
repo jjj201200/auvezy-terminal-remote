@@ -162,7 +162,10 @@ export class WsServer {
         : 'webapp';
 
       if (clientType === null) {
-        logger.warn({ url: req.url }, 'WS upgrade 被鉴权拒绝');
+        // debug 级：upstream（ws-authenticate）已经记过更详细的失败上下文，
+        // 这里如果再 warn 等于同一次失败被打两条，且对生产场景是噪音
+        // （cookie 过期 / 跨 tab 竞争是常见预期）。降级避免污染 PTY 终端。
+        logger.debug({ url: req.url }, 'WS upgrade 被鉴权拒绝');
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return;

@@ -128,11 +128,13 @@ export class AttachClient extends EventEmitter {
       try {
         parsed = JSON.parse(raw.toString());
       } catch {
-        logger.warn('收到非 JSON WS 消息，忽略');
+        // debug：协议升级 / 异常分片偶发，不该刷屏
+        logger.debug('收到非 JSON WS 消息，忽略');
         return;
       }
       if (!isServerMessage(parsed)) {
-        logger.warn('收到不识别的 server message，忽略');
+        // debug：跨版本兼容时新字段会触发，不算异常
+        logger.debug('收到不识别的 server message，忽略');
         return;
       }
       this.handleServerMessage(parsed);

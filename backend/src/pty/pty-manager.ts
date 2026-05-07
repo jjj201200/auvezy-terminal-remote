@@ -139,7 +139,9 @@ export class PtyManager extends EventEmitter implements IPtyManager {
    */
   write(data: string): void {
     if (!this.process) {
-      logger.warn({ dataLength: data.length }, '尝试写入 PTY 但进程未运行');
+      // debug：注释里讲的预期竞态——客户端在 exit 通知到达前发出 user_input。
+      // 不是异常，且每次 PTY 退出后客户端如果还没察觉就会反复触发，刷屏污染 PTY。
+      logger.debug({ dataLength: data.length }, '尝试写入 PTY 但进程未运行');
       return;
     }
     this.process.write(data);
