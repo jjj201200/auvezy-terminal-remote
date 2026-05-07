@@ -10,9 +10,10 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "build": "pnpm prebuild && pnpm --filter auvezy-terminal-remote-shared build && pnpm --filter auvezy-terminal-remote-frontend build && pnpm --filter auvezy-terminal-remote build && pnpm copy-frontend-dist && pnpm bundle-backend",
+    "build": "pnpm prebuild && pnpm --filter auvezy-terminal-remote-shared build && pnpm --filter auvezy-terminal-remote-frontend build && pnpm --filter auvezy-terminal-remote build && pnpm copy-frontend-dist && pnpm sync-readme && pnpm bundle-backend",
     "prebuild": "rm -rf backend/dist backend/tsconfig.tsbuildinfo",
     "copy-frontend-dist": "node scripts/copy-frontend-dist.js",
+    "sync-readme": "cp README.md backend/README.md",
     "bundle-backend": "node scripts/bundle-backend.js",
     "dev": "pnpm copy-frontend-dist && concurrently --kill-others --handle-input -n backend,frontend -c blue,green \"pnpm --filter auvezy-terminal-remote dev\" \"pnpm --filter auvezy-terminal-remote-frontend dev\"",
     "start": "node backend/dist/cli.js",
