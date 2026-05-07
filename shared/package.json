@@ -1,9 +1,10 @@
 {
   "name": "auvezy-terminal-remote-shared",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "description": "前后端共享：协议类型、常量、错误码",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

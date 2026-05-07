@@ -1,9 +1,10 @@
 {
   "name": "auvezy-terminal-remote-frontend",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "description": "Auvezy Terminal Remote 前端：React + Vite + xterm.js",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && pnpm gen:icons && vite build",

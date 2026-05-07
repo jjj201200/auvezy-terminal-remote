@@ -10,12 +10,23 @@
 
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const includeDesign = process.env.INCLUDE_DESIGN === '1';
 
+// 注入构建时的版本号；前端 Settings → 关于 tab 用它显示。
+// 用 backend 的 version 而不是 frontend 自己的——两者总是对齐发布，
+// 但用户安装的是 backend npm 包，"我装的是哪一版"语义上以 backend 为准。
+const backendVersion = JSON.parse(
+  readFileSync(resolve(__dirname, '../backend/package.json'), 'utf8'),
+).version as string;
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(backendVersion),
+  },
   plugins: [
     react(),
     // PWA：injectManifest 模式——我们写自己的 src/sw.ts，让 vite-plugin-pwa
@@ -78,7 +89,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    // 闭源发布：不生成 source map（避免暴露源码结构 / 文件名）
+    // 不生成 source map：移动端流量敏感，sourcemap 会让首屏下载量翻倍。
+    // 调试时本地 dev 跑 vite 即可，无需生产 sourcemap。
     sourcemap: false,
     rollupOptions: {
       // 默认仅打 index.html。dev 模式 multi-page 自动启用；

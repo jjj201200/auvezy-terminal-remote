@@ -157,9 +157,10 @@ export function detectDisplayIp(hostHint?: string): string {
     linkLocals[0] ??
     '127.0.0.1';
 
-  // 临时诊断：写到 stderr，方便用户在 banner 上方看到候选分类
-  // 若误选 displayIp，能直接看出哪一类被错选了
-  if (process.env['ATR_DEBUG_NETWORK'] !== '0') {
+  // 诊断输出：默认走 logger.debug（不显示）；显式 ATR_DEBUG_NETWORK=1 才落 stderr
+  // 注意：本函数被 IpMonitor 每 30s 轮询一次，绝对不能默认写 stderr，
+  // 否则会污染 PTY 终端输出（v0.4.2 曾因此回退）
+  if (process.env['ATR_DEBUG_NETWORK'] === '1') {
     process.stderr.write(
       `[detectDisplayIp] tailscale=[${tailscale.join(',')}] lanReal=[${lanReal.join(',')}] ` +
         `lanVirtual=[${lanVirtual.join(',')}] linkLocal=[${linkLocals.join(',')}] → picked=${picked}\n`,

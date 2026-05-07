@@ -5,13 +5,52 @@
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-05-07
+
+### Added
+
+- **协议从闭源（UNLICENSED）改为 [PolyForm Noncommercial 1.0.0](./LICENSE)**：
+  个人 / 学习 / 非营利组织可自由使用、修改、再分发；商业用途需另外获得授权。
+  package.json `license` 字段、README、关于面板的许可说明同步更新。
+  backend package.json 补齐 `homepage` / `repository` / `bugs` 字段，npm 页面
+  可以点跳到 Gitee 仓库 / Issues。
+- **设置面板新增「关于」tab**：版本号、简介、能力列表、使用须知（4 条易踩坑的
+  非显然行为）、源码 / npm / issue 链接、许可说明。版本号点击可一键复制（移动端
+  长按场景方便贴 issue）。完整 i18n（中 / 英）。版本号由 vite `define` 在构建时
+  注入 `__APP_VERSION__`，跟 backend npm 包版本对齐。
+
+### Fixed
+
+- **PowerShell / Windows Terminal 关闭实例后本地终端"空屏卡住"**：根因是
+  Windows 上 Node 的 `process.kill('SIGTERM')` 等同于 `TerminateProcess`——目标
+  backend 进程**不会触发** `process.on('SIGTERM')` listener，被强杀，没机会还原
+  stdin raw mode / 退出 alt-screen / 显示光标。新增 `POST /api/instances/self/shutdown`
+  路由（URL token 鉴权），跨实例停止时优先走 HTTP 让目标自己跑完整 shutdown 流程，
+  HTTP 失败再 fallback 到 `process.kill`。Linux/Mac 上同样受益（更干净的清理）。
+- shutdown 第二段 reset 序列移除 `\x1bc` (RIS hard reset)：在 Windows Terminal /
+  PowerShell conhost 上 RIS 会清屏 + 复位光标但不释放 console input mode，加重了
+  "空屏"现象。`relay.stop()` 内的 `TERM_RESET_SEQ` 已经覆盖必要的状态，RIS 是冗余。
+- POSIX `stty sane` 命令在 Windows 上不存在，原 try/catch 静默吃错但仍 spawn 一次
+  失败子进程；改成判 `process.platform !== 'win32'` 才调。
+- 0.4.2 引入的 `[detectDisplayIp]` 诊断行**默认关闭**：之前 IpMonitor 每 30s 轮询
+  时都打一行到 stderr，污染所有 PTY 终端。现在仅在 `ATR_DEBUG_NETWORK=1` 时输出。
+
+### Changed
+
+- **Windows 默认 shell 升级为 pwsh > powershell.exe > cmd.exe**：之前默认 cmd.exe
+  无 readline / 默认关 ANSI，体验落后 30 年。现在按 PATH 自动探测：
+  - 用户装了 PowerShell 7（pwsh.exe）→ 用它（跨平台、PSReadLine 内置、ANSI 默认开）
+  - 否则用 powershell.exe（5.1，所有 Win 10/11 自带）
+  - 都没找到才回退 cmd.exe（实际不可能，powershell.exe 系统级安装）
+  
+  老用户行为不变：`$SHELL` / `OCR_COMMAND` 环境变量优先级仍最高，显式覆盖照旧。
+
 ## [0.4.2] - 2026-05-07
 
 ### Added
 
-- `detectDisplayIp` 在 banner 上方打印一行诊断输出（候选分组 + 最终选取的 IP），
-  方便诊断"为什么 displayIp 选了一个不该选的 IP"。可通过环境变量
-  `ATR_DEBUG_NETWORK=0` 关闭。
+- `detectDisplayIp` 诊断输出（候选分组 + 最终选取的 IP），方便诊断 displayIp 误选。
+  > **注意**：本版本默认开启诊断输出，会污染 PTY 终端，已在 0.4.3 修复。
 
 ## [0.4.1] - 2026-05-07
 

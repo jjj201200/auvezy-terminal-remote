@@ -1,10 +1,10 @@
 {
   "name": "auvezy-terminal-remote-monorepo",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "description": "Auvezy Terminal Remote — 局域网内通过手机/平板浏览器远程控制 PC 终端：atr <program>，多终端多实例自动出现在浏览器顶栏 tab 切换",
-  "license": "UNLICENSED",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"

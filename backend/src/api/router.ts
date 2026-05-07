@@ -44,6 +44,10 @@ export interface ApiRouterOptions {
   port?: number;
   /** 当前实例 displayIp；用于 /share 标记默认入口 */
   displayIp?: string;
+  /** 触发本进程优雅关闭（暴露 POST /instances/self/shutdown，跨实例 stop 用） */
+  selfShutdown?: () => void;
+  /** 共享 token：跨实例 HTTP 调 self-shutdown 用；无则跳过 HTTP 路径 */
+  sharedToken?: string;
 }
 
 /**
@@ -78,6 +82,8 @@ export function createApiRouter(opts: ApiRouterOptions = {}): Router {
         registry: opts.registry,
         currentInstanceId: opts.currentInstanceId,
         spawner: opts.spawner,
+        selfShutdown: opts.selfShutdown,
+        sharedToken: opts.sharedToken,
       }),
     );
   }

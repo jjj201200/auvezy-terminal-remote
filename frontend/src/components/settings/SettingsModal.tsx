@@ -18,6 +18,7 @@ import { DisplaySettings } from './DisplaySettings.js';
 import { NetworkSettings } from './NetworkSettings.js';
 import { GeneralSettings } from './GeneralSettings.js';
 import { DevSettings } from './DevSettings.js';
+import { AboutSettings } from './AboutSettings.js';
 import { PushToggle } from '../common/PushToggle.js';
 import s from './SettingsModal.module.scss';
 
@@ -28,7 +29,15 @@ export interface SettingsModalProps {
   onClose: () => void;
 }
 
-type TabKey = 'general' | 'display' | 'shortcuts' | 'commands' | 'network' | 'dev' | 'notifications';
+type TabKey =
+  | 'general'
+  | 'display'
+  | 'shortcuts'
+  | 'commands'
+  | 'network'
+  | 'dev'
+  | 'about'
+  | 'notifications';
 
 export function SettingsModal({
   open,
@@ -67,6 +76,7 @@ export function SettingsModal({
       { id: 'commands', title: t('settings.tab.commands') },
       { id: 'network', title: t('settings.tab.network') },
       { id: 'dev', title: t('settings.tab.dev') },
+      { id: 'about', title: t('settings.tab.about') },
     ],
     [t],
   );
@@ -83,8 +93,11 @@ export function SettingsModal({
       activeTab={tab}
       onTabChange={(id) => setTab(id as TabKey)}
       footer={
-        // notifications / dev tab 内的控件即时生效，不需要 Save 条
-        tab !== 'notifications' && tab !== 'dev' ? (
+        // notifications / dev / about tab 不需要 Save 条
+        // - notifications: PushToggle 内部按钮即时生效
+        // - dev: 切换写 localStorage，即时生效
+        // - about: 纯展示，没有可编辑字段
+        tab !== 'notifications' && tab !== 'dev' && tab !== 'about' ? (
           <>
             <button type="button" onClick={onClose} className={s.cancelBtn}>
               {t('common.cancel')}
@@ -127,6 +140,7 @@ export function SettingsModal({
         />
       )}
       {tab === 'dev' && <DevSettings />}
+      {tab === 'about' && <AboutSettings />}
       {tab === 'notifications' && <PushToggle />}
     </Sheet>
   );

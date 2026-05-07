@@ -119,6 +119,7 @@ export interface Messages {
       notifications: string;
       network: string;
       dev: string;
+      about: string;
     };
     saving: string;
   };
@@ -172,6 +173,32 @@ export interface Messages {
     consoleBridgeHint: string;
     consoleBridgeOn: string;
     consoleBridgeOff: string;
+  };
+
+  // 设置 - 关于
+  about: {
+    tagline: string;
+    versionLabel: string;
+    versionTooltip: string;
+    descTitle: string;
+    descBody: string;
+    featuresTitle: string;
+    featurePty: string;
+    featureMultiInstance: string;
+    featureAuth: string;
+    featurePush: string;
+    featureMobile: string;
+    notesTitle: string;
+    notePersistent: string;
+    noteLanOnly: string;
+    noteMasterResize: string;
+    noteVirtualNic: string;
+    linksTitle: string;
+    repoLabel: string;
+    issuesLabel: string;
+    npmLabel: string;
+    licenseTitle: string;
+    licenseBody: string;
   };
 
   // 通用列表操作

@@ -95,6 +95,7 @@ export const zhCN: Messages = {
       notifications: '通知',
       network: '网络',
       dev: '开发',
+      about: '关于',
     },
     saving: '保存中…',
   },
@@ -147,6 +148,37 @@ export const zhCN: Messages = {
       '把前端 console 输出经 WebSocket 转到 backend 进程的 stderr，开发者可用 `tail -f` 查看。需刷新页面生效。',
     consoleBridgeOn: '已启用 — 后续 console 输出会发到 backend',
     consoleBridgeOff: '已关闭',
+  },
+
+  about: {
+    tagline: '局域网内通过手机/平板浏览器远程控制 PC 上的任意终端程序',
+    versionLabel: '版本',
+    versionTooltip: '点击复制版本号',
+    descTitle: '简介',
+    descBody:
+      '一行命令 atr <program>，把 PC 上的 zsh / bash / claude / 任何 CLI 通过 WebSocket 桥到手机浏览器：实时输出、远程输入、审批通知。仅绑 LAN/Tailscale，不开公网；token + 本地 cookie 鉴权。',
+    featuresTitle: '主要能力',
+    featurePty: 'PTY 桥接（node-pty + xterm.js）+ ANSI 颜色 + alt-screen 兼容',
+    featureMultiInstance: '多实例自动占端口；浏览器顶栏 tab 切换',
+    featureAuth: 'timingSafeEqual token + Session Cookie，仅监听 LAN/Tailscale',
+    featurePush: 'Web Push（VAPID 三优先级）+ iOS Safari LocalNotification 兜底',
+    featureMobile: '移动端 PWA：local-echo、键盘弹起防错乱、双击适配 PTY 尺寸',
+    notesTitle: '使用须知',
+    notePersistent:
+      '关闭浏览器 tab / 退出 webapp 不会停止 backend：PTY 继续在 PC 上跑，手机随时回来还能看到全部输出。要停实例：webapp 上"关闭实例"按钮，或在 PC 命令行 atr stop。',
+    noteLanOnly:
+      '仅监听局域网 / Tailscale，不开公网。跨网段访问（如手机用 4G）需要先连上 Tailscale 等 VPN。',
+    noteMasterResize:
+      '多设备同时连一个实例时，PTY 尺寸由"主控设备"决定（避免互相抢导致渲染错乱）。手机想用自己的尺寸时，点顶栏"适配尺寸"按钮主动声明主控。',
+    noteVirtualNic:
+      '多虚拟网卡（Hyper-V / WSL / Docker bridge）的宿主机上，banner 自动按 Tailscale > 真实 LAN > 172.x 顺序选展示 IP，跟你预期的网卡可能不同——按 banner 上"扫码"那行显示的为准。',
+    linksTitle: '链接',
+    repoLabel: '源码（Gitee）',
+    issuesLabel: '反馈 / 提 issue',
+    npmLabel: 'npm 包页面',
+    licenseTitle: '许可',
+    licenseBody:
+      'PolyForm Noncommercial 1.0.0：个人 / 学习 / 非营利组织可自由使用、修改、再分发；商业用途需另外获得授权。© 2026 DrowsyFlesh / Auvezy。',
   },
 
   list: {

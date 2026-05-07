@@ -1,0 +1,127 @@
+@use '../../styles/tokens' as t;
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-7;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-3;
+  padding: t.$sp-2 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: t.$sp-4;
+  flex-wrap: wrap;
+}
+
+.brandName {
+  font-family: t.$font-mono;
+  font-size: t.$fs-lg;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.versionPill {
+  display: inline-flex;
+  align-items: center;
+  gap: t.$sp-2;
+  padding: 0px 8px;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$accent;
+  background: t.$accent-soft;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+
+  &:hover {
+    border-color: t.$accent-glow;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: t.$accent;
+  }
+}
+
+.copied {
+  font-size: t.$fs-2xs;
+  color: t.$accent;
+}
+
+.tagline {
+  margin: 0;
+  font-size: t.$fs-sm;
+  color: t.$fg-dim;
+  line-height: t.$lh-base;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-3;
+  padding: t.$sp-2 0;
+}
+
+.title {
+  margin: 0;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.body {
+  margin: 0;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+}
+
+.list {
+  margin: 0;
+  padding-left: t.$sp-6;
+  list-style: disc;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+
+  li {
+    padding: 1px 0;
+  }
+
+  li::marker {
+    color: t.$fg-low;
+  }
+}
+
+.linkList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-2;
+
+  a {
+    display: inline-block;
+    font-size: t.$fs-xs;
+    color: t.$accent;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 120ms;
+
+    &:hover,
+    &:focus-visible {
+      outline: none;
+      border-bottom-color: t.$accent;
+    }
+  }
+}

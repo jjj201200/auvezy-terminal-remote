@@ -30,6 +30,7 @@ import {
 } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import { homedir } from 'node:os';
+import { statSync } from 'node:fs';
 import {
   ATR_DATA_DIR,
   CONFIG_FILENAME,
@@ -561,8 +562,13 @@ function readLegacyEnv(
  * 用户既没设 OCR_COMMAND 也没设旧名 CLAUDE_COMMAND 时，决定默认子进程命令。
  *
  * 优先级：
- *  1. $SHELL 环境变量（macOS / Linux / WSL 都自动有；用户当前 shell）
- *  2. 平台默认（Windows: cmd.exe；其它: /bin/sh）
+ *  1. $SHELL 环境变量（macOS / Linux / WSL 都自动有；用户当前 shell；
+ *     Windows 上若用户在 Git Bash / WSL / cygwin 启动也会有这个变量）
+ *  2. Windows: pwsh.exe > powershell.exe > cmd.exe
+ *     - pwsh.exe：PowerShell 7+，跨平台版，用户主动装的（winget/Store/msi）
+ *     - powershell.exe：Windows PowerShell 5.1，所有 Win 10/11 自带
+ *     - cmd.exe：1990 年的产物，无 readline / ANSI 默认关闭，最后兜底
+ *  3. 其它平台: /bin/sh
  *
  * 选 $SHELL 而非硬编码 'claude'，因为不是所有用户都装了 Claude CLI；
  * 跑 shell 至少能让 PTY 通路有东西可调。要跑 Claude，显式设 OCR_COMMAND=claude。
@@ -570,7 +576,41 @@ function readLegacyEnv(
 function resolveDefaultShell(env: NodeJS.ProcessEnv): string {
   const shell = env['SHELL'];
   if (shell && shell.length > 0) return shell;
-  return process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+  if (process.platform === 'win32') {
+    // 同步探测 PATH 上是否存在 pwsh / powershell。spawn 时 node-pty 会再走一次
+    // PATH 解析，但提前检测可以选到第一个真实存在的命令而不是依赖 spawn 失败兜底。
+    return resolveWindowsShell();
+  }
+  return '/bin/sh';
+}
+
+/**
+ * Windows 默认 shell 选取：pwsh > powershell > cmd。
+ *
+ * 检测策略：在 PATH 里查可执行文件存在性。比起"spawn 失败再兜底"，
+ * 提前检测能让 banner 上打印的命令名跟实际跑的一致，减少用户困惑。
+ *
+ * 不缓存：函数一次启动只调一次，没必要。
+ */
+function resolveWindowsShell(): string {
+  const candidates = ['pwsh.exe', 'powershell.exe', 'cmd.exe'];
+  const pathDirs = (process.env['PATH'] ?? '').split(';').filter(Boolean);
+  // PATHEXT 决定无后缀名的查找；我们直接带 .exe 跳过这层
+  for (const cmd of candidates) {
+    for (const dir of pathDirs) {
+      try {
+        const full = `${dir}\\${cmd}`;
+        // statSync 在 Windows 上对 .exe 探活足够；找不到抛错
+        if (statSync(full).isFile()) {
+          return cmd;
+        }
+      } catch {
+        // 继续找下一个
+      }
+    }
+  }
+  // 全没找到（Windows 几乎不可能）—— 仍返回 cmd.exe 让 spawn 自己报错
+  return 'cmd.exe';
 }
 
 /**

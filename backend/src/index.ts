@@ -267,6 +267,10 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   );
 
   // /api 路由（含 /auth + /config + /hook + /instances + /push + /share）
+  // shutdown 函数在下面声明（需要 relay/pty/ws 等都创建好），用闭包延迟绑定
+  let triggerShutdown: () => void = () => {
+    logger.warn('shutdown 还未就绪却被调用，忽略');
+  };
   app.use(
     '/api',
     createApiRouter({
@@ -279,6 +283,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       pushService,
       port: cfg.port,
       displayIp,
+      selfShutdown: () => triggerShutdown(),
+      sharedToken: cfg.token,
     }),
   );
 
@@ -367,23 +373,27 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     if (relay) relay.stop();
     pty.destroy();
     if (process.stdout.isTTY) {
-      // 关 alt screen + 关鼠标跟踪（1000/1002/1003/1005/1006/1015）+ 关
-      // bracketed paste（2004）+ 关焦点事件（1004）+ 显示光标 + DECSTR 软重置
+      // 关 alt screen + 关鼠标跟踪 + 显示光标 + DECSTR 软重置
+      //
+      // 注意：以前这里还会发 RIS (\x1bc) hard reset 兜底，但 Windows Terminal /
+      // PowerShell conhost 收到 RIS 后会**清屏并把 cursor 复位但不释放 console
+      // input mode**，表现为"实例关闭后 PowerShell 终端空屏卡住、按键无响应"。
+      // relay.stop() 内部已写过 TERM_RESET_SEQ（含 alt screen / 鼠标 / 光标），
+      // 这里只补一些 relay 没覆盖的（焦点事件 1004、SGR 0、DECSTR），不再发 RIS。
       process.stdout.write(
-        '\x1b[?1049l' + // alt screen 退出
-          '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l\x1b[?1015l' + // 鼠标
-          '\x1b[?2004l' + // bracketed paste
-          '\x1b[?1004l' + // 焦点事件
-          '\x1b[?25h' + // 显示光标
+        '\x1b[?1004l' + // 焦点事件
+          '\x1b[?25h' + // 显示光标（再次确保）
           '\x1b[!p' + // 软重置
-          '\x1b[0m' + // 颜色 / 样式重置
-          '\x1bc', // RIS（hard reset，最后兜底）
+          '\x1b[0m', // 颜色 / 样式重置
       );
-      // 顺便用 stty 把行规则也撤回标准，防止 echo / icanon 被关
-      try {
-        execSync('stty sane 2>/dev/null', { stdio: 'ignore' });
-      } catch {
-        // 没有 stty 也不要紧，前面的 ANSI 已经做了大部分工作
+      // POSIX 才有 stty；Windows 上 execSync('stty') 会抛错被 catch 吞掉，
+      // 但启动一个失败的子进程仍是浪费。所以判 platform 再调
+      if (process.platform !== 'win32') {
+        try {
+          execSync('stty sane 2>/dev/null', { stdio: 'ignore' });
+        } catch {
+          // 没有 stty 也不要紧，前面的 ANSI 已经做了大部分工作
+        }
       }
     }
     ipMonitor.stop();
@@ -419,6 +429,9 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     if (relay) relay.stop();
     ctrl.setStatus('idle', err.message);
   });
+
+  // 暴露给 /api/instances/self/shutdown
+  triggerShutdown = () => shutdown(0);
 
   process.on('SIGINT', () => shutdown(0));
   process.on('SIGTERM', () => shutdown(0));

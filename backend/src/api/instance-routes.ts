@@ -12,7 +12,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { ErrorCode, type InstanceListItem } from 'auvezy-terminal-remote-shared';
+import { ErrorCode, type InstanceInfo, type InstanceListItem } from 'auvezy-terminal-remote-shared';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner, SpawnInstanceInput } from '../registry/instance-spawner.js';
@@ -21,6 +21,31 @@ import { onInstanceChange } from '../registry/instance-events.js';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 
+/**
+ * 调目标实例的 POST /instances/self/shutdown，让对方自己跑 graceful shutdown。
+ * 关键场景是 Windows：那里 process.kill('SIGTERM') 直接 TerminateProcess，
+ * 目标进程没机会跑 stdin/stdout 还原，本地 PowerShell 终端会卡死空屏。
+ *
+ * 用 loopback 127.0.0.1（同机实例必然 bind 在 0.0.0.0 / 127.0.0.1，target.host
+ * 可能是 LAN/Tailscale IP 当前主机不一定能直连），鉴权用 shared token。
+ *
+ * 返回 true = 对端 200；false = 任何失败（超时/连接拒绝/非 2xx）。
+ * 故意 swallow 错误：失败由调用方走 fallback 路径（process.kill）。
+ */
+async function tryHttpSelfShutdown(target: InstanceInfo, token: string): Promise<boolean> {
+  const url = `http://127.0.0.1:${target.port}/api/instances/self/shutdown?token=${encodeURIComponent(token)}`;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 3000);
+  try {
+    const r = await fetch(url, { method: 'POST', signal: ac.signal });
+    return r.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface InstanceRoutesOptions {
   authModule: AuthModule;
   registry: InstanceRegistryManager;
@@ -28,6 +53,18 @@ export interface InstanceRoutesOptions {
   currentInstanceId: string;
   /** 派生新实例；不传则 POST /instances 返回 501 */
   spawner?: InstanceSpawner;
+  /**
+   * 触发本进程跑优雅 shutdown（同 SIGTERM 走的那一路）。
+   * 提供后才会注册 POST /instances/self/shutdown。
+   * Windows 上 process.kill 触发不了 listener，只能这种方式让目标实例自杀清理。
+   */
+  selfShutdown?: () => void;
+  /**
+   * 共享 token：用于在 DELETE /instances/:id 时调用目标实例的 self-shutdown HTTP。
+   * 不传则跳过 HTTP 路径，直接走 process.kill 兼容路径（Linux/Mac 完全够用，
+   * Windows 上目标进程不会跑清理代码 → 可能在目标的本地终端留下脏状态）。
+   */
+  sharedToken?: string;
 }
 
 export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
@@ -178,6 +215,30 @@ export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
         res.status(e.httpStatus).json({ error: e.toPayload() });
         return;
       }
+
+      // 先尝试 HTTP self-shutdown（Windows 上 process.kill 走不通的关键路径）
+      // 注：Linux/Mac 上 process.kill('SIGTERM') 完全 OK，但走 HTTP 同样能让目标
+      // 跑完整清理路径而不是被 SIGTERM 强中断 listener 之外的代码——更干净，
+      // 所以不分平台都先试 HTTP；失败 fallback 到 process.kill。
+      if (opts.sharedToken) {
+        const httpOk = await tryHttpSelfShutdown(target, opts.sharedToken);
+        if (httpOk) {
+          // 实例可能不会立即从 registry 消失，由对方进程退出时 unregister 处理；
+          // 这里也尝试清掉条目（best-effort）——避免 stale 卡列表
+          try {
+            await registry.unregister(id);
+          } catch {
+            /* ignore */
+          }
+          res.json({ ok: true, outcome: 'sigterm' });
+          return;
+        }
+        logger.warn(
+          { id, host: target.host, port: target.port },
+          'HTTP self-shutdown 失败，fallback 到 process.kill',
+        );
+      }
+
       // stopInstances 的 pattern 走 substring 匹配 name/cwd/host:port，
       // 不能用 instanceId（uuid 不会匹配任何字段）。改用 host:port 唯一定位
       const pattern = `${target.host}:${target.port}`;
@@ -202,6 +263,24 @@ export function createInstanceRoutes(opts: InstanceRoutesOptions): Router {
       res.status(e.httpStatus).json({ error: e.toPayload() });
     }
   });
+
+  // 自关闭：让本进程跑 shutdown(0)，回 200 后下一个 tick 真正清理。
+  // 鉴权用 URL token（共享 token），因为发起方是另一个 atr 实例的 backend，
+  // 没有 cookie session，但持有 shared token。
+  if (opts.selfShutdown) {
+    const triggerSelfShutdown = opts.selfShutdown;
+    router.post('/instances/self/shutdown', (req, res) => {
+      const token = typeof req.query['token'] === 'string' ? req.query['token'] : '';
+      if (!token || !authModule.verifyToken(token)) {
+        res.status(401).json({ error: { code: ErrorCode.AUTH_INVALID_TOKEN, message: 'invalid token' } });
+        return;
+      }
+      logger.info({ ip: req.ip }, 'POST /instances/self/shutdown');
+      // 先 200，再下一个 tick 跑 shutdown：让响应体到达对端
+      res.json({ ok: true });
+      setImmediate(() => triggerSelfShutdown());
+    });
+  }
 
   return router;
 }

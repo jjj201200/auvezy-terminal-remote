@@ -4,6 +4,9 @@
 >
 > 一行命令 `atr <program>`，多终端多实例自动出现在浏览器顶栏 tab 切换。
 
+> **License: [PolyForm Noncommercial 1.0.0](./LICENSE)** —
+> 个人 / 学习 / 非营利组织可自由使用、修改、再分发；商业用途需另外获得授权。
+
 ## 这是什么
 
 你坐在沙发上拿着手机，PC 上某个 CLI（Claude Code / 部署脚本 / 调试会话…）正在跑一个长任务。你希望：
@@ -21,8 +24,11 @@
 ### 全局安装（npm 用户）
 
 ```bash
-npm install -g auvezy-terminal-remote
+npm install -g auvezy-terminal-remote   # 必须 -g
 ```
+
+> ⚠️ npm 页面右上角自动显示的 `npm i auvezy-terminal-remote` **缺 `-g`**——
+> 这是 CLI 工具，没有 `-g` 装完不会暴露 `atr` 命令。请按上面那行装。
 
 之后任意终端：
 
@@ -52,6 +58,7 @@ cd auvezy-terminal-remote
 bash install.sh           # 检查 Node 20+/pnpm 9+/编译依赖 → 装包 → 构建
 node backend/dist/cli.js  # 等价于 atr
 ```
+
 
 ## 功能矩阵
 

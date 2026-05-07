@@ -100,6 +100,7 @@ export const en: Messages = {
       notifications: 'Notifications',
       network: 'Network',
       dev: 'Developer',
+      about: 'About',
     },
     saving: 'Saving…',
   },
@@ -154,6 +155,37 @@ export const en: Messages = {
       'Forward browser console output to the backend stderr via WebSocket so developers can `tail -f` server logs. Reload to apply.',
     consoleBridgeOn: 'Enabled — subsequent console logs forwarded to backend',
     consoleBridgeOff: 'Disabled',
+  },
+
+  about: {
+    tagline: 'Remote-control any PC terminal program from your phone or tablet over LAN.',
+    versionLabel: 'Version',
+    versionTooltip: 'Click to copy version',
+    descTitle: 'About',
+    descBody:
+      'One command — atr <program> — bridges any CLI on your PC (zsh / bash / claude / anything) to a phone browser via WebSocket: live output, remote input, approval notifications. LAN / Tailscale only, no public exposure; token + cookie auth.',
+    featuresTitle: 'Highlights',
+    featurePty: 'PTY bridge (node-pty + xterm.js) with ANSI colors and alt-screen support',
+    featureMultiInstance: 'Multi-instance auto port; tab-switch in the top bar',
+    featureAuth: 'timingSafeEqual token + session cookie, binds only LAN/Tailscale',
+    featurePush: 'Web Push (VAPID 3-priority) + iOS Safari LocalNotification fallback',
+    featureMobile: 'Mobile PWA: local-echo, keyboard reflow guard, double-pulse PTY resize',
+    notesTitle: 'Notes',
+    notePersistent:
+      'Closing the browser tab / quitting the PWA does NOT stop the backend — the PTY keeps running on your PC and your phone can pick up the full output later. To actually stop an instance: use the "close instance" button in the webapp, or run atr stop on the PC.',
+    noteLanOnly:
+      'Listens on LAN / Tailscale only — no public exposure. To access from a different network (e.g. phone on 4G), connect Tailscale or another VPN first.',
+    noteMasterResize:
+      'When multiple devices connect to the same instance, the PTY size is decided by the "master" device (otherwise resize fights cause render glitches). To take master from your phone, tap the "fit size" button in the top bar.',
+    noteVirtualNic:
+      'On multi-NIC hosts (Hyper-V / WSL / Docker bridge / VPN), the banner picks the display IP in this order: Tailscale > real LAN > 172.x — which may differ from what you expect. Trust the IP shown on the banner "scan" line.',
+    linksTitle: 'Links',
+    repoLabel: 'Source (Gitee)',
+    issuesLabel: 'Feedback / file an issue',
+    npmLabel: 'npm package',
+    licenseTitle: 'License',
+    licenseBody:
+      'PolyForm Noncommercial 1.0.0: free to use, modify, and redistribute for personal / educational / nonprofit purposes; commercial use requires a separate license. © 2026 DrowsyFlesh / Auvezy.',
   },
 
   list: {
