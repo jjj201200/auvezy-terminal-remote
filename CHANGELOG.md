@@ -5,6 +5,61 @@
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-05-07
+
+### Added
+
+- **移动端 swipe 翻方向键**：claude / vim / htop / tmux 等 alt-screen TUI 里
+  手指上下滑动 = 发对应数量的方向键序列到 PTY，每 28px ≈ 1 次方向键，垂直分量
+  必须 > 水平 1.5 倍才接管（避免误触横向选择）。普通 shell 仍走 xterm 原生
+  scrollback 滚动。backend 新增 `alt_screen_change` WS 消息广播 alt-screen 状态。
+- **移动端实例详情 modal**：点击实例卡片打开（替代旧的"卡片即切换"），完整展示
+  name / cwd / host / port + 4 个动作（切换 / 断开 / 关闭 / 取消）。卡片右侧的
+  关闭按钮替换为切换图标，关闭仍由 modal 内的"关闭实例"按钮触发（保留二次确认）。
+- **字段值点击复制 + 三档能力降级**：clipboard API（HTTPS）→ execCommand fallback
+  （桌面 LAN HTTP）→ select-only 模式（iOS LAN HTTP）。iOS LAN HTTP 下不假装能
+  复制，改成"点击 = 选中文本，长按系统拷贝"，避免 execCommand silent fail 误导。
+- **关于面板新增使用须知**：4 条易踩坑的非显然行为（关闭浏览器不停 backend / 仅
+  LAN+Tailscale / 多设备主控 / 多虚拟网卡选 IP 顺序）。
+- **xterm 调色板主题切换**：7 个预设跟 Claude Code `/theme` 命令对齐
+  （dark / light / dark-ansi / light-ansi / dark-daltonized / light-daltonized / auto），
+  默认 auto 跟随系统亮暗。设置面板"显示"tab 加可折叠下拉，预览 sticky 在顶部。
+
+### Changed
+
+- **iOS 渲染器从 DOM 切到 Canvas**（addon-canvas）：解决 iOS 上行高比桌面松散
+  3-5px 的视觉差异。Canvas 与桌面 WebGL 同样按 fontSize × 1.0 自绘，避开 DOM
+  renderer 的字体度量歧义；同时绕开 WebGL 在 iOS 的 GPU 上下文丢失 + rAF 限流
+  丢帧问题。
+- **xterm 调色板默认 Campbell**（Windows Terminal / PowerShell 默认）替代 One Dark：
+  跟用户在本地终端跑 PTY 看到的颜色一致，无"远端跟本地不一样"困惑。bright 系
+  饱和度更高，移动端小屏更易区分。Campbell 同时是新 `dark` 主题的实现。
+- **xterm 字体栈扩展**：英文加 JetBrains Mono / Fira Code / Cascadia Code（用户
+  装了就用），中文加 Sarasa Mono SC / Maple Mono CN（社区"中英 1:2 等宽"主流方案），
+  绝不让 SimSun / 宋体衬线字体进入 fallback。
+- **Sheet 组件加 overlayTone='strong'**：嵌套 modal（详情 modal 叠在外层 sheet 上）
+  时背景下层会透出来，strong 模式加深 overlay + 加大模糊半径 + 抬高 z-index。
+- **断开按钮黄色 / 关闭按钮红色**：颜色语义跟操作破坏性匹配，断开仅本设备（warning）
+  vs 关闭杀 backend（danger）。
+- **移动端实例卡片 cwd 完整折行展示**：长路径不再 truncate，所有文字直接可见。
+
+### Fixed
+
+- **日常鉴权失败日志降级到 debug**：之前 `WS upgrade 被鉴权拒绝` / `WS 认证失败：
+  无有效 session` / `WS URL token 无效` 等用户日常行为（cookie 过期 / 多 tab 竞争
+  / token 改了）就会触发的 warn 日志会污染 PowerShell PTY 终端。已降级到 debug，
+  排查时 LOG_LEVEL=debug 仍可看到完整上下文。
+- **PTY exit 后客户端写入的预期竞态日志**：`尝试写入 PTY 但进程未运行` 也降到 debug。
+
+### Internal
+
+- 新增 `frontend/src/themes/terminal-themes.ts` 集中管理调色板预设
+- 新增 `frontend/src/utils/clipboard.ts` 三档能力检测 + 选中 helper
+- 新增 `frontend/src/hooks/useTouchSwipeScroll.ts` 移动端 swipe → 方向键
+- 新增 `frontend/src/components/instances/InstanceDetailModal.tsx` 实例详情 sheet
+- backend `pty-manager` emit 新事件 `altScreenChange`，session-controller 转发到 WS
+- shared `ws-protocol` 加 `AltScreenChangeMessage` 类型，`DisplayPrefs` 加 theme 字段
+
 ## [0.4.4] - 2026-05-07
 
 ### Changed

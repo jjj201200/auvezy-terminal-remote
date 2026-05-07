@@ -26,6 +26,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import {
@@ -36,6 +37,7 @@ import {
   RESIZE_THROTTLE_MS,
 } from '../config/constants.js';
 import { FONT_SIZE_MIN, FONT_SIZE_MAX } from 'auvezy-terminal-remote-shared';
+import { resolveTheme } from '../themes/terminal-themes.js';
 
 /**
  * xterm 显示偏好（来自 UserConfig.display）
@@ -48,6 +50,8 @@ import { FONT_SIZE_MIN, FONT_SIZE_MAX } from 'auvezy-terminal-remote-shared';
 export interface DisplayOpts {
   targetCols?: number;
   letterSpacing?: number;
+  /** 调色板主题名；缺省 = dark (Campbell) */
+  theme?: import('auvezy-terminal-remote-shared').TerminalThemeName;
 }
 
 const CHAR_WIDTH_RATIO = 0.6;
@@ -292,32 +296,46 @@ export function useTerminal(
       allowProposedApi: true,
       fontSize: initial.fontSize,
       letterSpacing: initial.letterSpacing,
-      fontFamily: "'Geist Mono', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
+      // 字体栈：开发者最常用的等宽 + 中英对齐
+      // 英文优先级：Geist Mono(自带woff2) > JetBrains Mono > Fira Code > Cascadia Code
+      //   > 系统等宽（macOS/Win/Linux 各自的 SF Mono / Consolas / DejaVu）
+      // 中文等宽优先级：Sarasa Mono SC / Maple Mono CN（社区主流"中英 1:2 等宽"）
+      //   > 系统中文无衬线（PingFang / HarmonyOS / 雅黑 / Noto Sans CJK）
+      // 没装的字体浏览器静默跳过，不影响其他字符。绝对不让 SimSun / 宋体 衬线
+      // 字体进入 fallback —— 始终保持无衬线视觉。
+      fontFamily: [
+        // === 英文等宽 ===
+        "'Geist Mono'",          // 项目自带 woff2，移动端首屏可用
+        "'JetBrains Mono'",      // 开发者机器最常装
+        "'Fira Code'",           // 开发者圈广泛使用
+        "'Cascadia Code'",       // Windows Terminal 默认
+        'ui-monospace',          // macOS Big Sur+ 系统等宽
+        "'SF Mono'",             // macOS 系统等宽
+        'Menlo',                 // macOS 老版本兜底
+        'Consolas',              // Windows 系统等宽
+        "'DejaVu Sans Mono'",    // Linux 通用
+        // === 中文等宽（用户装了才用，1:2 对齐严格）===
+        "'Sarasa Mono SC'",      // 更纱黑体，最受推崇
+        "'Sarasa Mono SC Nerd'", // 带 nerd-font icon 的变体
+        "'Maple Mono CN'",       // Maple Mono 中文版
+        "'JetBrains Mono CJK'",  // 社区改的 JetBrains Mono CJK 变体
+        // === 中文无衬线 fallback（不严格等宽，但保证不出衬线字体）===
+        "'PingFang SC'",
+        "'HarmonyOS Sans SC'",
+        "'Microsoft YaHei UI'",
+        "'Microsoft YaHei'",
+        "'Source Han Sans SC'",
+        "'Noto Sans Mono CJK SC'",
+        "'Noto Sans SC'",
+        // === 最终兜底 ===
+        'monospace',
+      ].join(', '),
       scrollback: XTERM_SCROLLBACK_LINES,
       // 配色：One Dark / Atom 风格，介于 GitHub Dark 与 Tango 之间的中等饱和度
-      theme: {
-        background: '#050608',
-        foreground: '#dcdfe4',
-        cursor: '#dcdfe4',
-        // 选区色——既是用户拖选反馈，也是搜索时唯一的当前匹配视觉提示
-        selectionBackground: 'rgba(255, 140, 0, 0.55)',
-        black: '#3f4451',
-        red: '#e06c75',
-        green: '#98c379',
-        yellow: '#e5c07b',
-        blue: '#61afef',
-        magenta: '#c678dd',
-        cyan: '#56b6c2',
-        white: '#abb2bf',
-        brightBlack: '#5c6370',
-        brightRed: '#e06c75',
-        brightGreen: '#98c379',
-        brightYellow: '#e5c07b',
-        brightBlue: '#61afef',
-        brightMagenta: '#c678dd',
-        brightCyan: '#56b6c2',
-        brightWhite: '#ffffff',
-      },
+      // 调色板由 themes/terminal-themes.ts 统一管理，按 display.theme 查表。
+      // 默认 'dark' = Campbell（Windows Terminal / PowerShell 默认）。
+      // 主题列表跟 Claude Code /theme 命令对齐。
+      theme: resolveTheme(display?.theme),
     });
 
     const fitAddon = new FitAddon();
@@ -418,21 +436,29 @@ export function useTerminal(
     container.addEventListener('touchend', onTouchEnd, { passive: true });
     container.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
-    // WebGL graceful 降级到 canvas（iOS 跳过）
+    // 渲染器三档：
+    //  - 桌面（非 iOS）：WebGL，最快、字符按 fontSize × 1.0 精确自绘
+    //  - iOS：Canvas 2D（addon-canvas），跟 WebGL 同样自绘字符，避开 DOM renderer
+    //    的字体度量歧义（iOS DOM cell.height 比桌面 WebGL 高 5-7px 视觉松散），
+    //    同时绕开 WebGL 在 iOS 的两个痛点：
+    //      * GPU 上下文丢失（键盘弹起 / sleep-resume 后纹理 stale）
+    //      * rAF 限流期 alt-screen TUI 丢帧
+    //  - WebglAddon 与 SearchAddon decoration 不兼容（已规避，不传 decorations
+    //    只用 term.select() 渲染当前匹配）
     //
-    // 不加 WebglAddon：xterm 默认 DOM renderer，DOM 比 GPU canvas 慢但更稳。
-    // 加 WebglAddon：性能更好但有已知问题：
-    //  - 与 SearchAddon 的 decoration 不兼容（我们已不传 decorations，只靠
-    //    term.select() 渲染当前匹配规避）
-    //  - iOS WebKit 上软键盘弹起 / sleep-resume 后 GPU canvas 纹理偶发 stale
-    //  - iOS 在键盘期间限流 rAF 到 30fps，alt-screen TUI（Claude/vim）的高频
-    //    重画追不上 → 部分 erase-line 序列被丢帧 → 视觉错乱
+    // 都失败时 xterm 自动 fallback DOM renderer。
     //
     // iOS 检测：navigator.platform === 'MacIntel' && maxTouchPoints>1 是
     // iPadOS 13+ 把 UA 报成 Mac 后的兜底
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (!isIOS) {
+    if (isIOS) {
+      try {
+        term.loadAddon(new CanvasAddon());
+      } catch {
+        /* DOM renderer 是默认 fallback */
+      }
+    } else {
       try {
         const webgl = new WebglAddon();
         webgl.onContextLoss(() => webgl.dispose());
@@ -500,6 +526,9 @@ export function useTerminal(
         opts.letterSpacing = next.letterSpacing;
         changed = true;
       }
+      // theme 切换无需重建 xterm —— 直接赋值 options.theme 即可触发重绘
+      const nextTheme = resolveTheme(display?.theme);
+      opts.theme = nextTheme;
       if (changed) {
         try {
           fitAddon.fit();
@@ -717,12 +746,22 @@ export function useTerminal(
 
   // 用户在设置里改了 display 偏好 → 立即重应用 + 上报新尺寸
   // 用 stringify 比较避免 useUserConfig 每次返回新对象引用导致重复 fire
-  const displayKey = `${display?.targetCols ?? 0}|${display?.letterSpacing ?? 0}`;
+  const displayKey = `${display?.targetCols ?? 0}|${display?.letterSpacing ?? 0}|${display?.theme ?? 'auto'}`;
   useEffect(() => {
     applyPrefsRef.current?.();
     const term = termRef.current;
     if (term) emitResize(term.cols, term.rows);
   }, [displayKey, emitResize]);
+
+  // theme=auto 时跟随系统亮暗切换 → 监听 prefers-color-scheme 变化重应用
+  useEffect(() => {
+    if (display?.theme !== 'auto' && display?.theme !== undefined) return;
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (): void => applyPrefsRef.current?.();
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [display?.theme]);
 
   // ──────────────── 公共 API ────────────────
 

@@ -135,6 +135,21 @@ export interface IpChangedMessage {
   newUrl: string;
 }
 
+/**
+ * Alt-screen 状态切换
+ *
+ * 当 PTY 子程序进入 / 退出 alt-screen（vim / claude / htop / tmux 等
+ * 全屏 TUI 都用 alt-screen）时广播。前端用此状态决定移动端 touch 滚动
+ * 是"翻方向键"（alt-screen 中）还是让 xterm 走原生 scrollback。
+ *
+ * 后端 `pty/pty-manager.ts:scanAltScreenToggle` 监听 DECSET 1049/1047/47
+ * 切换序列。同一进程内重复进入/退出会去重，仅在状态真正变化时广播。
+ */
+export interface AltScreenChangeMessage {
+  type: 'alt_screen_change';
+  inAltScreen: boolean;
+}
+
 /** 服务端可发送的所有消息类型（union） */
 export type ServerMessage =
   | TerminalOutputMessage
@@ -144,7 +159,8 @@ export type ServerMessage =
   | ErrorMessage
   | SessionEndedMessage
   | TerminalResizeMessage
-  | IpChangedMessage;
+  | IpChangedMessage
+  | AltScreenChangeMessage;
 
 // ============================================================
 // 客户端 → 服务端
@@ -239,7 +255,8 @@ export function isServerMessage(value: unknown): value is ServerMessage {
     type === 'error' ||
     type === 'session_ended' ||
     type === 'terminal_resize' ||
-    type === 'ip_changed'
+    type === 'ip_changed' ||
+    type === 'alt_screen_change'
   );
 }
 

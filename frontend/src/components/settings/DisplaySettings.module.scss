@@ -14,6 +14,28 @@
   gap: t.$sp-4;
 }
 
+// 预览 section：sticky 在 tab body 顶部，让用户调下方参数时始终能看到效果
+// Sheet 的 .body 是滚动容器（overflow: auto），sticky 在它内部生效
+.previewSection {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  // 给 sticky 加底色 + 模糊背景，避免下方内容滚到这下面被透出来
+  background: t.$bg-elev;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  // padding 让 sticky 内容跟正常 section 视觉一致
+  padding-top: t.$sp-3;
+  padding-bottom: t.$sp-3;
+  // 跟 sheet body 边到边对齐：扩大到容器边缘后用 padding 还原内容
+  margin-left: -#{t.$sp-5};
+  margin-right: -#{t.$sp-5};
+  padding-left: t.$sp-5;
+  padding-right: t.$sp-5;
+  // 下方淡分隔线
+  border-bottom: 1px solid t.$border;
+}
+
 .sectionHeader {
   display: flex;
   flex-direction: column;
@@ -225,4 +247,113 @@
     border-color: t.$accent;
     box-shadow: t.$shadow-focus;
   }
+}
+
+// ──────────── 调色板主题（折叠 select 风格）────────────
+
+.themeSelect {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-2;
+}
+
+.themeItem {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: t.$sp-3;
+  padding: t.$sp-3 t.$sp-4;
+  width: 100%;
+  background: t.$bg-input;
+  border: 1px solid t.$border;
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+  text-align: left;
+  @include m.transition(border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    border-color: t.$border-hi;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+.themeTrigger {
+  // 让 chevron 推到右边
+  justify-content: space-between;
+}
+
+.themeChevron {
+  flex-shrink: 0;
+  color: t.$fg-low;
+  @include m.transition(transform t.$dur-fast, color t.$dur-fast);
+}
+
+.themeChevronOpen {
+  transform: rotate(180deg);
+  color: t.$accent;
+}
+
+.themeList {
+  // 替代 select 的下拉，但放在文档流内（不是 absolute），避免移动端 modal 内
+  // 弹层定位踩坑。容器加边框 + 内部用 list 样式
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-2;
+  // 进入动画
+  animation: themeListIn 120ms ease-out;
+}
+
+@keyframes themeListIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.themeItemActive {
+  border-color: t.$accent;
+  background: t.$accent-soft;
+
+  &:hover {
+    border-color: t.$accent;
+  }
+}
+
+.themeCheck {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: t.$accent;
+}
+
+// 6 个色块的横条预览：每个块固定宽，整体显示主题色调
+.themeSwatch {
+  display: inline-flex;
+  flex-shrink: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid t.$border;
+
+  > span {
+    display: inline-block;
+    width: 12px;
+    height: 18px;
+  }
+}
+
+.themeLabel {
+  font-size: t.$fs-xs;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+  // 长名（dark-daltonized）允许折行
+  word-break: break-word;
+  line-height: t.$lh-tight;
+  // trigger 里要让 label 占满中间空间，把 chevron 推到右边
+  flex: 1;
+  min-width: 0;
 }

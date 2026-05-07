@@ -283,6 +283,7 @@ export function MultiInstanceConsole(): JSX.Element {
               onCreateClick={() => setCreateOpen(true)}
               onSwitch={handleSwitch}
               onCloseRequest={handleCloseRequest}
+              onDisconnectRequest={(i) => disconnect(i.instanceId)}
               onPendingRetry={retryPending}
               onPendingDismiss={dismissPending}
             />

@@ -15,6 +15,21 @@
   }
 }
 
+// 嵌套场景：详情 modal 叠在另一个 sheet 上时，下层 sheet 的 bg-elev 还会
+// 透过来。这里用接近不透明的纯黑 + 大模糊半径，并把 z-index 拉到 modal 之上
+// 确保叠在第一层 sheet 之上而不是被同层 z 打架。
+.overlayStrong {
+  z-index: t.$z-toast; // 比 modal(50) 还高，避免和第一层 modal 同层叠加问题
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+}
+
+// 嵌套 modal 内容也要拉高 z-index，否则会被自己的 strong overlay 盖住
+.contentBoost {
+  z-index: calc(#{t.$z-toast} + 1) !important;
+}
+
 // ──────────────── 桌面 Dialog ────────────────
 
 .dialogContent {

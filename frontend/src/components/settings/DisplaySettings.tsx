@@ -16,6 +16,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef, type JSX } from 'react';
+import { IconChevronDown, IconCheck } from '@tabler/icons-react';
 import {
   DEFAULT_DISPLAY,
   FONT_SIZE_MIN,
@@ -23,14 +24,49 @@ import {
   LETTER_SPACING_MIN,
   LETTER_SPACING_MAX,
   type DisplayPrefs,
+  type TerminalThemeName,
 } from 'auvezy-terminal-remote-shared';
 import clsx from 'clsx';
 import { XTERM_FONT_SIZE } from '../../config/constants.js';
 import { useT } from '../../i18n/i18n-context.js';
+import { THEME_LIST, resolveTheme } from '../../themes/terminal-themes.js';
 import s from './DisplaySettings.module.scss';
 
 // 与 useTerminal 同源：mono 字符宽度 / fontSize 比例
 const CHAR_WIDTH_RATIO = 0.6;
+
+// THEME_LIST.labelKey → i18n key（避免运行时 key 拼接的 type-cast 问题）
+const THEME_LABEL_KEY = {
+  dark: 'display.themeDark',
+  light: 'display.themeLight',
+  darkAnsi: 'display.themeDarkAnsi',
+  lightAnsi: 'display.themeLightAnsi',
+  darkDaltonized: 'display.themeDarkDaltonized',
+  lightDaltonized: 'display.themeLightDaltonized',
+  auto: 'display.themeAuto',
+} as const;
+
+/** 抽出"色块条 + 主题名"组合，trigger 和列表项都用 */
+function ThemeRowContent(props: {
+  meta: (typeof THEME_LIST)[number];
+  t: ReturnType<typeof useT>;
+}): JSX.Element {
+  const { meta, t } = props;
+  const colors = resolveTheme(meta.key);
+  return (
+    <>
+      <span className={s.themeSwatch} aria-hidden="true">
+        <span style={{ background: colors.background }} />
+        <span style={{ background: colors.brightRed }} />
+        <span style={{ background: colors.brightGreen }} />
+        <span style={{ background: colors.brightYellow }} />
+        <span style={{ background: colors.brightBlue }} />
+        <span style={{ background: colors.brightMagenta }} />
+      </span>
+      <span className={s.themeLabel}>{t(THEME_LABEL_KEY[meta.labelKey])}</span>
+    </>
+  );
+}
 
 /**
  * 与 useTerminal 中 computeFontPrefs 同算法
@@ -78,6 +114,9 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
   const t = useT();
   const targetCols = value?.targetCols ?? DEFAULT_DISPLAY.targetCols;
   const letterSpacing = value?.letterSpacing ?? DEFAULT_DISPLAY.letterSpacing;
+  const theme = value?.theme ?? DEFAULT_DISPLAY.theme;
+  // 预览也用当前主题色，让用户改主题立即看到效果
+  const palette = useMemo(() => resolveTheme(theme), [theme]);
 
   // 自定义列数输入框：与 targetCols 双向绑定，但允许输入中途为空
   const [colsInput, setColsInput] = useState<string>(targetCols > 0 ? String(targetCols) : '');
@@ -149,10 +188,22 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
     onChange({ ...value, letterSpacing: clamped });
   };
 
+  const setTheme = (next: TerminalThemeName): void => {
+    onChange({ ...value, theme: next });
+    setThemeOpen(false);
+  };
+
+  const [themeOpen, setThemeOpen] = useState(false);
+  const currentThemeMeta = useMemo(
+    () => THEME_LIST.find((m) => m.key === theme) ?? THEME_LIST[0]!,
+    [theme],
+  );
+
   return (
     <div className={s.root}>
-      {/* 预览：用 xterm 主题色 + Geist Mono，按当前算法反推字号 */}
-      <section className={s.section}>
+      {/* 预览：sticky 在 tab body 顶部，让用户在下方滚动调参时始终能看到效果。
+          颜色用 palette（resolveTheme(theme) 的结果）→ 改主题立即同步 */}
+      <section className={clsx(s.section, s.previewSection)}>
         <header className={s.sectionHeader}>
           <h3 className={s.sectionTitle}>{t('display.previewTitle')}</h3>
           <p className={s.sectionHint}>{t('display.previewHint')}</p>
@@ -163,30 +214,35 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
           style={{
             fontSize: `${previewFontSize}px`,
             letterSpacing: `${letterSpacing}px`,
+            background: palette.background,
+            color: palette.foreground,
           }}
         >
           <div className={s.previewLine}>
-            <span className={s.cPrompt}>user@host</span>
-            <span className={s.cMuted}>:</span>
-            <span className={s.cBlue}>~/projects</span>
-            <span className={s.cMuted}>$ </span>
-            <span className={s.cFg}>ls -la</span>
+            <span style={{ color: palette.brightGreen }}>user@host</span>
+            <span style={{ color: palette.brightBlack }}>:</span>
+            <span style={{ color: palette.brightBlue }}>~/projects</span>
+            <span style={{ color: palette.brightBlack }}>$ </span>
+            <span style={{ color: palette.foreground }}>ls -la</span>
           </div>
           <div className={s.previewLine}>
-            <span className={s.cMuted}>drwxr-xr-x </span>
-            <span className={s.cBlue}>4 </span>
-            <span className={s.cFg}>user </span>
-            <span className={s.cMuted}>4096 </span>
-            <span className={s.cGreen}>May 06 02:34 </span>
-            <span className={s.cFg}>src/</span>
+            <span style={{ color: palette.brightBlack }}>drwxr-xr-x </span>
+            <span style={{ color: palette.brightBlue }}>4 </span>
+            <span style={{ color: palette.foreground }}>user </span>
+            <span style={{ color: palette.brightBlack }}>4096 </span>
+            <span style={{ color: palette.brightGreen }}>May 06 02:34 </span>
+            <span style={{ color: palette.foreground }}>src/</span>
           </div>
           <div className={s.previewLine}>
-            <span className={s.cRed}>error</span>
-            <span className={s.cMuted}>: </span>
-            <span className={s.cFg}>cannot find module </span>
-            <span className={s.cYellow}>'./missing'</span>
+            <span style={{ color: palette.brightRed }}>error</span>
+            <span style={{ color: palette.brightBlack }}>: </span>
+            <span style={{ color: palette.foreground }}>cannot find module </span>
+            <span style={{ color: palette.brightYellow }}>'./missing'</span>
           </div>
-          <div className={s.previewMeta}>
+          <div
+            className={s.previewMeta}
+            style={{ color: palette.brightBlack, borderTopColor: palette.brightBlack }}
+          >
             {t('display.previewMeta', {
               size: previewFontSize,
               ls: letterSpacing.toFixed(1),
@@ -195,6 +251,49 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
                 : t('display.colsModeAuto'),
             })}
           </div>
+        </div>
+      </section>
+
+      {/* 调色板主题：默认折叠只显示当前选中；点击展开看全部 */}
+      <section className={s.section}>
+        <header className={s.sectionHeader}>
+          <h3 className={s.sectionTitle}>{t('display.themeTitle')}</h3>
+          <p className={s.sectionHint}>{t('display.themeHint')}</p>
+        </header>
+        <div className={s.themeSelect}>
+          <button
+            type="button"
+            onClick={() => setThemeOpen((v) => !v)}
+            className={clsx(s.themeItem, s.themeTrigger)}
+            aria-expanded={themeOpen}
+            aria-haspopup="listbox"
+          >
+            <ThemeRowContent meta={currentThemeMeta} t={t} />
+            <IconChevronDown
+              size={14}
+              stroke={1.5}
+              className={clsx(s.themeChevron, themeOpen && s.themeChevronOpen)}
+            />
+          </button>
+          {themeOpen && (
+            <ul className={s.themeList} role="listbox">
+              {THEME_LIST.map((meta) => {
+                const active = theme === meta.key;
+                return (
+                  <li key={meta.key} role="option" aria-selected={active}>
+                    <button
+                      type="button"
+                      onClick={() => setTheme(meta.key)}
+                      className={clsx(s.themeItem, active && s.themeItemActive)}
+                    >
+                      <ThemeRowContent meta={meta} t={t} />
+                      {active && <IconCheck size={14} stroke={1.5} className={s.themeCheck} />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </section>
 

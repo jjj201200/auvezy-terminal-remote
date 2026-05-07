@@ -80,7 +80,11 @@
   font-family: t.$font-mono;
   font-size: t.$fs-xs;
   color: t.$fg-dim;
-  @include m.truncate;
+  // 完整可见，长路径折行不省略——这是详情功能未弹时让用户也能看到的核心信息
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: t.$lh-base;
 }
 
 .itemPort {
@@ -126,6 +130,37 @@
     background: rgba(255, 99, 71, 0.08);
   }
 }
+
+// 切换按钮：替代了原来的关闭按钮位置，accent 色而非 warn 色
+// 当前实例（disabled）时降到 fg-low + 不响应交互
+.itemSwitch {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 8px;
+  color: t.$fg-dim;
+  border: 1px solid t.$border;
+  flex-shrink: 0;
+  cursor: pointer;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover, &:active {
+    color: t.$accent;
+    border-color: t.$accent;
+    background: t.$accent-soft;
+  }
+
+  &:disabled {
+    color: t.$fg-low;
+    cursor: not-allowed;
+    background: transparent;
+    border-color: t.$border;
+  }
+}
+
 
 // pending 项：与真实 item 一致的布局，左侧多一个状态图标
 .itemPending {

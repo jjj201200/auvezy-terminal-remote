@@ -3,6 +3,11 @@
  *
  * 移动端：右上角按钮 = 当前实例名 + 切换图标。
  * 点击打开底部 sheet 列出全部实例 + 创建按钮。
+ *
+ * 卡片交互：
+ *  - 点击卡片主体 → 弹 InstanceDetailModal（看完整 cwd / host / port + 4 个动作）
+ *  - 卡片右侧切换图标按钮 → 直接切换到该实例（保留快捷路径）
+ *  - 关闭实例的二次确认仍走父组件 onCloseRequest（保持现有 ConfirmModal 流程）
  */
 
 import { useState, type JSX } from 'react';
@@ -10,6 +15,7 @@ import {
   IconLayoutGrid,
   IconPlus,
   IconX,
+  IconArrowsExchange,
   IconLoader2,
   IconAlertTriangle,
   IconRefresh,
@@ -20,6 +26,7 @@ import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { buildInstanceUrl } from '../../services/instance-url.js';
 import type { PendingInstance } from '../../hooks/useInstances.js';
+import { InstanceDetailModal } from './InstanceDetailModal.js';
 import s from './MobileInstanceSwitcher.module.scss';
 
 export interface MobileInstanceSwitcherProps {
@@ -32,6 +39,8 @@ export interface MobileInstanceSwitcherProps {
   onSwitch?: (instanceId: string) => void;
   /** 请求关闭实例 —— 父组件接管 modal 确认 + 真实删除 */
   onCloseRequest?: (instance: InstanceListItem) => void;
+  /** 详情 modal 里"断开"按钮：父组件持有真实 disconnect 函数 */
+  onDisconnectRequest?: (instance: InstanceListItem) => void;
   /** 重新等一个 failed pending */
   onPendingRetry?: (pendingId: string) => void;
   /** 关闭一个 pending tab（仅 UI 层移除） */
@@ -45,11 +54,13 @@ export function MobileInstanceSwitcher({
   onCreateClick,
   onSwitch,
   onCloseRequest,
+  onDisconnectRequest,
   onPendingRetry,
   onPendingDismiss,
 }: MobileInstanceSwitcherProps): JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const [detailFor, setDetailFor] = useState<InstanceListItem | null>(null);
 
   const isHighlight = (i: InstanceListItem): boolean =>
     activeId !== undefined ? i.instanceId === activeId : i.isCurrent;
@@ -67,6 +78,8 @@ export function MobileInstanceSwitcher({
     }
     window.location.assign(buildInstanceUrl(i.host, i.port));
   };
+
+  const closeDetail = (): void => setDetailFor(null);
 
   return (
     <>
@@ -87,39 +100,41 @@ export function MobileInstanceSwitcher({
           {instances.map((i) => {
             const highlight = isHighlight(i);
             return (
-            // 用 div 容器：button 不能嵌 button（关闭按钮在内部）
+            // 用 div 容器：button 不能嵌 button（右侧切换按钮在内部）
+            // 主体点击 = 弹详情 modal（看完整 cwd / 复制 / 4 个动作）
+            // 右侧切换按钮 = 直接跳转，不再二次确认（详情 modal 路径仍可用）
             <div
               key={i.instanceId}
               role="button"
-              tabIndex={highlight ? -1 : 0}
-              onClick={() => handleSwitch(i)}
+              tabIndex={0}
+              onClick={() => setDetailFor(i)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') handleSwitch(i);
+                if (e.key === 'Enter' || e.key === ' ') setDetailFor(i);
               }}
               aria-pressed={highlight}
-              aria-disabled={highlight}
+              aria-label={t('instance.switchAriaLabel')}
               className={clsx(s.item, highlight && s.itemActive)}
             >
               <div className={s.itemBody}>
                 <span className={s.itemName}>{i.name}</span>
+                {/* cwd 完整显示，长路径折行而不省略；详情 modal 也会再看一次但这里
+                    用户先看到全文，避免"还要点开才知道工作在哪" */}
                 <span className={s.itemCwd}>{i.cwd}</span>
               </div>
               <span className={s.itemPort}>:{i.port}</span>
-              {onCloseRequest && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseRequest(i);
-                    setOpen(false);
-                  }}
-                  aria-label={t('instance.close')}
-                  title={t('instance.close')}
-                  className={s.itemClose}
-                >
-                  <IconX size={12} stroke={1.5} />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSwitch(i);
+                }}
+                aria-label={highlight ? t('instance.detailSwitchAlready') : t('instance.detailSwitch')}
+                title={highlight ? t('instance.detailSwitchAlready') : t('instance.detailSwitch')}
+                disabled={highlight}
+                className={s.itemSwitch}
+              >
+                <IconArrowsExchange size={14} stroke={1.5} />
+              </button>
             </div>
             );
           })}
@@ -188,6 +203,30 @@ export function MobileInstanceSwitcher({
           </button>
         </div>
       </Sheet>
+
+      <InstanceDetailModal
+        open={detailFor !== null}
+        instance={detailFor}
+        isActive={detailFor ? isHighlight(detailFor) : false}
+        onClose={closeDetail}
+        onSwitch={() => {
+          if (detailFor) handleSwitch(detailFor);
+          closeDetail();
+        }}
+        onDisconnect={() => {
+          if (detailFor && onDisconnectRequest) onDisconnectRequest(detailFor);
+          closeDetail();
+          setOpen(false);
+        }}
+        onCloseInstance={() => {
+          // 关掉详情先，让父组件的 ConfirmModal（二次确认）能盖在最上层
+          // 否则两层 modal 叠加视觉混乱 + Sheet 焦点抢夺
+          const target = detailFor;
+          closeDetail();
+          setOpen(false);
+          if (target && onCloseRequest) onCloseRequest(target);
+        }}
+      />
     </>
   );
 }

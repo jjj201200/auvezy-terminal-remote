@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import type { ServerMessage, SessionStatus, ClientMessage, UserConfig } from 'auvezy-terminal-remote-shared';
 import { useTerminal } from '../../hooks/useTerminal.js';
+import { useTouchSwipeScroll } from '../../hooks/useTouchSwipeScroll.js';
 import { useWebSocket } from '../../hooks/useWebSocket.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useLocalNotification } from '../../hooks/useLocalNotification.js';
@@ -99,6 +100,9 @@ export function InstanceView({
   const [hasPtyOutput, setHasPtyOutput] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [ipChange, setIpChange] = useState<IpChangeInfo | null>(null);
+  // 由 backend pty-manager 监听 DECSET 1049/1047/47 推送
+  // 移动端 touch swipe → 方向键的开关：alt-screen 时启用，否则让 xterm 走原生滚动
+  const [inAltScreen, setInAltScreen] = useState(false);
 
   const localNotify = useLocalNotification();
 
@@ -163,6 +167,9 @@ export function InstanceView({
         case 'ip_changed':
           setIpChange({ oldIp: msg.oldIp, newIp: msg.newIp, newUrl: msg.newUrl });
           break;
+        case 'alt_screen_change':
+          setInAltScreen(msg.inAltScreen);
+          break;
         case 'heartbeat':
           break;
       }
@@ -177,6 +184,15 @@ export function InstanceView({
     disabled,
   );
   sendRef.current = send;
+
+  // 移动端 touch swipe → 方向键（仅 alt-screen，让 claude/vim/htop 能用手指翻 menu / 滚 history）
+  useTouchSwipeScroll({
+    containerRef,
+    altScreen: inAltScreen,
+    onSendKey: (data) => {
+      sendRef.current?.({ type: 'user_input', data });
+    },
+  });
 
   // 把状态变化上报给父组件（active 时父组件会显示）
   useEffect(() => {

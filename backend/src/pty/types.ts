@@ -9,10 +9,11 @@
  * 两者都实现 IPtyManager，SessionController 只依赖此接口。
  *
  * 事件约定（继承自 EventEmitter）：
- *  - 'data'   (data: string)             — PTY 输出片段
- *  - 'exit'   (exitCode: number, signal?) — 进程退出
- *  - 'error'  (err: Error)                — 异常（spawn 失败 / 运行时错误）
- *  - 'resize' (cols: number, rows: number) — PTY 尺寸已应用
+ *  - 'data'           (data: string)             — PTY 输出片段
+ *  - 'exit'           (exitCode: number, signal?) — 进程退出
+ *  - 'error'          (err: Error)                — 异常（spawn 失败 / 运行时错误）
+ *  - 'resize'         (cols: number, rows: number) — PTY 尺寸已应用
+ *  - 'altScreenChange' (inAltScreen: boolean)     — alt-screen 切换（前端 touch 滚动行为依赖）
  */
 
 export interface IPtyManager {

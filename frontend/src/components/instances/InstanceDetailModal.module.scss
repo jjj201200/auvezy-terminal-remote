@@ -1,0 +1,239 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.body {
+  @include m.col-flex(t.$sp-5);
+  padding: t.$sp-2 0;
+}
+
+.field {
+  @include m.col-flex(t.$sp-2);
+  min-width: 0;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: t.$sp-5;
+}
+
+.label {
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+}
+
+// 全页面右上角复制提示：弱提示文案 + 小图标，不抢眼
+.copyHintRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: t.$sp-2;
+  padding-right: t.$sp-1;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  letter-spacing: t.$tracking-tight;
+}
+
+// 字段值统一用带边框的框（之前只有 cwd 用，现在所有字段对齐）
+// 整个框是 button，点击复制；hover/active 视觉反馈
+.valueBox {
+  @include m.btn-reset;
+  position: relative; // 给 .copiedToast 定位
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$fg;
+  line-height: t.$lh-base;
+  background: t.$bg-input;
+  border: 1px solid t.$border;
+  padding: t.$sp-3 t.$sp-4;
+  cursor: pointer;
+  word-break: break-word;
+  @include m.transition(border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    border-color: t.$border-hi;
+    background: t.$bg-hover;
+  }
+
+  &:active {
+    border-color: t.$accent;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+// cwd 这种长路径：允许任意位置折行（无空格的路径也能折）
+.valueBoxWrap {
+  overflow-wrap: anywhere;
+}
+
+// 复制成功瞬时态：边框变 accent 1.2s
+.valueBoxCopied {
+  border-color: t.$accent;
+  background: t.$accent-soft;
+
+  &:hover {
+    border-color: t.$accent;
+  }
+}
+
+// 复制失败瞬时态：边框变 warn 2.2s
+.valueBoxFailed {
+  border-color: t.$warn;
+
+  &:hover {
+    border-color: t.$warn;
+  }
+}
+
+// iOS LAN HTTP "selectOnly" 模式：必须允许 user-select，否则点击 selectElementText
+// 选中后系统不会显示长按菜单（系统拷贝 UI 依赖 ::selection 实际可选）
+.valueBoxSelectMode {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+
+// 已选中瞬时态：边框 accent，跟"已复制"区分用稍弱的 toast 文案，不让用户以为已复制
+.valueBoxSelected {
+  border-color: t.$accent;
+  background: t.$accent-soft;
+
+  &:hover {
+    border-color: t.$accent;
+  }
+}
+
+.valueText {
+  display: inline;
+}
+
+// 原地浮现的"已复制"短提示：右上角浮层
+.copiedToast {
+  position: absolute;
+  top: 4px;
+  right: t.$sp-3;
+  padding: 1px t.$sp-2;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-tight;
+  color: t.$accent;
+  background: t.$bg-elev;
+  border: 1px solid t.$accent;
+  pointer-events: none;
+  animation: copiedToastIn 120ms ease-out, copiedToastOut 200ms ease-in 1s forwards;
+}
+
+// 失败 toast：橙红警告色，且持续更久（2s 给用户读完"长按手动复制"的指引时间）
+.copiedToastFail {
+  color: t.$warn;
+  border-color: t.$warn;
+  animation: copiedToastIn 120ms ease-out, copiedToastOut 200ms ease-in 2s forwards;
+}
+
+// "已选中" toast：跟成功同 accent 色，但持续更久——给用户长按系统拷贝的时间窗口
+.copiedToastSelected {
+  animation: copiedToastIn 120ms ease-out, copiedToastOut 200ms ease-in 2s forwards;
+}
+
+@keyframes copiedToastIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes copiedToastOut {
+  to { opacity: 0; }
+}
+
+.footer {
+  // 4 按钮 + 移动端窄屏：横向能放下就一行，放不下自然折行
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: t.$sp-3;
+  width: 100%;
+}
+
+%baseBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  font-size: t.$fs-sm;
+  border: 1px solid t.$border;
+  background: transparent;
+  color: t.$fg-dim;
+  cursor: pointer;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover, &:active {
+    color: t.$fg;
+    border-color: t.$border-hi;
+    background: t.$bg-hover;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.$shadow-focus;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.cancelBtn { @extend %baseBtn; }
+
+// 断开 = 警告级（黄/琥珀），影响本设备但不动 backend
+.disconnectBtn {
+  @extend %baseBtn;
+  color: t.$warn;
+  border-color: t.$warn;
+
+  &:hover, &:active {
+    color: t.$warn;
+    background: rgba(255, 184, 77, 0.10);
+    border-color: t.$warn;
+  }
+}
+
+// 关闭实例 = 破坏级（红），杀 backend 进程，所有连接者一起断
+$danger-red: #e74856; // 与 ANSI brightRed 同色 (Campbell)，跟实例终端视觉一致
+.closeBtn {
+  @extend %baseBtn;
+  color: $danger-red;
+  border-color: $danger-red;
+
+  &:hover, &:active {
+    color: $danger-red;
+    background: rgba(231, 72, 86, 0.12);
+    border-color: $danger-red;
+  }
+}
+
+// 切换 = 主行动，accent 填色
+.switchBtn {
+  @extend %baseBtn;
+  color: t.$bg;
+  background: t.$accent;
+  border-color: t.$accent;
+
+  &:hover, &:active {
+    color: t.$bg;
+    background: t.$accent;
+    border-color: t.$accent;
+    filter: brightness(1.05);
+  }
+
+  &:disabled {
+    color: t.$fg-low;
+    background: transparent;
+    border-color: t.$border;
+  }
+}

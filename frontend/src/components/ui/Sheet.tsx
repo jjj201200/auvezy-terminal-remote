@@ -43,6 +43,11 @@ export interface SheetProps {
   className?: string;
   /** 可选 DOM id（用于唯一容器，如 settings-modal / create-instance-modal） */
   id?: string;
+  /**
+   * overlay 视觉强度。'strong' 用于嵌套场景（弹层叠在另一个 sheet 上时），
+   * 给更深的背景 + 更大模糊半径，避免下面那层 sheet 内容透出来视觉混乱。
+   */
+  overlayTone?: 'normal' | 'strong';
 }
 
 export function Sheet({
@@ -56,8 +61,12 @@ export function Sheet({
   onTabChange,
   className,
   id,
+  overlayTone = 'normal',
 }: SheetProps): JSX.Element {
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const overlayClass = clsx(s.overlay, overlayTone === 'strong' && s.overlayStrong);
+  // 嵌套 modal 的内容必须跟着 overlay 一起抬高，否则被自己的 overlay 盖住
+  const contentBoost = overlayTone === 'strong' ? s.contentBoost : undefined;
   const t = useT();
 
   // header 主区域：tabs 模式 → ScrollableTabs（自动溢出滚动）；否则显示 title 文本
@@ -88,10 +97,10 @@ export function Sheet({
           {/* 点遮罩 = 关闭。手动绑 onClick 显式接管，不靠 Radix outside 自动检测——
               键盘弹起期 visualViewport 与 layout viewport 不一致，Radix 把 drawer
               内点击误判为外部 → 触发关闭，是之前的关弹层 bug 根因 */}
-          <Drawer.Overlay className={s.overlay} onClick={() => onOpenChange(false)} />
+          <Drawer.Overlay className={overlayClass} onClick={() => onOpenChange(false)} />
           <Drawer.Content
             id={id}
-            className={clsx(s.drawerContent, className)}
+            className={clsx(s.drawerContent, contentBoost, className)}
             // 屏蔽 Radix 默认 outside / focus 自动关闭，由 Overlay onClick 显式接管
             onPointerDownOutside={(e) => e.preventDefault()}
             onInteractOutside={(e) => e.preventDefault()}
@@ -125,12 +134,12 @@ export function Sheet({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
-          className={s.overlay}
+          className={overlayClass}
           onClick={() => onOpenChange(false)}
         />
         <Dialog.Content
           id={id}
-          className={clsx(s.dialogContent, className)}
+          className={clsx(s.dialogContent, contentBoost, className)}
           // 屏蔽 Radix 默认 outside 检测（键盘弹起时坐标算不准），
           // 由 Overlay onClick 显式接管"点外部关闭"
           onPointerDownOutside={(e) => e.preventDefault()}

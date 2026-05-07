@@ -125,6 +125,10 @@ export function ConsolePage(): JSX.Element {
         case 'ip_changed':
           setIpChange({ oldIp: msg.oldIp, newIp: msg.newIp, newUrl: msg.newUrl });
           break;
+        case 'alt_screen_change':
+          // 单实例 ConsolePage 暂未启用 touch swipe（功能在 MultiInstance 路径），
+          // 但仍承认这个消息避免 exhaustive switch 漏 type。无副作用。
+          break;
         case 'heartbeat':
           break;
       }

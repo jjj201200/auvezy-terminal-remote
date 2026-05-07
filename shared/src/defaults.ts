@@ -440,12 +440,29 @@ export const RECONNECT_MAX_ATTEMPTS_MAX = 1000;
 export interface DisplayPrefs {
   targetCols?: number;
   letterSpacing?: number;
+  /** 调色板主题；命名跟 Claude Code 的 /theme 选项对齐，方便用户对照 */
+  theme?: TerminalThemeName;
 }
+
+/**
+ * Claude Code /theme 命令的 7 个内建主题名。
+ * 映射为 xterm 的调色板（包括 dark/light variants 和色盲友好变体）。
+ * 'auto' 由前端根据 prefers-color-scheme 解析为 dark 或 light。
+ */
+export type TerminalThemeName =
+  | 'dark'
+  | 'light'
+  | 'dark-ansi'
+  | 'light-ansi'
+  | 'dark-daltonized'
+  | 'light-daltonized'
+  | 'auto';
 
 /** display 字段的硬默认 */
 export const DEFAULT_DISPLAY: Required<DisplayPrefs> = {
   targetCols: 0, // 0 = 关闭自适应
   letterSpacing: 0,
+  theme: 'auto', // 跟随系统亮暗模式：dark → Campbell, light → Solarized Light
 };
 
 /** 列数预设（设置面板按钮） */

@@ -263,6 +263,9 @@ export class PtyManager extends EventEmitter implements IPtyManager {
       if (this._inAltScreen !== isEnter) {
         this._inAltScreen = isEnter;
         logger.debug({ inAltScreen: isEnter }, 'PTY alt-screen 状态切换');
+        // 广播给上层 → SessionController → WS → 前端
+        // 前端用此状态决定 touch 滚动是"翻方向键"还是让 xterm 走原生 scrollback
+        this.emit('altScreenChange', isEnter);
       }
     }
   }

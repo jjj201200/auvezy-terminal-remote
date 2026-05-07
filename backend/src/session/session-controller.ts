@@ -251,6 +251,12 @@ export class SessionController {
     this.pty.on('resize', (cols: number, rows: number) => {
       this.ws.broadcast({ type: 'terminal_resize', cols, rows });
     });
+
+    // alt-screen 状态切换 → 广播给前端
+    // 前端用此状态决定 touch 滚动是"翻方向键"还是让 xterm 走原生 scrollback
+    this.pty.on('altScreenChange', (inAltScreen: boolean) => {
+      this.ws.broadcast({ type: 'alt_screen_change', inAltScreen });
+    });
   }
 
   /**

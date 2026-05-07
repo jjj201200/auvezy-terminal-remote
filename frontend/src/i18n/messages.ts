@@ -142,6 +142,16 @@ export interface Messages {
     resetTooltip: string;
     colsModeAuto: string;
     colsModeTarget: string; // 目标 {{cols}} / target {{cols}}
+    themeTitle: string;
+    themeHint: string;
+    // 7 个 Claude Code 主题名（与 /theme 命令对齐）
+    themeDark: string;
+    themeLight: string;
+    themeDarkAnsi: string;
+    themeLightAnsi: string;
+    themeDarkDaltonized: string;
+    themeLightDaltonized: string;
+    themeAuto: string;
   };
 
   // 设置 - 通用（语言切换在这里）
@@ -296,6 +306,25 @@ export interface Messages {
     closeCurrentConfirmTitle: string;
     closeCurrentConfirm: string; // {{name}}
     pendingFailedTitle: string;
+    // 详情 modal（移动端实例切换器点卡片弹）
+    detailTitle: string;
+    detailNameLabel: string;
+    detailCwdLabel: string;
+    detailHostLabel: string;
+    detailPortLabel: string;
+    detailSwitch: string;
+    detailSwitchAlready: string;
+    /** 标题栏右上角的长期提示："字段值都可点击复制" */
+    detailCopyHint: string;
+    /** 用户点字段后字段下方/原地短暂浮现的成功提示 */
+    detailValueCopied: string;
+    /** 复制失败（LAN HTTP 下无 clipboard API + execCommand 也失败） */
+    detailCopyFailed: string;
+    /** iOS + LAN HTTP 场景：clipboard API 不可用，整页提示改成"点字段会自动选中文本，长按可复制" */
+    detailSelectHint: string;
+    /** iOS 场景下点击字段后字段右上角浮的"已选中"反馈 */
+    detailValueSelected: string;
+    switchAriaLabel: string; // 切换图标按钮 aria
   };
 
   // 设置 - 通知（PushToggle）

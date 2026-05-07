@@ -53,9 +53,9 @@ atr attach <url>          # 命令行接管已有实例
 ### 源码方式（开发或自构建）
 
 ```bash
-# GitHub（主仓库）
+# GitHub
 git clone https://github.com/jjj201200/auvezy-terminal-remote.git
-# 或 Gitee 镜像（国内更快）
+# 或 Gitee 镜像
 git clone https://gitee.com/drowsyflesh/auvezy-terminal-remote.git
 
 cd auvezy-terminal-remote
