@@ -62,7 +62,7 @@ export const en: Messages = {
     share: 'Share this instance',
     shareTooltip: 'Share this instance (with QR)',
     instances: 'Instances',
-    createInstance: 'Create instance',
+    createInstance: 'Add instance',
     switchInstance: 'Switch instance',
   },
 
@@ -287,15 +287,15 @@ export const en: Messages = {
   },
 
   instance: {
-    create: 'Create instance',
+    create: 'Add instance',
     instancesAriaLabel: 'Instance switcher',
     sheetTitle: 'Instances',
     workdirLabel: 'Working directory (cwd)',
     workdirHelper: '/home/me/code/foo',
     nameLabelOptional: 'Instance name (optional)',
     namePlaceholder: 'leave empty to use cwd basename',
-    submit: 'Create',
-    submitting: 'Creating…',
+    submit: 'Add',
+    submitting: 'Adding…',
     errorEmptyCwd: 'cwd cannot be empty',
     errorCreateFailed: 'Create failed: check that the cwd exists',
     pendingTooltip: 'Spawning…',
@@ -403,17 +403,6 @@ export const en: Messages = {
     clearConfirmBody: 'Clear the current input? This cannot be undone.',
     adaptSize: 'Adapt to this device',
     adaptSizeTooltip: 'Force PTY to wrap at this device\'s width (take over when multiple clients are connected)',
-  },
-
-  createInstance: {
-    title: 'Create instance',
-    nameLabel: 'Name',
-    namePlaceholder: 'e.g. backend',
-    workdirLabel: 'Working directory',
-    workdirPlaceholder: '/abs/path',
-    submit: 'Create',
-    submitting: 'Creating…',
-    cancel: 'Cancel',
   },
 
   scrollToBottom: {

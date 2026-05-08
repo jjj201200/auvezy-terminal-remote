@@ -57,7 +57,7 @@ export const zhCN: Messages = {
     share: '分享此实例',
     shareTooltip: '分享此实例（含二维码）',
     instances: '实例',
-    createInstance: '新建实例',
+    createInstance: '新增实例',
     switchInstance: '切换实例',
   },
 
@@ -280,15 +280,15 @@ export const zhCN: Messages = {
   },
 
   instance: {
-    create: '创建实例',
+    create: '新增实例',
     instancesAriaLabel: '实例切换',
     sheetTitle: '实例',
     workdirLabel: 'cwd',
     workdirHelper: '/home/me/code/foo',
     nameLabelOptional: '实例名（可选）',
     namePlaceholder: '留空则用 cwd basename',
-    submit: '创建',
-    submitting: '创建中…',
+    submit: '新增',
+    submitting: '新增中…',
     errorEmptyCwd: 'cwd 不能为空',
     errorCreateFailed: '创建失败：请检查 cwd 是否存在',
     pendingTooltip: '正在创建…',
@@ -395,17 +395,6 @@ export const zhCN: Messages = {
     clearConfirmBody: '确认清空当前输入框？此操作无法撤销。',
     adaptSize: '适配当前设备',
     adaptSizeTooltip: '让 PTY 按当前设备宽度重新换行（多端共连时切回我这台主导）',
-  },
-
-  createInstance: {
-    title: '新建实例',
-    nameLabel: '名称',
-    namePlaceholder: '如 backend',
-    workdirLabel: '工作目录',
-    workdirPlaceholder: '/绝对/路径',
-    submit: '创建',
-    submitting: '创建中…',
-    cancel: '取消',
   },
 
   scrollToBottom: {

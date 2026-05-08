@@ -437,18 +437,6 @@ export interface Messages {
     adaptSizeTooltip: string;
   };
 
-  // 创建实例
-  createInstance: {
-    title: string;
-    nameLabel: string;
-    namePlaceholder: string;
-    workdirLabel: string;
-    workdirPlaceholder: string;
-    submit: string;
-    submitting: string;
-    cancel: string;
-  };
-
   // 滚动控制按钮
   scrollToBottom: {
     label: string;
