@@ -57,6 +57,22 @@ export interface Messages {
     submitting: string;
     hint: string;
     back: string;
+    // 扫码登录
+    scanCta: string;
+    scanLabel: string;
+    scanSubtitle: string;
+    scanCancel: string;
+    scanInitializing: string;
+    scanPermissionDenied: string;
+    scanUnsupported: string;
+    scanError: string;
+    scanInvalidQr: string;
+    // 链接登录
+    urlCta: string;
+    urlLabel: string;
+    urlPlaceholder: string;
+    urlSubmit: string;
+    urlInvalid: string;
   };
 
   // 顶栏

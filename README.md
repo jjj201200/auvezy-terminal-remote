@@ -24,7 +24,6 @@ you want to:
 
 - See its live output (ANSI colors included)
 - Type the next command, hit arrow keys
-- Get a phone notification when Claude triggers an approval hook
 - Not open any port to the public internet, not depend on a cloud service
 
 That's exactly what this project does. PTY output is bridged over WebSocket
@@ -151,15 +150,8 @@ Everything in this section already ships in the current release. For the
 - LAN-only by default; optional CORS allow list via `OCR_CORS_ALLOW`
 - `/api/hook` accepts loopback only (127.0.0.1 / ::1)
 - Workdir whitelist for path traversal protection
-- Config / VAPID / subscription files at mode 0o600, directory at 0o700
+- Config files at mode 0o600, directory at 0o700
 - Per-IP rate limiting on auth attempts
-
-**Notifications**
-
-- Web Push via VAPID, three priority levels (default / high / urgent)
-- iOS Safari fallback: in-page LocalNotification when Web Push is unavailable
-  (LAN HTTP context)
-- Notification settings panel: toggle, test push, subscription management
 
 **Network awareness**
 
@@ -180,8 +172,7 @@ Everything in this section already ships in the current release. For the
 
 **Approval hook (Claude Code integration)**
 
-- `/api/hook` endpoint accepts Claude approval events, fans out to all
-  registered push subscriptions with appropriate priority
+- `/api/hook` endpoint accepts Claude approval events (loopback only)
 - `console-bridge`: front-end `console.*` forwarded over WS to backend stderr
   for cross-device debugging
 
@@ -193,7 +184,6 @@ Everything in this section already ships in the current release. For the
 | Auth | timingSafeEqual token + Session Cookie (port-bound) |
 | Multi-instance | port-finder auto-increment + cookie-name suffix isolation |
 | Reconnect / replay | OutputBuffer + history_sync (alt-screen filtered by default) |
-| Approval push | Web Push (VAPID, 3 priorities) + iOS Safari LocalNotification fallback |
 | IP drift detection | 30s polling + stability threshold + ip_changed broadcast |
 | Config rewrite | Webapp Settings dialog → /api/config |
 | `attach` subcommand | Master arbitration (webapp > attach > PC) |
@@ -216,11 +206,7 @@ On startup the backend reads `~/.auvezy/terminal-remote/config.json`:
 }
 ```
 
-VAPID keys live in the same directory: `vapid.json` (mode 0o600, auto-generated
-or read from env vars `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`).
-
-Subscriptions are in `push-subscriptions.json`; the multi-instance registry is in
-`instances/<port>.json`.
+The multi-instance registry lives in `instances/<port>.json`.
 
 ## Startup options
 
@@ -257,7 +243,6 @@ Environment variables:
 | `OCR_CWD`     | Child process working directory (default: `process.cwd()`) |
 | `OCR_ANSI_FILTER` | Filter alt-screen output (default `false`). Set `true` for cleaner reconnect replay after vim/htop exits; full-time alt-screen TUIs (claude/tmux/...) are still protected by built-in blocklist |
 | `OCR_ANSI_FILTER_TUI_NAMES` | Append to your own alt-screen TUI blocklist (comma-separated), e.g. `"lazygit,k9s,gh-dash"` |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Inject VAPID keys (highest priority, skips file) |
 | `PORT`        | Same as `--port` |
 | `STRICT_PORT` | Same as `--strict-port` (set `true` to enable strict mode) |
 | `OCR_SPAWN_TIMEOUT` | Same as `--spawn-timeout` (seconds; 0 = no timeout) |
@@ -275,12 +260,6 @@ app experience:
 
 After install: no browser UI (no address bar, no bottom nav), independent task
 card, status bar matches the app color.
-
-> **Web Push limitations**: browsers require Push to be in a secure context
-> (HTTPS / localhost). LAN HTTP (http://192.168.x.x) cannot subscribe to push.
-> The settings panel will display "HTTPS required". Workarounds: use Tailscale /
-> Cloudflare Tunnel to put HTTPS in front of the backend, or deploy with a
-> self-signed certificate.
 
 ## Running in WSL, accessing from Windows browser
 
@@ -353,6 +332,14 @@ pnpm build        # full build artifacts (frontend copied into backend/frontend-
    You already have instances.json; serialize scrollback into it. After restart
    webapp can see the previous content. The only hard part on the LAN-only
    route is serialization size — bumping to 5MB is fine.
+6. **Approval push notifications** (Claude Code hook → phone)
+   When `/api/hook` receives an approval event, fan out a push notification
+   to every registered subscription so the user gets a phone alert. Web Push
+   (VAPID) for Android Chrome / desktop browsers; iOS Safari fallback to
+   in-page LocalNotification. Backend scaffolding (vapid.json, push-routes,
+   push-service) is partially in place but the end-to-end flow isn't wired up
+   for production yet — needs HTTPS path (Tailscale / self-signed cert) and
+   subscription UX polish.
 
 ### Tier 2 — Planned (mobile UX bonus)
 
@@ -405,5 +392,5 @@ pnpm build        # full build artifacts (frontend copied into backend/frontend-
 
 - **Tailscale / VPN QR code labeling**: we already do dual LAN+Tailscale codes —
   a thoughtful detail on the LAN-only route
-- **Webapp toast notification + iOS LocalNotification fallback**: under iOS PWA
-  push restrictions, this fallback strategy isn't considered by anyone else
+- **WSL2 mirrored / NAT auto-detection + portforward script**: zero-config
+  Windows browser access from a WSL backend

@@ -19,7 +19,6 @@
 
 - 实时看到终端输出（包括 ANSI 颜色）
 - 输入下一条指令、按方向键
-- Claude 触发审批 hook 时，手机锁屏弹通知
 - 不开公网、不依赖云
 
 这正是这个项目要做的。把 PTY 输出经 WebSocket 桥到 webapp，
@@ -126,14 +125,8 @@ node backend/dist/cli.js  # 等价于 atr
 - 默认仅绑 LAN；`OCR_CORS_ALLOW` 可配置 CORS allow list
 - `/api/hook` 仅接受 loopback（127.0.0.1 / ::1）
 - 工作目录白名单防路径穿越
-- 配置 / VAPID / 订阅文件 0o600，目录 0o700
+- 配置文件 0o600，目录 0o700
 - 鉴权请求 per-IP 限流
-
-**通知**
-
-- Web Push（VAPID 三优先级：default / high / urgent）
-- iOS Safari fallback：Web Push 不可用时（LAN HTTP 场景），webapp 内退回 LocalNotification
-- 通知设置面板：开关、测试推送、订阅管理
 
 **网络感知**
 
@@ -149,7 +142,7 @@ node backend/dist/cli.js  # 等价于 atr
 
 **审批 hook（Claude Code 集成）**
 
-- `/api/hook` 接收 Claude 审批事件，按优先级扇出到所有已注册推送订阅
+- `/api/hook` 接受 Claude 审批事件（仅 loopback）
 - `console-bridge`：前端 `console.*` 经 WS 转发到 backend stderr，方便跨设备调试
 
 ### 速查（技术映射）
@@ -160,7 +153,6 @@ node backend/dist/cli.js  # 等价于 atr
 | 鉴权 | timingSafeEqual token + Session Cookie（端口绑定）|
 | 多实例 | port-finder 自动递增 + cookie name 后缀隔离 |
 | 重连回放 | OutputBuffer + history_sync（默认过滤 alt-screen）|
-| 审批通知 | Web Push（VAPID 三优先级）+ iOS Safari LocalNotification fallback |
 | IP 漂移检测 | 30s 轮询 + 稳定阈值 + ip_changed 广播 |
 | 配置改写 | webapp Settings 弹窗 → /api/config |
 | attach 子命令 | 主从仲裁（webapp > attach > PC）|
@@ -183,11 +175,7 @@ node backend/dist/cli.js  # 等价于 atr
 }
 ```
 
-VAPID 也放同目录：`vapid.json`（0o600，自动生成或读环境变量
-`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`）。
-
-订阅信息在 `push-subscriptions.json`，多实例注册表在
-`instances/<port>.json`。
+多实例注册表在 `instances/<port>.json`。
 
 ## 启动选项
 
@@ -224,7 +212,6 @@ atr <子命令> [参数]
 | `OCR_CWD`     | 子进程工作目录（默认 `process.cwd()`）|
 | `OCR_ANSI_FILTER` | 是否过滤 alt-screen 输出（默认 `false`）。设 `true` 让 vim/htop 退出后重连回放更干净；但全程 alt-screen TUI（claude/tmux/...）仍受内置黑名单保护，自动豁免不会空白 |
 | `OCR_ANSI_FILTER_TUI_NAMES` | 追加自家 alt-screen TUI 黑名单（逗号分隔），例如 `"lazygit,k9s,gh-dash"` |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | 注入 VAPID（高优先级，跳过文件）|
 | `PORT`        | 同 `--port` |
 | `STRICT_PORT` | 同 `--strict-port`（设 `true` 启用严格模式）|
 | `OCR_SPAWN_TIMEOUT` | 同 `--spawn-timeout`（秒；0 = 无超时）|
@@ -239,10 +226,6 @@ webapp 自带 manifest，可"添加到主屏幕"获得近原生 app 体验：
 - **iOS Safari**：分享按钮 → "添加到主屏幕"
 
 启动后无浏览器 UI（无地址栏、无底部导航），独立任务卡片，状态栏与 app 同色。
-
-> **Web Push 限制**：浏览器规定 Push 必须在 secure context（HTTPS / localhost）下，
-> LAN HTTP（http://192.168.x.x）无法订阅推送。设置面板会显示"需 HTTPS"。
-> 解决方案：用 Tailscale / Cloudflare Tunnel 给后端套一层 HTTPS，或自签证书部署。
 
 ## 在 WSL 中跑、Windows 浏览器访问
 
@@ -305,6 +288,11 @@ pnpm build        # 交付构件（含 frontend 拷入 backend/frontend-dist）
    匹配 prompt 自动回 y/N，免去手机敲 `[y/N]` 的麻烦。
 5. **Process Revive（终端复活）**（参考 VS Code）
    把 scrollback 序列化进 instances.json，重启后 webapp 能看到上次的内容。
+6. **审批推送通知**（Claude Code hook → 手机锁屏）
+   `/api/hook` 收到 Claude 审批事件后扇出推送给所有已订阅设备。Web Push（VAPID）
+   走 Android Chrome / 桌面浏览器；iOS Safari fallback 用 webapp 内 LocalNotification。
+   后端骨架（vapid.json、push-routes、push-service）已经写了一部分，但端到端流程
+   还没接通，需要 HTTPS 链路（Tailscale / 自签证书）和订阅 UX 打磨。
 
 ### 第二档 — 计划中（移动端体验加分）
 
