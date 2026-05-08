@@ -336,6 +336,11 @@ export const en: Messages = {
     detailSelectHint: 'Tap a value to select it; long-press the selection to copy',
     detailValueSelected: 'Selected — long-press to copy',
     switchAriaLabel: 'View instance details',
+    addRemoteTitle: 'Connect to another machine',
+    addRemoteHint: 'Scan the QR code from another atr instance, or paste its full access URL',
+    scanCta: 'Scan QR code',
+    urlCta: 'Paste access URL',
+    altCancel: 'Back',
   },
 
   push: {

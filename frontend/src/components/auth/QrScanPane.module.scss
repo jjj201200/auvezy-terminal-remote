@@ -1,0 +1,38 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/qr-input-mixins' as qr;
+
+.scanPane      { @include qr.qr-scan-pane; }
+.scanFrame     { @include qr.qr-scan-frame; }
+.scanVideo     { @include qr.qr-scan-video; }
+.scanReticle   { @include qr.qr-scan-reticle; }
+.reticleCorner { @include qr.qr-reticle-corner; }
+.reticleScan   { @include qr.qr-reticle-scan; }
+.scanStatus    { @include qr.qr-scan-status; }
+.scanFallback  { @include qr.qr-scan-fallback('.error'); }
+.ghostBtn      { @include qr.qr-ghost-button; }
+.iconBtn       { @include qr.qr-icon-button; }
+
+.title {
+  margin: 0 0 t.$sp-2;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xl;
+  font-weight: 500;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.subtitle {
+  margin: 0 0 t.$sp-3;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+}
+
+.error {
+  margin: 0;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$alarm;
+}
+
+@include qr.qr-keyframes;

@@ -1,0 +1,94 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+@use '../../styles/qr-input-mixins' as qr;
+
+.urlPane    { @include qr.qr-url-pane; }
+.urlActions { @include qr.qr-url-actions; }
+.ghostBtn   { @include qr.qr-ghost-button; }
+
+.title {
+  margin: 0 0 t.$sp-2;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xl;
+  font-weight: 500;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.subtitle {
+  margin: 0 0 t.$sp-3;
+  font-size: t.$fs-xs;
+  color: t.$fg-dim;
+  line-height: t.$lh-loose;
+}
+
+.fieldLabel {
+  @include m.caps;
+  margin-bottom: -2px;
+}
+
+.input {
+  border: 1px solid t.$border;
+  background: t.$bg-input;
+  color: t.$fg;
+  padding: t.$sp-4 t.$sp-4;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-tight;
+  outline: none;
+  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+
+  &::placeholder {
+    color: t.$fg-low;
+    letter-spacing: t.$tracking-tight;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: t.$border-hi;
+  }
+
+  &:focus-visible {
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+.submit {
+  @include m.btn-reset;
+  padding: t.$sp-4 t.$sp-5;
+  background: t.$accent;
+  color: #0a0c0f;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  font-weight: 600;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  min-height: 44px;
+  @include m.transition(background t.$dur-fast, opacity t.$dur-fast, transform t.$dur-snap);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, t.$accent 92%, white 8%);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.error {
+  margin: 0;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  color: t.$alarm;
+}
+
+@include qr.qr-keyframes;

@@ -16,10 +16,11 @@
  * 状态机：mode = 'token' | 'scan' | 'url'
  */
 
-import { useEffect, useRef, useState, type JSX, type FormEvent } from 'react';
-import { IconArrowLeft, IconQrcode, IconLink, IconRefresh } from '@tabler/icons-react';
+import { useEffect, useState, type JSX, type FormEvent } from 'react';
+import { IconArrowLeft, IconQrcode, IconLink } from '@tabler/icons-react';
 import { useT } from '../i18n/i18n-context.js';
-import { useQrScanner } from '../hooks/useQrScanner.js';
+import { QrScanPane } from '../components/auth/QrScanPane.js';
+import { UrlPastePane, parseAccessUrl } from '../components/auth/UrlPastePane.js';
 import s from './AuthPage.module.scss';
 
 export interface AuthPageProps {
@@ -34,9 +35,7 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
   const [token, setToken] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [urlValue, setUrlValue] = useState('');
-  const [urlError, setUrlError] = useState<string | null>(null);
+  const [scanInvalid, setScanInvalid] = useState<string | null>(null);
 
   // URL ?token=xxx 自动填充（不自动提交）
   useEffect(() => {
@@ -102,33 +101,46 @@ export function AuthPage({ onLogin }: AuthPageProps): JSX.Element {
             submitting={submitting}
             onSubmit={handleSubmit}
             onSwitchScan={() => {
-              setScanError(null);
+              setScanInvalid(null);
               setMode('scan');
             }}
-            onSwitchUrl={() => {
-              setUrlError(null);
-              setMode('url');
-            }}
+            onSwitchUrl={() => setMode('url')}
           />
         )}
 
         {mode === 'scan' && (
-          <ScanPane
+          <QrScanPane
+            title={t('authPage.scanLabel')}
+            subtitle={t('authPage.scanSubtitle')}
+            cancelLabel={t('authPage.scanCancel')}
             onCancel={() => setMode('token')}
-            onError={(msg) => {
-              setScanError(msg);
+            onResult={(text) => {
+              const parsed = parseAccessUrl(text);
+              if (!parsed) {
+                setScanInvalid(t('authPage.scanInvalidQr', { value: trim(text, 40) }));
+                return false; // 继续扫
+              }
+              window.location.assign(parsed);
+              return true;
             }}
-            scanError={scanError}
+            invalidNotice={scanInvalid}
           />
         )}
 
         {mode === 'url' && (
-          <UrlPane
-            value={urlValue}
-            setValue={setUrlValue}
-            error={urlError}
-            setError={setUrlError}
+          <UrlPastePane
+            title={t('authPage.urlLabel')}
+            subtitle={t('authPage.urlPlaceholder')}
+            placeholder={t('authPage.urlPlaceholder')}
+            submitLabel={t('authPage.urlSubmit')}
+            cancelLabel={t('authPage.scanCancel')}
             onCancel={() => setMode('token')}
+            onSubmit={(url) => {
+              const parsed = parseAccessUrl(url);
+              if (!parsed) return t('authPage.urlInvalid');
+              window.location.assign(parsed);
+              return null;
+            }}
           />
         )}
 
@@ -203,177 +215,7 @@ function TokenPane(props: TokenPaneProps): JSX.Element {
   );
 }
 
-// ────────────────── 扫码面板 ──────────────────
-
-interface ScanPaneProps {
-  onCancel: () => void;
-  onError: (msg: string) => void;
-  scanError: string | null;
-}
-
-function ScanPane(props: ScanPaneProps): JSX.Element {
-  const t = useT();
-  const { onCancel, onError, scanError } = props;
-  const [invalid, setInvalid] = useState<string | null>(null);
-
-  const { videoRef, status, retry } = useQrScanner({
-    enabled: true,
-    onResult: (text) => {
-      // 收到二维码：必须是合法 http(s) URL，并且和当前 origin 同主机或允许跨主机？
-      // 设计：扫码内容应该是其它 backend 实例的访问 URL，允许跨 origin 跳转
-      const parsed = parseAccessUrl(text);
-      if (!parsed) {
-        setInvalid(text);
-        return false; // 继续扫
-      }
-      window.location.assign(parsed);
-      return true;
-    },
-  });
-
-  // 把 hook 状态映射成本地 i18n 错误文案
-  useEffect(() => {
-    if (status === 'permission-denied') onError(t('authPage.scanPermissionDenied'));
-    else if (status === 'unsupported') onError(t('authPage.scanUnsupported'));
-    else if (status === 'error') onError(t('authPage.scanError'));
-    else if (status === 'scanning' || status === 'initializing') onError('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-
-  const showVideo = status === 'scanning' || status === 'initializing';
-
-  return (
-    <div className={s.scanPane}>
-      <h1 className={s.title}>{t('authPage.scanLabel')}</h1>
-      <p className={s.subtitle}>{t('authPage.scanSubtitle')}</p>
-
-      <div className={s.scanFrame}>
-        {showVideo ? (
-          <>
-            <video ref={videoRef} className={s.scanVideo} playsInline muted />
-            <div className={s.scanReticle} aria-hidden="true">
-              <span className={s.reticleCorner} data-corner="tl" />
-              <span className={s.reticleCorner} data-corner="tr" />
-              <span className={s.reticleCorner} data-corner="bl" />
-              <span className={s.reticleCorner} data-corner="br" />
-              <span className={s.reticleScan} />
-            </div>
-            {status === 'initializing' && (
-              <p className={s.scanStatus}>{t('authPage.scanInitializing')}</p>
-            )}
-          </>
-        ) : (
-          <div className={s.scanFallback}>
-            <p className={s.error}>{scanError ?? t('authPage.scanError')}</p>
-            {(status === 'permission-denied' || status === 'error') && (
-              <button type="button" className={s.iconBtn} onClick={retry}>
-                <IconRefresh size={14} stroke={1.5} />
-                <span>retry</span>
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {invalid && (
-        <p className={s.error}>
-          {t('authPage.scanInvalidQr', { value: trim(invalid, 40) })}
-        </p>
-      )}
-
-      <button type="button" className={s.ghostBtn} onClick={onCancel}>
-        {t('authPage.scanCancel')}
-      </button>
-    </div>
-  );
-}
-
-// ────────────────── URL 输入面板 ──────────────────
-
-interface UrlPaneProps {
-  value: string;
-  setValue: (v: string) => void;
-  error: string | null;
-  setError: (v: string | null) => void;
-  onCancel: () => void;
-}
-
-function UrlPane(props: UrlPaneProps): JSX.Element {
-  const t = useT();
-  const { value, setValue, error, setError, onCancel } = props;
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // 进入 url 模式自动 focus
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
-    e.preventDefault();
-    const parsed = parseAccessUrl(value.trim());
-    if (!parsed) {
-      setError(t('authPage.urlInvalid'));
-      return;
-    }
-    window.location.assign(parsed);
-  };
-
-  return (
-    <form className={s.urlPane} onSubmit={handleSubmit}>
-      <h1 className={s.title}>{t('authPage.urlLabel')}</h1>
-      <p className={s.subtitle}>{t('authPage.urlPlaceholder')}</p>
-
-      <span className={s.fieldLabel}>URL</span>
-      <input
-        ref={inputRef}
-        type="url"
-        className={s.input}
-        placeholder={t('authPage.urlPlaceholder')}
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          if (error) setError(null);
-        }}
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck={false}
-        inputMode="url"
-      />
-
-      {error && <p className={s.error}>{error}</p>}
-
-      <div className={s.urlActions}>
-        <button type="button" className={s.ghostBtn} onClick={onCancel}>
-          {t('authPage.scanCancel')}
-        </button>
-        <button
-          type="submit"
-          className={s.submit}
-          disabled={value.trim().length === 0}
-        >
-          {t('authPage.urlSubmit')}
-        </button>
-      </div>
-    </form>
-  );
-}
-
 // ────────────────── helpers ──────────────────
-
-/** 校验并规范化访问 URL：仅接受 http / https，必须有 host。其它返回 null */
-function parseAccessUrl(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  try {
-    const u = new URL(trimmed);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    if (!u.host) return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
 
 function trim(s: string, max: number): string {
   if (s.length <= max) return s;

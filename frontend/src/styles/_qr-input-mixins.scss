@@ -1,0 +1,291 @@
+// ============================================================
+// 扫码 / URL 输入 共享样式 mixin
+//
+// 设计：
+//   AuthPage 与 CreateInstanceModal 都需要"扫码 + 粘 URL"的入口体验。
+//   把 ~240 行视觉打磨（取景器 / 工业角标 / 扫描线动画 / 备用按钮）
+//   抽成 mixin，避免重复维护。
+//
+// 用法：
+//   .myAltActions { @include qr-alt-actions; }
+//   .myAltBtn    { @include qr-alt-button; }
+//   .myScanFrame { @include qr-scan-frame; }
+//   ...
+//
+// keyframes 不能放 mixin 里跨 module 复用 —— 每个用到 .scanLine 的
+// SCSS module 自己 @include qr-scan-keyframes 即可（只占一次定义）
+// ============================================================
+
+@use 'tokens' as t;
+@use 'mixins' as m;
+
+// ──────────────── 备选入口（扫码 / 链接）────────────────
+
+@mixin qr-alt-actions {
+  @include m.col-flex(t.$sp-3);
+}
+
+@mixin qr-alt-button {
+  @include m.btn-reset;
+  @include m.row-flex(t.$sp-3);
+  justify-content: center;
+  padding: t.$sp-4 t.$sp-5;
+  border: 1px solid t.$border;
+  background: transparent;
+  color: t.$fg-dim;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  min-height: 44px;
+  @include m.transition(
+    color t.$dur-fast,
+    border-color t.$dur-fast,
+    background t.$dur-fast
+  );
+
+  svg {
+    color: t.$fg-low;
+    @include m.transition(color t.$dur-fast);
+  }
+
+  &:hover:not(:disabled) {
+    color: t.$fg;
+    border-color: t.$border-hi;
+    background: t.$bg-hover;
+
+    svg {
+      color: t.$accent;
+    }
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  &:focus-visible {
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+// ──────────────── 扫码面板 ────────────────
+
+@mixin qr-scan-pane {
+  @include m.col-flex(t.$sp-4);
+  animation: pop-in t.$dur-base t.$ease both;
+}
+
+@mixin qr-scan-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: t.$bg-canvas;
+  border: 1px solid t.$border-hi;
+  overflow: hidden;
+  // 内嵌阴影：让"取景器"有凹陷感
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.02);
+}
+
+@mixin qr-scan-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@mixin qr-scan-reticle {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45));
+  mask-image: radial-gradient(
+    closest-side at 50% 50%,
+    transparent 60%,
+    black 70%
+  );
+  -webkit-mask-image: radial-gradient(
+    closest-side at 50% 50%,
+    transparent 60%,
+    black 70%
+  );
+}
+
+// 四角 L 形角标 —— 工业取景器细节
+@mixin qr-reticle-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 0 solid t.$accent;
+  filter: drop-shadow(0 0 6px rgba(182, 240, 156, 0.6));
+
+  &[data-corner='tl'] {
+    top: 18%;
+    left: 18%;
+    border-top-width: 2px;
+    border-left-width: 2px;
+  }
+  &[data-corner='tr'] {
+    top: 18%;
+    right: 18%;
+    border-top-width: 2px;
+    border-right-width: 2px;
+  }
+  &[data-corner='bl'] {
+    bottom: 18%;
+    left: 18%;
+    border-bottom-width: 2px;
+    border-left-width: 2px;
+  }
+  &[data-corner='br'] {
+    bottom: 18%;
+    right: 18%;
+    border-bottom-width: 2px;
+    border-right-width: 2px;
+  }
+}
+
+// 扫描线：从顶到底循环，模拟 industrial scanner 的工作灯
+@mixin qr-reticle-scan {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 18%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    t.$accent 50%,
+    transparent
+  );
+  filter: drop-shadow(0 0 4px rgba(182, 240, 156, 0.7));
+  animation: scan-sweep 2.4s t.$ease infinite;
+}
+
+@mixin qr-scan-status {
+  position: absolute;
+  bottom: t.$sp-4;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+}
+
+@mixin qr-scan-fallback($error-class: '.error') {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: t.$sp-4;
+  padding: t.$sp-5;
+  text-align: center;
+
+  #{$error-class} {
+    text-align: center;
+    line-height: t.$lh-loose;
+  }
+}
+
+// ──────────────── URL 面板 ────────────────
+
+@mixin qr-url-pane {
+  @include m.col-flex(t.$sp-3);
+  animation: pop-in t.$dur-base t.$ease both;
+}
+
+@mixin qr-url-actions {
+  @include m.row-flex(t.$sp-3);
+  margin-top: t.$sp-3;
+
+  > * {
+    flex: 1;
+  }
+}
+
+// ──────────────── 通用辅助按钮 ────────────────
+
+// "ghost" 取消按钮：透明底，弱边框，弱文字，hover 时升一档
+@mixin qr-ghost-button {
+  @include m.btn-reset;
+  padding: t.$sp-4 t.$sp-5;
+  border: 1px solid t.$border;
+  background: transparent;
+  color: t.$fg-dim;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  font-weight: 500;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  min-height: 44px;
+  @include m.transition(
+    color t.$dur-fast,
+    border-color t.$dur-fast,
+    background t.$dur-fast
+  );
+
+  &:hover:not(:disabled) {
+    color: t.$fg;
+    border-color: t.$border-hi;
+    background: t.$bg-hover;
+  }
+
+  &:focus-visible {
+    border-color: t.$accent;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
+// 内联 retry 等极小按钮
+@mixin qr-icon-button {
+  @include m.btn-reset;
+  @include m.row-flex(t.$sp-2);
+  padding: t.$sp-2 t.$sp-3;
+  border: 1px solid t.$border;
+  background: transparent;
+  color: t.$fg-dim;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    border-color: t.$border-hi;
+  }
+}
+
+// ──────────────── keyframes ────────────────
+//
+// CSS Modules 下 @keyframes 名是局部的；mixin 里定义会被每个用它的 module 重命名。
+// 这里集中定义为 mixin，每个 module 用 @include 调用一次即可。
+
+@mixin qr-keyframes {
+  @keyframes scan-sweep {
+    0%   { transform: translateY(0);    opacity: 0; }
+    10%  { opacity: 1; }
+    50%  { transform: translateY(380%); opacity: 1; }
+    60%  { opacity: 0; }
+    100% { transform: translateY(0);    opacity: 0; }
+  }
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

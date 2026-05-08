@@ -1,5 +1,6 @@
 @use '../styles/tokens' as t;
 @use '../styles/mixins' as m;
+@use '../styles/qr-input-mixins' as qr;
 
 .root {
   flex: 1;
@@ -186,267 +187,25 @@
   text-align: center;
 }
 
-// ──────────────── 备选入口（扫码 / 链接）────────────────
+// ──────────────── 备选入口 / 扫码 / URL 面板（mixin 共享）────────────────
 
-.altActions {
-  @include m.col-flex(t.$sp-3);
-}
+.altActions    { @include qr.qr-alt-actions; }
+.altBtn        { @include qr.qr-alt-button; }
+.scanPane      { @include qr.qr-scan-pane; }
+.scanFrame     { @include qr.qr-scan-frame; }
+.scanVideo     { @include qr.qr-scan-video; }
+.scanReticle   { @include qr.qr-scan-reticle; }
+.reticleCorner { @include qr.qr-reticle-corner; }
+.reticleScan   { @include qr.qr-reticle-scan; }
+.scanStatus    { @include qr.qr-scan-status; }
+.scanFallback  { @include qr.qr-scan-fallback('.error'); }
+.urlPane       { @include qr.qr-url-pane; }
+.urlActions    { @include qr.qr-url-actions; }
+.ghostBtn      { @include qr.qr-ghost-button; }
+.iconBtn       { @include qr.qr-icon-button; }
 
-.altBtn {
-  @include m.btn-reset;
-  @include m.row-flex(t.$sp-3);
-  justify-content: center;
-  padding: t.$sp-4 t.$sp-5;
-  border: 1px solid t.$border;
-  background: transparent;
-  color: t.$fg-dim;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-wide;
-  text-transform: uppercase;
-  min-height: 44px;  // 移动端触摸目标
-  @include m.transition(
-    color t.$dur-fast,
-    border-color t.$dur-fast,
-    background t.$dur-fast
-  );
-
-  // 图标颜色继承文字颜色，悬停时轻微 accent
-  svg {
-    color: t.$fg-low;
-    @include m.transition(color t.$dur-fast);
-  }
-
-  &:hover:not(:disabled) {
-    color: t.$fg;
-    border-color: t.$border-hi;
-    background: t.$bg-hover;
-
-    svg {
-      color: t.$accent;
-    }
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(1px);
-  }
-
-  &:focus-visible {
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
-  }
-}
-
-// ──────────────── 扫码面板 ────────────────
-
-.scanPane {
-  @include m.col-flex(t.$sp-4);
-  animation: pop-in t.$dur-base t.$ease both;
-}
-
-.scanFrame {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  background: t.$bg-canvas;
-  border: 1px solid t.$border-hi;
-  overflow: hidden;
-  // 内嵌阴影：让"取景器"有凹陷感
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.02);
-}
-
-.scanVideo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  // 镜像翻转 —— 后置摄像头不需要，但前置会需要；用 facingMode environment 后默认正常
-  // 不强制 transform，保持原始视野
-}
-
-.scanReticle {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  // 中心区域留出来做"取景框"，外围深色蒙版
-  background:
-    linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45));
-  mask-image: radial-gradient(
-    closest-side at 50% 50%,
-    transparent 60%,
-    black 70%
-  );
-  -webkit-mask-image: radial-gradient(
-    closest-side at 50% 50%,
-    transparent 60%,
-    black 70%
-  );
-}
-
-// 四角 L 形角标 —— 工业取景器细节
-.reticleCorner {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  border: 0 solid t.$accent;
-  // 默认四边都关，按 data-corner 单独打开两边
-  filter: drop-shadow(0 0 6px rgba(182, 240, 156, 0.6));
-
-  &[data-corner='tl'] {
-    top: 18%;
-    left: 18%;
-    border-top-width: 2px;
-    border-left-width: 2px;
-  }
-  &[data-corner='tr'] {
-    top: 18%;
-    right: 18%;
-    border-top-width: 2px;
-    border-right-width: 2px;
-  }
-  &[data-corner='bl'] {
-    bottom: 18%;
-    left: 18%;
-    border-bottom-width: 2px;
-    border-left-width: 2px;
-  }
-  &[data-corner='br'] {
-    bottom: 18%;
-    right: 18%;
-    border-bottom-width: 2px;
-    border-right-width: 2px;
-  }
-}
-
-// 扫描线：从顶到底循环，模拟 industrial scanner 的工作灯
-.reticleScan {
-  position: absolute;
-  left: 18%;
-  right: 18%;
-  top: 18%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    t.$accent 50%,
-    transparent
-  );
-  filter: drop-shadow(0 0 4px rgba(182, 240, 156, 0.7));
-  animation: scan-sweep 2.4s t.$ease infinite;
-}
-
-.scanStatus {
-  position: absolute;
-  bottom: t.$sp-4;
-  left: 0;
-  right: 0;
-  margin: 0;
-  text-align: center;
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xs;
-  letter-spacing: t.$tracking-wide;
-  text-transform: uppercase;
-  color: t.$fg-dim;
-}
-
-.scanFallback {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: t.$sp-4;
-  padding: t.$sp-5;
-  text-align: center;
-
-  .error {
-    text-align: center;
-    line-height: t.$lh-loose;
-  }
-}
-
-// ──────────────── URL 面板 ────────────────
-
-.urlPane {
-  @include m.col-flex(t.$sp-3);
-  animation: pop-in t.$dur-base t.$ease both;
-}
-
-.urlActions {
-  @include m.row-flex(t.$sp-3);
-  margin-top: t.$sp-3;
-
-  // 两个按钮平分剩余宽度
-  > * {
-    flex: 1;
-  }
-}
-
-// ──────────────── 通用辅助按钮 ────────────────
-
-// "ghost" 取消按钮：透明底，弱边框，弱文字，hover 时升一档
-.ghostBtn {
-  @include m.btn-reset;
-  padding: t.$sp-4 t.$sp-5;
-  border: 1px solid t.$border;
-  background: transparent;
-  color: t.$fg-dim;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  font-weight: 500;
-  letter-spacing: t.$tracking-wide;
-  text-transform: uppercase;
-  min-height: 44px;
-  @include m.transition(
-    color t.$dur-fast,
-    border-color t.$dur-fast,
-    background t.$dur-fast
-  );
-
-  &:hover:not(:disabled) {
-    color: t.$fg;
-    border-color: t.$border-hi;
-    background: t.$bg-hover;
-  }
-
-  &:focus-visible {
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
-  }
-}
-
-// 内联 retry 之类的极小按钮
-.iconBtn {
-  @include m.btn-reset;
-  @include m.row-flex(t.$sp-2);
-  padding: t.$sp-2 t.$sp-3;
-  border: 1px solid t.$border;
-  background: transparent;
-  color: t.$fg-dim;
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xs;
-  letter-spacing: t.$tracking-wide;
-  text-transform: uppercase;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast);
-
-  &:hover {
-    color: t.$fg;
-    border-color: t.$border-hi;
-  }
-}
-
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+// 引入 qr-input 共享 keyframes（pop-in / scan-sweep）
+@include qr.qr-keyframes;
 
 // 「磷光熄灭」呼吸：50% 处变冷灰、辉光全灭，不是 opacity 淡出
 @keyframes pulse {
@@ -462,16 +221,6 @@
     box-shadow: none;
   }
 }
-
-// 扫描线上下扫：起止留 18% 内边（与四角对齐），中间停顿一帧
-@keyframes scan-sweep {
-  0%   { transform: translateY(0);   opacity: 0; }
-  10%  { opacity: 1; }
-  50%  { transform: translateY(380%); opacity: 1; }
-  60%  { opacity: 0; }
-  100% { transform: translateY(0);   opacity: 0; }
-}
-
 
 .backBtn {
   @include m.btn-reset;

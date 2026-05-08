@@ -329,6 +329,11 @@ export const zhCN: Messages = {
     detailSelectHint: '点击字段值会自动选中，长按选区可复制',
     detailValueSelected: '已选中，长按拷贝',
     switchAriaLabel: '查看实例详情',
+    addRemoteTitle: '从其它机器接入',
+    addRemoteHint: '扫描其它 atr 实例打印的二维码，或粘贴完整访问链接',
+    scanCta: '扫描二维码',
+    urlCta: '粘贴访问链接',
+    altCancel: '返回',
   },
 
   push: {

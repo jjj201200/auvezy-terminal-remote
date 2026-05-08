@@ -365,6 +365,17 @@ export interface Messages {
     /** iOS 场景下点击字段后字段右上角浮的"已选中"反馈 */
     detailValueSelected: string;
     switchAriaLabel: string; // 切换图标按钮 aria
+    // —— 新增实例 Modal 的扫码 / 链接入口（语义：扫到/粘到合法的远端 atr URL → 跳转过去）
+    /** 主表单底部"或"分隔线下方的两个备用入口的章节标签 */
+    addRemoteTitle: string;
+    /** 主表单底部"或"分隔线下方的两个备用入口的章节副标 */
+    addRemoteHint: string;
+    /** 扫码按钮 cta */
+    scanCta: string;
+    /** 链接按钮 cta */
+    urlCta: string;
+    /** 扫码 / URL 子页的取消按钮 */
+    altCancel: string;
   };
 
   // 设置 - 通知（PushToggle）

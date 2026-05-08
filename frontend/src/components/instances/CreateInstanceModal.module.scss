@@ -1,5 +1,6 @@
 @use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
+@use '../../styles/qr-input-mixins' as qr;
 
 .form {
   @include m.col-flex(t.$sp-5);
@@ -157,3 +158,51 @@
     cursor: not-allowed;
   }
 }
+
+// ──────────────── 备用入口（"从其它机器接入"分隔线 + 按钮组）────────────────
+
+.divider {
+  position: relative;
+  margin: t.$sp-3 0 t.$sp-1;
+  height: 1px;
+  background: t.$border;
+
+  &::after {
+    content: 'OR';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: t.$bg-elev;
+    padding: 0 t.$sp-3;
+    font-size: t.$fs-2xs;
+    letter-spacing: t.$tracking-wide;
+    color: t.$fg-low;
+  }
+}
+
+.altSection {
+  @include m.col-flex(t.$sp-3);
+}
+
+.altHeader {
+  @include m.col-flex(2px);
+  text-align: center;
+}
+
+.altTitle {
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+}
+
+.altHint {
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  line-height: t.$lh-loose;
+}
+
+.altActions { @include qr.qr-alt-actions; }
+.altBtn     { @include qr.qr-alt-button; }
