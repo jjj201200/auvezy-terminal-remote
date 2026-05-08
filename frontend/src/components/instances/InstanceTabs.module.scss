@@ -8,6 +8,20 @@
   &::-webkit-scrollbar { display: none; }
 }
 
+// 多主机分组容器：垂直堆叠 [HostGroupHeader + 该 host 下的 tabs]
+// 单主机时调用方不渲染 .group，所以 .nav 的 row-flex 仍是水平 tabs
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: t.$sp-1;
+  // 与相邻 group / .add 之间留间距
+  flex-shrink: 0;
+}
+
+.groupTabs {
+  @include m.row-flex(t.$sp-2);
+}
+
 .tab {
   @include m.btn-reset;
   @include m.row-flex(t.$sp-2);

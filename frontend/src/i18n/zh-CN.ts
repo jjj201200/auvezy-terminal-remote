@@ -334,6 +334,11 @@ export const zhCN: Messages = {
     scanCta: '扫描二维码',
     urlCta: '粘贴访问链接',
     altCancel: '返回',
+    hostRename: '点击重命名',
+    hostRenameTitle: '主机别名',
+    hostRenameHint: '别名仅保存在本设备 localStorage，方便区分多主机',
+    hostRenamePlaceholder: '如：办公室台式机',
+    hostRenameReset: '清空别名（用 host 原值）',
   },
 
   push: {

@@ -341,6 +341,11 @@ export const en: Messages = {
     scanCta: 'Scan QR code',
     urlCta: 'Paste access URL',
     altCancel: 'Back',
+    hostRename: 'Click to rename',
+    hostRenameTitle: 'Host alias',
+    hostRenameHint: 'Alias is stored only on this device (localStorage) to help distinguish hosts',
+    hostRenamePlaceholder: 'e.g. Office desktop',
+    hostRenameReset: 'Clear alias (use host as-is)',
   },
 
   push: {

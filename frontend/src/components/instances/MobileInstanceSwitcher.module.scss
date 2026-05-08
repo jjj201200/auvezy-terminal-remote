@@ -42,6 +42,11 @@
   @include m.col-flex(t.$sp-2);
 }
 
+// 多主机分段：HostGroupHeader 接 N 个 .item，再接下一个 host section
+.hostSection {
+  @include m.col-flex(t.$sp-2);
+}
+
 .item {
   @include m.btn-reset;
   @include m.row-flex(t.$sp-3);

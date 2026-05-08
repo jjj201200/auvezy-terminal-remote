@@ -1,0 +1,133 @@
+@use '../../styles/tokens' as t;
+@use '../../styles/mixins' as m;
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: t.$sp-2;
+  padding: t.$sp-2 t.$sp-3;
+  border-bottom: 1px solid t.$border;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-low;
+
+  &.compact {
+    padding: t.$sp-2 t.$sp-3;
+    border-bottom: none;
+    border-top: 1px solid t.$border;
+
+    &:first-child {
+      border-top: none;
+    }
+  }
+}
+
+.editing {
+  background: t.$bg-input;
+}
+
+.nameBtn {
+  @include m.btn-reset;
+  @include m.row-flex(t.$sp-2);
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  @include m.transition(color t.$dur-fast);
+
+  // 编辑铅笔默认隐形，hover 时浮出
+  .editIcon {
+    opacity: 0;
+    @include m.transition(opacity t.$dur-fast);
+  }
+
+  &:hover {
+    color: t.$fg-dim;
+
+    .editIcon {
+      opacity: 0.8;
+    }
+  }
+}
+
+.host {
+  @include m.truncate;
+  flex-shrink: 0;
+  color: t.$fg-dim;
+}
+
+// 当用户起了 alias 时同行小字显示原 host（避免"我连的哪台"丢失）
+.rawHost {
+  @include m.truncate;
+  font-size: 9px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: t.$fg-low;
+  opacity: 0.7;
+}
+
+.editIcon {
+  flex-shrink: 0;
+  color: t.$fg-low;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid t.$accent;
+  background: t.$bg-input;
+  color: t.$fg;
+  padding: 2px t.$sp-2;
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  letter-spacing: t.$tracking-tight;
+  outline: none;
+
+  &::placeholder {
+    color: t.$fg-low;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+}
+
+.iconBtn {
+  @include m.btn-reset;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid t.$border;
+  color: t.$fg-dim;
+  background: transparent;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    border-color: t.$border-hi;
+    background: t.$bg-hover;
+  }
+}
+
+.resetBtn {
+  @include m.btn-reset;
+  padding: 2px t.$sp-2;
+  border: 1px solid t.$border;
+  color: t.$fg-low;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  background: transparent;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast);
+
+  &:hover {
+    color: t.$warn;
+    border-color: t.$warn;
+  }
+}

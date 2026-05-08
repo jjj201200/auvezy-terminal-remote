@@ -376,6 +376,18 @@ export interface Messages {
     urlCta: string;
     /** 扫码 / URL 子页的取消按钮 */
     altCancel: string;
+
+    // 主机分组（多主机管理骨架）
+    /** host 行 hover 时的 tooltip："点击重命名" */
+    hostRename: string;
+    /** 重命名 prompt 标题 */
+    hostRenameTitle: string;
+    /** 重命名 prompt 副标（说明 alias 仅本设备保存） */
+    hostRenameHint: string;
+    /** 重命名 prompt 输入框 placeholder */
+    hostRenamePlaceholder: string;
+    /** "保留 host 默认名"按钮（清空 alias） */
+    hostRenameReset: string;
   };
 
   // 设置 - 通知（PushToggle）

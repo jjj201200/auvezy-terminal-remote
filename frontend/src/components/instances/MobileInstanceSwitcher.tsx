@@ -10,7 +10,7 @@
  *  - 关闭实例的二次确认仍走父组件 onCloseRequest（保持现有 ConfirmModal 流程）
  */
 
-import { useState, type JSX } from 'react';
+import { useReducer, useState, type JSX } from 'react';
 import {
   IconLayoutGrid,
   IconPlus,
@@ -26,6 +26,8 @@ import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { buildInstanceUrl } from '../../services/instance-url.js';
 import type { PendingInstance } from '../../hooks/useInstances.js';
+import { useHostGroups } from '../../hooks/useHostGroups.js';
+import { HostGroupHeader } from './HostGroupHeader.js';
 import { InstanceDetailModal } from './InstanceDetailModal.js';
 import s from './MobileInstanceSwitcher.module.scss';
 
@@ -61,6 +63,8 @@ export function MobileInstanceSwitcher({
   const t = useT();
   const [open, setOpen] = useState(false);
   const [detailFor, setDetailFor] = useState<InstanceListItem | null>(null);
+  const [aliasTick, bumpAliasTick] = useReducer((n: number) => n + 1, 0);
+  const { groups, hasSingleHost } = useHostGroups(instances, pending, aliasTick);
 
   const isHighlight = (i: InstanceListItem): boolean =>
     activeId !== undefined ? i.instanceId === activeId : i.isCurrent;
@@ -81,6 +85,99 @@ export function MobileInstanceSwitcher({
 
   const closeDetail = (): void => setDetailFor(null);
 
+  const renderInstanceItem = (i: InstanceListItem): JSX.Element => {
+    const highlight = isHighlight(i);
+    return (
+      // div 容器：button 不能嵌 button；主体点 → 详情 modal，右侧切换按钮 → 直接跳
+      <div
+        key={i.instanceId}
+        role="button"
+        tabIndex={0}
+        onClick={() => setDetailFor(i)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') setDetailFor(i);
+        }}
+        aria-pressed={highlight}
+        aria-label={t('instance.switchAriaLabel')}
+        className={clsx(s.item, highlight && s.itemActive)}
+      >
+        <div className={s.itemBody}>
+          <span className={s.itemName}>{i.name}</span>
+          {/* cwd 完整显示，长路径折行而不省略；详情 modal 也会再看一次但这里
+              用户先看到全文，避免"还要点开才知道工作在哪" */}
+          <span className={s.itemCwd}>{i.cwd}</span>
+        </div>
+        <span className={s.itemPort}>:{i.port}</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSwitch(i);
+          }}
+          aria-label={highlight ? t('instance.detailSwitchAlready') : t('instance.detailSwitch')}
+          title={highlight ? t('instance.detailSwitchAlready') : t('instance.detailSwitch')}
+          disabled={highlight}
+          className={s.itemSwitch}
+        >
+          <IconArrowsExchange size={14} stroke={1.5} />
+        </button>
+      </div>
+    );
+  };
+
+  const renderPendingItem = (p: PendingInstance): JSX.Element => {
+    const failed = p.state === 'failed';
+    return (
+      <div
+        key={p.pendingId}
+        role="button"
+        tabIndex={0}
+        title={failed ? p.error : t('instance.pendingTooltip')}
+        className={clsx(s.item, s.itemPending, failed && s.itemPendingFailed)}
+      >
+        {failed ? (
+          <IconAlertTriangle size={12} stroke={1.5} />
+        ) : (
+          <IconLoader2 size={12} stroke={1.5} className={s.spin} />
+        )}
+        <div className={s.itemBody}>
+          <span className={s.itemName}>
+            {p.name || t('instance.pendingNameless')}
+          </span>
+          {failed && p.error && <span className={s.itemCwd}>{p.error}</span>}
+        </div>
+        {failed && onPendingRetry && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPendingRetry(p.pendingId);
+            }}
+            aria-label={t('instance.pendingRetry')}
+            title={t('instance.pendingRetry')}
+            className={s.itemClose}
+          >
+            <IconRefresh size={12} stroke={1.5} />
+          </button>
+        )}
+        {failed && onPendingDismiss && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPendingDismiss(p.pendingId);
+            }}
+            aria-label={t('instance.pendingDismiss')}
+            title={t('instance.pendingDismiss')}
+            className={s.itemClose}
+          >
+            <IconX size={12} stroke={1.5} />
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <button
@@ -97,99 +194,26 @@ export function MobileInstanceSwitcher({
 
       <Sheet id="mobile-instance-sheet" open={open} onOpenChange={setOpen} title={t('instance.sheetTitle')}>
         <div className={s.list}>
-          {instances.map((i) => {
-            const highlight = isHighlight(i);
-            return (
-            // 用 div 容器：button 不能嵌 button（右侧切换按钮在内部）
-            // 主体点击 = 弹详情 modal（看完整 cwd / 复制 / 4 个动作）
-            // 右侧切换按钮 = 直接跳转，不再二次确认（详情 modal 路径仍可用）
-            <div
-              key={i.instanceId}
-              role="button"
-              tabIndex={0}
-              onClick={() => setDetailFor(i)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') setDetailFor(i);
-              }}
-              aria-pressed={highlight}
-              aria-label={t('instance.switchAriaLabel')}
-              className={clsx(s.item, highlight && s.itemActive)}
-            >
-              <div className={s.itemBody}>
-                <span className={s.itemName}>{i.name}</span>
-                {/* cwd 完整显示，长路径折行而不省略；详情 modal 也会再看一次但这里
-                    用户先看到全文，避免"还要点开才知道工作在哪" */}
-                <span className={s.itemCwd}>{i.cwd}</span>
+          {hasSingleHost ? (
+            <>
+              {groups[0]?.instances.map((i) => renderInstanceItem(i))}
+              {groups[0]?.pending.map((p) => renderPendingItem(p))}
+            </>
+          ) : (
+            groups.map((g) => (
+              <div key={g.host} className={s.hostSection}>
+                <HostGroupHeader
+                  host={g.host}
+                  displayName={g.displayName}
+                  hasAlias={g.hasAlias}
+                  onRenamed={bumpAliasTick}
+                  compact
+                />
+                {g.instances.map((i) => renderInstanceItem(i))}
+                {g.pending.map((p) => renderPendingItem(p))}
               </div>
-              <span className={s.itemPort}>:{i.port}</span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSwitch(i);
-                }}
-                aria-label={highlight ? t('instance.detailSwitchAlready') : t('instance.detailSwitch')}
-                title={highlight ? t('instance.detailSwitchAlready') : t('instance.detailSwitch')}
-                disabled={highlight}
-                className={s.itemSwitch}
-              >
-                <IconArrowsExchange size={14} stroke={1.5} />
-              </button>
-            </div>
-            );
-          })}
-          {pending.map((p) => {
-            const failed = p.state === 'failed';
-            return (
-              <div
-                key={p.pendingId}
-                role="button"
-                tabIndex={0}
-                title={failed ? p.error : t('instance.pendingTooltip')}
-                className={clsx(s.item, s.itemPending, failed && s.itemPendingFailed)}
-              >
-                {failed ? (
-                  <IconAlertTriangle size={12} stroke={1.5} />
-                ) : (
-                  <IconLoader2 size={12} stroke={1.5} className={s.spin} />
-                )}
-                <div className={s.itemBody}>
-                  <span className={s.itemName}>
-                    {p.name || t('instance.pendingNameless')}
-                  </span>
-                  {failed && p.error && <span className={s.itemCwd}>{p.error}</span>}
-                </div>
-                {failed && onPendingRetry && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPendingRetry(p.pendingId);
-                    }}
-                    aria-label={t('instance.pendingRetry')}
-                    title={t('instance.pendingRetry')}
-                    className={s.itemClose}
-                  >
-                    <IconRefresh size={12} stroke={1.5} />
-                  </button>
-                )}
-                {failed && onPendingDismiss && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPendingDismiss(p.pendingId);
-                    }}
-                    aria-label={t('instance.pendingDismiss')}
-                    title={t('instance.pendingDismiss')}
-                    className={s.itemClose}
-                  >
-                    <IconX size={12} stroke={1.5} />
-                  </button>
-                )}
-              </div>
-            );
-          })}
+            ))
+          )}
           <button
             type="button"
             onClick={() => {
