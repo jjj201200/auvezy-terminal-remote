@@ -5,6 +5,67 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-08
+
+### Added
+
+- **认证页扫码登录**：摄像头取景器 + 工业风扫描线动效，扫到合法 http(s) URL
+  自动跳转。用 `getUserMedia` + `jsQR` 全平台一致解码，权限拒绝 / 设备无 /
+  通用错误三态都有显式提示与 retry。新增 `useQrScanner` hook（独立可复用）。
+- **认证页链接登录**：粘贴完整 URL 直接前往。专为"用户清了 localStorage / 跨设备
+  首次接入 / 服务重启换 token"等场景的逃生入口。
+- **认证页三入口设计**：token / 扫码 / 链接同一张深色卡片内分模式切换，不开
+  modal、不引入新层。复用现有"精致工业极客风"设计系统（磷光 accent + Geist Mono +
+  100% 直角）。三个入口均 ≥44×44px 满足移动端触摸目标。
+- **输入栏长按指示器**：新增 `LongPressIndicator` 圆形进度环，长按时实时反馈
+  剩余时间，避免误触；与触摸手势 hook 联动。
+- **textarea IME composition guard**：新增 `useTextareaInputGuard` hook，
+  iOS / Android 输入法预测输入不再污染 PTY，组合候选词期间隔离传入。
+- **设置面板 Actions / Controls 子页**：拆出 `ActionsSettings` 与
+  `ControlsSection`，按"操作 / 控制"维度独立配置，原 SettingsModal 路由调整。
+- **dev-proxy 自动探活**：vite 端口 5173-5180 范围内自动探测可用端口（10s
+  缓存），开发时不再写死端口；`--dev-proxy` 现在支持可选值形式。
+
+### Changed
+
+- **README 极简卡片化**：从 396 行 → 118 行（英）/ 327 行 → 115 行（中）。
+  顶部 logo + 4 个 shields.io 徽章 + 居中 desktop.png，9 个 features bullets，
+  Roadmap / 完整 CLI / WSL 详情全部沉到 docs/ 子文档。新增中英对称的
+  `docs/FEATURES.md` / `ROADMAP.md` / `CLI.md` / `WSL.md` 共 8 个文件。
+- **移动端 xterm 内部 API 集中**：抽 `frontend/src/utils/xterm-internals.ts`
+  封装内部访问，从分散在 `useTerminal` / `ConsolePage` / `InstanceView` 的
+  helper-textarea 焦点劫持、visualViewport 处理等代码集中管理。
+- **InputBar 显示层与受控层分离**：避免 iOS 长句子输入时 React state
+  re-render 卡顿，DirectInputCapture 重构控制键映射。
+- **shared/defaults 默认配置同步**：UserConfig 加新字段 + ensureDefaultUserConfig
+  同步 normalize（避免 PUT 进来的字段被 backend GET 时 strip）。
+
+### Removed
+
+- **CLAUDE_COMMAND / CLAUDE_ARGS / CLAUDE_CWD env 兼容已彻底移除**（breaking）。
+  这三个旧名 0.4.x 时还会 warn 一次后照常生效，0.5.0 起完全不读取，请改用
+  `OCR_COMMAND` / `OCR_ARGS` / `OCR_CWD`。同步删除 `readLegacyEnv` helper +
+  对应单测。
+- **README "通知"特性宣传**：Web Push / VAPID / iOS LocalNotification 相关
+  代码骨架仍在仓库，但端到端流程未走通（需要 HTTPS 链路与订阅 UX 打磨），
+  从 README 已实现特性区移除，列入 `docs/ROADMAP.md` Tier 1 第 6 项。
+
+### Internal
+
+- 依赖：新增 `jsqr@1.4.0`（认证页扫码解码器）
+- 新增 `frontend/src/hooks/useQrScanner.ts`（独立 hook，可复用到其它页面）
+- 新增 `frontend/src/hooks/useTextareaInputGuard.ts`（IME composition 隔离）
+- 新增 `frontend/src/utils/xterm-internals.ts`（xterm 内部 API 集中点）
+- 新增 `frontend/src/components/input/LongPressIndicator.tsx` + scss
+- 新增 `frontend/src/components/settings/ActionsSettings.tsx`
+- 新增 `frontend/src/components/settings/ControlsSection.tsx`
+- 新增 `docs/code-review-2026-05-08.md`：13 维度全量代码审查报告（架构 /
+  可读性 / 复用 / 安全 / i18n / 样式 / 性能 / 错误 / 测试 / 依赖 / 类型 /
+  文档 + 汇总），后续版本将按 P0/P1/P2 路线图推进
+- 新增 `docs/移动端与桌面端交互设计-2026-05-08.md`
+- CLAUDE.md 补 dev server 重启流程章节（WSL 上 tsx watch 不可靠的应对）
+- `instance-spawner` 注释修正（cwd 实际由 spawn 选项传，非 env）
+
 ## [0.4.5] - 2026-05-07
 
 ### Added
