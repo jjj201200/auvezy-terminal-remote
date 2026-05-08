@@ -20,6 +20,8 @@ import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
 import type { ServerMessage, SessionStatus, ClientMessage } from 'auvezy-terminal-remote-shared';
 import { useTerminal } from '../hooks/useTerminal.js';
+import { isMouseReportingActive } from '../utils/xterm-internals.js';
+import { copyToClipboard } from '../utils/clipboard.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useUserConfig } from '../hooks/useUserConfig.js';
 import { useInstances } from '../hooks/useInstances.js';
@@ -29,7 +31,7 @@ import { useT } from '../i18n/i18n-context.js';
 import { TerminalView } from '../components/terminal/TerminalView.js';
 import { ScrollNavButtons } from '../components/terminal/ScrollNavButtons.js';
 import { SearchBar } from '../components/terminal/SearchBar.js';
-import { InputBar } from '../components/input/InputBar.js';
+import { InputBar, type InputBarHandle } from '../components/input/InputBar.js';
 import { Toolbar } from '../components/input/Toolbar.js';
 import { StatusBar } from '../components/status/StatusBar.js';
 import { SettingsModal } from '../components/settings/SettingsModal.js';
@@ -55,11 +57,6 @@ export function ConsolePage(): JSX.Element {
    */
   const [hasPtyOutput, setHasPtyOutput] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  /**
-   * InputBar 的输入值。受控提到这里，是因为 Toolbar 中"非自动发送"的命令
-   * 需要把命令文本灌进输入框等用户编辑。
-   */
-  const [inputValue, setInputValue] = useState('');
   const t = useT();
   const connectionStatus = useAppStore((st) => st.connectionStatus);
   const { config, save } = useUserConfig();
@@ -69,7 +66,7 @@ export function ConsolePage(): JSX.Element {
 
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
   // 让点击 terminal 区也能把焦点接到 InputBar 输入框
-  const inputBarRef = useRef<HTMLTextAreaElement | null>(null);
+  const inputBarRef = useRef<InputBarHandle | null>(null);
   // 终端区 tap 检测：pointerdown 记起点，pointerup 时判定是 tap 还是 swipe
   const terminalTapRef = useRef<{ id: number; x: number; y: number; t: number } | null>(null);
   // 最近一次终端 pointerup 时间戳：focus hijack 在它之后 250ms 内不抢，给系统复制菜单留出现的时间
@@ -89,6 +86,7 @@ export function ConsolePage(): JSX.Element {
     searchPrev,
     clearSearch,
     getSelection,
+    terminal: termRef,
   } = useTerminal(containerRef, handleResize, config.display);
 
   const handleMessage = useCallback(
@@ -171,6 +169,10 @@ export function ConsolePage(): JSX.Element {
     const handler = (e: FocusEvent): void => {
       const el = e.target as HTMLElement | null;
       if (!el || !el.classList.contains('xterm-helper-textarea')) return;
+      // mouse reporting 激活（Claude TUI / vim / htop）：xterm 自己 focus
+      // helper-textarea 是它内部需要——不要抢焦点弹 IME。tap 由 useTouchSwipeScroll
+      // 的 SGR 路径处理，长按由 onLongPress 显式 focus InputBar 处理。
+      if (isMouseReportingActive(termRef.current)) return;
       // 移动端长按选词时 xterm 需要 helper-textarea 保持焦点才能弹系统复制菜单。
       // 三种"不应该抢焦点"的情况：
       //  1. pointer 还按着（terminalTapRef !== null）→ 长按选词进行中
@@ -204,9 +206,7 @@ export function ConsolePage(): JSX.Element {
         const text = getSelection();
         if (!text) return;
         e.preventDefault();
-        void navigator.clipboard.writeText(text).catch(() => {
-          // 不支持 Clipboard API：静默
-        });
+        void copyToClipboard(text);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -329,14 +329,15 @@ export function ConsolePage(): JSX.Element {
         commands={config.commands}
         onSendData={(data) => send({ type: 'user_input', data })}
         onSubmitCommand={(text) => send({ type: 'user_input', data: text + '\r' })}
-        onPrefillCommand={(text) => setInputValue(text)}
+        onPrefillCommand={(text) => {
+          inputBarRef.current?.setValue(text);
+          inputBarRef.current?.focus({ preventScroll: true });
+        }}
         disabled={connectionStatus !== 'connected'}
       />
 
       <InputBar
         ref={inputBarRef}
-        value={inputValue}
-        onChange={setInputValue}
         onSubmit={handleUserInput}
         disabled={connectionStatus !== 'connected'}
       />

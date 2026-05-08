@@ -50,6 +50,15 @@ const KNOWN_FLAGS_VALUE = new Set([
   '--auth-rate-limit',
   '--log-dir',
   '--spawn-timeout',
+]);
+
+/**
+ * 可选 value 的 flag：单独出现时 = true（语义由 assignFlag 决定），
+ * 后跟非 flag 字符串时取该字符串作为值。
+ *
+ * --dev-proxy：无值 = 自动发现 vite 端口；带值 = 固定到该端口
+ */
+const KNOWN_FLAGS_OPTIONAL_VALUE = new Set([
   '--dev-proxy',
 ]);
 
@@ -247,6 +256,18 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       continue;
     }
 
+    // --key [value] 可选值形式：peek 下一个 arg 不是 flag 才吃掉作为 value
+    if (KNOWN_FLAGS_OPTIONAL_VALUE.has(arg)) {
+      const peek = argv[cursor + 1];
+      if (peek !== undefined && !peek.startsWith('-')) {
+        assignFlag(result, arg, peek);
+        cursor++;
+      } else {
+        assignFlag(result, arg, true);
+      }
+      continue;
+    }
+
     // 已识别 program → 任意未知参数透传
     if (programGiven()) {
       result.claudeArgs.push(arg);
@@ -316,7 +337,13 @@ function assignFlag(out: ParsedCliArgs, key: string, value: string | boolean): v
       out.spawnTimeoutSec = parseNonNegativeInt(key, value);
       return;
     case '--dev-proxy':
-      out.devProxy = parsePort(value);
+      // 不带值 / 'auto' / '0' → 自动发现（用 0 标记，dev-proxy 内部探活 5173..）
+      // 带数字 → 固定端口
+      if (value === true || value === '' || value === 'auto' || value === '0') {
+        out.devProxy = 0;
+      } else {
+        out.devProxy = parsePort(value);
+      }
       return;
     case '--log-dir':
       out.logDir = String(value);

@@ -395,8 +395,19 @@ export function useTerminal(
         touchPointerId = null;
         return;
       }
+      const isAlt = term.buffer.active.type === 'alternate';
+      const buf = term.buffer.active;
+      // eslint-disable-next-line no-console
+      console.log('[TS] touchstart', JSON.stringify({
+        bufType: buf.type,
+        isAlt,
+        bufLength: buf.length,
+        viewportY: buf.viewportY,
+        baseY: buf.baseY,
+        rows: term.rows,
+      }));
       // alt-screen 不接管
-      if (term.buffer.active.type === 'alternate') {
+      if (isAlt) {
         touchPointerId = null;
         return;
       }
@@ -422,6 +433,12 @@ export function useTerminal(
       const lines = Math.trunc(newDelta / cellH);
       if (lines === 0) return;
       // 手指下拉(dy>0) → 看历史(scrollLines 负数)
+      // eslint-disable-next-line no-console
+      console.log('[TS] scrollLines', JSON.stringify({
+        lines: -lines,
+        beforeViewportY: term.buffer.active.viewportY,
+        bufLength: term.buffer.active.length,
+      }));
       term.scrollLines(-lines);
       touchAccumPx += lines * cellH;
       // 阻止默认避免页面整体被拖动 / iOS 弹性回弹
@@ -634,19 +651,27 @@ export function useTerminal(
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w === 0 || h === 0) return;
-      // 软键盘弹起期 + 初始挂载期：跳过 fit，避免把 term.rows 改成不可用的小值
-      if (isKeyboardOpen() || initialQuiet) {
+      // 初始挂载期：跳过 fit，避免拿到 xterm font metrics 未就绪的瞬态垃圾尺寸
+      if (initialQuiet) {
         return;
       }
-      // 容器突然显著变小 → 视为键盘正在弹起（vv update 还没到）→ 跳过
-      if (stableHeight > 0 && h < stableHeight * SHRINK_THRESHOLD) {
+      // 键盘正在弹起的过渡帧（容器已被压扁但 vv 还没 update）：跳过 fit，
+      // 等 vv 真正 update 后由 onVvResize 再驱动一次 fit
+      if (stableHeight > 0 && h < stableHeight * SHRINK_THRESHOLD && !isKeyboardOpen()) {
         return;
       }
       try {
         applyPrefs();
         fitAddon.fit();
+        // 键盘弹起期：fit 仍跑（让 xterm 内部 rows 跟 CSS 容器对齐，避免内容
+        // 被 overflow:hidden 裁掉看起来"消失"），但 emit 冻结（scheduleEmit
+        // 内部判定 isKeyboardOpen → 只缓存 pendingCols/Rows 不发 PTY），等键
+        // 盘收起再一次性 emit 稳定值，避免抖动期 PTY cols 狂跳
         scheduleEmit(term.cols, term.rows);
-        stableHeight = h;
+        // 只在非键盘态记录 stableHeight，键盘期的小高度不应作为后续判定基准
+        if (!isKeyboardOpen()) {
+          stableHeight = h;
+        }
       } catch {
         // xterm RenderService 偶发 dimensions undefined（容器 portal 切换时序）
         // 下一帧再次触发 ResizeObserver 时会自愈
@@ -661,13 +686,64 @@ export function useTerminal(
     // 同时键盘刚弹起时把 xterm viewport 滚到底部，确保当前命令行 / 光标在
     // 缩小的 CSS 可视区里能看到（buffer 不变但 viewport 变小，autoFollow 还
     // 没触发就先主动滚一下）
+    let prevKbOpen = false;
     const onVvResize = (): void => {
       requestAnimationFrame(() => {
+        const vv = window.visualViewport;
+        const cont = container;
+        const kbOpenNow = isKeyboardOpen();
+        const kbJustClosed = prevKbOpen && !kbOpenNow;
+        // eslint-disable-next-line no-console
+        console.log('[VV] resize', JSON.stringify({
+          vvH: vv?.height,
+          innerH: window.innerHeight,
+          ratio: vv ? +(vv.height / window.innerHeight).toFixed(2) : null,
+          contH: cont.clientHeight,
+          stableH: stableHeight,
+          kbOpen: kbOpenNow,
+          kbJustClosed,
+          termRows: termRef.current?.rows,
+        }));
         fitAndSchedule();
-        if (isKeyboardOpen() && autoFollowRef.current) {
+        // 键盘刚收起：fitAndSchedule 已把 term.rows 重新算成大尺寸（容器恢复
+        // 后 fit 自然给出新值），但 emit 走 300ms 防抖，且 Claude 等 TUI 在
+        // 防抖期间已 idle，不会主动重画下面空出来的行。
+        //
+        // 仅"立即 emit (cols, rows)"无效——Linux kernel tty_do_resize 在 winsize
+        // 跟之前一样时短路，不投递 SIGWINCH（之前键盘期可能已 emit 过这个尺寸，
+        // 或本次防抖前的 ResizeObserver 已 emit）。
+        //
+        // 方案 A：先 emit (cols, rows-1) 让 kernel 真的投递 SIGWINCH（rows 跟
+        // 上次不同），下一帧再 emit (cols, rows)。两次 size 不同，TUI 触发两次
+        // SIGWINCH handler → ink 的 layout reflow + full repaint，下方空白被填满。
+        // 参考：Linux SIGWINCH 行为 + ink #907 / Claude Code #49086 上游 bug
+        if (kbJustClosed) {
+          if (colsDebounceTimer) {
+            clearTimeout(colsDebounceTimer);
+            colsDebounceTimer = null;
+          }
+          const t = termRef.current;
+          if (t && t.cols >= MIN_USABLE_COLS && t.rows >= MIN_USABLE_ROWS + 1) {
+            const targetCols = t.cols;
+            const targetRows = t.rows;
+            // 同步连发两次 emit：让 kernel 投递两次 SIGWINCH（rows-1 和 rows
+            // 不同所以都会投递）。xterm renderer 在同一 microtask 内的两次
+            // resize 通常合并到同一渲染帧，用户看不到中间的"少 1 行"过渡。
+            // PTY 那边 zsh/Claude 收到两次 SIGWINCH 还是会两次 reflow，但因为
+            // 浏览器渲染只画最终态，闪烁被合并掉
+            // eslint-disable-next-line no-console
+            console.log('[VV] kbJustClosed → wake TUI sync', JSON.stringify({
+              cols: targetCols, rows: targetRows,
+            }));
+            tryEmit(targetCols, targetRows - 1);
+            tryEmit(targetCols, targetRows);
+          }
+        }
+        if (kbOpenNow && autoFollowRef.current) {
           scrollSkipRef.current = 1;
           termRef.current?.scrollToBottom();
         }
+        prevKbOpen = kbOpenNow;
       });
     };
     window.visualViewport?.addEventListener('resize', onVvResize);

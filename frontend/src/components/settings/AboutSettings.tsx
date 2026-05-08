@@ -7,6 +7,7 @@
 
 import { useState, type JSX } from 'react';
 import { useT } from '../../i18n/i18n-context.js';
+import { copyToClipboard } from '../../utils/clipboard.js';
 import s from './AboutSettings.module.scss';
 
 const REPO_GITHUB_URL = 'https://github.com/jjj201200/auvezy-terminal-remote';
@@ -20,12 +21,9 @@ export function AboutSettings(): JSX.Element {
   const [copied, setCopied] = useState(false);
 
   const handleCopyVersion = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(__APP_VERSION__);
+    if (await copyToClipboard(__APP_VERSION__)) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // 降级：clipboard 不可用就忽略，无需提示
     }
   };
 

@@ -29,14 +29,41 @@
 const ALT_ENTER = '\x1b[?1049h';
 /** alt screen 退出序列（DECRST 1049） */
 const ALT_EXIT = '\x1b[?1049l';
+/**
+ * Erase Saved Lines / Erase scrollback：CSI 3 J（ED with parameter 3）。
+ * Claude Code（基于 ink）在 fullscreen render path 里持续发这个序列清前端
+ * scrollback，导致用户在 mobile 上无法 swipe 回看历史。我们 strip 掉它，
+ * 让 xterm.js 的 normal buffer scrollback 不被擦。这是 ink 的上游已知行为
+ * （gist MagnaCapax/94713fe41f0294ada3c4527ea7ff7ebb）的客户端 workaround。
+ *
+ * 注意：CSI J 跟 CSI 3 J 不同——CSI J / CSI 0 J 是"擦光标到屏末"，CSI 1 J
+ * 是"擦屏首到光标"，CSI 2 J 是"擦整屏（不动 scrollback）"。只有 CSI 3 J
+ * 擦 scrollback，是我们要 strip 的目标。CSI ?3 J（带 ?）是 DECRST，跟这个
+ * 也不一样，不要误删。
+ */
+const ERASE_SCROLLBACK_RE = /\x1b\[3J/g;
 
 /** 内部状态机模式 */
 export type AnsiFilterMode = 'normal' | 'alt';
+
+export interface AnsiFilterOptions {
+  /**
+   * 是否 strip CSI 3 J (Erase Saved Lines)，默认 true。
+   * 关闭 alt-screen filter 但保留 scrollback strip 是合理组合：用户希望在
+   * webapp 看到 vim 当前画面的同时，不被 ink 类应用清掉历史。
+   */
+  stripEraseScrollback?: boolean;
+}
 
 export class AnsiFilter {
   private mode: AnsiFilterMode = 'normal';
   /** 跨 chunk 拼接的前缀缓冲（最长保留 ALT_ENTER 长度 - 1） */
   private pending = '';
+  private readonly stripEraseScrollback: boolean;
+
+  constructor(opts: AnsiFilterOptions = {}) {
+    this.stripEraseScrollback = opts.stripEraseScrollback ?? true;
+  }
 
   /** 当前是否在 alt screen 内 */
   get currentMode(): AnsiFilterMode {
@@ -82,6 +109,16 @@ export class AnsiFilter {
         i = idx + ALT_EXIT.length;
         this.mode = 'normal';
       }
+    }
+    // Strip CSI 3 J（erase saved lines / scrollback）：Claude Code/ink 等应用
+    // 在每次 redraw 前发这个序列清前端 scrollback，导致 mobile swipe 看不到
+    // 历史。strip 后 xterm.js normal buffer 的 scrollback 自然累积，用户可滑
+    // 动回看。
+    // 注意：跨 chunk 拼接已由 ALT_ENTER/ALT_EXIT 路径的 pending 兜底，CSI 3 J
+    // 长度仅 4 字节，跨 chunk 概率极低；最坏情况漏一次清屏，下次 chunk 来时
+    // 该应用照样会再发一次 redraw 序列覆盖（ink 的 render 是高频）。
+    if (this.stripEraseScrollback && output.length > 0) {
+      output = output.replace(ERASE_SCROLLBACK_RE, '');
     }
     return output;
   }

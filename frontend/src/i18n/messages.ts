@@ -112,10 +112,9 @@ export interface Messages {
     title: string;
     saveError: string;
     tab: {
-      shortcuts: string;
-      commands: string;
-      display: string;
       general: string;
+      actions: string;
+      display: string;
       notifications: string;
       network: string;
       dev: string;
@@ -154,14 +153,39 @@ export interface Messages {
     themeAuto: string;
   };
 
-  // 设置 - 通用（语言切换在这里）
+  // 设置 - 通用（语言切换）
   general: {
     languageTitle: string;
     languageHint: string;
+  };
+
+  // 设置 - 操作（输入 / 快捷键 / 命令汇总）
+  actions: {
+    /** 操作 tab 内三个 section 各自的 H2 标题 */
+    sectionControls: string;
+    sectionShortcuts: string;
+    sectionCommands: string;
+
     inputModeTitle: string;
     inputModeHint: string;
     inputModeUseBar: string;
     inputModeDirect: string;
+
+    tuiScrollTitle: string;
+    tuiScrollHint: string;
+    tuiScrollOn: string;
+    tuiScrollOff: string;
+
+    tuiTapTitle: string;
+    tuiTapHint: string;
+    tuiTapOn: string;
+    tuiTapOff: string;
+
+    scrollLinesTitle: string;
+    scrollLinesHint: string;
+    scrollLinesUnitLine: string;
+    scrollLinesHalf: string;
+    scrollLinesFull: string;
   };
 
   // 设置 - 网络

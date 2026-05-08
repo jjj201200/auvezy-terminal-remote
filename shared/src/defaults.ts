@@ -100,7 +100,6 @@ export const SHORTCUT_GROUPS: ShortcutGroupDef[] = [
     desc: '最常用的导航与控制键，默认全部启用。',
     items: [
       { label: 'Esc', data: '\x1b', enabled: true, desc: 'ESC 键 / 取消当前操作' },
-      { label: 'Enter', data: '\r', enabled: true, desc: '回车 / 确认' },
       { label: 'Tab', data: '\t', enabled: true, desc: 'Tab / 自动补全' },
       { label: 'BkSp', data: '\x7f', enabled: true, desc: '退格 / 删除光标前一个字符' },
       { label: '↑', data: '\x1b[A', enabled: true, desc: '上箭头 / 历史命令上一条' },
@@ -113,6 +112,7 @@ export const SHORTCUT_GROUPS: ShortcutGroupDef[] = [
         enabled: true,
         desc: 'Shift+Tab / 反向切换（Claude 审批菜单上一项、菜单补全反向轮询）',
       },
+      { label: 'Enter', data: '\r', enabled: true, desc: '回车 / 确认' },
     ],
   },
   {
@@ -396,18 +396,51 @@ export interface UserConfig {
  *
  * - useInputBar：true（默认）= 显示底部输入框，行编辑后回车发送（适合中文/长命令）；
  *   false = 隐藏输入框，让 xterm 自己接管按键（实时发到 PTY），更接近桌面终端。
- *   桌面端建议 true（用户期望行编辑），移动端用户可按需切换。
- *   实验性：移动端中文 IME 在 false 模式下可能行为异常（候选词期间不应发，
- *   但浏览器实现差异较大）。
+ *
+ * - tuiScrollEnabled：是否启用 TUI 滚动接管（移动端 swipe / 桌面 wheel 转
+ *   SGR mouse byte，让 Claude Code / vim / htop 内部逐行滚 transcript）。
+ *   默认 true——多数用户用 ATR 就是为了在 TUI 里看 transcript；普通 shell
+ *   不在 alt-screen 时 hook 不接管，对老使用习惯无影响。
+ *
+ * - tuiTapEnabled：是否启用移动端触摸 tap → SGR mouse press+release，让
+ *   Claude TUI 等程序的"点击交互"在手机上能用。默认 true。
+ *   背景：xterm v5.5.0 在 mouse reporting 激活时主动跳过 touch 路径
+ *   （Terminal.ts:835 early-return），且 passive 监听不能 preventDefault →
+ *   浏览器 W3C 规范下不再合成 mouse 事件 → xterm 收不到 click。我们自己
+ *   在 touchend 检测 tap（位移<10px / 时长<500ms）后拼一对 SGR byte 发 PTY。
+ *
+ * - scrollLines：开启 TUI 滚动后，一次滚动事件（鼠标 wheel notch / 一段 swipe）
+ *   对应的行数。直接拼 SGR 1006 mouse byte 发 PTY，逐行精确。
+ *   取值：
+ *     - 数字 1 / 3 / 5 / 10：固定行数
+ *     - 'half'：当前可视区高度的一半（运行时 = floor(rows/2)）
+ *     - 'full'：整个可视区高度（= rows）
+ *   默认 3（接近 CLAUDE_CODE_SCROLL_SPEED 默认值）
  */
+export type ScrollLinesValue = number | 'half' | 'full';
+
 export interface InputPrefs {
   useInputBar?: boolean;
+  tuiScrollEnabled?: boolean;
+  tuiTapEnabled?: boolean;
+  scrollLines?: ScrollLinesValue;
 }
 
 /** input 字段的硬默认 */
-export const DEFAULT_INPUT: Required<InputPrefs> = {
+export const DEFAULT_INPUT: {
+  useInputBar: boolean;
+  tuiScrollEnabled: boolean;
+  tuiTapEnabled: boolean;
+  scrollLines: ScrollLinesValue;
+} = {
   useInputBar: true,
+  tuiScrollEnabled: true,
+  tuiTapEnabled: true,
+  scrollLines: 3,
 };
+
+/** scrollLines 预设值（设置面板按顺序渲染） */
+export const SCROLL_LINES_PRESETS: readonly ScrollLinesValue[] = [1, 3, 5, 10, 'half', 'full'] as const;
 
 /**
  * 网络偏好
@@ -508,13 +541,39 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
   const commands =
     userCommands === null || commandsLegacy ? DEFAULT_COMMANDS : userCommands;
 
-  // input 子块：仅 normalize boolean 字段，缺失/非法 → 默认 true
+  // input 子块：normalize boolean / number 字段，缺失/非法 → 默认值
   // 变量名故意不叫 input，避免与函数参数 input 同名引起 TS 推断混乱
   const useInputBarValue =
     typeof src.input?.useInputBar === 'boolean'
       ? src.input.useInputBar
       : DEFAULT_INPUT.useInputBar;
-  const inputPrefs: Required<InputPrefs> = { useInputBar: useInputBarValue };
+  const tuiScrollEnabledValue =
+    typeof src.input?.tuiScrollEnabled === 'boolean'
+      ? src.input.tuiScrollEnabled
+      : DEFAULT_INPUT.tuiScrollEnabled;
+  const tuiTapEnabledValue =
+    typeof src.input?.tuiTapEnabled === 'boolean'
+      ? src.input.tuiTapEnabled
+      : DEFAULT_INPUT.tuiTapEnabled;
+  // scrollLines normalize：数字 ∈ [1, 200]、或 'half' / 'full'；其他回退默认
+  const slRaw = src.input?.scrollLines;
+  const scrollLines: ScrollLinesValue =
+    typeof slRaw === 'number' && Number.isFinite(slRaw) && slRaw >= 1 && slRaw <= 200
+      ? Math.trunc(slRaw)
+      : slRaw === 'half' || slRaw === 'full'
+        ? slRaw
+        : DEFAULT_INPUT.scrollLines;
+  const inputPrefs: {
+    useInputBar: boolean;
+    tuiScrollEnabled: boolean;
+    tuiTapEnabled: boolean;
+    scrollLines: ScrollLinesValue;
+  } = {
+    useInputBar: useInputBarValue,
+    tuiScrollEnabled: tuiScrollEnabledValue,
+    tuiTapEnabled: tuiTapEnabledValue,
+    scrollLines,
+  };
 
-  return { ...src, shortcuts, commands, input: inputPrefs };
+  return { ...src, shortcuts, commands, input: inputPrefs as InputPrefs };
 }

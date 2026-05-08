@@ -467,16 +467,11 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
 
   const port = cli.port ?? toInt(env['PORT']) ?? DEFAULT_PORT;
   const host = cli.host ?? env['HOST'] ?? '0.0.0.0';
-  // 优先级：CLI 首位置参数 > env OCR_COMMAND > 兼容 CLAUDE_COMMAND > 默认 shell
-  const explicitCommand =
-    cli.command ?? env['OCR_COMMAND'] ?? readLegacyEnv(env, 'CLAUDE_COMMAND');
+  // 优先级：CLI 首位置参数 > env OCR_COMMAND > 默认 shell
+  const explicitCommand = cli.command ?? env['OCR_COMMAND'];
   const claudeCommand = explicitCommand ?? resolveDefaultShell(env);
-  const claudeCwd =
-    cli.workdir ?? env['OCR_CWD'] ?? readLegacyEnv(env, 'CLAUDE_CWD') ?? process.cwd();
-  const explicitArgs = mergeClaudeArgs(
-    cli.claudeArgs,
-    env['OCR_ARGS'] ?? readLegacyEnv(env, 'CLAUDE_ARGS'),
-  );
+  const claudeCwd = cli.workdir ?? env['OCR_CWD'] ?? process.cwd();
+  const explicitArgs = mergeClaudeArgs(cli.claudeArgs, env['OCR_ARGS']);
   // 用户没指定 args 且我们用的是默认 shell 时，按 shell 类型补默认参数
   // （避免 zsh-newuser-install 向导、用户 rc 文件里的 exit 之类奇葩问题）
   const claudeArgs =
@@ -536,30 +531,7 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
 }
 
 /**
- * 兼容读旧名 env：发现旧名时 warn 一次（每进程），鼓励迁移到新名 OCR_*。
- *
- * 旧名 CLAUDE_COMMAND / CLAUDE_ARGS / CLAUDE_CWD 会一直支持，但若同时设置
- * 新旧两个，新名 OCR_* 优先。
- */
-const warnedLegacy = new Set<string>();
-function readLegacyEnv(
-  env: NodeJS.ProcessEnv,
-  legacyKey: 'CLAUDE_COMMAND' | 'CLAUDE_ARGS' | 'CLAUDE_CWD',
-): string | undefined {
-  const v = env[legacyKey];
-  if (v && !warnedLegacy.has(legacyKey)) {
-    warnedLegacy.add(legacyKey);
-    const newKey = legacyKey.replace('CLAUDE_', 'OCR_');
-    logger.warn(
-      { legacyKey, newKey },
-      `环境变量 ${legacyKey} 已重命名为 ${newKey}（旧名仍支持，建议迁移）`,
-    );
-  }
-  return v;
-}
-
-/**
- * 用户既没设 OCR_COMMAND 也没设旧名 CLAUDE_COMMAND 时，决定默认子进程命令。
+ * 用户没设 OCR_COMMAND 时，决定默认子进程命令。
  *
  * 优先级：
  *  1. $SHELL 环境变量（macOS / Linux / WSL 都自动有；用户当前 shell；

@@ -30,9 +30,11 @@
   align-self: stretch;
   width: 1px;
   margin: -1px t.$bar-gap;
-  background: t.$border;
+  // background: t.$border;
+  background: transparent;
   // 不与底部下划线相连，避免视觉脏
   margin-bottom: 1px;
+  
 }
 
 // 语义占位：左半快捷键分类区 / 右半命令分类区

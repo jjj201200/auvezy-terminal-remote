@@ -20,6 +20,49 @@
   display: flex;
 }
 
+// CodeMirror 风格的"自管文本渲染层"：叠在 textarea 之上，显示 hook truth
+// (bufferRef)。textarea 本身视觉透明（仅作事件捕获 + 让 iOS 修改一个不可见的
+// DOM），用户看到的是这个 div 的内容 → iOS 的中间态修改对用户完全不可见。
+.display {
+  position: absolute;
+  inset: 0;
+  // 让 div 跟下面 textarea 完全对齐：同样的 padding / font / line-height
+  box-sizing: border-box;
+  padding: t.$sp-0 28px t.$sp-0 t.$sp-3;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: hidden;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  color: t.$fg;
+  z-index: 1;
+}
+
+// 占位符：buffer 为空时显示
+.placeholder {
+  color: t.$fg-low;
+}
+
+// 自管光标：div 末尾闪烁的竖线
+.caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.2em;
+  background: t.$accent;
+  margin-left: 1px;
+  vertical-align: middle;
+  animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
 // textarea：单行外观但底层是 textarea（IME / 中段编辑 / 方向键原生支持）
 .input {
   // textarea 默认 vertical-align:baseline 会让父 flex 行高异常，强制 middle
@@ -30,7 +73,15 @@
   min-width: 0;
   border: 1px solid t.$border;
   background: t.$bg-input;
-  color: t.$fg;
+  // CodeMirror 模式：textarea 视觉透明，文字 / caret / 选区都不渲染；用户看到
+  // 的字符由 .display div 自管。这样 iOS 智能键盘对 textarea 的中间态修改
+  // (Smart Punctuation 删空格再插标点等) 对用户完全不可见
+  color: transparent;
+  caret-color: transparent;
+  // 选区也透明，避免双重高亮
+  &::selection {
+    background: transparent;
+  }
   // 右内侧留出空间给 × 按钮（即使 value 为空也留着，避免布局抖动）
   padding: t.$sp-0 28px t.$sp-0 t.$sp-3;
   font-family: t.$font-mono;

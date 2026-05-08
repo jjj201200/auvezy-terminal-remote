@@ -1,0 +1,26 @@
+@use '../../styles/tokens' as t;
+
+.root {
+  position: fixed;
+  width: 80px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.bar {
+  height: 100%;
+  background: t.$accent;
+  transform-origin: left center;
+  animation-name: atrLongPressGrow;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes atrLongPressGrow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}

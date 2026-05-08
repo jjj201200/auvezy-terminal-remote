@@ -15,13 +15,16 @@ import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import type { ServerMessage, SessionStatus, ClientMessage, UserConfig } from 'auvezy-terminal-remote-shared';
 import { useTerminal } from '../../hooks/useTerminal.js';
 import { useTouchSwipeScroll } from '../../hooks/useTouchSwipeScroll.js';
+import { isMouseReportingActive } from '../../utils/xterm-internals.js';
+import { copyToClipboard } from '../../utils/clipboard.js';
+import { LongPressIndicator } from '../input/LongPressIndicator.js';
 import { useWebSocket } from '../../hooks/useWebSocket.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useLocalNotification } from '../../hooks/useLocalNotification.js';
 import { TerminalView } from '../terminal/TerminalView.js';
 import { ScrollNavButtons } from '../terminal/ScrollNavButtons.js';
 import { SearchBar } from '../terminal/SearchBar.js';
-import { InputBar } from '../input/InputBar.js';
+import { InputBar, type InputBarHandle } from '../input/InputBar.js';
 import { DirectInputCapture } from '../input/DirectInputCapture.js';
 import { Toolbar } from '../input/Toolbar.js';
 import { IpChangeToast, type IpChangeInfo } from '../common/IpChangeToast.js';
@@ -91,14 +94,21 @@ export function InstanceView({
 }: InstanceViewProps): JSX.Element {
   const t = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const inputBarRef = useRef<HTMLTextAreaElement | null>(null);
+  // InputBar 是非受控组件，通过 imperative ref 操作 buffer（focus / setValue / clear）
+  const inputBarRef = useRef<InputBarHandle | null>(null);
   // 直接输入模式专用：自挂的透明 textarea（替代 xterm helper-textarea，绕开 iOS bug）
   const directCaptureRef = useRef<HTMLTextAreaElement | null>(null);
+  const useInputBar = config.input?.useInputBar !== false;
+  // 长按视觉反馈：触摸点屏幕坐标（fixed 定位用 viewport 坐标）；null = 不显示
+  const [longPressFx, setLongPressFx] = useState<{ x: number; y: number } | null>(null);
+  const LONG_PRESS_MS = 600;
+  // 进度条延迟出现 200ms 防止短按 / 滑动闪一下；剩余时长走完到 LONG_PRESS_MS
+  const PROGRESS_BAR_DELAY_MS = 200;
+  const PROGRESS_BAR_DURATION_MS = LONG_PRESS_MS - PROGRESS_BAR_DELAY_MS;
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
 
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [hasPtyOutput, setHasPtyOutput] = useState(false);
-  const [inputValue, setInputValue] = useState('');
   const [ipChange, setIpChange] = useState<IpChangeInfo | null>(null);
   // 由 backend pty-manager 监听 DECSET 1049/1047/47 推送
   // 移动端 touch swipe → 方向键的开关：alt-screen 时启用，否则让 xterm 走原生滚动
@@ -127,6 +137,7 @@ export function InstanceView({
     clearSearch,
     getSelection,
     setOnData,
+    terminal: termRef,
   } = useTerminal(containerRef, handleResize, config.display);
 
   const handleMessage = useCallback(
@@ -185,10 +196,29 @@ export function InstanceView({
   );
   sendRef.current = send;
 
-  // 移动端 touch swipe → 方向键（仅 alt-screen，让 claude/vim/htop 能用手指翻 menu / 滚 history）
+  // 移动端 touch swipe / 桌面 wheel → PgUp/PgDn（仅 alt-screen TUI 内）
+  // termRef 让 hook 内部能实时检查 buffer 类型，比 backend alt_screen_change
+  // 消息更可靠（重连 / 消息丢失场景）
   useTouchSwipeScroll({
     containerRef,
     altScreen: inAltScreen,
+    termRef,
+    enabled: config.input?.tuiScrollEnabled !== false,
+    scrollLines: config.input?.scrollLines ?? 3,
+    tuiTapEnabled: config.input?.tuiTapEnabled !== false,
+    // 移动端长按 = 弹 IME（focus 输入框）：方案 1+2 的第 2 部分，让用户在
+    // mouse-reporting TUI 内能明确表达"我要打字"意图，避免短 tap 同时弹 IME
+    onLongPress: () => {
+      if (useInputBar) {
+        inputBarRef.current?.focus({ preventScroll: true });
+      } else {
+        directCaptureRef.current?.focus({ preventScroll: true });
+      }
+    },
+    longPressMs: LONG_PRESS_MS,
+    // 长按视觉反馈：在触摸点上方显示倒计时进度条
+    onLongPressStart: (x, y) => setLongPressFx({ x, y }),
+    onLongPressCancel: () => setLongPressFx(null),
     onSendKey: (data) => {
       sendRef.current?.({ type: 'user_input', data });
     },
@@ -230,8 +260,6 @@ export function InstanceView({
     [send],
   );
 
-  const useInputBar = config.input?.useInputBar !== false;
-
   // 直接输入模式不再依赖 xterm.onData —— 桌面端能用，但 iOS WebKit 下 xterm
   // 的 helper-textarea input 事件不可靠（仅退格 keydown 有效）。改成自挂
   // DirectInputCapture，所有按键 / IME 经过我们自己的 textarea，事件可靠。
@@ -242,6 +270,8 @@ export function InstanceView({
 
   const sendDirect = useCallback(
     (data: string): void => {
+      // eslint-disable-next-line no-console
+      console.log('[IV] sendDirect', JSON.stringify({ data, len: data.length, codes: [...data].map((c) => c.charCodeAt(0)) }));
       send({ type: 'user_input', data });
     },
     [send],
@@ -267,9 +297,7 @@ export function InstanceView({
         const text = getSelection();
         if (!text) return;
         e.preventDefault();
-        void navigator.clipboard.writeText(text).catch(() => {
-          /* 老浏览器或非 secure context：静默 */
-        });
+        void copyToClipboard(text);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -300,17 +328,25 @@ export function InstanceView({
       <div
         id="console-terminal-wrap"
         className={s.terminalWrap}
-        // 不论哪种模式 —— xterm helper-textarea 都 pointer-events:none，焦点
-        // 由我们的 textarea 接管：useInputBar=true → InputBar；
-        // useInputBar=false → DirectInputCapture（绕开 iOS xterm helper bug）。
+        // 焦点接管：useInputBar=true → InputBar；false → DirectInputCapture。
+        //
+        // 仅在 **mouse reporting 未激活** 时让 click 弹 IME（普通 shell 场景，
+        // 用户 tap 终端就是想打字）。Claude / vim / htop 等启用 mouse reporting
+        // 的 TUI 内：短 tap = SGR 点击（hook 处理），长按 = IME（hook onLongPress
+        // 调 focus），点击不再额外弹 IME，避免双触发。
+        //
         // 用 onClick 而不是 onPointerDown：避免滚动手势的 pointerdown 也触发
-        // focus（click 只在 tap 完成且非滚动时才合成）。iOS 上 click 仍保留
+        // focus（click 只在 tap 完成且非滚动时才合成）。iOS 上 click 保留
         // user gesture 资格 → 软键盘正常弹起。
         onClick={(e) => {
           // 文本选区场景跳过：让用户能选择/复制
           const sel = window.getSelection();
           if (sel && sel.toString().length > 0) return;
           if (!(e.target as HTMLElement | null)?.closest?.('.xterm')) return;
+          // mouse reporting 激活 + InputBar 模式（移动端）：不 focus，避免 click 弹 IME。
+          // 长按时 hook onLongPress 才显式 focus InputBar（user-gesture 同步链路）。
+          // 其他组合（PC / 非 InputBar / 非 mouse-active）正常 focus。
+          if (isMouseReportingActive(termRef.current) && useInputBar) return;
           if (useInputBar) {
             inputBarRef.current?.focus({ preventScroll: true });
           } else {
@@ -363,21 +399,30 @@ export function InstanceView({
         commands={config.commands}
         onSendData={(data) => send({ type: 'user_input', data })}
         onSubmitCommand={(text) => send({ type: 'user_input', data: text + '\r' })}
-        onPrefillCommand={(text) => setInputValue(text)}
+        onPrefillCommand={(text) => {
+          inputBarRef.current?.setValue(text);
+          inputBarRef.current?.focus({ preventScroll: true });
+        }}
         disabled={disabled || connectionStatus !== 'connected'}
       />
 
       {useInputBar && (
         <InputBar
           ref={inputBarRef}
-          value={inputValue}
-          onChange={setInputValue}
           onSubmit={handleUserInput}
           disabled={disabled || connectionStatus !== 'connected'}
         />
       )}
 
       {active && <IpChangeToast info={ipChange} onDismiss={() => setIpChange(null)} />}
+
+      {longPressFx && (
+        <LongPressIndicator
+          x={longPressFx.x}
+          y={longPressFx.y}
+          durationMs={PROGRESS_BAR_DURATION_MS}
+        />
+      )}
     </div>
   );
 }

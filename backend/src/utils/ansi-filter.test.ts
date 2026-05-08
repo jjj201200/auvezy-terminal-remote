@@ -84,4 +84,38 @@ describe('AnsiFilter', () => {
     // 我们应该输出 \x1bbar
     expect(f.filter('bar')).toBe('\x1bbar');
   });
+
+  describe('CSI 3 J (erase saved lines / scrollback) strip', () => {
+    it('默认 strip 单个 CSI 3 J', () => {
+      expect(f.filter('before\x1b[3Jafter')).toBe('beforeafter');
+    });
+
+    it('strip 多个 CSI 3 J', () => {
+      expect(f.filter('a\x1b[3Jb\x1b[3Jc')).toBe('abc');
+    });
+
+    it('不影响其它 CSI J 变体（CSI J / CSI 0 J / CSI 1 J / CSI 2 J）', () => {
+      // CSI J = 擦光标到屏末，CSI 2 J = 擦整屏（不动 scrollback），都应保留
+      expect(f.filter('\x1b[J')).toBe('\x1b[J');
+      expect(f.filter('\x1b[0J')).toBe('\x1b[0J');
+      expect(f.filter('\x1b[1J')).toBe('\x1b[1J');
+      expect(f.filter('\x1b[2J')).toBe('\x1b[2J');
+    });
+
+    it('不影响 DECRST CSI ?3 J（带问号是别的语义）', () => {
+      // 严格匹配 \x1b[3J，所以 \x1b[?3J 应该被透传
+      expect(f.filter('\x1b[?3J')).toBe('\x1b[?3J');
+    });
+
+    it('alt-screen 退出后 strip 仍生效', () => {
+      f.filter(ENTER);
+      f.filter('hidden');
+      expect(f.filter(`${EXIT}\x1b[3Jpost`)).toBe(`${EXIT}post`);
+    });
+
+    it('opts stripEraseScrollback=false 关闭 strip', () => {
+      const f2 = new AnsiFilter({ stripEraseScrollback: false });
+      expect(f2.filter('a\x1b[3Jb')).toBe('a\x1b[3Jb');
+    });
+  });
 });

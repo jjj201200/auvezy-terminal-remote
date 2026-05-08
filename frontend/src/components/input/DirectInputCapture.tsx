@@ -3,18 +3,22 @@
  *
  * 直接输入模式（useInputBar=false）下的 iOS 兼容输入捕获层。
  *
- * 背景：xterm 自带的 helper-textarea 在 iOS WebKit 下会出现：
- *  1. 1×1px + 偏屏外的 textarea，input 事件不可靠（部分字符 / IME 静默丢失）
- *  2. 即使能弹起键盘，普通字符 onData 不触发（仅退格走 keydown 路径有效）
- *  3. 强行给 helper-textarea 真实尺寸又会被 iOS scrollIntoView 扯走 fixed 容器
+ * 通过 useTextareaInputGuard hook 接收"用户真实意图"（已过滤掉 iOS Smart
+ * Punctuation / QuickType / 自动空格删除等智能键盘行为），按终端语义直接转
+ * 字节流送 PTY：
+ *   - insert text → onSend(text)
+ *   - delete N    → onSend('\x7f' × N)
+ *   - replace     → onSend('\x7f' × N + text)
  *
- * 方案：用我们自己的真实 textarea 接管输入，绕过 xterm 的 helper-textarea。
- *  - 视觉透明（opacity:0）但有真实 1px 高度 + 100% 宽度，iOS 会派发完整事件
- *  - 每次 input → 立刻把 value 发 PTY 然后清空，textarea 始终保持空字符串
- *  - keydown 拦截 Enter / 退格 / 方向键等控制键，转成对应转义序列发送
- *  - IME composition 期间不发，compositionend 时整段中文一次发
+ * 模式：'stream' —— hook 内部 commit 后立刻清空 buffer，textarea 始终空。
  *
- * 挂在 terminalWrap 内，跟 helper-textarea 共存但 z-index 更高 + 拦截焦点。
+ * 控制键（Enter / Tab / 方向键 / Ctrl+X 等）走 keydown 直接发转义序列；
+ * 调用 hook.flushPending() 把任何挂起的 smart-punct delete 提前发出，
+ * 保证字节顺序。
+ *
+ * IME 中文：composition 期间冻结，compositionend 时把 e.data 整段 send。
+ *
+ * textarea 是非受控的（无 React value/onChange），由 hook 直接管理。
  */
 
 import {
@@ -22,8 +26,9 @@ import {
   useCallback,
   useRef,
   type KeyboardEvent,
-  type ChangeEvent,
+  type CompositionEvent,
 } from 'react';
+import { useTextareaInputGuard, type InputIntent } from '../../hooks/useTextareaInputGuard.js';
 import s from './DirectInputCapture.module.scss';
 
 export interface DirectInputCaptureProps {
@@ -31,103 +36,120 @@ export interface DirectInputCaptureProps {
 }
 
 /** 控制键 → PTY 转义序列映射 */
-function keyToSequence(e: KeyboardEvent<HTMLTextAreaElement>): string | null {
-  // 修饰键：Ctrl+A..Z → \x01..\x1a；其它修饰组合放给浏览器默认 / 不处理
-  if (e.ctrlKey && !e.altKey && !e.metaKey) {
-    const k = e.key.toLowerCase();
+function controlKeyToSequence(
+  key: string,
+  ctrl: boolean,
+  alt: boolean,
+  meta: boolean,
+): string | null {
+  if (ctrl && !alt && !meta) {
+    const k = key.toLowerCase();
     if (k.length === 1 && k >= 'a' && k <= 'z') {
       return String.fromCharCode(k.charCodeAt(0) - 96);
     }
   }
-  switch (e.key) {
-    case 'Enter':
-      return '\r';
-    case 'Backspace':
-      return '\x7f';
-    case 'Tab':
-      return '\t';
-    case 'Escape':
-      return '\x1b';
-    case 'ArrowUp':
-      return '\x1b[A';
-    case 'ArrowDown':
-      return '\x1b[B';
-    case 'ArrowRight':
-      return '\x1b[C';
-    case 'ArrowLeft':
-      return '\x1b[D';
-    case 'Home':
-      return '\x1b[H';
-    case 'End':
-      return '\x1b[F';
-    case 'PageUp':
-      return '\x1b[5~';
-    case 'PageDown':
-      return '\x1b[6~';
-    case 'Delete':
-      return '\x1b[3~';
-    default:
-      return null;
+  switch (key) {
+    case 'Enter':       return '\r';
+    case 'Tab':         return '\t';
+    case 'Escape':      return '\x1b';
+    case 'ArrowUp':     return '\x1b[A';
+    case 'ArrowDown':   return '\x1b[B';
+    case 'ArrowRight':  return '\x1b[C';
+    case 'ArrowLeft':   return '\x1b[D';
+    case 'Home':        return '\x1b[H';
+    case 'End':         return '\x1b[F';
+    case 'PageUp':      return '\x1b[5~';
+    case 'PageDown':    return '\x1b[6~';
+    case 'Delete':      return '\x1b[3~';
+    default:            return null;
   }
 }
 
 export const DirectInputCapture = forwardRef<HTMLTextAreaElement, DirectInputCaptureProps>(
   function DirectInputCapture({ onSend }, ref) {
-    // IME 合成中：input 事件不发，等 compositionend 一次性发整段
+    const elRef = useRef<HTMLTextAreaElement | null>(null);
     const composingRef = useRef(false);
 
-    const flushAndClear = useCallback(
-      (el: HTMLTextAreaElement): void => {
-        if (el.value.length === 0) return;
-        onSend(el.value);
-        el.value = '';
-      },
-      [onSend],
-    );
+    const onCommit = useCallback((intent: InputIntent): void => {
+      switch (intent.kind) {
+        case 'insert':
+          onSend(intent.text);
+          break;
+        case 'delete':
+          onSend('\x7f'.repeat(intent.count));
+          break;
+        case 'replace':
+          onSend('\x7f'.repeat(intent.deleteCount) + intent.insert);
+          break;
+      }
+    }, [onSend]);
+
+    const { flushPending, clear } = useTextareaInputGuard(elRef, {
+      mode: 'stream',
+      onCommit,
+      composingRef,
+    });
 
     const onKeyDown = useCallback(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
-        // IME 期间所有 keydown 交给输入法
         if (composingRef.current || e.nativeEvent.isComposing) return;
-        const seq = keyToSequence(e);
-        if (seq !== null) {
+        const ctrlSeq = controlKeyToSequence(e.key, e.ctrlKey, e.altKey, e.metaKey);
+        if (ctrlSeq !== null) {
           e.preventDefault();
-          // 控制键之前可能有未发送的字符（罕见，但保险）
-          flushAndClear(e.currentTarget);
-          onSend(seq);
+          flushPending();
+          onSend(ctrlSeq);
+          if (e.key === 'Enter') {
+            // Enter 提交后清空一切（防止 textarea 累积无关文本）
+            clear();
+          }
         }
       },
-      [onSend, flushAndClear],
+      [onSend, flushPending, clear],
     );
 
-    const onChange = useCallback(
-      (e: ChangeEvent<HTMLTextAreaElement>) => {
-        // IME 期间 input 事件可能多次触发（候选词更新），不发；等 compositionend
-        if (composingRef.current) return;
-        flushAndClear(e.currentTarget);
+    const onCompositionStart = useCallback((): void => {
+      composingRef.current = true;
+    }, []);
+
+    const onCompositionEnd = useCallback(
+      (e: CompositionEvent<HTMLTextAreaElement>): void => {
+        composingRef.current = false;
+        const data = e.data;
+        if (data && data.length > 0) onSend(data);
+        clear();
       },
-      [flushAndClear],
+      [onSend, clear],
+    );
+
+    const setRef = useCallback(
+      (el: HTMLTextAreaElement | null) => {
+        elRef.current = el;
+        if (typeof ref === 'function') ref(el);
+        else if (ref) ref.current = el;
+      },
+      [ref],
     );
 
     return (
       <textarea
-        ref={ref}
+        ref={setRef}
         className={s.capture}
+        // 非受控：无 value/onChange，textarea.value 由 useTextareaInputGuard 管理
+        defaultValue=""
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
+        // CodeMirror 6.36.3 (2024-12)：关 Safari 18 Apple Intelligence completion
+        // @ts-expect-error: writingsuggestions 是新 HTML 属性，TS DOM 类型未收录
+        writingsuggestions="false"
+        translate="no"
+        inputMode="url"
         rows={1}
         aria-label="terminal input"
-        onChange={onChange}
         onKeyDown={onKeyDown}
-        onCompositionStart={() => {
-          composingRef.current = true;
-        }}
-        onCompositionEnd={(e) => {
-          composingRef.current = false;
-          flushAndClear(e.currentTarget);
-        }}
+        onCompositionStart={onCompositionStart}
+        onCompositionEnd={onCompositionEnd}
       />
     );
   },

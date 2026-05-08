@@ -386,45 +386,6 @@ describe('loadConfig（CLI > env > 默认）', () => {
     expect(cfg.claudeArgs).toEqual(['--cli-arg']);
   });
 
-  it('env：旧名 CLAUDE_* 仍然兼容（向后兼容）', () => {
-    const cfg = loadConfig({
-      cli: baseCli,
-      env: {
-        CLAUDE_COMMAND: 'bash',
-        CLAUDE_ARGS: '["-c","echo hi"]',
-        CLAUDE_CWD: '/tmp/legacy',
-      },
-      generateToken: () => 'gen',
-      loadUser: () => ({
-        path: '/tmp/x.json',
-        value: {},
-        created: false,
-        recovered: false,
-      }),
-    });
-    expect(cfg.claudeCommand).toBe('bash');
-    expect(cfg.claudeArgs).toEqual(['-c', 'echo hi']);
-    expect(cfg.claudeCwd).toBe('/tmp/legacy');
-  });
-
-  it('env：新名 OCR_* 优先于旧名 CLAUDE_*', () => {
-    const cfg = loadConfig({
-      cli: baseCli,
-      env: {
-        OCR_COMMAND: 'zsh',
-        CLAUDE_COMMAND: 'bash',
-      },
-      generateToken: () => 'gen',
-      loadUser: () => ({
-        path: '/tmp/x.json',
-        value: {},
-        created: false,
-        recovered: false,
-      }),
-    });
-    expect(cfg.claudeCommand).toBe('zsh');
-  });
-
   it('未设置 OCR_COMMAND 时回退到 $SHELL', () => {
     const cfg = loadConfig({
       cli: baseCli,

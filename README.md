@@ -5,8 +5,12 @@
 > Remote-control any terminal program on your PC (zsh / bash / claude / any CLI)
 > from a phone or tablet browser over LAN.
 >
-> One command — `atr <program>` — and every instance shows up as a tab in your
-> browser's top bar.
+> One command — `atr [program] [program-args...]` — and every instance shows up
+> as a tab in your browser's top bar.
+
+<p align="center">
+  <img src="./frontend/public/screenshots/mobile.png" alt="Mobile webapp running Claude Code" width="280">
+</p>
 
 > **License: [PolyForm Noncommercial 1.0.0](./LICENSE)** —
 > free for personal, educational, and nonprofit use, including modification and
@@ -39,21 +43,29 @@ npm install -g auvezy-terminal-remote   # -g is required
 > npm package page is **missing `-g`**. This is a CLI tool — without `-g` the
 > `atr` binary won't be on your PATH. Use the command above.
 
-Then in any terminal:
+Then in any terminal — full grammar is `atr [atr-flags...] [program] [program-args...]`:
 
 ```bash
-atr                       # runs your $SHELL (auto-detects zsh / bash)
-atr claude                # runs claude
-atr zsh                   # runs zsh
-atr claude --resume foo   # passes any args through to the child process
+atr                            # runs your $SHELL (auto-detects zsh / bash)
+atr claude                     # runs claude
+atr zsh                        # runs zsh
+atr claude --resume foo        # passes unknown args through to claude
+atr -p 3001 --name api claude  # atr's own flags + program + program-args coexist
+atr claude -- --port 8080      # use `--` to disambiguate when program shares
+                               # a flag name with atr (here --port goes to claude)
 ```
+
+`atr`'s own flags (`-p / --port`, `--name`, `--no-terminal`, etc.) are always
+captured by `atr` regardless of position. Anything after a recognized program
+that `atr` doesn't recognize is forwarded to the child process. Use `--` to
+forcibly stop `atr`'s flag parsing and forward everything after it.
 
 After it starts, scan the QR code printed in the terminal — the webapp logs in
 automatically (token lives in `~/.auvezy/terminal-remote/config.json`).
 
-**Multiple instances**: Run `atr <prog>` in different terminals; each grabs the
-next available port (3000, 3001, 3002…). Tabs for new instances appear in the
-browser's top bar automatically — click to switch.
+**Multiple instances**: Run `atr [program]` in different terminals; each grabs
+the next available port (3000, 3001, 3002…). Tabs for new instances appear in
+the browser's top bar automatically — click to switch.
 
 ```bash
 atr list                  # list all running instances on this machine
@@ -75,7 +87,105 @@ node backend/dist/cli.js  # equivalent to `atr`
 ```
 
 
-## Feature matrix
+## Features (implemented)
+
+Everything in this section already ships in the current release. For the
+"considered / not yet built" list, see [Roadmap](#roadmap) further down.
+
+**Core terminal**
+
+- Full PTY bridge over WebSocket (node-pty + xterm.js 5), ANSI colors,
+  alt-screen / TUI-friendly scrollback handling, configurable ANSI filter
+- Reconnect with replay — OutputBuffer rehydrates scrollback on every
+  reconnect; alt-screen TUIs (claude / tmux / vim / htop …) protected by an
+  extensible blocklist so reconnect never blanks the screen
+- Incremental redraw fix for Ink/Claude/Yoga TUIs that don't reflow on resize
+  (double-pulse strategy)
+- Session TTL + idle disconnect handling, configurable
+
+**Multi-instance**
+
+- One `atr` per terminal — each instance auto-grabs the next free port
+  (3000, 3001, 3002…); a single browser tab bar shows them all and lets you
+  switch
+- `instances/<port>.json` registry with file-locked atomic writes, stale-PID
+  cleanup, shared token across instances on the same machine
+- `atr list` / `atr stop [pattern]` / `atr attach <url>` subcommands
+
+**Multi-client (master / slave arbitration)**
+
+- Multiple browsers / tabs / `attach` clients on the same instance simultaneously
+- Master arbitration: webapp > attach > local PC, configurable per session
+- "Adapt to current device" button in the top bar takes over PTY size from
+  whichever device is currently active
+
+**Mobile-first webapp**
+
+- PWA (manifest + service worker), installable on iOS Safari and Android
+  Chrome — runs without browser chrome, status bar tinted to match
+- Mobile-optimized input: dedicated input bar + toolbar + IME composition
+  guard (no predictive-input pollution from iOS / Android keyboards)
+- Touch gestures: long-press progress indicator, swipe scroll, momentum
+  preservation, virtual keyboard safe-area handling, viewport-aware fit
+- Mobile instance switcher (sheet) + share sheet (URL / QR copy)
+- iOS-specific xterm work: WebGL disabled, helper-textarea predictive input
+  suppressed, focus-hijack mitigation
+
+**Settings panel** (in-webapp, all written back to `~/.auvezy/terminal-remote/config.json`)
+
+- General (language, theme, font size, letter spacing)
+- Display (xterm theme picker including 16-color / Campbell / custom)
+- Shortcuts (custom keys with bucket grouping, drag-to-reorder)
+- Commands (saved command snippets with grouping)
+- Controls (input mode toggle, TUI tap-to-focus, scrollback options)
+- Network (display-IP override, CORS allow list inspection)
+- Actions (per-instance quick actions)
+- About (version, repo links, license)
+- Developer tab (debug toggles, console-bridge settings)
+
+**Authentication & security**
+
+- 64-char hex token, `timingSafeEqual` comparison
+- Port-bound session cookie (cookie-name suffix per port → no cross-instance
+  cookie leakage)
+- LAN-only by default; optional CORS allow list via `OCR_CORS_ALLOW`
+- `/api/hook` accepts loopback only (127.0.0.1 / ::1)
+- Workdir whitelist for path traversal protection
+- Config / VAPID / subscription files at mode 0o600, directory at 0o700
+- Per-IP rate limiting on auth attempts
+
+**Notifications**
+
+- Web Push via VAPID, three priority levels (default / high / urgent)
+- iOS Safari fallback: in-page LocalNotification when Web Push is unavailable
+  (LAN HTTP context)
+- Notification settings panel: toggle, test push, subscription management
+
+**Network awareness**
+
+- IP drift detection: 30s polling, stability threshold, broadcast
+  `ip_changed` to clients with toast prompt
+- Multi-NIC display IP heuristic with diagnostic banner output (LAN +
+  Tailscale dual QR codes)
+- WSL2 mirrored / NAT mode auto-detection + PowerShell port-forward script
+  generated on first run
+
+**CLI ergonomics**
+
+- Banner with color-aware QR codes (LAN + Tailscale where applicable)
+- `--dev-proxy` for local frontend development (vite port auto-discovery
+  5173–5180, 10s cache)
+- `--spawn-timeout`, `--wait-confirm`, `--no-terminal`, `--strict-port`,
+  `--name`, `--workdir`, `--token` …
+
+**Approval hook (Claude Code integration)**
+
+- `/api/hook` endpoint accepts Claude approval events, fans out to all
+  registered push subscriptions with appropriate priority
+- `console-bridge`: front-end `console.*` forwarded over WS to backend stderr
+  for cross-device debugging
+
+### Quick reference (technical mapping)
 
 | Feature | How it's implemented |
 |---|---|
@@ -115,13 +225,14 @@ Subscriptions are in `push-subscriptions.json`; the multi-instance registry is i
 ## Startup options
 
 ```
-atr [subcommand] [options]
+atr [atr-flags...] [program] [program-args...]
+atr <subcommand> [args]
 
-Subcommands:
-  start          start the backend (default)
-  attach         attach to a running instance from the command line
+Subcommands (used in place of [program]):
+  start          start the backend (default — implicit when no subcommand given)
+  attach <url>   attach to a running instance from the command line
   list           list all running instances on this machine
-  stop           stop all instances on this machine
+  stop [pattern] stop running instances on this machine (optional name pattern)
 
 Options:
   -p, --port <n>      port (default 3000, auto-increments unless -S)
@@ -152,10 +263,6 @@ Environment variables:
 | `OCR_SPAWN_TIMEOUT` | Same as `--spawn-timeout` (seconds; 0 = no timeout) |
 | `AUTH_TOKEN`  | Specify token (default: auto-generated) |
 | `LOG_LEVEL`   | pino level (default `info`) |
-
-> Legacy names `CLAUDE_COMMAND` / `CLAUDE_ARGS` / `CLAUDE_CWD` still work
-> (warned once at startup). Renamed to make it clear: this project is not tied
-> to Claude — it can run any PTY program.
 
 ## Install as a PWA (recommended on mobile)
 
@@ -222,7 +329,12 @@ pnpm build        # full build artifacts (frontend copied into backend/frontend-
 
 ## Roadmap
 
-### Tier 1 (must-have for mobile, low effort, big UX win)
+> **Everything below is _planned / under evaluation / explicitly out of scope_ —
+> NOT yet implemented.** Items shipping in the current release are listed under
+> [Features (implemented)](#features-implemented) above. Each tier is sorted by
+> "expected effort vs. UX gain", lower tiers being lower priority.
+
+### Tier 1 — Planned (must-have for mobile, low effort, big UX win)
 
 1. **Local Echo** (Mosh / Blink / code-server)
    Input lag killer on mobile 4G/weak networks. xterm prediction plugin shows
@@ -242,7 +354,7 @@ pnpm build        # full build artifacts (frontend copied into backend/frontend-
    webapp can see the previous content. The only hard part on the LAN-only
    route is serialization size — bumping to 5MB is fine.
 
-### Tier 2 (mobile UX bonus)
+### Tier 2 — Planned (mobile UX bonus)
 
 6. **SmartKeys long-press menu** (Blink)
    On-screen keyboard expansion row: long-press Tab → Shift+Tab; long-press Esc
@@ -260,7 +372,7 @@ pnpm build        # full build artifacts (frontend copied into backend/frontend-
     Scan output, suggest fixes. `fatal: ... --set-upstream` one-click apply.
     High effort but very flashy.
 
-### Tier 3 (write permission / security / collaboration)
+### Tier 3 — Planned (write permission / security / collaboration)
 
 11. **Writable / Read-only split** (ttyd -W, gotty -w)
     When multiple devices connect to one instance, others can be set to
@@ -275,7 +387,7 @@ pnpm build        # full build artifacts (frontend copied into backend/frontend-
     On top of our token, add client cert for hardware auth. Low priority —
     token is already enough.
 
-### Tier 4 (explicitly NOT copying)
+### Tier 4 — Out of scope (explicitly NOT copying)
 
 - ❌ Plugin system (Tabby): unnecessary for a LAN-only single binary
 - ❌ Cloud Settings Sync (VS Code): conflicts with the LAN-only red line

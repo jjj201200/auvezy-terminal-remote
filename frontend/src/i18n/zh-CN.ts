@@ -88,10 +88,9 @@ export const zhCN: Messages = {
     title: '设置',
     saveError: '保存失败，请稍后重试',
     tab: {
-      shortcuts: '快捷键',
-      commands: '命令',
-      display: '显示',
       general: '常规',
+      actions: '操作',
+      display: '显示',
       notifications: '通知',
       network: '网络',
       dev: '开发',
@@ -131,10 +130,33 @@ export const zhCN: Messages = {
   general: {
     languageTitle: '语言',
     languageHint: '界面语言。仅保存于本设备。',
+  },
+
+  actions: {
+    sectionControls: '一般设置',
+    sectionShortcuts: '快捷键',
+    sectionCommands: '命令',
+
     inputModeTitle: '输入方式',
-    inputModeHint: '关闭后隐藏底部输入框，直接在终端区域输入；移动端可享受桌面级实时按键体验，但中文输入法的兼容性可能因浏览器而异（实验性）。',
-    inputModeUseBar: '使用底部输入框（行编辑后回车发送）',
-    inputModeDirect: '直接在终端区输入（按键实时发往 PTY）',
+    inputModeHint: '底部输入框：行编辑后回车一次性发送，适合中文 / 长命令；直接输入：按键实时发往 PTY，更接近桌面终端，但移动端中文 IME 兼容性因浏览器而异（实验性）。',
+    inputModeUseBar: '底部输入框',
+    inputModeDirect: '直接输入',
+
+    tuiScrollTitle: 'TUI 滚动接管',
+    tuiScrollHint: '在 alt-screen TUI（如 Claude Code、vim、htop）内拦截滚轮 / 触摸滑动，转换为 SGR mouse byte 让 TUI 程序内部逐行滚动 transcript。关闭后保持浏览器原生滚动行为（xterm scrollback）。',
+    tuiScrollOn: '开启',
+    tuiScrollOff: '关闭',
+
+    tuiTapTitle: 'TUI 触摸点击',
+    tuiTapHint: '移动端在 alt-screen TUI 内单指轻点 = 鼠标左键点击（发 SGR mouse byte），用于点击 Claude TUI 的菜单按钮 / 选项。xterm.js 在 mouse reporting 激活时不处理触摸点击，需要在前端兜底。',
+    tuiTapOn: '开启',
+    tuiTapOff: '关闭',
+
+    scrollLinesTitle: '每次滚动行数',
+    scrollLinesHint: '开启 TUI 滚动后，一次滚动事件（鼠标滚轮一格 / 移动端一段 swipe）滚动的行数。半屏 / 一屏按当前可视区高度计算。',
+    scrollLinesUnitLine: '行',
+    scrollLinesHalf: '半屏',
+    scrollLinesFull: '一屏',
   },
 
   network: {

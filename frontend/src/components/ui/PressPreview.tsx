@@ -339,8 +339,15 @@ export const PressPreview = forwardRef<HTMLButtonElement, PressPreviewProps>(
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerCancel}
+          // mousedown 同步 preventDefault：iOS WebKit 在某些时序下 pointerdown
+          // 的 preventDefault 不阻止 button 默认 focus 行为，mousedown 更可靠。
+          // 注意：mousedown 在 button 上 preventDefault 不影响 click 事件
+          onMouseDown={(e) => e.preventDefault()}
           // 阻止系统级长按菜单（Android 选词、iOS 放大镜）
           onContextMenu={(e) => e.preventDefault()}
+          // tabIndex=-1：不让 button 进入 tab 焦点序列；移动端 iOS 即使
+          // mousedown.preventDefault 失效，没有 tabIndex 也不获取键盘焦点
+          tabIndex={-1}
           style={{ touchAction: 'none' }}
         >
           {children}

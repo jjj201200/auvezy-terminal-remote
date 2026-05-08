@@ -6,7 +6,7 @@
  * 设计：
  *  - 用 child_process.spawn 拉起 backend 的 cli.js（同一二进制）
  *  - 子进程独立 detached + stdio:'ignore'，让父进程退出后子进程仍存活
- *  - 通过 env 注入 NO_TERMINAL=true、CLAUDE_CWD、INSTANCE_NAME
+ *  - 通过 spawn 选项 cwd 设置工作目录；env 注入 INSTANCE_NAME（cli 自身已默认 --no-terminal）
  *  - 端口由子进程自行 findAvailablePort（不预选避免 TOCTOU）
  *  - 把 spawn 完成视为成功；不等待子进程完全 ready
  *  - 调用方可以再 GET /api/instances 拉新列表确认上线

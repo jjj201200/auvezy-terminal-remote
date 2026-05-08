@@ -4,7 +4,11 @@
 
 > 局域网内通过手机 / 平板浏览器远程控制 PC 上的任意终端程序（zsh / bash / claude / 任何 CLI）。
 >
-> 一行命令 `atr <program>`，多终端多实例自动出现在浏览器顶栏 tab 切换。
+> 一行命令 `atr [program] [program-args...]`，多终端多实例自动出现在浏览器顶栏 tab 切换。
+
+<p align="center">
+  <img src="./frontend/public/screenshots/mobile.png" alt="手机 webapp 跑 Claude Code 的截图" width="280">
+</p>
 
 > **License: [PolyForm Noncommercial 1.0.0](./LICENSE)** —
 > 个人 / 学习 / 非营利组织可自由使用、修改、再分发；商业用途需另外获得授权。
@@ -32,18 +36,24 @@ npm install -g auvezy-terminal-remote   # 必须 -g
 > ⚠️ npm 页面右上角自动显示的 `npm i auvezy-terminal-remote` **缺 `-g`**——
 > 这是 CLI 工具，没有 `-g` 装完不会暴露 `atr` 命令。请按上面那行装。
 
-之后任意终端：
+之后任意终端 —— 完整语法是 `atr [atr 自身 flag...] [program] [program 参数...]`：
 
 ```bash
-atr                       # 跑当前 $SHELL（zsh / bash 自动检测）
-atr claude                # 跑 claude
-atr zsh                   # 跑 zsh
-atr claude --resume foo   # 透传任意参数给子进程
+atr                            # 跑当前 $SHELL（zsh / bash 自动检测）
+atr claude                     # 跑 claude
+atr zsh                        # 跑 zsh
+atr claude --resume foo        # 未识别的参数自动透传给 claude
+atr -p 3001 --name api claude  # atr 自身 flag + program + program 参数可共存
+atr claude -- --port 8080      # program 自己的 flag 与 atr 同名时用 `--` 显式分隔
+                               # （这里 --port 会被传给 claude，而非 atr）
 ```
+
+`atr` 自己的 flag（`-p / --port`、`--name`、`--no-terminal` 等）无论写在哪个位置都会被 atr 自己吃掉；
+program 后面 atr 不认识的参数则透传给子进程。如果你想强行让 atr 停止解析、把后续参数全部交给子进程，加 `--` 显式分隔即可。
 
 启动后扫终端打印的二维码 → webapp 自动登录（token 在 `~/.auvezy/terminal-remote/config.json`）。
 
-**多实例**：在不同终端多次 `atr <prog>`，每次会自动占一个新端口（3000、3001、3002…），
+**多实例**：在不同终端多次 `atr [program]`，每次会自动占一个新端口（3000、3001、3002…），
 浏览器顶栏会自动出现新 tab，点击即可切换。
 
 ```bash
@@ -66,7 +76,83 @@ node backend/dist/cli.js  # 等价于 atr
 ```
 
 
-## 功能矩阵
+## 已实现特性
+
+下列功能均**已落地于当前版本**。"考虑中 / 计划中 / 不会做" 的清单见下面 [路线图](#路线图)。
+
+**核心终端**
+
+- 完整 PTY 桥接（node-pty + xterm.js 5），ANSI 颜色、alt-screen / TUI 友好的滚动缓冲、可配置 ANSI 过滤
+- 重连回放 —— 每次重连 OutputBuffer 自动回灌 scrollback；alt-screen 全程类 TUI（claude / tmux / vim / htop …）由可扩展黑名单保护，重连不会一片空白
+- 增量重画修复（针对 Ink / Claude / Yoga 这类 resize 后不会自动 reflow 的 TUI，使用 double-pulse 策略）
+- 会话 TTL + 空闲断连处理，可配置
+
+**多实例**
+
+- 一个终端跑一个 `atr` —— 每个实例自动占下一个空闲端口（3000、3001、3002…），同一个浏览器顶栏 tab 全部展示，点击切换
+- `instances/<port>.json` 注册表，文件锁 + 原子写、僵尸 PID 清理、本机所有实例共享 token
+- `atr list` / `atr stop [pattern]` / `atr attach <url>` 子命令
+
+**多客户端（master / slave 主从仲裁）**
+
+- 同一实例可同时连入多浏览器 / 多 tab / `attach` 客户端
+- 主从仲裁：webapp > attach > 本机 PC，可按会话切换
+- 顶栏"适配当前设备"按钮，让 PTY 尺寸接管到当前活跃设备的视口
+
+**移动端 webapp**
+
+- PWA（manifest + service worker），iOS Safari / Android Chrome 可"添加到主屏幕"，运行时无浏览器 UI、状态栏与 app 同色
+- 移动端输入：专用输入栏 + 工具栏 + IME composition guard（隔离 iOS / Android 键盘的预测输入污染）
+- 触摸手势：长按进度指示、滑动滚动、动量保留、虚拟键盘安全区适配、视口感知 fit
+- 移动端实例切换 sheet + 分享 sheet（URL / 二维码复制）
+- iOS 专项：禁用 WebGL、helper-textarea 预测输入抑制、focus 劫持兜底
+
+**设置面板**（webapp 内调，写回 `~/.auvezy/terminal-remote/config.json`）
+
+- 通用（语言、主题、字号、字间距）
+- 显示（xterm 主题选择，含 16 色 / Campbell / 自定义）
+- 快捷键（自定义按键，分桶分组，拖拽排序）
+- 命令（保存的命令片段，分组）
+- 控制（输入模式切换、TUI tap-to-focus、scrollback 选项）
+- 网络（display-IP 覆盖、CORS allow list 查看）
+- 操作（实例级快捷动作）
+- 关于（版本、仓库链接、协议）
+- 开发者 tab（debug 开关、console-bridge 配置）
+
+**鉴权与安全**
+
+- 64 位 hex token，`timingSafeEqual` 比较
+- 端口绑定 session cookie（cookie name 按端口加后缀 → 多实例间不会串）
+- 默认仅绑 LAN；`OCR_CORS_ALLOW` 可配置 CORS allow list
+- `/api/hook` 仅接受 loopback（127.0.0.1 / ::1）
+- 工作目录白名单防路径穿越
+- 配置 / VAPID / 订阅文件 0o600，目录 0o700
+- 鉴权请求 per-IP 限流
+
+**通知**
+
+- Web Push（VAPID 三优先级：default / high / urgent）
+- iOS Safari fallback：Web Push 不可用时（LAN HTTP 场景），webapp 内退回 LocalNotification
+- 通知设置面板：开关、测试推送、订阅管理
+
+**网络感知**
+
+- IP 漂移检测：30s 轮询 + 稳定阈值，向客户端广播 `ip_changed` 并弹 toast 提示
+- 多网卡 display IP 启发式 + 诊断 banner 输出（LAN + Tailscale 双码）
+- WSL2 mirrored / NAT 模式自动检测 + 首次启动生成 PowerShell 端口转发脚本
+
+**CLI 体验**
+
+- Banner 含彩色二维码（LAN + Tailscale 可用时双码）
+- `--dev-proxy` 本地前端开发（vite 端口 5173–5180 自动探活，10s 缓存）
+- `--spawn-timeout`、`--wait-confirm`、`--no-terminal`、`--strict-port`、`--name`、`--workdir`、`--token` …
+
+**审批 hook（Claude Code 集成）**
+
+- `/api/hook` 接收 Claude 审批事件，按优先级扇出到所有已注册推送订阅
+- `console-bridge`：前端 `console.*` 经 WS 转发到 backend stderr，方便跨设备调试
+
+### 速查（技术映射）
 
 | 功能 | 实现 |
 |---|---|
@@ -106,13 +192,14 @@ VAPID 也放同目录：`vapid.json`（0o600，自动生成或读环境变量
 ## 启动选项
 
 ```
-atr [子命令] [选项]
+atr [atr 自身 flag...] [program] [program 参数...]
+atr <子命令> [参数]
 
-子命令：
-  start          启动 backend（默认）
-  attach         attach 到运行中的实例（命令行接管）
+子命令（与 [program] 互斥）：
+  start          启动 backend（默认 —— 不显式给子命令时即此项）
+  attach <url>   attach 到运行中的实例（命令行接管）
   list           列出本机所有运行中实例
-  stop           停止本机所有实例
+  stop [pattern] 停止本机所有实例（可选名字 pattern）
 
 选项：
   -p, --port <n>      端口（默认 3000，多实例自动递增；除非 -S）
@@ -143,9 +230,6 @@ atr [子命令] [选项]
 | `OCR_SPAWN_TIMEOUT` | 同 `--spawn-timeout`（秒；0 = 无超时）|
 | `AUTH_TOKEN`  | 指定 token（默认自动生成）|
 | `LOG_LEVEL`   | pino 级别（默认 info）|
-
-> 旧名 `CLAUDE_COMMAND` / `CLAUDE_ARGS` / `CLAUDE_CWD` 仍兼容（启动时会 warn 一次）。
-> 改名是为了说清楚：这个项目不绑定 Claude，能跑任何 PTY 程序。
 
 ## 安装为 PWA（手机推荐）
 
@@ -202,56 +286,55 @@ pnpm build        # 交付构件（含 frontend 拷入 backend/frontend-dist）
 ```
 
 
-第一档（移动端必加，工作量小，明显改善体验）
+## 路线图
 
-1. Local Echo 本地预回显（Mosh/Blink/code-server）
-移动端 4G/弱网下输入延迟杀手。在 xterm 里用预测插件让按键立刻显示，PTY 回包覆盖。投入低收益巨大。
-2. 多行粘贴警告 + bracketed paste（VS Code、Tabby）
-移动端从微信/邮件粘贴 5 行命令，目前直接发，危险。检测多行 → 弹确认。
-3. Shell Integration 子集（OSC 633/133）
-  - command decorations（绿/红圆点）
-  - Run Recent Command 跨会话 fuzzy 历史 quick pick
-  - 这两个对手机用户极友好（手机打字慢 → 跨会话历史搜索是核心需求）
-4. Auto Reply（自动应答）（VS Code）
-匹配 prompt 自动回 y/N。手机用户输 [y/N] 太麻烦。
-5. Process Revive（VS Code 终端复活）
-你已有 instances.json，把 scrollback 序列化进去，重启后 webapp 能看到上次的内容。LAN-only 路线下唯一难点是序列化 size，扩 5MB 即可。
+> **下面列的全部是 _计划中 / 评估中 / 明确不做_ 的功能 —— 尚未实现。**
+> 当前版本已经实现的内容见上面 [已实现特性](#已实现特性)。各档按"投入产出比"排序，越靠后的优先级越低。
 
-第二档（移动端体验加分）
+### 第一档 — 计划中（移动端必加，工作量小，明显改善体验）
 
-6. SmartKeys 长按出菜单（Blink）
-屏幕键盘扩展行，长按 Tab 出 Shift+Tab；长按 Esc 出 ^[; 长按 Ctrl 黏住直到下个键。我们已有 Toolbar 快捷键面板，差「长按弹菜单」+「修饰键黏滞」。
-7. 拇指拖光标条（Termius：长按空格当 trackpad）
-终端区底部留个 8px 透明条，拖动 = 发方向键序列。手机精确移光标的最优解。
-8. OSC 8 hyperlinks + word-link / file-link（VS Code）
-xterm.js 原生 LinkProvider，加几行就能让 src/foo.ts:42 变可点击。
-9. 多 chord 快捷键 / 修饰键黏滞（Tabby、Blink）
-手机虚拟修饰键 + Cmd-K Cmd-S 这类两步组合，比堆按钮节省屏幕。
-10. Quick Fixes（VS Code）
-扫描输出推荐修复。fatal: ... --set-upstream 一键应用。投入大但很出彩。
+1. **Local Echo 本地预回显**（参考 Mosh / Blink / code-server）
+   移动端 4G / 弱网下输入延迟的杀手。xterm 预测插件让按键立刻显示，PTY 回包覆盖。投入低收益巨大。
+2. **多行粘贴警告 + bracketed paste**（参考 VS Code、Tabby）
+   移动端从微信 / 邮件粘贴多行命令直接进 PTY 风险高，检测多行 → 弹确认。
+3. **Shell Integration 子集（OSC 633/133）**
+   - command decorations（绿 / 红圆点）
+   - Run Recent Command 跨会话 fuzzy 历史 quick pick
+   对手机用户极友好（手机打字慢 → 跨会话历史搜索是核心需求）。
+4. **Auto Reply（自动应答）**（参考 VS Code）
+   匹配 prompt 自动回 y/N，免去手机敲 `[y/N]` 的麻烦。
+5. **Process Revive（终端复活）**（参考 VS Code）
+   把 scrollback 序列化进 instances.json，重启后 webapp 能看到上次的内容。
 
-第三档（写权限 / 安全 / 协作）
+### 第二档 — 计划中（移动端体验加分）
 
-11. Writable / Read-only 分离（ttyd -W、gotty -w）
-多设备同时连入同一实例时，可设其他人只读。投入很小（WS 握手时区分）。
-12. Broadcast Input 多终端同步输入（Termius）
-多个 webapp 同时连一个实例时，把同一输入广播给所有 PTY。我们多实例架构很容易加。
-13. TLS 自签证书（ttyd -S、gotty -t）
-LAN 内 https 让 Web Push API 在更多浏览器上能用（目前 LAN HTTP 下 Push API 受限）。
-14. OAuth / 客户端证书鉴权（ttyd 客户端证书）
-我们当前 token，可加客户端证书做硬鉴权。优先级低，token 已经够。
+6. **SmartKeys 长按出菜单**（参考 Blink）
+   屏幕键盘扩展行：长按 Tab → Shift+Tab；长按 Esc → `^[`；长按 Ctrl → 黏滞到下个键。当前 Toolbar 快捷键面板已成型，缺"长按弹菜单"+"修饰键黏滞"。
+7. **拇指拖光标条**（参考 Termius 的"长按空格当 trackpad"）
+   终端区底部 8px 透明条，拖动 = 发方向键序列。手机精确移光标的最优解。
+8. **OSC 8 hyperlinks + word-link / file-link**（参考 VS Code）
+   xterm.js 原生 LinkProvider，加几行就能让 `src/foo.ts:42` 变可点击。
+9. **多 chord 快捷键 / 修饰键黏滞**（参考 Tabby、Blink）
+   手机虚拟修饰键 + `Cmd-K Cmd-S` 这类两步组合，比堆按钮更节省屏幕。
+10. **Quick Fixes**（参考 VS Code）
+    扫描输出推荐修复，例如 `fatal: ... --set-upstream` 一键应用。投入大但很出彩。
 
-第四档（明确不抄）
+### 第三档 — 计划中（写权限 / 安全 / 协作）
 
-- ❌ 插件系统（Tabby）：LAN-only 单 binary 没必要
-- ❌ 云端 Settings Sync（VS Code）：跟 LAN-only 红线冲突
-- ❌ Sixel/iTerm 图像协议：移动端价值低，xterm.js 不原生
-- ❌ asciinema 公网分享：跟 LAN-only 冲突；要做就只做本地 .cast 导出
-- ❌ SFTP/SCP 文件管理（Termius/Wetty）：偏离"远程 PTY 控制"定位
-- ❌ 端到端加密 Vault：用户家庭 LAN 不需要
+11. **Writable / Read-only 分离**（参考 ttyd `-W`、gotty `-w`）
+    多设备同时连入同一实例时可设其他人只读。投入很小（WS 握手时区分）。
+12. **Broadcast Input 多终端同步输入**（参考 Termius）
+    多个 webapp 同连一个实例时，把同一输入广播给所有 PTY。当前多实例架构很容易加。
+13. **TLS 自签证书**（参考 ttyd `-S`、gotty `-t`）
+    LAN 内 HTTPS，让 Web Push API 在更多浏览器上能用（目前 LAN HTTP 下 Push API 受限）。
+14. **OAuth / 客户端证书鉴权**（参考 ttyd 客户端证书）
+    在现有 token 之上加客户端证书做硬鉴权。优先级低 —— token 已经够用。
 
----
-我们独特但其他都没做的"痛点"
+### 第四档 — 不会做（明确放弃）
 
-- Tailscale / VPN 二维码标注：你们已经做了 LAN+Tailscale 双码，这个是 LAN-only 路线非常贴心的细节
-- Webapp 弹通知 + iOS LocalNotification fallback：iOS PWA 推送限制下，这个 fallback 思路别家完全没考虑过
+- ❌ **插件系统**（Tabby）：LAN-only 单 binary 没必要
+- ❌ **云端 Settings Sync**（VS Code）：跟 LAN-only 红线冲突
+- ❌ **Sixel / iTerm 图像协议**：移动端价值低，xterm.js 不原生
+- ❌ **asciinema 公网分享**：跟 LAN-only 冲突；要做就只做本地 `.cast` 导出
+- ❌ **SFTP / SCP 文件管理**（Termius / Wetty）：偏离"远程 PTY 控制"定位
+- ❌ **端到端加密 Vault**：家庭 LAN 不需要

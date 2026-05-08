@@ -93,10 +93,9 @@ export const en: Messages = {
     title: 'Settings',
     saveError: 'Failed to save, please try again.',
     tab: {
-      shortcuts: 'Shortcuts',
-      commands: 'Commands',
-      display: 'Display',
       general: 'General',
+      actions: 'Actions',
+      display: 'Display',
       notifications: 'Notifications',
       network: 'Network',
       dev: 'Developer',
@@ -138,10 +137,33 @@ export const en: Messages = {
   general: {
     languageTitle: 'Language',
     languageHint: 'Interface language. Stored on this device.',
+  },
+
+  actions: {
+    sectionControls: 'Controls',
+    sectionShortcuts: 'Shortcuts',
+    sectionCommands: 'Commands',
+
     inputModeTitle: 'Input mode',
-    inputModeHint: 'Turn off to hide the bottom input bar and type directly in the terminal area — desktop-like real-time keystrokes. IME (Chinese/Japanese) support varies by browser (experimental).',
-    inputModeUseBar: 'Use bottom input bar (line-edit, send on Enter)',
-    inputModeDirect: 'Type directly in terminal (real-time keystrokes to PTY)',
+    inputModeHint: 'Bottom input bar: line-edit then send on Enter — best for Chinese / long commands. Direct input: keystrokes go straight to PTY — closer to a desktop terminal, but IME (Chinese/Japanese) support on mobile varies by browser (experimental).',
+    inputModeUseBar: 'Bottom input bar',
+    inputModeDirect: 'Direct input',
+
+    tuiScrollTitle: 'TUI scroll capture',
+    tuiScrollHint: 'In alt-screen TUI apps (Claude Code / vim / htop), intercept wheel & touch swipe and convert to SGR mouse byte so the TUI scrolls its own transcript line by line. Disabled = native browser scrollback (xterm).',
+    tuiScrollOn: 'On',
+    tuiScrollOff: 'Off',
+
+    tuiTapTitle: 'TUI touch tap',
+    tuiTapHint: 'Single-finger tap inside alt-screen TUI = mouse left click (SGR mouse byte) for tapping Claude TUI buttons & menus on mobile. xterm.js skips touch when mouse reporting is active, so we synthesize click in the frontend.',
+    tuiTapOn: 'On',
+    tuiTapOff: 'Off',
+
+    scrollLinesTitle: 'Lines per scroll',
+    scrollLinesHint: 'When TUI scroll capture is on, lines scrolled per event (wheel notch / swipe segment). Half / full are computed from the current viewport height.',
+    scrollLinesUnitLine: 'line',
+    scrollLinesHalf: 'Half screen',
+    scrollLinesFull: 'Full screen',
   },
 
   network: {

@@ -369,6 +369,15 @@ export class SessionController {
         cols: this.pty.cols,
         rows: this.pty.rows,
       });
+      // 重连时若 PTY 当前在 alt-screen（如 Claude/vim 已运行），也要把状态告诉
+      // 客户端——否则客户端默认 inAltScreen=false，swipe 路径走错（不会接管为
+      // PgUp/PgDn）
+      if (this.pty.inAltScreen) {
+        this.ws.sendTo(wsConn, {
+          type: 'alt_screen_change',
+          inAltScreen: true,
+        });
+      }
     });
 
     this.ws.onDisconnect((counts: ClientCounts) => {

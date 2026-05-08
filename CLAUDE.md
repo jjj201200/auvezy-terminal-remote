@@ -86,3 +86,38 @@ docs/plans/<计划名>/
 - WSL 上 node-pty 编译需要 `build-essential`（make/gcc/g++）+ `python3`
 - curl 测试 loopback 必须 `--noproxy "*"` 绕过 `http_proxy`
 - pino 多目标 transport 异步初始化约 1s，smoke test sleep ≥ 5s
+
+## 🔄 dev server 重启流程（给 AI 助手用）
+
+**触发场景：** 改了 `shared/src/*`（特别是 schema / 默认值 / `ensureDefaultUserConfig`）必须重启 backend，否则旧的 ESM 模块缓存会让新字段被 strip。**前端 vite HMR 不需要重启**。
+
+**重要前提：**
+- WSL 下 `tsx watch` 检测文件变化非常不可靠，**不能依赖它自动 fork**——多次实测改 src 文件后父进程沉默，需要主动 kill child
+- 沙箱默认禁止 kill 不是当前会话直接 fork 的进程（包括之前会话留下的 dev server / tsx watch 父进程）
+- 写 token 字段到 `config.json` 也属于"未授权动作"，沙箱会拒
+
+**标准重启流程：**
+
+1. `pgrep -af "node.*src/cli\.ts"` 找到 tsx watch 父 + child 两个 PID
+2. 用 **AskUserQuestion** 让用户授权 kill（"Kill <PID>" 选项），不要直接 `kill` 等沙箱拒了再问
+3. 用户授权后 `kill <parent-pid>`（kill 父进程比 kill child 更可靠——避免 tsx watch 不重新 fork）
+4. `nohup pnpm --filter auvezy-terminal-remote dev > /tmp/atr-backend-restart.log 2>&1 &` 启动新 backend（**只起 backend，不要 `pnpm dev`**——后者会同时拉起 vite，跟现有 vite 端口冲突）
+5. `sleep 10-12` 后 `curl /api/health` 确认就绪
+6. 拿 token：`grep -oE "token=[a-f0-9]{16,}" /tmp/atr-backend-restart.log | tail -1`
+7. **每次重启 token 会变**（除非 `config.json` 里有 `token` 字段），主动告诉用户新 token 与新 URL
+
+**验证 schema 是否生效：** 走完整 auth 链路而不是直接 GET：
+
+```bash
+COOKIE=$(curl -s --noproxy '*' -i -X POST http://127.0.0.1:3000/api/auth \
+  -H 'Content-Type: application/json' -d "{\"token\":\"$TOKEN\"}" \
+  | grep -i '^set-cookie:' | head -1 | sed 's/^[Ss]et-[Cc]ookie: //; s/;.*$//')
+curl -s --noproxy '*' -H "Cookie: $COOKIE" http://127.0.0.1:3000/api/config | python3 -m json.tool
+```
+
+如果新字段返回 → ensureDefaultUserConfig 已加载新版；如果被 strip → 还是旧 dist 或忘了 normalize。
+
+**`shared/src` 改动 checklist：** 加新字段时**三处都要改**，缺一不可：
+1. interface 类型
+2. `DEFAULT_*` 常量
+3. `ensureDefaultUserConfig` normalize（**最容易漏！**）—— 否则 backend GET 时会 strip 掉前端 PUT 进来的字段，造成"保存了但读不到"

@@ -25,6 +25,7 @@ import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { loadToken } from '../../services/token-storage.js';
 import { fetchShareEndpoints, type ShareEndpoint } from '../../services/share-api.js';
+import { copyToClipboard } from '../../utils/clipboard.js';
 import s from './ShareSheet.module.scss';
 
 export interface ShareSheetProps {
@@ -145,12 +146,9 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
 
   const handleCopy = async (): Promise<void> => {
     if (!fullUrl) return;
-    try {
-      await navigator.clipboard.writeText(fullUrl);
+    if (await copyToClipboard(fullUrl)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
-    } catch {
-      // 老浏览器 / 非 secure context：不支持 Clipboard API
     }
   };
 

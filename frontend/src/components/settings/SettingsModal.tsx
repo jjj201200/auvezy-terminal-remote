@@ -12,11 +12,10 @@ import { useEffect, useMemo, useState, type JSX } from 'react';
 import type { UserConfig } from 'auvezy-terminal-remote-shared';
 import { Sheet, type SheetTab } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
-import { ShortcutSettings } from './ShortcutSettings.js';
-import { CommandSettings } from './CommandSettings.js';
 import { DisplaySettings } from './DisplaySettings.js';
 import { NetworkSettings } from './NetworkSettings.js';
 import { GeneralSettings } from './GeneralSettings.js';
+import { ActionsSettings } from './ActionsSettings.js';
 import { DevSettings } from './DevSettings.js';
 import { AboutSettings } from './AboutSettings.js';
 import { PushToggle } from '../common/PushToggle.js';
@@ -31,9 +30,8 @@ export interface SettingsModalProps {
 
 type TabKey =
   | 'general'
+  | 'actions'
   | 'display'
-  | 'shortcuts'
-  | 'commands'
   | 'network'
   | 'dev'
   | 'about'
@@ -65,15 +63,13 @@ export function SettingsModal({
     else alert(t('settings.saveError'));
   };
 
-  // tabs 直接喂给 Sheet header（用 ScrollableTabs 自带溢出处理，与 Toolbar 同款）
-  // 顺序：常识"最一般在最左" → 通用 → 显示 → 快捷键 → 命令 → 网络
+  // tabs 顺序：通用 → 操作（输入 / 快捷键 / 命令汇总）→ 显示 → 网络 → 开发 → 关于
   // 通知 tab 暂时隐藏（PushToggle 渲染逻辑保留，方便后续重新暴露）
   const tabs: SheetTab[] = useMemo(
     () => [
       { id: 'general', title: t('settings.tab.general') },
+      { id: 'actions', title: t('settings.tab.actions') },
       { id: 'display', title: t('settings.tab.display') },
-      { id: 'shortcuts', title: t('settings.tab.shortcuts') },
-      { id: 'commands', title: t('settings.tab.commands') },
       { id: 'network', title: t('settings.tab.network') },
       { id: 'dev', title: t('settings.tab.dev') },
       { id: 'about', title: t('settings.tab.about') },
@@ -93,11 +89,15 @@ export function SettingsModal({
       activeTab={tab}
       onTabChange={(id) => setTab(id as TabKey)}
       footer={
-        // notifications / dev / about tab 不需要 Save 条
+        // 这些 tab 不需要 Save 条：
+        // - general: 仅语言切换，即时生效
         // - notifications: PushToggle 内部按钮即时生效
         // - dev: 切换写 localStorage，即时生效
         // - about: 纯展示，没有可编辑字段
-        tab !== 'notifications' && tab !== 'dev' && tab !== 'about' ? (
+        tab !== 'general' &&
+        tab !== 'notifications' &&
+        tab !== 'dev' &&
+        tab !== 'about' ? (
           <>
             <button type="button" onClick={onClose} className={s.cancelBtn}>
               {t('common.cancel')}
@@ -114,23 +114,12 @@ export function SettingsModal({
         ) : undefined
       }
     >
-      {tab === 'general' && <GeneralSettings value={draft} onChange={setDraft} />}
+      {tab === 'general' && <GeneralSettings />}
+      {tab === 'actions' && <ActionsSettings value={draft} onChange={setDraft} />}
       {tab === 'display' && (
         <DisplaySettings
           value={draft.display}
           onChange={(display) => setDraft({ ...draft, display })}
-        />
-      )}
-      {tab === 'shortcuts' && (
-        <ShortcutSettings
-          value={draft.shortcuts ?? []}
-          onChange={(shortcuts) => setDraft({ ...draft, shortcuts })}
-        />
-      )}
-      {tab === 'commands' && (
-        <CommandSettings
-          value={draft.commands ?? []}
-          onChange={(commands) => setDraft({ ...draft, commands })}
         />
       )}
       {tab === 'network' && (

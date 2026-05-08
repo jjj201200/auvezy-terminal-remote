@@ -9,6 +9,7 @@
 
 import { useState, type JSX } from 'react';
 import { useT } from '../../i18n/i18n-context.js';
+import { copyToClipboard } from '../../utils/clipboard.js';
 import s from './IpChangeToast.module.scss';
 
 export interface IpChangeInfo {
@@ -31,11 +32,11 @@ export function IpChangeToast({ info, onDismiss }: IpChangeToastProps): JSX.Elem
   const target = info.newUrl ?? `http://${info.newIp}/`;
 
   const copy = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(target);
+    const ok = await copyToClipboard(target);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
+    } else {
       setCopied(false);
     }
   };
