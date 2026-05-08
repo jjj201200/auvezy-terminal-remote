@@ -1,396 +1,121 @@
+<div align="center">
+
+<img src="./frontend/public/icons/atr-icon.svg" alt="auvezy-terminal-remote logo" width="96" height="96">
+
 # auvezy-terminal-remote
 
-**English** | [简体中文](https://github.com/jjj201200/auvezy-terminal-remote/blob/main/README.zh-CN.md)
+[![npm](https://img.shields.io/npm/v/auvezy-terminal-remote?style=flat-square&color=b6f09c&labelColor=0a0c0f)](https://www.npmjs.com/package/auvezy-terminal-remote)
+[![license](https://img.shields.io/badge/license-PolyForm--NC--1.0.0-b6f09c?style=flat-square&labelColor=0a0c0f)](./LICENSE)
+[![node](https://img.shields.io/node/v/auvezy-terminal-remote?style=flat-square&color=b6f09c&labelColor=0a0c0f)](https://nodejs.org)
+[![stars](https://img.shields.io/github/stars/jjj201200/auvezy-terminal-remote?style=flat-square&color=b6f09c&labelColor=0a0c0f)](https://github.com/jjj201200/auvezy-terminal-remote)
 
-> Remote-control any terminal program on your PC (zsh / bash / claude / any CLI)
-> from a phone or tablet browser over LAN.
->
-> One command — `atr [program] [program-args...]` — and every instance shows up
-> as a tab in your browser's top bar.
+**English** · [简体中文](./README.zh-CN.md)
 
-<p align="center">
-  <img src="./frontend/public/screenshots/mobile.png" alt="Mobile webapp running Claude Code" width="280">
-</p>
+Remote-control any terminal program on your PC from a phone or tablet
+browser over LAN. One command — `atr [program]` — and every instance
+shows up as a tab in your browser's top bar.
 
-> **License: [PolyForm Noncommercial 1.0.0](./LICENSE)** —
-> free for personal, educational, and nonprofit use, including modification and
-> redistribution. Commercial use requires a separate license.
+<img src="./frontend/public/screenshots/desktop.png" alt="Webapp running Claude Code in a browser tab" width="720">
 
-## What is this
+</div>
 
-You're on the couch with your phone. A long-running CLI on your PC
-(Claude Code / a deploy script / a debug session…) is doing its thing and
-you want to:
+## ✨ Features
 
-- See its live output (ANSI colors included)
-- Type the next command, hit arrow keys
-- Not open any port to the public internet, not depend on a cloud service
+- **PTY bridge** — node-pty + xterm.js 5, full ANSI, alt-screen TUI safe
+- **Claude Code / TUI tuned** — Ink/Yoga reflow fix on resize, alt-screen blocklist, "adapt to current device" PTY sizing
+- **Multi-instance** — every `atr` grabs the next free port; one tab bar shows them all
+- **Multi-client** — many browsers / `attach` clients on one instance, with master arbitration
+- **Mobile-first PWA** — IME guard, long-press, swipe scroll, viewport-aware fit, install to home screen
+- **Custom shortcuts & commands** — define on-screen keys and saved command snippets in the settings panel
+- **Reconnect with replay** — scrollback rehydrated on every reconnect, alt-screen TUIs protected
+- **LAN-only by design** — token + port-bound cookie, `timingSafeEqual`, loopback-only `/api/hook`
+- **WSL aware** — mirrored / NAT auto-detected, PowerShell port-forward script generated
 
-That's exactly what this project does. PTY output is bridged over WebSocket
-to a webapp; webapp input is bridged back to the PTY. Listens on LAN IPs only,
-authed by token + local cookie.
+Full inventory in [`docs/FEATURES.md`](./docs/FEATURES.md).
 
-## Quick start
-
-### Global install (npm users)
+## 📦 Install
 
 ```bash
-npm install -g auvezy-terminal-remote   # -g is required
+npm install -g auvezy-terminal-remote   # -g is required (it's a CLI)
 ```
 
-> ⚠️ The default `npm i auvezy-terminal-remote` shown at the top right of the
-> npm package page is **missing `-g`**. This is a CLI tool — without `-g` the
-> `atr` binary won't be on your PATH. Use the command above.
+> ⚠️ The default `npm i` command shown on the npm package page is **missing
+> `-g`** — without it the `atr` binary won't be on your PATH.
 
-Then in any terminal — full grammar is `atr [atr-flags...] [program] [program-args...]`:
+## 🚀 Quick start
 
 ```bash
-atr                            # runs your $SHELL (auto-detects zsh / bash)
-atr claude                     # runs claude
-atr zsh                        # runs zsh
-atr claude --resume foo        # passes unknown args through to claude
-atr -p 3001 --name api claude  # atr's own flags + program + program-args coexist
-atr claude -- --port 8080      # use `--` to disambiguate when program shares
-                               # a flag name with atr (here --port goes to claude)
+atr                       # runs your $SHELL (zsh / bash auto-detected)
+atr claude                # runs claude
+atr claude --resume foo   # extra args passed through to claude
 ```
 
-`atr`'s own flags (`-p / --port`, `--name`, `--no-terminal`, etc.) are always
-captured by `atr` regardless of position. Anything after a recognized program
-that `atr` doesn't recognize is forwarded to the child process. Use `--` to
-forcibly stop `atr`'s flag parsing and forward everything after it.
+After it starts, scan the QR code printed in the terminal — the webapp
+logs in automatically (token lives in `~/.auvezy/terminal-remote/config.json`).
 
-After it starts, scan the QR code printed in the terminal — the webapp logs in
-automatically (token lives in `~/.auvezy/terminal-remote/config.json`).
+Run `atr` in different terminals to spawn more instances; the browser tab
+bar updates live.
 
-**Multiple instances**: Run `atr [program]` in different terminals; each grabs
-the next available port (3000, 3001, 3002…). Tabs for new instances appear in
-the browser's top bar automatically — click to switch.
-
-```bash
-atr list                  # list all running instances on this machine
-atr stop                  # stop all instances on this machine
-atr attach <url>          # take over a running instance from the command line
-```
-
-### From source (development or self-build)
-
-```bash
-# GitHub (primary)
-git clone https://github.com/jjj201200/auvezy-terminal-remote.git
-# or Gitee mirror (faster from mainland China)
-git clone https://gitee.com/drowsyflesh/auvezy-terminal-remote.git
-
-cd auvezy-terminal-remote
-bash install.sh           # checks Node 20+ / pnpm 9+ / build deps → installs → builds
-node backend/dist/cli.js  # equivalent to `atr`
-```
-
-
-## Features (implemented)
-
-Everything in this section already ships in the current release. For the
-"considered / not yet built" list, see [Roadmap](#roadmap) further down.
-
-**Core terminal**
-
-- Full PTY bridge over WebSocket (node-pty + xterm.js 5), ANSI colors,
-  alt-screen / TUI-friendly scrollback handling, configurable ANSI filter
-- Reconnect with replay — OutputBuffer rehydrates scrollback on every
-  reconnect; alt-screen TUIs (claude / tmux / vim / htop …) protected by an
-  extensible blocklist so reconnect never blanks the screen
-- Incremental redraw fix for Ink/Claude/Yoga TUIs that don't reflow on resize
-  (double-pulse strategy)
-- Session TTL + idle disconnect handling, configurable
-
-**Multi-instance**
-
-- One `atr` per terminal — each instance auto-grabs the next free port
-  (3000, 3001, 3002…); a single browser tab bar shows them all and lets you
-  switch
-- `instances/<port>.json` registry with file-locked atomic writes, stale-PID
-  cleanup, shared token across instances on the same machine
-- `atr list` / `atr stop [pattern]` / `atr attach <url>` subcommands
-
-**Multi-client (master / slave arbitration)**
-
-- Multiple browsers / tabs / `attach` clients on the same instance simultaneously
-- Master arbitration: webapp > attach > local PC, configurable per session
-- "Adapt to current device" button in the top bar takes over PTY size from
-  whichever device is currently active
-
-**Mobile-first webapp**
-
-- PWA (manifest + service worker), installable on iOS Safari and Android
-  Chrome — runs without browser chrome, status bar tinted to match
-- Mobile-optimized input: dedicated input bar + toolbar + IME composition
-  guard (no predictive-input pollution from iOS / Android keyboards)
-- Touch gestures: long-press progress indicator, swipe scroll, momentum
-  preservation, virtual keyboard safe-area handling, viewport-aware fit
-- Mobile instance switcher (sheet) + share sheet (URL / QR copy)
-- iOS-specific xterm work: WebGL disabled, helper-textarea predictive input
-  suppressed, focus-hijack mitigation
-
-**Settings panel** (in-webapp, all written back to `~/.auvezy/terminal-remote/config.json`)
-
-- General (language, theme, font size, letter spacing)
-- Display (xterm theme picker including 16-color / Campbell / custom)
-- Shortcuts (custom keys with bucket grouping, drag-to-reorder)
-- Commands (saved command snippets with grouping)
-- Controls (input mode toggle, TUI tap-to-focus, scrollback options)
-- Network (display-IP override, CORS allow list inspection)
-- Actions (per-instance quick actions)
-- About (version, repo links, license)
-- Developer tab (debug toggles, console-bridge settings)
-
-**Authentication & security**
-
-- 64-char hex token, `timingSafeEqual` comparison
-- Port-bound session cookie (cookie-name suffix per port → no cross-instance
-  cookie leakage)
-- LAN-only by default; optional CORS allow list via `OCR_CORS_ALLOW`
-- `/api/hook` accepts loopback only (127.0.0.1 / ::1)
-- Workdir whitelist for path traversal protection
-- Config files at mode 0o600, directory at 0o700
-- Per-IP rate limiting on auth attempts
-
-**Network awareness**
-
-- IP drift detection: 30s polling, stability threshold, broadcast
-  `ip_changed` to clients with toast prompt
-- Multi-NIC display IP heuristic with diagnostic banner output (LAN +
-  Tailscale dual QR codes)
-- WSL2 mirrored / NAT mode auto-detection + PowerShell port-forward script
-  generated on first run
-
-**CLI ergonomics**
-
-- Banner with color-aware QR codes (LAN + Tailscale where applicable)
-- `--dev-proxy` for local frontend development (vite port auto-discovery
-  5173–5180, 10s cache)
-- `--spawn-timeout`, `--wait-confirm`, `--no-terminal`, `--strict-port`,
-  `--name`, `--workdir`, `--token` …
-
-**Approval hook (Claude Code integration)**
-
-- `/api/hook` endpoint accepts Claude approval events (loopback only)
-- `console-bridge`: front-end `console.*` forwarded over WS to backend stderr
-  for cross-device debugging
-
-### Quick reference (technical mapping)
-
-| Feature | How it's implemented |
-|---|---|
-| PTY bridge | node-pty + xterm.js 5 |
-| Auth | timingSafeEqual token + Session Cookie (port-bound) |
-| Multi-instance | port-finder auto-increment + cookie-name suffix isolation |
-| Reconnect / replay | OutputBuffer + history_sync (alt-screen filtered by default) |
-| IP drift detection | 30s polling + stability threshold + ip_changed broadcast |
-| Config rewrite | Webapp Settings dialog → /api/config |
-| `attach` subcommand | Master arbitration (webapp > attach > PC) |
-
-## Configuration
-
-On startup the backend reads `~/.auvezy/terminal-remote/config.json`:
-
-```json
-{
-  "token": "<64-char hex, auto-generated>",
-  "shortcuts": [
-    { "label": "ESC", "data": "" },
-    { "label": "↑",   "data": "[A" }
-  ],
-  "command": null,
-  "args": null,
-  "rateLimitPerMinute": 10,
-  "sessionTtlMs": 86400000
-}
-```
-
-The multi-instance registry lives in `instances/<port>.json`.
-
-## Startup options
+## 🔧 Usage
 
 ```
 atr [atr-flags...] [program] [program-args...]
 atr <subcommand> [args]
-
-Subcommands (used in place of [program]):
-  start          start the backend (default — implicit when no subcommand given)
-  attach <url>   attach to a running instance from the command line
-  list           list all running instances on this machine
-  stop [pattern] stop running instances on this machine (optional name pattern)
-
-Options:
-  -p, --port <n>      port (default 3000, auto-increments unless -S)
-  -S, --strict-port   strict port mode: fail if port is taken, no fallback
-  --spawn-timeout <s> PTY spawn fallback seconds (default 30; 0 = no timeout;
-                      first browser connect / Enter / timeout — whichever first)
-  --wait-confirm      require Enter to spawn (overrides browser/timeout triggers)
-  --name <s>          instance name (shown in webapp)
-  --no-terminal       don't print QR code (CI / daemon-friendly)
-  --command <cmd>     PTY command (default: 'claude')
-  --args <json>       command args (JSON array string)
-  -h, --help          show help
-  -v, --version       show version
 ```
 
-Environment variables:
+Most-used flags:
 
-| Variable | Purpose |
+| Flag | Purpose |
 |---|---|
-| `OCR_COMMAND` | Child command (default `$SHELL`, or `/bin/sh`; set to `claude` to run Claude) |
-| `OCR_ARGS`    | Command args (JSON array string, e.g. `'["-c","tail -f /dev/null"]'`) |
-| `OCR_CWD`     | Child process working directory (default: `process.cwd()`) |
-| `OCR_ANSI_FILTER` | Filter alt-screen output (default `false`). Set `true` for cleaner reconnect replay after vim/htop exits; full-time alt-screen TUIs (claude/tmux/...) are still protected by built-in blocklist |
-| `OCR_ANSI_FILTER_TUI_NAMES` | Append to your own alt-screen TUI blocklist (comma-separated), e.g. `"lazygit,k9s,gh-dash"` |
-| `PORT`        | Same as `--port` |
-| `STRICT_PORT` | Same as `--strict-port` (set `true` to enable strict mode) |
-| `OCR_SPAWN_TIMEOUT` | Same as `--spawn-timeout` (seconds; 0 = no timeout) |
-| `AUTH_TOKEN`  | Specify token (default: auto-generated) |
-| `LOG_LEVEL`   | pino level (default `info`) |
+| `-p, --port <n>` | Port (default 3000, auto-increments) |
+| `--name <s>` | Instance name (shown in webapp) |
+| `--no-terminal` | Don't print QR (CI / daemon-friendly) |
+| `--workdir <path>` | Child process cwd |
+| `--token <s>` | Use a fixed token instead of auto-generated |
 
-## Install as a PWA (recommended on mobile)
+Subcommands: `atr list` · `atr stop [pattern]` · `atr attach <url>`.
 
-The webapp ships with a manifest. "Add to Home Screen" gives you a near-native
-app experience:
+Full reference (all flags, env vars, config file): [`docs/CLI.md`](./docs/CLI.md).
+Run `atr -h` for the inline help.
 
-- **Android Chrome**: top-right ⋮ → "Install app" (or the address bar shows an
-  "Install" prompt)
-- **iOS Safari**: share button → "Add to Home Screen"
+## 📱 Install as a PWA
 
-After install: no browser UI (no address bar, no bottom nav), independent task
-card, status bar matches the app color.
+The webapp ships with a manifest. "Add to Home Screen" gives a near-native
+app: no browser chrome, status bar tinted to match.
 
-## Running in WSL, accessing from Windows browser
+- **iOS Safari** — share button → "Add to Home Screen"
+- **Android Chrome** — top-right ⋮ → "Install app"
 
-WSL2 has two network modes that behave differently:
+## 🌐 WSL → Windows browser
 
-- **Mirrored mode** (Win11 22H2+ default): WSL gets the Windows LAN IP directly
-  (e.g. `192.168.x.x`). Windows browsers can use the IP printed on the banner,
-  no extra config.
-- **NAT mode** (default): WSL is on `172.x.x.x` private network — Windows
-  browsers can't connect directly. The backend detects this on startup and
-  prints PowerShell config commands at the end of the banner.
+WSL2 backend works out of the box on **mirrored mode**. On **NAT mode**
+the banner prints a one-shot PowerShell snippet to make the port reachable
+from Windows. Details: [`docs/WSL.md`](./docs/WSL.md).
 
-**One-shot auto config** (admin PowerShell):
+## 🛣️ Roadmap
 
-```powershell
-# Forward common port range (default 3000–3010)
-.\scripts\wsl-port-forward.ps1
+Planned, evaluating, and explicitly out-of-scope items live in
+[`docs/ROADMAP.md`](./docs/ROADMAP.md). The README only lists what already ships.
 
-# Forward specific ports only
-.\scripts\wsl-port-forward.ps1 -Ports 3000,3001
+## 🏛️ Architecture
 
-# Register to re-forward on login (no manual re-run when WSL IP changes)
-.\scripts\wsl-port-forward.ps1 -Persist
+- Module diagram & data flow: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- Design doc & ADRs: [`docs/plans/open-claude-remote-clone/`](./docs/plans/open-claude-remote-clone/)
 
-# Cleanup
-.\scripts\wsl-port-forward.ps1 -Reset
-```
-
-## Architecture / decisions
-
-- Design doc: [`docs/plans/open-claude-remote-clone/design.md`](./docs/plans/open-claude-remote-clone/design.md)
-- Module diagram and data flow: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
-- Architecture decision records (ADRs):
-  [`docs/plans/open-claude-remote-clone/adrs/`](./docs/plans/open-claude-remote-clone/adrs/)
-
-## Development
+## 🛠️ Development
 
 ```bash
-pnpm install
-pnpm dev          # backend (tsx watch) + frontend (vite) in parallel
-pnpm test         # shared + backend + frontend unit tests
-pnpm typecheck
-pnpm build        # full build artifacts (frontend copied into backend/frontend-dist)
+git clone https://github.com/jjj201200/auvezy-terminal-remote.git
+cd auvezy-terminal-remote
+bash install.sh           # checks Node 20+ / pnpm 9+ / build deps → installs → builds
+pnpm dev                  # backend (tsx watch) + frontend (vite) in parallel
+pnpm test                 # shared + backend + frontend unit tests
 ```
 
+Gitee mirror (faster from mainland China):
+`git clone https://gitee.com/drowsyflesh/auvezy-terminal-remote.git`
 
-## Roadmap
+## License
 
-> **Everything below is _planned / under evaluation / explicitly out of scope_ —
-> NOT yet implemented.** Items shipping in the current release are listed under
-> [Features (implemented)](#features-implemented) above. Each tier is sorted by
-> "expected effort vs. UX gain", lower tiers being lower priority.
-
-### Tier 1 — Planned (must-have for mobile, low effort, big UX win)
-
-1. **Local Echo** (Mosh / Blink / code-server)
-   Input lag killer on mobile 4G/weak networks. xterm prediction plugin shows
-   keystrokes immediately, PTY response replaces.
-2. **Multi-line paste warning + bracketed paste** (VS Code, Tabby)
-   Mobile users paste 5-line commands from WeChat/email — currently goes
-   straight to PTY, dangerous. Detect multi-line → confirm dialog.
-3. **Shell Integration subset (OSC 633/133)**
-   - Command decorations (green/red dot)
-   - Run Recent Command — fuzzy cross-session history quick pick
-   - Both extremely friendly on mobile (slow typing → cross-session history
-     search is core)
-4. **Auto Reply** (VS Code)
-   Match prompt → auto-respond y/N. Mobile users hate typing `[y/N]`.
-5. **Process Revive** (VS Code terminal revive)
-   You already have instances.json; serialize scrollback into it. After restart
-   webapp can see the previous content. The only hard part on the LAN-only
-   route is serialization size — bumping to 5MB is fine.
-6. **Approval push notifications** (Claude Code hook → phone)
-   When `/api/hook` receives an approval event, fan out a push notification
-   to every registered subscription so the user gets a phone alert. Web Push
-   (VAPID) for Android Chrome / desktop browsers; iOS Safari fallback to
-   in-page LocalNotification. Backend scaffolding (vapid.json, push-routes,
-   push-service) is partially in place but the end-to-end flow isn't wired up
-   for production yet — needs HTTPS path (Tailscale / self-signed cert) and
-   subscription UX polish.
-
-### Tier 2 — Planned (mobile UX bonus)
-
-6. **SmartKeys long-press menu** (Blink)
-   On-screen keyboard expansion row: long-press Tab → Shift+Tab; long-press Esc
-   → `^[`; long-press Ctrl → sticky until next key. We already have a Toolbar
-   shortcut panel, missing "long-press menu" + "modifier sticky".
-7. **Thumb-drag cursor strip** (Termius: long-press space as trackpad)
-   Bottom 8px transparent strip on the terminal area; drag = arrow key
-   sequence. Best solution for precise cursor movement on mobile.
-8. **OSC 8 hyperlinks + word-link / file-link** (VS Code)
-   xterm.js native LinkProvider — a few lines makes `src/foo.ts:42` clickable.
-9. **Multi-chord shortcuts / modifier sticky** (Tabby, Blink)
-   Mobile virtual modifier + Cmd-K Cmd-S two-step combos save more screen than
-   a wall of buttons.
-10. **Quick Fixes** (VS Code)
-    Scan output, suggest fixes. `fatal: ... --set-upstream` one-click apply.
-    High effort but very flashy.
-
-### Tier 3 — Planned (write permission / security / collaboration)
-
-11. **Writable / Read-only split** (ttyd -W, gotty -w)
-    When multiple devices connect to one instance, others can be set to
-    read-only. Very low effort (distinguish at WS handshake).
-12. **Broadcast Input** (Termius: simultaneous input on multiple terminals)
-    When multiple webapps connect to one instance, broadcast the same input to
-    all PTYs. Easy to add to our multi-instance arch.
-13. **TLS self-signed cert** (ttyd -S, gotty -t)
-    HTTPS on LAN lets Web Push API work in more browsers (currently restricted
-    on LAN HTTP).
-14. **OAuth / client cert auth** (ttyd client cert)
-    On top of our token, add client cert for hardware auth. Low priority —
-    token is already enough.
-
-### Tier 4 — Out of scope (explicitly NOT copying)
-
-- ❌ Plugin system (Tabby): unnecessary for a LAN-only single binary
-- ❌ Cloud Settings Sync (VS Code): conflicts with the LAN-only red line
-- ❌ Sixel/iTerm image protocols: low value on mobile, xterm.js doesn't
-  natively support them
-- ❌ asciinema public sharing: conflicts with LAN-only; if anything we'd only
-  do local `.cast` export
-- ❌ SFTP/SCP file management (Termius/Wetty): outside the "remote PTY control"
-  scope
-- ❌ End-to-end encrypted Vault: home LAN users don't need this
-
----
-
-## Pain points unique to us (others haven't done these)
-
-- **Tailscale / VPN QR code labeling**: we already do dual LAN+Tailscale codes —
-  a thoughtful detail on the LAN-only route
-- **WSL2 mirrored / NAT auto-detection + portforward script**: zero-config
-  Windows browser access from a WSL backend
+[PolyForm Noncommercial 1.0.0](./LICENSE) — free for personal, educational,
+and nonprofit use. Commercial use requires a separate license.
