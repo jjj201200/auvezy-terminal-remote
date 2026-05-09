@@ -23,7 +23,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ConfirmModal } from './ConfirmModal.js';
-import { useModalStack } from './modal-stack/ModalStack.js';
+import { ModalStackOutlet, useModalStack } from './modal-stack/ModalStack.js';
 
 export interface ConfirmOptions {
   title: string;
@@ -113,7 +113,16 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
     [stack],
   );
 
-  return <ConfirmCtx.Provider value={confirm}>{children}</ConfirmCtx.Provider>;
+  return (
+    <ConfirmCtx.Provider value={confirm}>
+      {children}
+      {/*
+        Modal 渲染出口：放在 ConfirmCtx 内，让 modal 内部组件能用 useConfirm
+        （否则 ModalStack 默认在 ModalStackProvider 下渲染，那里 ConfirmCtx 还没设）
+      */}
+      <ModalStackOutlet />
+    </ConfirmCtx.Provider>
+  );
 }
 
 /**

@@ -42,6 +42,28 @@ import type {
 
 const ModalStackCtx = createContext<ModalStackHandle | null>(null);
 
+/**
+ * 内部 ctx：把 stack state 暴露给 <ModalStackOutlet />，让 outlet 能在
+ * Provider 树更深处渲染 modal —— 解决"modal portal 与 useConfirm 等子级
+ * Provider 的位置冲突"。
+ *
+ * 即：
+ *   <ModalStackProvider>
+ *     <ConfirmProvider>          ← 设 ConfirmCtx
+ *       <App />
+ *       <ModalStackOutlet />     ← 在 ConfirmCtx 内渲染 modal，让 modal 内部
+ *                                  能用 useConfirm
+ *     </ConfirmProvider>
+ *   </ModalStackProvider>
+ */
+interface OutletCtxValue {
+  stack: ModalEntry[];
+  handle: ModalStackHandle;
+  /** 由 useModalOutletRegister 调用：true = children 内已有 outlet 渲染，兜底跳过 */
+  registerExplicit: () => () => void;
+}
+const ModalStackOutletCtx = createContext<OutletCtxValue | null>(null);
+
 let idSeq = 0;
 const newId = (): string => `modal-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
 
@@ -134,12 +156,59 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
     return () => window.removeEventListener('keydown', onKey);
   }, [pop]);
 
+  // 显式 outlet 计数：>0 时兜底 outlet 不渲染
+  const [explicitCount, setExplicitCount] = useState(0);
+  const registerExplicit = useCallback(() => {
+    setExplicitCount((n) => n + 1);
+    return () => setExplicitCount((n) => n - 1);
+  }, []);
+
+  const outletValue = useMemo<OutletCtxValue>(
+    () => ({ stack, handle, registerExplicit }),
+    [stack, handle, registerExplicit],
+  );
+
   return (
     <ModalStackCtx.Provider value={handle}>
-      {children}
-      <ModalStackPortal stack={stack} handle={handle} />
+      <ModalStackOutletCtx.Provider value={outletValue}>
+        {children}
+        {/*
+          兜底：调用方没在 children 里放 ModalStackOutlet 时，这里渲染。
+          测试 / 简单场景下可以直接用 ModalStackProvider 不需手动放 outlet
+        */}
+        {explicitCount === 0 && (
+          <ModalStackPortal stack={stack} handle={handle} />
+        )}
+      </ModalStackOutletCtx.Provider>
     </ModalStackCtx.Provider>
   );
+}
+
+/**
+ * Modal 渲染出口。把它放在你希望 modal 出现的 Provider 树位置 —— 一般是 App
+ * 树的最深处，让 modal 内部能用所有 Provider 提供的 ctx（如 useConfirm）。
+ *
+ * 用法：
+ *   <ModalStackProvider>
+ *     <ConfirmProvider>
+ *       <App />
+ *       <ModalStackOutlet />     ← modal 在 ConfirmCtx 内渲染
+ *     </ConfirmProvider>
+ *   </ModalStackProvider>
+ *
+ * 同一棵 Provider 子树里只放一个。
+ */
+export function ModalStackOutlet(): JSX.Element | null {
+  const ctx = useContext(ModalStackOutletCtx);
+  // 注册自己为显式 outlet：让 ModalStackProvider 跳过兜底渲染
+  useEffect(() => {
+    if (!ctx) return;
+    return ctx.registerExplicit();
+    // ctx 引用稳定不需 deps（registerExplicit 是 useCallback 的稳定引用）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!ctx) return null;
+  return <ModalStackPortal stack={ctx.stack} handle={ctx.handle} />;
 }
 
 function ModalStackPortal({
