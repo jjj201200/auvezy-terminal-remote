@@ -17,7 +17,8 @@
  * 核心规则（详见 types.ts 注释）：
  *  - 同 kind 互斥：push 同 kind 自动 replace 栈顶
  *  - 不同 kind / 无 kind：直接叠加（嵌套）
- *  - z-index 自动按栈下标递增
+ *  - 嵌套层级靠 DOM 顺序天然叠加：每层用独立的 portal container，layer N 的
+ *    DOM 在 layer N-1 之后渲染，不依赖 z-index（z-index 用 token 静态值）
  *  - esc 默认关栈顶；点 backdrop 默认关栈顶
  *  - 中间层关闭：如 [A, B, C] 关 B，会同时关 C（栈是 LIFO 语义，不允许"穿过当前层关下面"）
  */
@@ -65,25 +66,46 @@ interface OutletCtxValue {
 const ModalStackOutletCtx = createContext<OutletCtxValue | null>(null);
 
 /**
- * 当前 modal 在栈中的下标。Sheet / 其它"被 push 的 modal 内容"读取此 ctx
- * 决定 z-index、overlay 加深程度。
+ * 当前 modal 在栈中的位置 + 它的 portal 容器。
  *
- * 为什么要单独的 ctx：Radix Dialog.Portal / vaul Drawer.Portal 把 DOM 渲染
- * 到 body 末尾，CSS var --modal-layer-z 不能通过 DOM 继承传过去。改为 React
- * ctx 传递（React tree 不受 portal 影响），由 Sheet 自己 inline-style 写到
- * Radix Portal 内的 overlay/content 元素上。
+ * 关键设计：每层 modal 都有一个独立的 portal target（ModalLayerRoot 自带的
+ * 占位 div），Radix Dialog.Portal / vaul Drawer.Portal 用 container prop 指
+ * 向它。这样：
+ *  - layer 0 的 modal 渲染在 layer-0 div 内
+ *  - layer 1 的 modal 渲染在 layer-1 div 内
+ *  - layer-1 div 在 React 树里位置在 layer-0 之后 → DOM 顺序保证 layer-1
+ *    整体盖住 layer-0，不需要 z-index 战争
+ *
+ * 不带 isTop 标志（用 idx === total - 1 算）；container 可能是 null（SSR
+ * 或还没 mount），调用方 Sheet 在 null 时回退到默认（document.body）。
  */
-const ModalLayerCtx = createContext<{ index: number; isTop: boolean }>({
+const ModalLayerCtx = createContext<{
+  index: number;
+  isTop: boolean;
+  container: HTMLElement | null;
+}>({
   index: 0,
   isTop: true,
+  container: null,
 });
 
-export function useModalLayer(): { index: number; isTop: boolean } {
+export function useModalLayer(): {
+  index: number;
+  isTop: boolean;
+  container: HTMLElement | null;
+} {
   return useContext(ModalLayerCtx);
 }
 
 let idSeq = 0;
 const newId = (): string => `modal-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
+
+/**
+ * Modal 退场动画时长（与 SCSS $dur-modal 对齐）。pop 时先 mark closing，
+ * 等这么长后真从数组移除，让 Radix/vaul 内部的 open=false 触发的退场动画
+ * 能播完
+ */
+const CLOSING_ANIMATION_MS = 280;
 
 interface ModalStackProviderProps {
   children: ReactNode;
@@ -127,6 +149,10 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
   /**
    * 关掉指定 id 的 modal。规则：关掉它和它之上的所有 modal（LIFO）。
    * 不传 id = 关栈顶。
+   *
+   * 实现：先把 entry 标记为 closing=true，让 render 函数把 open=false 传给
+   * Sheet → Radix/vaul 播退场动画。动画时长（CLOSING_ANIMATION_MS）后真从
+   * 数组移除并触发 onClosed。
    */
   const pop = useCallback((id?: string): void => {
     setStack((prev) => {
@@ -134,11 +160,21 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
       const targetId = id ?? prev[prev.length - 1]?.id;
       const idx = prev.findIndex((e) => e.id === targetId);
       if (idx < 0) return prev;
-      // 标记 idx 及之后的所有 entry 为 closing；动画后被 reapStackAfterAnimation 清掉
-      // 简化版：直接同步移除（动画由 ModalShell 自己管，移除 = unmount）
-      const removed = prev.slice(idx);
-      for (const e of removed) e.onClosed?.();
-      return prev.slice(0, idx);
+      if (prev[idx]?.closing) return prev; // 已在退场，避免重复
+      // 标记 idx 及之后所有 entry 为 closing；记录被关的 id 集合给 timer 用
+      const closingIds = new Set(prev.slice(idx).map((e) => e.id));
+      const next = prev.map((e) =>
+        closingIds.has(e.id) ? { ...e, closing: true } : e,
+      );
+      window.setTimeout(() => {
+        setStack((curr) => {
+          // 触发 onClosed + 从数组里删
+          const removed = curr.filter((e) => closingIds.has(e.id));
+          for (const e of removed) e.onClosed?.();
+          return curr.filter((e) => !closingIds.has(e.id));
+        });
+      }, CLOSING_ANIMATION_MS);
+      return next;
     });
   }, []);
 
@@ -251,6 +287,9 @@ function ModalStackPortal({
           },
           isTop,
           index: idx,
+          // closing 标志反映为 isOpen=false：让 render 函数把它传给 Sheet 的 open prop
+          // → Radix/vaul 触发退场动画。CLOSING_ANIMATION_MS 后 entry 才真从数组移除
+          isOpen: !entry.closing,
         };
         return (
           <ModalLayerRoot key={entry.id} idx={idx} isTop={isTop}>
@@ -263,8 +302,16 @@ function ModalStackPortal({
 }
 
 /**
- * 单个 modal 层的容器：注入 z-index CSS 变量，下层 modal 自动添加 inert 阻止交互。
- * 真实的 backdrop / 内容定位由 ModalShell（基于 Sheet）负责。
+ * 单个 modal 层的容器。
+ *
+ * 关键作用：
+ *  1. 提供 portal target —— Radix Dialog.Portal / vaul Drawer.Portal 通过
+ *     ModalLayerCtx 拿到 container prop，让 layer N 的 DOM 出现在 layer N-1
+ *     的容器之后（React map 顺序），DOM 文档流末端天然叠在上层，不依赖 z-index
+ *  2. inert={!isTop} —— 下层 modal 不响应交互 / 不抢焦点
+ *
+ * 容器自身 position:fixed 占满 viewport 但 pointer-events:none，事件由内部
+ * Radix overlay/content 处理。
  */
 function ModalLayerRoot({
   idx,
@@ -275,16 +322,20 @@ function ModalLayerRoot({
   isTop: boolean;
   children: ReactNode;
 }): JSX.Element {
-  // 通过 React ctx 把 layer 信息透传给 Sheet —— Radix/vaul 的 Portal 会把 DOM
-  // 提到 body 末尾，CSS var 不能继承过去；用 ctx 不受 portal 影响
-  const layerValue = useMemo(() => ({ index: idx, isTop }), [idx, isTop]);
+  // 用 state 触发 re-render，让 Sheet 在 mount 后能拿到真实 container
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+
+  const layerValue = useMemo(
+    () => ({ index: idx, isTop, container: containerEl }),
+    [idx, isTop, containerEl],
+  );
   return (
     <ModalLayerCtx.Provider value={layerValue}>
       <div
+        ref={setContainerEl}
         data-modal-layer={idx}
         data-modal-top={isTop ? 'true' : 'false'}
-        style={{ ['--modal-layer-z' as string]: String(idx) }}
-        // React 19 支持 inert={true|false}；下层 modal 不响应交互 / 不抢焦点
+        style={{ position: 'fixed', inset: 0, pointerEvents: 'none' }}
         inert={!isTop}
       >
         {children}

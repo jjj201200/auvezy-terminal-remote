@@ -9,8 +9,23 @@
  *  - 嵌套层级 z-index data attr 正确
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, render } from '@testing-library/react';
+
+// 全局 fake timers：pop 现在是延迟移除（等退场动画），测试需要推进时间
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/** 推进 pop 的退场延迟（CLOSING_ANIMATION_MS=280） */
+function flushClose(): void {
+  act(() => {
+    vi.advanceTimersByTime(300);
+  });
+}
 import {
   ModalStackProvider,
   useModalStack,
@@ -55,6 +70,7 @@ describe('ModalStack push/pop', () => {
     expect(handle.depth()).toBe(1);
     expect(container.querySelector('[data-testid="modal-a"]')).toBeTruthy();
     act(() => handle.pop(id));
+    flushClose();
     expect(handle.depth()).toBe(0);
     expect(container.querySelector('[data-testid="modal-a"]')).toBeNull();
   });
@@ -71,6 +87,7 @@ describe('ModalStack push/pop', () => {
     expect(container.querySelector('[data-testid="modal-a"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="modal-b"]')).toBeTruthy();
     act(() => handle.pop(idB));
+    flushClose();
     expect(handle.depth()).toBe(1);
     expect(container.querySelector('[data-testid="modal-a"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="modal-b"]')).toBeNull();
@@ -88,6 +105,7 @@ describe('ModalStack push/pop', () => {
     });
     expect(handle.depth()).toBe(3);
     act(() => handle.pop(idA));
+    flushClose();
     expect(handle.depth()).toBe(0);
     expect(container.querySelector('[data-testid="modal-a"]')).toBeNull();
     expect(container.querySelector('[data-testid="modal-b"]')).toBeNull();
@@ -139,6 +157,7 @@ describe('ModalStack onClosed 回调', () => {
       id = handle.push({ render: dummyRender('a'), onClosed: () => (closed = true) });
     });
     act(() => handle.pop(id));
+    flushClose();
     expect(closed).toBe(true);
   });
 
@@ -199,7 +218,7 @@ describe('ModalStack data attrs', () => {
     expect(layers[1]?.getAttribute('data-modal-top')).toBe('true');
   });
 
-  it('--modal-layer-z 按下标递增', () => {
+  it('layer 按 push 顺序在 DOM 中依次出现（保证后入的天然盖住前一个）', () => {
     const { handle, container } = setup();
     act(() => {
       handle.push({ render: dummyRender('a') });
@@ -207,8 +226,11 @@ describe('ModalStack data attrs', () => {
       handle.push({ render: dummyRender('c') });
     });
     const layers = container.querySelectorAll<HTMLElement>('[data-modal-layer]');
-    expect(layers[0]?.style.getPropertyValue('--modal-layer-z')).toBe('0');
-    expect(layers[1]?.style.getPropertyValue('--modal-layer-z')).toBe('1');
-    expect(layers[2]?.style.getPropertyValue('--modal-layer-z')).toBe('2');
+    expect(layers[0]?.getAttribute('data-modal-layer')).toBe('0');
+    expect(layers[1]?.getAttribute('data-modal-layer')).toBe('1');
+    expect(layers[2]?.getAttribute('data-modal-layer')).toBe('2');
+    // DOM 顺序就是 push 顺序：后一个 layer 出现在前一个之后 → 文档流末端天然叠上去
+    expect(layers[0]?.compareDocumentPosition(layers[1] as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(layers[1]?.compareDocumentPosition(layers[2] as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

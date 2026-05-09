@@ -36,7 +36,11 @@ export function useCreateInstancePresenter(): (
         debugLabel: 'create-instance',
         onClosed,
         render: (ctx) => (
-          <CreateInstanceModal {...(rest as WithoutOpen<CreateInstanceModalProps>)} open onClose={ctx.close} />
+          <CreateInstanceModal
+            {...(rest as WithoutOpen<CreateInstanceModalProps>)}
+            open={ctx.isOpen}
+            onClose={ctx.close}
+          />
         ),
       });
     },
@@ -60,7 +64,7 @@ export function useInstanceDetailPresenter(): (
         render: (ctx) => (
           <InstanceDetailModal
             {...(rest as WithoutOpen<InstanceDetailModalProps>)}
-            open
+            open={ctx.isOpen}
             onClose={ctx.close}
           />
         ),
@@ -84,7 +88,11 @@ export function useSettingsPresenter(): (
         debugLabel: 'settings',
         onClosed,
         render: (ctx) => (
-          <SettingsModal {...(rest as WithoutOpen<SettingsModalProps>)} open onClose={ctx.close} />
+          <SettingsModal
+            {...(rest as WithoutOpen<SettingsModalProps>)}
+            open={ctx.isOpen}
+            onClose={ctx.close}
+          />
         ),
       });
     },
@@ -102,7 +110,14 @@ export function useSharePresenter(): (args: { onClosed?: () => void }) => string
         kind: 'share',
         debugLabel: 'share',
         onClosed: args.onClosed,
-        render: (ctx) => <ShareSheet open onOpenChange={(next) => { if (!next) ctx.close(); }} />,
+        render: (ctx) => (
+          <ShareSheet
+            open={ctx.isOpen}
+            onOpenChange={(next) => {
+              if (!next) ctx.close();
+            }}
+          />
+        ),
       });
     },
     [stack],
@@ -128,7 +143,7 @@ export function useManageHostsPresenter(): (args: ManageHostsArgs) => string {
         render: (ctx) => (
           <MobileInstanceSwitcher
             {...rest}
-            externalOpen
+            externalOpen={ctx.isOpen}
             onExternalOpenChange={(next) => {
               if (!next) ctx.close();
             }}

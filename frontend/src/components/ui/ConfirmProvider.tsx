@@ -74,7 +74,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
           dismissible: true,
           render: (ctx) => (
             <ConfirmModal
-              open
+              open={ctx.isOpen}
               title={options.title}
               message={options.message}
               messageTemplate={options.messageTemplate}

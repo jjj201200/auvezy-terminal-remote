@@ -3,33 +3,30 @@
 
 // ──────────────── 共享 overlay（高斯模糊）────────────────
 //
-// 嵌套层级由 ModalStack 通过 --modal-layer-z 自动控制，每层 +5 z-index。
-// 不再需要 overlayTone='strong' / contentBoost 等手工 hack。
+// 嵌套层级由 ModalStack 提供独立 portal container 保证 DOM 文档流顺序，
+// layer N 的 DOM 自然在 layer N-1 之后渲染、视觉上自然叠在上层，无需 z-index 战争。
+// z-index 用 token 直接值即可。
 
-// 每个 modal 层的 z 偏移基数（每多一层 +这个值）。让多层叠加时下层 backdrop
-// 也能盖住上一层 backdrop（避免双 backdrop 加色）
-$layer-step: 5;
-
+// 桌面 Radix Dialog overlay：用 fade-in / fade-out keyframes
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: calc(#{t.$z-overlay} + var(--modal-layer-z, 0) * #{$layer-step});
+  z-index: t.$z-overlay;
   @include m.glass-overlay;
-  // 嵌套层背景加深：layer 0 用基础 0.65 alpha；layer ≥ 1 用 0.88，
-  // 让上层 backdrop 完全盖住下层 modal content（避免"看着像没遮罩"）
-  // 用 selector 而不是 var 计算 alpha，因 sass color-mix 还不普及
-  &[style*='--modal-layer-z: 1'],
-  &[style*='--modal-layer-z: 2'],
-  &[style*='--modal-layer-z: 3'],
-  &[style*='--modal-layer-z: 4'] {
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  }
   animation: fade-in t.$dur-modal t.$ease both;
   &[data-state='closed'] {
     animation: fade-out t.$dur-modal t.$ease both;
   }
+}
+
+// 移动端 vaul Drawer overlay：不用 keyframes —— vaul 拖动时通过 inline opacity
+// 动态 fade backdrop 实现"跟手"，CSS animation 会覆盖 inline opacity 让背景
+// 一直全黑、不响应拖动进度。这里只设静态背景 + backdrop-filter
+.overlayMobile {
+  position: fixed;
+  inset: 0;
+  z-index: t.$z-overlay;
+  @include m.glass-overlay;
 }
 
 // ──────────────── 桌面 Dialog ────────────────
@@ -38,7 +35,7 @@ $layer-step: 5;
   position: fixed;
   left: 50%;
   top: 50%;
-  z-index: calc(#{t.$z-modal} + var(--modal-layer-z, 0) * #{$layer-step});
+  z-index: t.$z-modal;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -74,7 +71,7 @@ $layer-step: 5;
   position: fixed;
   inset-inline: 0;
   bottom: 0;
-  z-index: calc(#{t.$z-modal} + var(--modal-layer-z, 0) * #{$layer-step});
+  z-index: t.$z-modal;
   display: flex;
   flex-direction: column;
   // 容器位置 / 高度保持稳定（变化会被 vaul 误识别为 drag-to-dismiss），

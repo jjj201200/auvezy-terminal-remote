@@ -9,7 +9,7 @@
  * footer 可选（按钮区，桌面 / 移动一致）。
  */
 
-import { type CSSProperties, type JSX, type ReactNode } from 'react';
+import { type JSX, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Drawer } from 'vaul';
 import { IconX } from '@tabler/icons-react';
@@ -59,16 +59,15 @@ export function Sheet({
   id,
 }: SheetProps): JSX.Element {
   const isMobile = useMediaQuery('(max-width: 767px)');
-  const overlayClass = s.overlay;
+  // 移动端 vaul Drawer 拖动时会通过 inline opacity 动态控制 backdrop 跟手 fade。
+  // 不能用 fade-in/fade-out keyframe（会覆盖 vaul 的 inline opacity）—— 给 mobile
+  // 单独的 overlay class，只设静态背景 + backdrop-filter，不带 animation
+  const overlayClass = isMobile ? s.overlayMobile : s.overlay;
   const t = useT();
-  // 取本 modal 在栈中的层级。Radix Portal 把 DOM 提到 body 末尾 → CSS var
-  // 不能继承，必须 inline-style 写死 z-index + 加深 backdrop。
-  const { index: layerZ } = useModalLayer();
-  // 嵌套层 backdrop 加深：第 0 层 1×、第 1 层 2×、第 2 层 3× ...
-  // 让一层比一层暗，下层不会"看着像没遮罩"
-  const overlayStyle: CSSProperties = {
-    ['--modal-layer-z' as string]: String(layerZ),
-  };
+  // ModalStack 给本层 modal 提供独立 portal container：Radix Portal 指向它
+  // 后，layer N 的 DOM 自然在 layer N-1 之后渲染（DOM 文档流顺序），完全脱离
+  // z-index 战争。container 为 null 时回退到 body（首次 mount 前 / 无 stack 场景）
+  const { container } = useModalLayer();
 
   // header 主区域：tabs 模式 → ScrollableTabs（自动溢出滚动）；否则显示 title 文本
   const headerMain = tabs && tabs.length > 0 ? (
@@ -94,19 +93,17 @@ export function Sheet({
         // 叠加会双重偏移。由 CSS 单独接管
         repositionInputs={false}
       >
-        <Drawer.Portal>
+        <Drawer.Portal container={container ?? undefined}>
           {/* 点遮罩 = 关闭。手动绑 onClick 显式接管，不靠 Radix outside 自动检测——
               键盘弹起期 visualViewport 与 layout viewport 不一致，Radix 把 drawer
               内点击误判为外部 → 触发关闭，是之前的关弹层 bug 根因 */}
           <Drawer.Overlay
             className={overlayClass}
-            style={overlayStyle}
             onClick={() => onOpenChange(false)}
           />
           <Drawer.Content
             id={id}
             className={clsx(s.drawerContent, className)}
-            style={overlayStyle}
             // 屏蔽 Radix 默认 outside / focus 自动关闭，由 Overlay onClick 显式接管
             onPointerDownOutside={(e) => e.preventDefault()}
             onInteractOutside={(e) => e.preventDefault()}
@@ -138,16 +135,14 @@ export function Sheet({
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
+      <Dialog.Portal container={container ?? undefined}>
         <Dialog.Overlay
           className={overlayClass}
-          style={overlayStyle}
           onClick={() => onOpenChange(false)}
         />
         <Dialog.Content
           id={id}
           className={clsx(s.dialogContent, className)}
-          style={overlayStyle}
           // 屏蔽 Radix 默认 outside 检测（键盘弹起时坐标算不准），
           // 由 Overlay onClick 显式接管"点外部关闭"
           onPointerDownOutside={(e) => e.preventDefault()}

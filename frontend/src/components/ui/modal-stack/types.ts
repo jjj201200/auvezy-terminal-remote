@@ -88,4 +88,11 @@ export interface ModalRenderContext {
   isTop: boolean;
   /** 自己在栈中的下标（0 = 最底层） */
   index: number;
+  /**
+   * Modal 当前应该是"打开"还是"关闭"状态。
+   * pop 时 stack 不立即把 entry 从数组移除，先把它设为 closing=false（即 isOpen=false）
+   * 让 Radix/vaul 内部的 open prop 转 false → 触发退场动画 → 动画完成后真移除。
+   * render 函数把这个值传给 Sheet 的 `open` prop。
+   */
+  isOpen: boolean;
 }
