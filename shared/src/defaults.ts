@@ -385,6 +385,19 @@ export interface UserConfig {
   shortcuts?: ConfigurableShortcut[];
   /** 终端下方的命令选择器项；与 shortcuts 同设计 */
   commands?: ConfigurableCommand[];
+  /**
+   * 分组元数据：描述用户对分组的"看法"（顺序 / 自定义 title 覆盖 / 自定义分组的存在）。
+   *
+   * shortcuts/commands 是扁平真值，每条带 group 字段引用分组 id。但仅靠扁平：
+   *  - 用户改了"vim"组的 title 为"我的 vim 配置" → 信息丢失（扁平里没有 title）
+   *  - 用户拖拽分组顺序（vim 移到 common 之前） → 顺序丢失（扁平按 group id 分桶时
+   *    自然按内置 SHORTCUT_GROUPS 顺序）
+   *  - 用户新建空分组（暂时没项） → 完全没痕迹
+   *
+   * actionGroupMeta 补足这些。entries 顺序 = 用户期望的渲染顺序；
+   * 没出现在 entries 里的分组按内置默认顺序追加在尾部。
+   */
+  actionGroupMeta?: import('./action-tree.js').ActionGroupMeta;
   /** Web Push VAPID 公钥（如果已配置；阶段 9 启用） */
   vapidPublicKey?: string;
   /** 字体缩放比例（1.0 = 默认；阶段 4 暂留口子，UI 不做） */

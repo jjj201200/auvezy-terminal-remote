@@ -20,6 +20,8 @@ import {
   type ShortcutItem,
   type CommandGroup,
   type CommandItem,
+  type ActionGroupMeta,
+  type GroupMetaEntry,
 } from './action-tree.js';
 
 // ─────────────────────── builtin 默认值 ───────────────────────
@@ -131,8 +133,12 @@ export function lookupBuiltinCommand(
  */
 export function migrateShortcutsToTree(
   flat: ConfigurableShortcut[] | undefined,
+  metaEntries?: GroupMetaEntry[],
 ): ShortcutGroup[] {
   if (!Array.isArray(flat) || flat.length === 0) {
+    if (metaEntries && metaEntries.length > 0) {
+      return buildEmptyGroupsFromMeta(metaEntries, SHORTCUT_GROUPS, 'shortcut');
+    }
     return buildDefaultShortcutGroups();
   }
   // 1. 按 group 分桶；缺 group 字段 → 'custom'
@@ -147,12 +153,44 @@ export function migrateShortcutsToTree(
     bucket.push(s);
   }
 
-  // 2. 内置分组优先按内置顺序输出；用户自定义 group id 追加在尾部
+  // 2. 输出顺序：
+  //    - 优先 metaEntries 顺序（用户拖拽过的顺序）
+  //    - 然后内置 SHORTCUT_GROUPS 顺序中没在 meta 出现的
+  //    - 最后自定义 group id（出现在 buckets 但既没在 meta 也不是内置）
   const groups: ShortcutGroup[] = [];
   const seen = new Set<string>();
+
+  if (metaEntries) {
+    for (const m of metaEntries) {
+      const bucket = buckets.get(m.id);
+      const def = SHORTCUT_GROUPS.find((g) => g.id === m.id);
+      if (!bucket && !def) {
+        // meta 引用了一个既无项也非内置的组 → 视为空自定义分组
+        groups.push({
+          id: m.id,
+          title: m.title ?? m.id,
+          desc: m.desc,
+          items: [],
+        });
+        seen.add(m.id);
+        continue;
+      }
+      if (!bucket) continue; // 用户曾删空 → 跳过（即使 meta 有也无意义）
+      seen.add(m.id);
+      groups.push({
+        id: m.id,
+        title: m.title ?? def?.title ?? m.id,
+        desc: m.desc ?? def?.desc,
+        builtinKey: def?.id,
+        items: bucket.map((s, idx) => buildItemFromFlatShortcut(m.id, s, idx, def)),
+      });
+    }
+  }
+
   for (const def of SHORTCUT_GROUPS) {
+    if (seen.has(def.id)) continue;
     const bucket = buckets.get(def.id);
-    if (!bucket) continue; // 该内置组完全没用户数据 → 跳过（用户曾删过）
+    if (!bucket) continue;
     seen.add(def.id);
     groups.push({
       id: def.id,
@@ -162,7 +200,6 @@ export function migrateShortcutsToTree(
       items: bucket.map((s, idx) => buildItemFromFlatShortcut(def.id, s, idx, def)),
     });
   }
-  // 用户自定义 group id（不在 SHORTCUT_GROUPS 内）
   for (const [gid, bucket] of buckets) {
     if (seen.has(gid)) continue;
     groups.push({
@@ -172,6 +209,24 @@ export function migrateShortcutsToTree(
     });
   }
   return groups;
+}
+
+/** meta 描述了空分组（用户新建的还没添加项）→ 生成空 items 的占位组 */
+function buildEmptyGroupsFromMeta(
+  entries: GroupMetaEntry[],
+  builtinDefs: readonly { id: string; title: string; desc: string }[],
+  _kind: 'shortcut' | 'command',
+): Array<ShortcutGroup | CommandGroup> {
+  return entries.map((m) => {
+    const def = builtinDefs.find((d) => d.id === m.id);
+    return {
+      id: m.id,
+      title: m.title ?? def?.title ?? m.id,
+      desc: m.desc ?? def?.desc,
+      builtinKey: def?.id,
+      items: [],
+    };
+  });
 }
 
 function buildItemFromFlatShortcut(
@@ -198,8 +253,12 @@ function buildItemFromFlatShortcut(
 
 export function migrateCommandsToTree(
   flat: ConfigurableCommand[] | undefined,
+  metaEntries?: GroupMetaEntry[],
 ): CommandGroup[] {
   if (!Array.isArray(flat) || flat.length === 0) {
+    if (metaEntries && metaEntries.length > 0) {
+      return buildEmptyGroupsFromMeta(metaEntries, COMMAND_GROUPS, 'command') as CommandGroup[];
+    }
     return buildDefaultCommandGroups();
   }
   const buckets = new Map<string, ConfigurableCommand[]>();
@@ -214,7 +273,28 @@ export function migrateCommandsToTree(
   }
   const groups: CommandGroup[] = [];
   const seen = new Set<string>();
+  if (metaEntries) {
+    for (const m of metaEntries) {
+      const bucket = buckets.get(m.id);
+      const def = COMMAND_GROUPS.find((g) => g.id === m.id);
+      if (!bucket && !def) {
+        groups.push({ id: m.id, title: m.title ?? m.id, desc: m.desc, items: [] });
+        seen.add(m.id);
+        continue;
+      }
+      if (!bucket) continue;
+      seen.add(m.id);
+      groups.push({
+        id: m.id,
+        title: m.title ?? def?.title ?? m.id,
+        desc: m.desc ?? def?.desc,
+        builtinKey: def?.id,
+        items: bucket.map((c, idx) => buildItemFromFlatCommand(m.id, c, idx, def)),
+      });
+    }
+  }
   for (const def of COMMAND_GROUPS) {
+    if (seen.has(def.id)) continue;
     const bucket = buckets.get(def.id);
     if (!bucket) continue;
     seen.add(def.id);
@@ -235,6 +315,74 @@ export function migrateCommandsToTree(
     });
   }
   return groups;
+}
+
+// ─────────────────────── 嵌套树 → flat + meta ───────────────────────
+
+/**
+ * 嵌套树 → 扁平 + meta：
+ *  - flat：每条 item flatten 成 ConfigurableShortcut，注入 group: groupId
+ *  - meta：保留分组顺序 + 用户的 title / desc 覆盖（仅当与内置默认值不同时）
+ */
+export function splitShortcutTree(groups: ShortcutGroup[]): {
+  flat: ConfigurableShortcut[];
+  meta: GroupMetaEntry[];
+} {
+  const flat: ConfigurableShortcut[] = [];
+  const meta: GroupMetaEntry[] = [];
+  for (const g of groups) {
+    for (const it of g.items) {
+      flat.push({
+        label: it.label,
+        data: it.data,
+        enabled: it.enabled,
+        desc: it.desc,
+        group: g.id,
+      });
+    }
+    meta.push(buildMetaEntry(g.id, g.title, g.desc, SHORTCUT_GROUPS));
+  }
+  return { flat, meta };
+}
+
+export function splitCommandTree(groups: CommandGroup[]): {
+  flat: ConfigurableCommand[];
+  meta: GroupMetaEntry[];
+} {
+  const flat: ConfigurableCommand[] = [];
+  const meta: GroupMetaEntry[] = [];
+  for (const g of groups) {
+    for (const it of g.items) {
+      flat.push({
+        label: it.label,
+        command: it.command,
+        enabled: it.enabled,
+        autoSend: it.autoSend,
+        desc: it.desc,
+        group: g.id,
+      });
+    }
+    meta.push(buildMetaEntry(g.id, g.title, g.desc, COMMAND_GROUPS));
+  }
+  return { flat, meta };
+}
+
+/**
+ * 给 split 用的 meta entry 构造：仅当 title/desc 与内置默认不同时才写入字段，
+ * 让 meta 体积最小（每改一个字段就只多写一个字段）
+ */
+function buildMetaEntry(
+  id: string,
+  title: string,
+  desc: string | undefined,
+  defs: readonly { id: string; title: string; desc: string }[],
+): GroupMetaEntry {
+  const def = defs.find((d) => d.id === id);
+  const entry: GroupMetaEntry = { id };
+  if (!def || title !== def.title) entry.title = title;
+  if (def && desc !== def.desc) entry.desc = desc;
+  if (!def && desc !== undefined) entry.desc = desc;
+  return entry;
 }
 
 function buildItemFromFlatCommand(

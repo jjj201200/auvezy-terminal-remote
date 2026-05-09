@@ -97,6 +97,32 @@ export function flattenCommands(
   return groups.flatMap((g) => g.items.map((it) => ({ ...it, group: g.id })));
 }
 
+// ─────────────────────── 分组元数据 ───────────────────────
+
+/**
+ * 单个分组的元数据条目。
+ *
+ *  - id：分组 id（内置 'common' 等 / 用户分组 UUID）
+ *  - title：用户起的标题；不传 = 沿用内置 title
+ *  - desc：用户起的描述；不传 = 沿用内置 desc
+ *  - hidden：当前不实现，留给未来；删除直接从 entries 里移除并把扁平里属于该
+ *    分组的项一并删掉
+ */
+export interface GroupMetaEntry {
+  id: string;
+  title?: string;
+  desc?: string;
+}
+
+export interface ActionGroupMeta {
+  /**
+   * shortcuts 的分组顺序与 title 覆盖。
+   * entries 顺序 = 用户期望的渲染顺序；entries 里没出现的分组按内置默认顺序追加在尾部
+   */
+  shortcuts?: GroupMetaEntry[];
+  commands?: GroupMetaEntry[];
+}
+
 // ─────────────────────── id 生成 ───────────────────────
 
 /**
