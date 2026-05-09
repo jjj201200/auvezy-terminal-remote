@@ -18,10 +18,10 @@ import type { AuthModule } from './auth-middleware.js';
 import { logger } from '../logger/logger.js';
 
 /**
- * 创建 WsServer 鉴权回调
+ * 创建 WsServer 鉴权回调（0.7.0 async）
  */
 export function createWsAuthenticate(authModule: AuthModule) {
-  return (req: IncomingMessage): ClientType | null => {
+  return async (req: IncomingMessage): Promise<ClientType | null> => {
     const host = req.headers.host ?? 'localhost';
     let url: URL;
     try {
@@ -45,13 +45,10 @@ export function createWsAuthenticate(authModule: AuthModule) {
     // 路径 2：Cookie Session（webapp 客户端）
     const cookieHeader = req.headers.cookie ?? '';
     const sid = authModule.getSessionFromCookieHeader(cookieHeader);
-    if (sid && authModule.validateSession(sid)) {
+    if (sid && (await authModule.validateSession(sid))) {
       return 'webapp';
     }
 
-    // debug 级：cookie 过期 / 多 tab 时序竞争 / 跨设备旧 cookie 都属预期失败，
-    // 默认 LOG_LEVEL=info 时不输出，避免污染 PowerShell PTY 终端。
-    // 排查时用 LOG_LEVEL=debug 仍可看到完整 cookieNames / expectedCookie。
     logger.debug(
       {
         remoteAddress: req.socket.remoteAddress,

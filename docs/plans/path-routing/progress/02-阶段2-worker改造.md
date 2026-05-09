@@ -37,11 +37,14 @@
 
 ### 2B — AuthModule 接入 SessionsStore（breaking：API 改 async）
 
-- [ ] `validateSession` / `createSession` 改 `Promise<...>`
-- [ ] cookie 名默认 `session_id`（同时兼容读取旧 `session_id_p<port>` 一段时间）
-- [ ] `requireAuth` 中间件改 async（Express 支持 async 中间件，会把 reject 扔到错误处理）
-- [ ] WsServer.authenticate 签名改 `Promise<ClientType | null>`；upgrade handler 加 await
-- [ ] 单测：AuthModule + SessionsStore 集成、ws 鉴权 async 路径
+- [x] `validateSession` / `createSession` 改 `Promise<...>`
+- [x] cookie 名默认 `session_id`（同时兼容读取旧 `session_id_p<port>`，通过 `legacyCookieNames`）
+- [x] `requireAuth` 中间件改 async；handleAuth 同步流程也改 async
+- [x] WsServer.authenticate 签名改 `Promise<ClientType | null>`；upgrade handler 抽 `runUpgradeAuth`，
+      reject 时统一转 401（避免 unhandled rejection）
+- [x] sessions/test-helpers.ts：`createTmpSessionsStore` 工厂供测试 fixture 共用
+- [x] AuthModule 测试新增 legacyCookieNames 兼容路径用例
+- [x] 全量 451/451 全绿；build 零错
 
 ### 2C — 切换 worker 监听（breaking 起点）
 
@@ -101,3 +104,24 @@
 
 把"worker 改造"切成 2A/2B/2C/2D，每个 sub-stage 独立 smoke。
 准备从 2A 开始（纯加法，不破坏 0.6.x 现有路径）。
+
+### 2026-05-09 — 2A 完成
+
+ensureBroker + forwarded-headers 落地（21 个新单测）；commit `d4152fe`。
+
+切片重组：原 2A 包含的 AuthModule 改造拆分到独立 2B（async API breaking
+改动量大），原 2B/2C/2D 顺延为 2C/2D/2E。
+
+### 2026-05-09 — 2B 完成
+
+- AuthModule 重写：构造时注入 SessionsStore；createSession / validateSession
+  / requireAuth / handleAuth 全 async；cookie 名默认 `session_id` + 通过
+  `legacyCookieNames` 兼容旧 `session_id_p<port>` 一段时间
+- WsServer.authenticate 接受 sync / async 返回；新增 `runUpgradeAuth` 把
+  rejection 安全转 401，避免 unhandled
+- sessions/test-helpers.ts：`createTmpSessionsStore` 给测试 fixture 共享
+- 4 个 api 路由测试 + auth-middleware 测试全部迁移；新增 2 个 legacy cookie
+  兼容用例
+- index.ts worker 启动流接入 sessionsStore（仍用 0.6.x 监听路径，2C 才切
+  loopback）
+- 全量 451/451 全绿（+2）；build 零错

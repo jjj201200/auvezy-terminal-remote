@@ -10,10 +10,8 @@ import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import express from 'express';
 import { ErrorCode } from 'auvezy-terminal-remote-shared';
-import {
-  AuthModule,
-  createSessionCookieName,
-} from '../auth/auth-middleware.js';
+import { AuthModule } from '../auth/auth-middleware.js';
+import { createTmpSessionsStore } from '../sessions/test-helpers.js';
 import { createPushRoutes } from './push-routes.js';
 import { PushService } from '../push/push-service.js';
 
@@ -34,6 +32,7 @@ describe('push-routes', () => {
   let auth: AuthModule;
   let push: PushService;
   let baseDir: string;
+  let cleanupSessions: () => void;
 
   beforeEach(async () => {
     baseDir = mkdtempSync(resolve(tmpdir(), 'ocr-push-r-'));
@@ -43,11 +42,13 @@ describe('push-routes', () => {
       pushImpl: makeMockPush() as never,
     });
     await push.init();
+    const { store: sessionsStore, cleanup } = createTmpSessionsStore(60_000);
+    cleanupSessions = cleanup;
     auth = new AuthModule({
       token: 'a'.repeat(64),
       sessionTtlMs: 60_000,
       rateLimitPerMinute: 100,
-      cookieName: createSessionCookieName(0),
+      sessions: sessionsStore,
     });
     const app = express();
     app.use(express.json({ strict: false }));
@@ -60,6 +61,7 @@ describe('push-routes', () => {
 
   afterEach(async () => {
     auth.destroy();
+    cleanupSessions();
     rmSync(baseDir, { recursive: true, force: true });
     await new Promise<void>((r) => server.close(() => r()));
   });

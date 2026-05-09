@@ -1,51 +1,70 @@
 /**
- * AuthModule
+ * AuthModule (0.7.0)
  *
- * Token + Session Cookie 认证模块。
+ * Token + Session Cookie 认证模块。0.7.0 起 session 默认走 SessionsStore（共享文件），
+ * cookie 名统一为 `session_id`（不再带端口后缀）。
  *
  * 流程：
  *  1. 客户端 POST /api/auth { token } → AuthModule.handleAuth
- *  2. 限流检查 → timingSafeEqual 比对 → 通过则创建 Session + Set-Cookie → 200
- *  3. 后续请求带 Cookie → requireAuth 中间件校验 Session 有效期
- *  4. WS upgrade 阶段：从 raw header 取 cookie → 校验 Session
+ *  2. 限流检查 → timingSafeEqual 比对 → 通过则在 SessionsStore 创建 + Set-Cookie
+ *  3. 后续请求带 Cookie → requireAuth 中间件 await store.validate
+ *  4. WS upgrade 阶段：authenticate 是 async，handler 内 await
  *
- * 关键安全设计：
- *  - timingSafeEqual：防时序侧信道，先比长度再比内容
- *  - Session 存内存 Map，TTL 通过"取出时检查 createdAt"惰性失效
- *  - Cookie：HttpOnly + SameSite=Lax + secure 跟协议自适应
- *  - cookieName 后缀绑端口（多实例 Cookie 隔离的关键单点）
- *  - 限流成功后清零（合法用户不会被自己之前的失败卡死）
+ * 与 0.6.x 的差异：
+ *  - **API async 化**：createSession / validateSession / requireAuth 都返回 Promise
+ *  - **cookie 名默认 `session_id`**：单 PWA 单 origin，多 worker 共用 cookie（ADR-005/006）
+ *  - **SessionsStore 注入**：构造时必须传一份 SessionsStore；测试时可注入 InMemorySessionsStore（见下）
+ *  - 不再用进程内 Map：避免 broker / 多 worker session 不一致
+ *
+ * 与 ws-authenticate 的契约：
+ *  - 旧 cookie 名（`session_id_p<port>`）兼容读取一段时间，避免 0.6.x → 0.7.0 升级时
+ *    用户已签的 cookie 立刻全失效；写入只用新名 `session_id`
  */
 
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import * as cookie from 'cookie';
 import { ErrorCode } from 'auvezy-terminal-remote-shared';
-import { generateSessionId } from './token-generator.js';
 import { RateLimiter } from './rate-limiter.js';
 import { logger } from '../logger/logger.js';
 import { AuthError } from '../errors.js';
+import type { SessionsStore } from '../sessions/sessions-store.js';
+
+/** 0.7.0 起统一 cookie 名 */
+export const DEFAULT_SESSION_COOKIE_NAME = 'session_id';
 
 export interface AuthModuleOptions {
-  /** 当前实例使用的 token（已由 shared-token 决定来源） */
+  /** 当前实例使用的 token */
   token: string;
   /** Session 有效期（毫秒） */
   sessionTtlMs: number;
   /** 限流：每 IP 每分钟最大尝试次数 */
   rateLimitPerMinute: number;
-  /** Cookie 名（多实例必须按端口生成不同名） */
-  cookieName: string;
-}
-
-interface SessionEntry {
-  createdAt: number;
-  ip: string;
+  /**
+   * Cookie 名；默认 `session_id`。多实例下统一一个名（ADR-006）。
+   *
+   * 仅当外部明确要测旧端口绑定行为时才覆盖。
+   */
+  cookieName?: string;
+  /**
+   * 兼容读取的旧 cookie 名（如 `session_id_p3000`）。
+   *
+   * 升级路径：0.7.0 worker 仍能识别 0.6.x 时期签发的端口后缀 cookie，避免用户
+   * 升级后第一次访问被强制要求重新登录。**只读取**，不写入。
+   *
+   * 不传则只识别 `cookieName`。
+   */
+  legacyCookieNames?: readonly string[];
+  /** SessionsStore（必填） */
+  sessions: SessionsStore;
 }
 
 /**
- * 生成 cookie 名（带端口后缀防多实例 Cookie 串）
+ * 生成 0.6.x 端口绑定的 cookie 名
  *
- * 例：port=3001 → 'session_id_p3001'
+ * 0.7.0 起新代码不再使用此函数；保留是为了：
+ *  - legacyCookieNames 构造（升级兼容）
+ *  - 0.6.x 老测试 fixture 不强制改全套
  */
 export function createSessionCookieName(port: number): string {
   return `session_id_p${port}`;
@@ -55,13 +74,16 @@ export class AuthModule {
   private readonly token: string;
   private readonly sessionTtlMs: number;
   private readonly cookieName: string;
-  private readonly sessions = new Map<string, SessionEntry>();
+  private readonly legacyCookieNames: readonly string[];
+  private readonly sessions: SessionsStore;
   private readonly rateLimiter: RateLimiter;
 
   constructor(opts: AuthModuleOptions) {
     this.token = opts.token;
     this.sessionTtlMs = opts.sessionTtlMs;
-    this.cookieName = opts.cookieName;
+    this.cookieName = opts.cookieName ?? DEFAULT_SESSION_COOKIE_NAME;
+    this.legacyCookieNames = opts.legacyCookieNames ?? [];
+    this.sessions = opts.sessions;
     this.rateLimiter = new RateLimiter(opts.rateLimitPerMinute);
   }
 
@@ -70,8 +92,7 @@ export class AuthModule {
   /**
    * 时序安全的 token 比对
    *
-   * 先比长度（不同直接 false）；相同则用 timingSafeEqual 恒定时间比较，
-   * 防止攻击者通过响应耗时差异推断 token 字符
+   * 先比长度（不同直接 false）；相同则用 timingSafeEqual 恒定时间比较。
    */
   verifyToken(candidate: string): boolean {
     const a = Buffer.from(this.token, 'utf-8');
@@ -80,42 +101,41 @@ export class AuthModule {
     return timingSafeEqual(a, b);
   }
 
-  /** 创建 session 并返回 sessionId */
-  createSession(ip: string): string {
-    const sid = generateSessionId();
-    this.sessions.set(sid, { createdAt: Date.now(), ip });
+  /** 在共享 store 中创建 session 并返回 sessionId */
+  async createSession(ip: string): Promise<string> {
+    const sid = await this.sessions.create(ip);
     logger.info({ ip }, '已创建 session');
     return sid;
   }
 
-  /**
-   * 校验 session 是否有效（且未过期）
-   *
-   * 过期的 session 顺手删除（惰性清理）
-   */
-  validateSession(sessionId: string): boolean {
-    const entry = this.sessions.get(sessionId);
-    if (!entry) return false;
-    if (Date.now() - entry.createdAt > this.sessionTtlMs) {
-      this.sessions.delete(sessionId);
-      return false;
-    }
-    return true;
+  /** 校验 session（共享 store；TTL 由 store 内部维护） */
+  async validateSession(sessionId: string): Promise<boolean> {
+    if (!sessionId) return false;
+    return this.sessions.validate(sessionId);
   }
 
-  /** 从 Express Request 取 sessionId */
+  /**
+   * 从 Express Request 取 sessionId
+   *
+   * 优先匹配新 cookie 名；找不到时回退到 legacyCookieNames 顺序匹配。
+   */
   getSessionFromRequest(req: Request): string | null {
-    const cookies = cookie.parse(req.headers.cookie ?? '');
-    return cookies[this.cookieName] ?? null;
+    return this.getSessionFromCookieHeader(req.headers.cookie ?? '');
   }
 
   /** 从原始 cookie header 字符串取 sessionId（WS upgrade 用） */
   getSessionFromCookieHeader(cookieHeader: string): string | null {
     const cookies = cookie.parse(cookieHeader);
-    return cookies[this.cookieName] ?? null;
+    const newCookie = cookies[this.cookieName];
+    if (newCookie) return newCookie;
+    for (const name of this.legacyCookieNames) {
+      const v = cookies[name];
+      if (v) return v;
+    }
+    return null;
   }
 
-  /** 当前 cookie 名（供日志诊断） */
+  /** 当前 cookie 名（供日志诊断 / Set-Cookie 用） */
   getCookieName(): string {
     return this.cookieName;
   }
@@ -123,13 +143,17 @@ export class AuthModule {
   /**
    * Express 中间件：要求请求带有效 Session
    *
-   * 失败返回 401 JSON
+   * **async 中间件**：返回 Promise；Express 5 会自动处理 reject 走错误处理，
+   * Express 4 需要 `next(err)` 显式抛——这里不主动抛，预期失败统一 401。
    */
-  requireAuth = (req: Request, res: Response, next: NextFunction): void => {
+  readonly requireAuth: RequestHandler = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     const sid = this.getSessionFromRequest(req);
-    if (!sid || !this.validateSession(sid)) {
-      // debug 级：cookie 过期 / 未登录是预期错误，401 响应已经告知客户端
-      // （之前是 warn，浏览器轮询时会刷屏污染日志）
+    const ok = sid ? await this.validateSession(sid) : false;
+    if (!ok) {
       logger.debug(
         { path: req.path, hasCookie: Boolean(sid) },
         '认证失败：无有效 session',
@@ -150,7 +174,7 @@ export class AuthModule {
    *
    * 流程：取 IP → 限流 → 校验 token → 创建 session → 重置限流 → Set-Cookie
    */
-  handleAuth = (req: Request, res: Response): void => {
+  readonly handleAuth = async (req: Request, res: Response): Promise<void> => {
     const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
 
     if (!this.rateLimiter.attempt(ip)) {
@@ -170,15 +194,12 @@ export class AuthModule {
         'Token 无效',
         401,
       );
-      // info 级而非 warn：用户携带过期/错误 token 是预期事件（缓存失效、复制错、
-      // 多实例之间共享 token 但其中一个重启），不应该当成"可疑事件"打 warn 噪音
       logger.info({ ip }, '认证失败：token 无效');
       res.status(err.httpStatus).json({ error: err.toPayload() });
       return;
     }
 
-    const sid = this.createSession(ip);
-    // 合法用户清零限流计数（防止之前误输导致后续被卡）
+    const sid = await this.createSession(ip);
     this.rateLimiter.reset(ip);
 
     res.setHeader(
@@ -195,13 +216,7 @@ export class AuthModule {
     res.json({ ok: true });
   };
 
-  /** 当前活跃 session 数（监控用） */
-  get sessionCount(): number {
-    return this.sessions.size;
-  }
-
   destroy(): void {
     this.rateLimiter.destroy();
-    this.sessions.clear();
   }
 }

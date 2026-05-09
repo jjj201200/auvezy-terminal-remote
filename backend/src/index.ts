@@ -39,7 +39,9 @@ import { TerminalRelay } from './terminal/terminal-relay.js';
 import {
   AuthModule,
   createSessionCookieName,
+  DEFAULT_SESSION_COOKIE_NAME,
 } from './auth/auth-middleware.js';
+import { SessionsStore } from './sessions/sessions-store.js';
 import { generateToken } from './auth/token-generator.js';
 import { createWsAuthenticate } from './auth/ws-authenticate.js';
 import {
@@ -229,13 +231,16 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     );
   }
 
-  // 2. AuthModule
-  const cookieName = createSessionCookieName(cfg.port);
+  // 2. AuthModule（0.7.0：共享 SessionsStore；cookie 名统一 session_id；
+  //    旧 session_id_p<port> 仍然识别一段时间，避免升级时已签 cookie 全失效）
+  const sessionsStore = new SessionsStore({ sessionTtlMs: cfg.sessionTtlMs });
   const authModule = new AuthModule({
     token: cfg.token,
     sessionTtlMs: cfg.sessionTtlMs,
     rateLimitPerMinute: cfg.authRateLimit,
-    cookieName,
+    cookieName: DEFAULT_SESSION_COOKIE_NAME,
+    legacyCookieNames: [createSessionCookieName(cfg.port)],
+    sessions: sessionsStore,
   });
 
   // 2.6 ConfigStore：把内存中的 userConfig 与 config.json 写盘连接起来

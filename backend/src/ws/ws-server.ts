@@ -44,8 +44,13 @@ export interface ClientCounts {
 
 /** WsServer 的可选注入点（阶段 2 起注入 AuthModule） */
 export interface WsServerOptions {
-  /** 自定义 upgrade 鉴权钩子（返回 ClientType 表示通过，null 表示拒绝） */
-  authenticate?: (req: IncomingMessage) => ClientType | null;
+  /**
+   * 自定义 upgrade 鉴权钩子（返回 ClientType 表示通过，null 表示拒绝）
+   *
+   * 0.7.0 起允许 async：SessionsStore 走文件 IO，rejection 由本类捕获
+   * 转为 401，不再向上抛 unhandled。
+   */
+  authenticate?: (req: IncomingMessage) => ClientType | null | Promise<ClientType | null>;
 }
 
 export class WsServer {
@@ -156,26 +161,49 @@ export class WsServer {
         return;
       }
 
-      // 鉴权：阶段 1 默认全部当作 webapp 通过
-      const clientType = this.opts.authenticate
-        ? this.opts.authenticate(req)
-        : 'webapp';
-
-      if (clientType === null) {
-        // debug 级：upstream（ws-authenticate）已经记过更详细的失败上下文，
-        // 这里如果再 warn 等于同一次失败被打两条，且对生产场景是噪音
-        // （cookie 过期 / 跨 tab 竞争是常见预期）。降级避免污染 PTY 终端。
-        logger.debug({ url: req.url }, 'WS upgrade 被鉴权拒绝');
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-
-      this.upgradeTypes.set(req, clientType);
-      this.wss.handleUpgrade(req, socket, head, (ws) => {
-        this.wss.emit('connection', ws, req);
-      });
+      // 鉴权：默认全部当作 webapp 通过；authenticate 可以返 sync 或 async
+      void this.runUpgradeAuth(req, socket, head);
     });
+  }
+
+  /** 异步鉴权 + handleUpgrade；外部 setupUpgrade 用 void 包裹，rejection 在本函数内 catch */
+  private async runUpgradeAuth(
+    req: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+  ): Promise<void> {
+    let clientType: ClientType | null;
+    try {
+      clientType = this.opts.authenticate
+        ? await this.opts.authenticate(req)
+        : 'webapp';
+    } catch (err) {
+      // SessionsStore 文件 IO 异常等：日志告警 + 关闭 socket，而非 unhandled rejection
+      logger.warn({ err }, 'WS upgrade authenticate 抛错，按拒绝处理');
+      this.rejectUpgrade(socket);
+      return;
+    }
+
+    if (clientType === null) {
+      // debug 级：upstream（ws-authenticate）已经记过更详细的失败上下文
+      logger.debug({ url: req.url }, 'WS upgrade 被鉴权拒绝');
+      this.rejectUpgrade(socket);
+      return;
+    }
+
+    this.upgradeTypes.set(req, clientType);
+    this.wss.handleUpgrade(req, socket, head, (ws) => {
+      this.wss.emit('connection', ws, req);
+    });
+  }
+
+  private rejectUpgrade(socket: Duplex): void {
+    try {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    } catch {
+      /* 已断 */
+    }
+    socket.destroy();
   }
 
   // ──────────────── 内部：connection 处理 ────────────────

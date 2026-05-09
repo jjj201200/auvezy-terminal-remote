@@ -9,10 +9,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import express from 'express';
-import {
-  AuthModule,
-  createSessionCookieName,
-} from '../auth/auth-middleware.js';
+import { AuthModule } from '../auth/auth-middleware.js';
+import { createTmpSessionsStore } from '../sessions/test-helpers.js';
 import { createInstanceRoutes } from './instance-routes.js';
 import { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner } from '../registry/instance-spawner.js';
@@ -33,17 +31,20 @@ describe('instance-routes', () => {
   let registry: InstanceRegistryManager;
   let baseDir: string;
   let spawner: FakeSpawner;
+  let cleanupSessions: () => void;
   const currentId = 'me-001';
 
   beforeEach(async () => {
     baseDir = mkdtempSync(resolve(tmpdir(), 'ocr-iroute-'));
     const app = express();
     app.use(express.json({ strict: false }));
+    const { store: sessionsStore, cleanup } = createTmpSessionsStore(60_000);
+    cleanupSessions = cleanup;
     auth = new AuthModule({
       token: 'a'.repeat(64),
       sessionTtlMs: 60_000,
       rateLimitPerMinute: 100,
-      cookieName: createSessionCookieName(0),
+      sessions: sessionsStore,
     });
     registry = new InstanceRegistryManager({ baseDir });
     spawner = new FakeSpawner();
@@ -64,6 +65,7 @@ describe('instance-routes', () => {
 
   afterEach(async () => {
     auth.destroy();
+    cleanupSessions();
     rmSync(baseDir, { recursive: true, force: true });
     await new Promise<void>((r) => server.close(() => r()));
   });
@@ -131,11 +133,12 @@ describe('instance-routes', () => {
     // 重新构造一个不带 spawner 的服务器
     const app = express();
     app.use(express.json({ strict: false }));
+    const { store: sessionsStore2, cleanup: cleanup2 } = createTmpSessionsStore(60_000);
     const auth2 = new AuthModule({
       token: 'b'.repeat(64),
       sessionTtlMs: 60_000,
       rateLimitPerMinute: 100,
-      cookieName: createSessionCookieName(0),
+      sessions: sessionsStore2,
     });
     app.post('/api/auth', auth2.handleAuth);
     app.use(
@@ -164,6 +167,7 @@ describe('instance-routes', () => {
     });
     expect(r.status).toBe(501);
     auth2.destroy();
+    cleanup2();
     await new Promise<void>((r) => srv.close(() => r()));
   });
 });

@@ -11,25 +11,26 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-import {
-  AuthModule,
-  createSessionCookieName,
-} from '../auth/auth-middleware.js';
+import { AuthModule } from '../auth/auth-middleware.js';
+import { createTmpSessionsStore } from '../sessions/test-helpers.js';
 import { createShareRoutes, type ShareEndpoint } from './share-routes.js';
 
 describe('share-routes', () => {
   let server: Server;
   let port: number;
   let auth: AuthModule;
+  let cleanupSessions: () => void;
 
   beforeEach(async () => {
     const app = express();
     app.use(express.json({ strict: false }));
+    const { store: sessionsStore, cleanup } = createTmpSessionsStore(60_000);
+    cleanupSessions = cleanup;
     auth = new AuthModule({
       token: 'a'.repeat(64),
       sessionTtlMs: 60_000,
       rateLimitPerMinute: 100,
-      cookieName: createSessionCookieName(0),
+      sessions: sessionsStore,
     });
     app.use(
       '/api',
@@ -43,6 +44,7 @@ describe('share-routes', () => {
 
   afterEach(async () => {
     auth.destroy();
+    cleanupSessions();
     await new Promise<void>((r) => server.close(() => r()));
   });
 
