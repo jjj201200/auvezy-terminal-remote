@@ -24,3 +24,21 @@ export {
   type BrokerServerOptions,
   type BrokerServerHandle,
 } from './broker-server.js';
+
+export {
+  ensureBroker,
+  defaultBrokerLockDir,
+  type EnsureBrokerOptions,
+  type EnsureBrokerResult,
+} from './ensure-broker.js';
+
+export {
+  getPublicUrl,
+  getInstanceFromHeaders,
+  isFromBroker,
+  HEADER_FORWARDED_INSTANCE,
+  HEADER_FORWARDED_PATH,
+  HEADER_FORWARDED_HOST,
+  HEADER_FORWARDED_PROTO,
+  HEADER_FORWARDED_FOR,
+} from './forwarded-headers.js';
