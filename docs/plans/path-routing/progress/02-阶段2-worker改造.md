@@ -10,7 +10,7 @@
 1. worker 只听 `127.0.0.1`，不再向 LAN 暴露
 2. AuthModule 改用共享 SessionsStore（cookie 名统一 `session_id`，不带 `_p<port>`）
 3. worker 启动前 ensureBroker：检查 broker.json，没活着就 fork 一个
-4. publicUrl / push / share 都从 `X-ATR-Forwarded-*` 头反推（worker 自己不再知道外部 host）
+4. entry URL / push / share 都从 `X-ATR-Forwarded-*` 头反推（worker 自己不再知道外部 host）
 
 ## 切片策略
 
@@ -18,10 +18,10 @@
 
 | Sub | 内容 | 风险 |
 |---|---|---|
-| 2A | 新增 `ensureBroker` + `getPublicUrl`（纯加法） | 低 |
+| 2A | 新增 `ensureBroker` + `getEntryUrl`（纯加法） | 低 |
 | 2B | AuthModule 接入 SessionsStore，sync API → async；WS authenticate 也改 async | 中（API 签名 breaking） |
 | 2C | worker `httpServer.listen('127.0.0.1')` + ensureBroker 接入 worker 启动流 | 中（LAN 直连断） |
-| 2D | publicUrl 全面切到 getPublicUrl；banner / IP monitor / share / push 改造 | 中 |
+| 2D | entry URL 全面切到 getEntryUrl；banner / IP monitor / share / push 改造 | 中 |
 | 2E | 删 buildPublicUrl + detectDisplayIp 在 worker 路径的调用 + 删 LAN 二维码 | 低（只删死代码） |
 
 > **2B 之后 LAN 直连不再可用，必须先有 broker（阶段 3 完成 proxy）才能访问 webapp**。
@@ -33,7 +33,7 @@
 ### 2A — 纯加法（不动旧路径）
 
 - [x] `backend/src/broker/ensure-broker.ts` —— 检查 broker.json + fork detached + HTTP probe（commit 待补）
-- [x] `backend/src/broker/forwarded-headers.ts` —— 常量 + getPublicUrl helper
+- [x] `backend/src/broker/forwarded-headers.ts` —— 常量 + getEntryUrl helper
 
 ### 2B — AuthModule 接入 SessionsStore（breaking：API 改 async）
 
@@ -58,11 +58,11 @@
       broker /api/health 200 + worker 监听 127.0.0.1:13800 + 无任何 LAN listener；
       `0.7.0 worker 强制只听 127.0.0.1` warn 日志按预期出现
 
-### 2D — publicUrl 切换
+### 2D — entry URL 切换
 
 - [ ] SessionController.setPushService 接受 req-aware url 工厂（或在 push subscribe
       handler 里根据 req 算）
-- [ ] api/share-routes.ts 用 getPublicUrl(req) 代替 buildPublicUrl(displayIp,...)
+- [ ] api/share-routes.ts 用 getEntryUrl(req) 代替 buildPublicUrl(displayIp,...)
 - [ ] api/push-routes.ts 同上
 - [ ] IpMonitor：worker 不再需要监控 LAN IP（broker 那一层才需要）—— 移除 worker 启动时的 IpMonitor
 - [ ] 单测覆盖 share / push 的 url 生成
@@ -96,7 +96,7 @@
 
 - §3 决策 1（broker/worker 分离）→ 2B
 - §3 决策 6（共享 sessions）→ 2A AuthModule
-- §3 决策 8（X-ATR-Forwarded-*）→ 2A getPublicUrl
+- §3 决策 8（X-ATR-Forwarded-*）→ 2A getEntryUrl
 - §3 决策 9（worker loopback only）→ 2B
 - §11 约束 1（broker ensure 走 withFileLock）→ 2A ensure-broker
 
@@ -113,6 +113,13 @@ ensureBroker + forwarded-headers 落地（21 个新单测）；commit `d4152fe`�
 
 切片重组：原 2A 包含的 AuthModule 改造拆分到独立 2B（async API breaking
 改动量大），原 2B/2C/2D 顺延为 2C/2D/2E。
+
+### 2026-05-10 — 命名澄清
+
+`getPublicUrl` → `getEntryUrl`（forwarded-headers + 测试 + 文档全套）。
+"public" 容易被读成"公网"，但本 helper 仅返回**用户浏览器看到的入口
+URL**，范围只在私网 / Tailnet / 反代域名 / loopback；0.7.0 不解决公网穿透。
+ADR-008 上下文段加了术语澄清。
 
 ### 2026-05-09 — 2C 完成
 

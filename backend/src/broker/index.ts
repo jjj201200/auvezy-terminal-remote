@@ -33,7 +33,7 @@ export {
 } from './ensure-broker.js';
 
 export {
-  getPublicUrl,
+  getEntryUrl,
   getInstanceFromHeaders,
   isFromBroker,
   HEADER_FORWARDED_INSTANCE,

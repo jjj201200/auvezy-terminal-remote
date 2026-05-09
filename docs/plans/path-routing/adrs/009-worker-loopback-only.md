@@ -79,7 +79,7 @@ worker 监听 `0.0.0.0` 但只放过 token 验证通过 + 来自 LAN（IP allowl
 
 - `bindAvailablePort` 调用改用 `'127.0.0.1'` 替代 `cfg.host`
 - worker banner 不再列出"扫码可用入口"列表，改为指向 broker URL
-- `buildPublicUrl` 函数删除（用 `getPublicUrl` 反推自 X-ATR-Forwarded-* 头，见 ADR-008）
+- `buildPublicUrl` 函数删除（用 `getEntryUrl` 反推自 X-ATR-Forwarded-* 头，见 ADR-008）
 - 测试：所有 `127.0.0.1` 监听 + broker 反代的集成测试
 
 ## 监控

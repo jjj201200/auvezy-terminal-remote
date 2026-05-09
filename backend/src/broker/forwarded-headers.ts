@@ -3,7 +3,7 @@
  *
  * 详见 ADR-008。本文件提供：
  *  - 头名常量（broker 注入端 + worker 解析端共用，避免拼写漂移）
- *  - `getPublicUrl(req, subPath)`：worker 端从头反推用户外部访问 URL，
+ *  - `getEntryUrl(req, subPath)`：worker 端从头反推用户外部访问 URL，
  *    用于 push subscription endpoint / share URL / 扫码 URL
  *  - `getInstanceFromHeaders`：从可信头取 instanceId（broker 注入，worker 信任）
  *
@@ -52,7 +52,11 @@ export function getInstanceFromHeaders(
 }
 
 /**
- * 反推用户外部访问 URL
+ * 反推"用户浏览器看到的入口 URL"
+ *
+ * 此处 entry = 用户实际敲进浏览器地址栏的 URL（相对于 worker 自己内部的
+ * 127.0.0.1:<port> loopback 地址而言）。**不是公网**——0.7.0 仅服务私网/Tailnet/
+ * 本机 loopback，不解决公网穿透（design.md §1.2）。
  *
  * @param req     Express Request（worker 端）
  * @param subPath 拼接到 base 后的路径，**不要带前导斜杠**（base 已带 `/`）
@@ -63,11 +67,11 @@ export function getInstanceFromHeaders(
  * 不带 `/i/<id>/` 前缀（直连 worker 没有 instance 概念）。
  *
  * @example
- * // broker 反代过来：getPublicUrl(req, '/api/push/sub') →
+ * // broker 反代过来：getEntryUrl(req, '/api/push/sub') →
  * //   "https://atr.example.com/i/abc-123/api/push/sub"
  * // 直连 worker：→ "http://127.0.0.1:43210/api/push/sub"
  */
-export function getPublicUrl(req: Request, subPath = ''): string {
+export function getEntryUrl(req: Request, subPath = ''): string {
   const headers = req.headers;
   const instance = getInstanceFromHeaders(headers);
   const fwdHost = pickHeader(headers, HEADER_FORWARDED_HOST);

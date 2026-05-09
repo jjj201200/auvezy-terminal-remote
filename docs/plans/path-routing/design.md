@@ -60,7 +60,7 @@ path-based broker 同时解决以上所有问题。
 | 5 | 单 PWA 单 origin；实例切换是 SPA 内部路由 | 每实例独立 PWA / 多 SW scope | [ADR-005](./adrs/005-pwa-model.md) |
 | 6 | 共享 sessions store（`~/.atr/sessions.json` + 文件锁） | 每实例独立 sessions Map / 用 token 自验证 cookie | [ADR-006](./adrs/006-shared-sessions.md) |
 | 7 | 服务端响应注入 `<base href="/i/<id>/">`；前端 vite `base: './'` 全相对 | 运行时 `withBase()` 拼接 / hash 路由 | [ADR-007](./adrs/007-base-href-injection.md) |
-| 8 | broker 用 `X-ATR-Forwarded-Instance` 等头告诉 worker 上下文 | worker 自己生成 publicUrl（在 broker 模式下不知道外部 hostname） | [ADR-008](./adrs/008-forwarded-headers.md) |
+| 8 | broker 用 `X-ATR-Forwarded-Instance` 等头告诉 worker 上下文 | worker 自己生成 entry URL（在 broker 模式下不知道外部 hostname） | [ADR-008](./adrs/008-forwarded-headers.md) |
 | 9 | worker 只听 `127.0.0.1`，0.7.0 不再支持 LAN 直连 | 双轨：worker 既听 loopback 又听 LAN | [ADR-009](./adrs/009-worker-loopback-only.md) |
 | 10 | broker 提供 `service install` 一键开机自启（systemd / launchd / Windows Service） | 不做（用户自己写）/ 跨平台 daemon 库 | [ADR-010](./adrs/010-service-install.md) |
 
@@ -215,7 +215,7 @@ worker 读这个文件做两件事：
 
 - **不再绑 LAN IP**：彻底放弃外部直连
 - **不再生成 share URL**：ShareSheet 改由 broker 端 API 提供
-- **不再维护"我自己的 publicUrl"**：用 `X-ATR-Forwarded-*` 头反推
+- **不再维护"我自己的 entry URL"**：用 `X-ATR-Forwarded-*` 头反推
 
 ### 5.3 共享 sessions store（新）
 
@@ -400,7 +400,7 @@ WantedBy=default.target
 | 头 | 含义 | 用途 |
 |---|---|---|
 | `X-ATR-Forwarded-Instance` | 目标 instanceId | worker 用来确认自己是被 broker 调度（vs 直接被本机程序连） |
-| `X-ATR-Forwarded-Host` | 用户访问的 hostname | worker 生成 publicUrl 用（push subscription endpoint 等） |
+| `X-ATR-Forwarded-Host` | 用户访问的 hostname | worker 生成 entry URL 用（push subscription endpoint 等） |
 | `X-ATR-Forwarded-Proto` | `http` / `https` | 同上 |
 | `X-ATR-Forwarded-Path` | broker 收到的完整 path（含 `/i/<id>/`） | 调试用 |
 | `X-Forwarded-For` | 真实客户端 IP | 标准头，用于 rate limit / 日志 |

@@ -9,11 +9,17 @@
 worker 在 0.6.x 时绑 LAN，自己知道：
 - 监听的 hostname / IP（`detectDisplayIp` 选的那个）
 - 端口
-- 用来生成 publicUrl（push subscription endpoint、share URL、扫码 URL 等）
+- 用来生成 entry URL（push subscription endpoint、share URL、扫码 URL 等）
 
 0.7.0 worker 只听 `127.0.0.1`，外部 hostname / proto / 端口都是 broker 的事。worker 怎么知道？
 
 例：worker 要给 push subscription 写 endpoint 时，正确的 endpoint 应该是 `https://wsl.tail3e456b.ts.net/i/<id>/api/push/...` 而不是 `http://127.0.0.1:43210/...`。
+
+> **术语**：本 ADR 中的 "entry URL" 指**用户浏览器看到的入口 URL**（相对于
+> worker 自己的 127.0.0.1:<port> loopback 而言），范围限定在私网 / Tailnet /
+> 反代域名 / 本机 loopback。**不是公网**——0.7.0 不解决公网穿透
+> （见 design.md §1.2）。早期实现叫 `getPublicUrl`，因 "public" 容易被读成
+> "公网"已统一改名 `getEntryUrl`。
 
 ## 决策
 
@@ -22,13 +28,13 @@ broker 反代到 worker 时注入一组 `X-ATR-Forwarded-*` 头：
 | 头 | 值 | 用途 |
 |---|---|---|
 | `X-ATR-Forwarded-Instance` | 目标 instanceId | worker 校验"我是被定向访问的"，避免误用别人的 cookie |
-| `X-ATR-Forwarded-Host` | 用户访问的 hostname（含 port，如 `wsl.tail3e456b.ts.net`） | 生成 publicUrl |
-| `X-ATR-Forwarded-Proto` | `http` / `https` | 生成 publicUrl |
+| `X-ATR-Forwarded-Host` | 用户访问的 hostname（含 port，如 `wsl.tail3e456b.ts.net`） | 生成 entry URL |
+| `X-ATR-Forwarded-Proto` | `http` / `https` | 生成 entry URL |
 | `X-ATR-Forwarded-Path` | broker 收到的完整 path（含 `/i/<id>/`） | 调试日志 |
 | `X-Forwarded-For` | 真实 client IP | rate limit / 日志 |
 
 worker 端：
-- 提供 helper `getPublicUrl(req)` 从这些头反推外部 URL
+- 提供 helper `getEntryUrl(req)` 从这些头反推外部 URL
 - push / share / 扫码 URL 等所有需要"用户能访问的 URL"都用这个 helper
 - 头不存在时（直连 worker，仅在调试 / 失败兜底）退化用 `req.host`
 
@@ -77,10 +83,10 @@ proxy.on('proxyReq', (proxyReq, req, res, options) => {
 });
 ```
 
-### worker 端（getPublicUrl）
+### worker 端（getEntryUrl）
 
 ```ts
-function getPublicUrl(req: Request, subPath = ''): string {
+function getEntryUrl(req: Request, subPath = ''): string {
   const host = req.headers['x-forwarded-host'] ?? req.headers.host;
   const proto = req.headers['x-forwarded-proto'] ?? 'http';
   const instance = req.headers['x-atr-forwarded-instance'];
@@ -102,7 +108,7 @@ function getPublicUrl(req: Request, subPath = ''): string {
 
 - worker 测试 fixture 要构造这些头（mitigation：测试 helper 提供）
 - 直连 worker（loopback，调试用）时头缺失，需要回退路径
-  缓解：worker 启动 banner 警告"通过 broker 访问，直连未初始化 publicUrl"
+  缓解：worker 启动 banner 警告"通过 broker 访问，直连未初始化 entry URL"
 
 ## 安全考虑
 

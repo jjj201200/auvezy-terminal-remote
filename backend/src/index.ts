@@ -185,10 +185,10 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     throw err;
   }
   cfg.port = bindResult.port;
-  // 0.7.0：publicUrl 仍按 displayIp 拼一份给 push payload 兜底（直连 broker 时
+  // 0.7.0：entryUrl 仍按 displayIp 拼一份给 push payload 兜底（直连 broker 时
   // X-ATR-Forwarded-* 头会覆盖；通过 broker 反代访问时 broker 会注入正确 host）。
-  // 阶段 2D 会改成 req-aware 的 getPublicUrl。
-  const publicUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
+  // 阶段 2D 会改成 req-aware 的 getEntryUrl。
+  const entryUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
   // broker 入口 URL（banner 展示用；外部用户实际访问的入口）
   const brokerEntryUrl = `http://${brokerState.host === '0.0.0.0' ? displayIp : brokerState.host}:${brokerState.port}/i/${instanceId}/`;
 
@@ -403,7 +403,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   ctrl.setIntegrationManager(integrations);
   ctrl.setPushService(pushService, {
     instanceName: cfg.instanceName,
-    url: publicUrl,
+    url: entryUrl,
   });
 
   // 6. TerminalRelay（条件）
@@ -565,11 +565,11 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
     // 兜底：既没 LAN 也没 Tailscale 时，至少给 displayIp 一个二维码
     if (!lanIp && !tailscaleIp) {
-      const qr = await renderQrCode(publicUrl);
+      const qr = await renderQrCode(entryUrl);
       if (qr) {
         process.stderr.write(`\n  ── 入口（${displayIp}） ──\n`);
         process.stderr.write(qr);
-        process.stderr.write(`  ${publicUrl}\n`);
+        process.stderr.write(`  ${entryUrl}\n`);
       }
     }
 
