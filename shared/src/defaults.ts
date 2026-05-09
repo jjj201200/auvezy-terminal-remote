@@ -2,7 +2,7 @@
  * 默认快捷键与命令 + UserConfig 类型（前后端共享）
  *
  * UserConfig：
- *   - 文件层（~/.auvezy/terminal-remote/config.json），所有字段可选
+ *   - 文件层（~/.atrrc），所有字段可选
  *   - 仅描述"用户偏好"，不含运行期决定的端口、token、命令路径
  *
  * 默认值规则：
@@ -375,9 +375,15 @@ export function findCommandGroup(id: string): CommandGroupDef | undefined {
  *  - 任何只有运行期才能确定的值（instanceId、displayIp）
  */
 export interface UserConfig {
-  /** 终端下方的快捷按键 */
+  /**
+   * 终端下方的快捷按键（扁平存储 = 落盘真实形态）。
+   *
+   * frontend 消费层（Toolbar / InstanceView）按 enabled 过滤后送 PTY，需要扁平。
+   * 设置面板编辑时另外用 migrateShortcutsToTree() 派生嵌套分组树做 CRUD，
+   * 保存前通过 flattenShortcuts() 反扁平化写回 shortcuts。
+   */
   shortcuts?: ConfigurableShortcut[];
-  /** 终端下方的命令选择器项 */
+  /** 终端下方的命令选择器项；与 shortcuts 同设计 */
   commands?: ConfigurableCommand[];
   /** Web Push VAPID 公钥（如果已配置；阶段 9 启用） */
   vapidPublicKey?: string;
@@ -389,6 +395,29 @@ export interface UserConfig {
   network?: NetworkPrefs;
   /** 输入偏好：是否使用底部输入框 / 直接输入模式等 */
   input?: InputPrefs;
+  /**
+   * Workdir 白名单（picomatch glob 模式数组）
+   *
+   * 创建实例时如果该列表非空，cwd 必须命中其中至少一个 pattern 才允许 spawn；
+   * 列表为空（或省略）= 不限制（所有路径都通过白名单这一关）。
+   * 仍受黑名单约束：白名单通过后还要 not-match 黑名单。
+   *
+   * 示例：
+   *   ["/home/me/projects/**", "/mnt/d/work/**"]
+   */
+  workdirAllow?: string[];
+  /**
+   * Workdir 黑名单（picomatch glob 模式数组）
+   *
+   * 任何命中这里 pattern 的 cwd 都会被拒绝 spawn，即使白名单通过。
+   *
+   * 默认值：systemPaths（'/etc/**', '/root/**', '/sys/**', '/proc/**'）—— 防误用。
+   * 用户可在 ~/.atrrc 中显式 set `"workdirDeny": []` 清空（不推荐）。
+   * 命令行 `--workdir-deny <patterns>` 优先级高于配置文件。
+   *
+   * 注：列表为 undefined 时使用默认；为 [] 时表示用户显式想要"无任何黑名单"
+   */
+  workdirDeny?: string[];
 }
 
 /**
@@ -575,5 +604,54 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
     scrollLines,
   };
 
-  return { ...src, shortcuts, commands, input: inputPrefs as InputPrefs };
+  // workdir 白名单：用户未设 = undefined（不限制）；用户设了非数组 = 视为 undefined
+  // 字符串元素全部 trim 后剔空 → 防止"空字符串 pattern 命中所有路径"
+  const workdirAllow = normalizeStringArray(src.workdirAllow);
+
+  // workdir 黑名单：用户没设（undefined）→ 用 DEFAULT_WORKDIR_DENY 兜底（复制一份，
+  // 因为 UserConfig.workdirDeny 是 mutable string[]，DEFAULT 是 readonly）；
+  // 用户显式设了空数组 [] → 尊重，表示"我不要任何黑名单"（但仍受白名单约束）；
+  // 设了非数组 → 与 undefined 同义（用默认）
+  const workdirDeny =
+    src.workdirDeny === undefined || !Array.isArray(src.workdirDeny)
+      ? [...DEFAULT_WORKDIR_DENY]
+      : normalizeStringArray(src.workdirDeny) ?? [];
+
+  return {
+    ...src,
+    shortcuts,
+    commands,
+    input: inputPrefs as InputPrefs,
+    workdirAllow,
+    workdirDeny,
+  };
+}
+
+/**
+ * 默认 workdir 黑名单：把"用户绝对不会想在这里 spawn 终端"的系统目录拦下来
+ *
+ * 安全意图：即使用户没显式配 workdirDeny，攻击者拿到 token 后也不能用
+ * `/etc/cron.d` / `/root/.ssh` 这类路径作 cwd 绕过。
+ *
+ * 用户可以在 ~/.atrrc 中显式 `"workdirDeny": []` 关闭（但不推荐）。
+ * 命令行 `--workdir-deny` 优先级高，可在配置基础上扩展或覆盖。
+ */
+export const DEFAULT_WORKDIR_DENY: readonly string[] = Object.freeze([
+  '/etc/**',
+  '/root/**',
+  '/sys/**',
+  '/proc/**',
+]);
+
+/** 数组字段 normalize：不是数组 → undefined；trim + 剔空字符串 → 干净的 string[] */
+function normalizeStringArray(input: unknown): string[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const out: string[] = [];
+  for (const v of input) {
+    if (typeof v !== 'string') continue;
+    const trimmed = v.trim();
+    if (trimmed.length === 0) continue;
+    out.push(trimmed);
+  }
+  return out;
 }

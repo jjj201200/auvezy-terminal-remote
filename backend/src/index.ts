@@ -189,7 +189,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   //  - 用户可设 ATR_INJECT_SETTINGS=true|false 强制开关
   //
   // 跳过时仍写一份 settings 文件（代价极低），方便用户日后切回 claude
-  // 直接 `claude --settings ~/.auvezy/terminal-remote/settings/<port>.json` 即可。
+  // 直接 `claude --settings ~/.atr/settings/<port>.json` 即可。
   const extracted = extractSettingsFromArgs(cfg.claudeArgs);
   const finalClaudeArgs = extracted ? extracted.remainingArgs : [...cfg.claudeArgs];
   const settings = createClaudeSettings(cfg.port, extracted?.value);
@@ -232,6 +232,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   const registry = new InstanceRegistryManager();
   const spawner = new DefaultInstanceSpawner({
     cliJsPath: resolve(__dirname, 'cli.js'),
+    workdirAllow: cfg.workdirAllow,
+    workdirDeny: cfg.workdirDeny,
   });
   // 启动 instances.json 文件 watcher → 给 SSE /instances/stream 推 change 事件
   startInstanceWatcher(registry.filePath);
@@ -285,6 +287,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       displayIp,
       selfShutdown: () => triggerShutdown(),
       sharedToken: cfg.token,
+      workdirPolicy: () => ({ allow: cfg.workdirAllow ?? [] }),
     }),
   );
 

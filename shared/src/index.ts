@@ -8,4 +8,6 @@ export * from './constants.js';
 export * from './ws-protocol.js';
 export * from './instance.js';
 export * from './defaults.js';
+export * from './action-tree.js';
+export * from './action-tree-defaults.js';
 export * from './errors.js';

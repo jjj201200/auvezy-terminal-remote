@@ -19,6 +19,10 @@ import { createConfigRoutes, type ConfigStore } from './config-routes.js';
 import { createInstanceRoutes } from './instance-routes.js';
 import { createPushRoutes } from './push-routes.js';
 import { createShareRoutes } from './share-routes.js';
+import {
+  createWorkdirPolicyRoutes,
+  type WorkdirPolicySnapshot,
+} from './workdir-policy-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { HookReceiver } from '../hooks/hook-receiver.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
@@ -48,6 +52,8 @@ export interface ApiRouterOptions {
   selfShutdown?: () => void;
   /** 共享 token：跨实例 HTTP 调 self-shutdown 用；无则跳过 HTTP 路径 */
   sharedToken?: string;
+  /** workdir 策略快照器；与 authModule 同时存在时挂 /workdir-policy */
+  workdirPolicy?: () => WorkdirPolicySnapshot;
 }
 
 /**
@@ -102,6 +108,11 @@ export function createApiRouter(opts: ApiRouterOptions = {}): Router {
         displayIp: opts.displayIp,
       }),
     );
+  }
+
+  // workdir 策略只读快照（鉴权）—— 给前端 cwd base 选择器用
+  if (opts.authModule && opts.workdirPolicy) {
+    router.use(createWorkdirPolicyRoutes(opts.authModule, opts.workdirPolicy));
   }
 
   return router;
