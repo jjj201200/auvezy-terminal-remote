@@ -34,12 +34,34 @@
   - 别名持久化到 localStorage（`atr.host_aliases`）
   - 当前单 host 场景视觉无变化；为未来跨主机管理预留架构
 - **"创建实例" → "新增实例"措辞调整**（中英文）：避免与"远端接入"语义冲突
+- **可热插拔 Integration 抽象层**：
+  - `IntegrationManager` + `Integration` 接口；事件类型涵盖 approval / tool / turn / session / userPrompt
+  - 默认开启 + auto-detect；设置面板提供总开关 + 识别策略（`auto` / `claude-code` / `none`）
+  - 为未来接入 gemini-cli / aider / codex 预留架构，新增模块只需实现 `Integration` 接口
+- **Claude Code 集成模块完整实现**：
+  - 检测 `claude` 命令自动启用，spawn 时注入 hook settings 把生命周期事件转给 atr
+  - 事件覆盖：审批信号 / 工具进度 / turn 生命周期 / session 生命周期 / 用户输入
+  - 设置面板提供模块详细设置子 modal（事件级开关）
+- **设置面板"集成"tab + StatusBar 富状态展示**：
+  - 顶层总开关 + 识别策略；模块卡片：标题 + 蓝色"已激活"状态 + 描述 + 详细设置按钮
+  - StatusBar 接收 `SessionStatusExtras`：审批等待中显示工具名、活跃工具、错误信息
+- **设置面板"操作"tab 卡片化**：
+  - 快捷键 / 命令不再平铺巨大的树形编辑器，改为标题 + 启用计数 + 简短说明 + "详细设置"按钮
+  - 点击进入二层 modal 管理具体分组与项；改动随父级"应用"统一保存
+- **"开发者选项"tab**：Eruda / Console Bridge 等本设备调试开关
 
 ### Changed
 
 - `tagged-template-literal` 风格内联使用 picomatch 进行 glob 匹配，dot:true 让 `.config` 等隐藏目录可被通配符命中
 - AuthPage.tsx 从 ~380 行 → ~220 行（抽 QrScanPane + UrlPastePane）
 - AuthPage.module.scss 从 ~440 行 → 241 行（用 `_qr-input-mixins.scss` 共享样式）
+- **样式系统全量迁移到 CSS 变量**：60+ 设计 token 通过 `:root` 暴露为 `var(--xxx)`，浏览器 DevTools 直接可调；新增 alpha 梯子（accent-04/18/35/40/65、warn/alarm-08/32）取代散落的硬编码 `rgba()`；新增 `--color-on-accent` / `--color-terminal-red` / `--color-bg-elev-solid` 分离独立语义；`phosphor-glow` 改用 CSS 相对颜色 `rgb(from <c> r g b / a)`；44 个 `.module.scss` / 1780 处 `t.$xxx` 替换
+
+### Fixed
+
+- **调色板下拉撑开 sheet body 引发滚动条出现**：`themeList` 改为 `position: absolute` 浮在 trigger 下方；补点击外部 / Esc 关闭
+- **设置面板预览字号被滚动条出现/消失影响**：从 `ResizeObserver(预览容器)` 改为 `window.innerWidth` 作为参考宽度，与预览容器的临时尺寸完全脱钩
+- **审批状态卡住 bug**：原 `_status` 只被 Notification hook 设为 `waiting_input` 永不清；改为 `pendingApprovals: Map` + PostToolUse/Failure 发 `approval_resolved`，状态从 map 派生
 
 ### Removed
 
