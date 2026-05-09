@@ -86,6 +86,27 @@
   }
 }
 
+// 最左侧"主机管理"按钮：与 .add 同款外观但 hover 用 fg 而非 accent，
+// 避免与"新增实例"主操作（绿色 accent）混淆
+.manage {
+  @include m.btn-reset;
+  @include m.row-flex(0);
+  justify-content: center;
+  height: 24px;
+  width: 24px;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg-dim;
+  flex-shrink: 0;
+  @include m.transition(border-color t.$dur-fast, color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    border-color: t.$border-hi;
+    background: t.$bg-hover;
+  }
+}
+
 .tabPending {
   opacity: 0.7;
   cursor: default;

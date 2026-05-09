@@ -8,11 +8,12 @@
  * 调用方决定是否渲染（hasSingleHost ? null : <HostGroupHeader .../>）。
  */
 
-import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FocusEvent, type JSX, type KeyboardEvent } from 'react';
 import { IconPencil, IconCheck, IconX } from '@tabler/icons-react';
 import clsx from 'clsx';
 import { useT } from '../../i18n/i18n-context.js';
 import { setHostAlias } from '../../services/host-aliases.js';
+import { useConfirm } from '../ui/ConfirmProvider.js';
 import s from './HostGroupHeader.module.scss';
 
 export interface HostGroupHeaderProps {
@@ -33,52 +34,121 @@ export function HostGroupHeader({
   compact = false,
 }: HostGroupHeaderProps): JSX.Element {
   const t = useT();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  // save / reset 进行中：confirm modal 让 input 失焦，blur 不应触发 cancel
+  const savingRef = useRef(false);
 
+  // 进入编辑模式时：填充 draft（已有 alias 用现值，否则空）+ focus + 全选
+  // 不依赖 displayName/hasAlias，避免编辑期间外部值变化又 focus 抢回
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (editing) {
       setDraft(hasAlias ? displayName : '');
-      requestAnimationFrame(() => inputRef.current?.focus());
+      setError(null);
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
     }
-  }, [editing, displayName, hasAlias]);
+  }, [editing]);
 
-  const save = (): void => {
-    setHostAlias(host, draft);
-    setEditing(false);
-    onRenamed?.();
+  const save = async (): Promise<void> => {
+    const trimmed = draft.trim();
+    if (trimmed.length === 0) {
+      // 空字符串 → inline 错误提示，不允许保存
+      setError(t('instance.hostRenameEmptyError'));
+      inputRef.current?.focus();
+      return;
+    }
+    // 与现值相同 → 视为无操作
+    if (hasAlias && trimmed === displayName) {
+      setEditing(false);
+      return;
+    }
+    savingRef.current = true;
+    try {
+      const ok = await confirm({
+        title: t('instance.hostRenameTitle'),
+        messageTemplate: t('instance.hostRenameConfirm'),
+        messageVars: { host, alias: trimmed },
+        highlightVar: 'alias',
+      });
+      if (!ok) {
+        // 用户取消 confirm：保留编辑态让其继续改 / 或自己点 ×
+        inputRef.current?.focus();
+        return;
+      }
+      setHostAlias(host, trimmed);
+      setEditing(false);
+      onRenamed?.();
+    } finally {
+      savingRef.current = false;
+    }
   };
 
   const cancel = (): void => {
     setEditing(false);
+    setError(null);
   };
 
-  const reset = (): void => {
-    setHostAlias(host, '');
-    setEditing(false);
-    onRenamed?.();
+  const reset = async (): Promise<void> => {
+    savingRef.current = true;
+    try {
+      const ok = await confirm({
+        title: t('instance.hostRenameReset'),
+        messageTemplate: t('instance.hostRenameResetConfirm'),
+        messageVars: { host },
+        highlightVar: 'host',
+        tone: 'danger',
+      });
+      if (!ok) {
+        inputRef.current?.focus();
+        return;
+      }
+      setHostAlias(host, '');
+      setEditing(false);
+      onRenamed?.();
+    } finally {
+      savingRef.current = false;
+    }
   };
 
   const handleKey = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      save();
+      void save();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       cancel();
     }
   };
 
+  // 失焦自动退出编辑（放弃改动，等同 Esc / 点 ×）
+  // 例外：
+  //  - 点本行内的 ✓ / × / ↺ 按钮 → relatedTarget 仍在 row 内，不退出，让 click 决定
+  //  - save / reset 进行中（confirm modal 抢焦点） → 不退出，等用户决议
+  const handleBlur = (e: FocusEvent<HTMLInputElement>): void => {
+    if (savingRef.current) return;
+    const next = e.relatedTarget as Node | null;
+    if (next && rowRef.current?.contains(next)) return;
+    cancel();
+  };
+
   if (editing) {
     return (
-      <div className={clsx(s.row, s.editing, compact && s.compact)}>
+      <div ref={rowRef} className={clsx(s.row, s.editing, compact && s.compact)}>
         <input
           ref={inputRef}
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKey}
+          onBlur={handleBlur}
           placeholder={t('instance.hostRenamePlaceholder')}
           aria-label={t('instance.hostRenameTitle')}
           autoComplete="off"
@@ -89,7 +159,7 @@ export function HostGroupHeader({
         />
         <button
           type="button"
-          onClick={save}
+          onClick={() => { void save(); }}
           aria-label={t('common.confirm') ?? 'Confirm'}
           title={t('common.confirm') ?? 'Confirm'}
           className={s.iconBtn}
@@ -108,13 +178,14 @@ export function HostGroupHeader({
         {hasAlias && (
           <button
             type="button"
-            onClick={reset}
+            onClick={() => { void reset(); }}
             title={t('instance.hostRenameReset')}
             className={s.resetBtn}
           >
             ↺
           </button>
         )}
+        {error && <span className={s.errorText}>{error}</span>}
       </div>
     );
   }

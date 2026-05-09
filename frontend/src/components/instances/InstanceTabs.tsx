@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useReducer, useRef, useState, type JSX, type PointerEvent as ReactPointerEvent } from 'react';
-import { IconPlus, IconLoader2, IconX, IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
+import { IconPlus, IconLoader2, IconX, IconAlertTriangle, IconRefresh, IconLayoutGrid } from '@tabler/icons-react';
 import type { InstanceListItem } from 'auvezy-terminal-remote-shared';
 import clsx from 'clsx';
 import { useT } from '../../i18n/i18n-context.js';
@@ -20,6 +20,7 @@ import { buildInstanceUrl } from '../../services/instance-url.js';
 import type { PendingInstance } from '../../hooks/useInstances.js';
 import { useHostGroups } from '../../hooks/useHostGroups.js';
 import { HostGroupHeader } from './HostGroupHeader.js';
+import { MobileInstanceSwitcher } from './MobileInstanceSwitcher.js';
 import s from './InstanceTabs.module.scss';
 
 export interface InstanceTabsProps {
@@ -43,6 +44,17 @@ export interface InstanceTabsProps {
   onPendingRetry?: (pendingId: string) => void;
   /** 关闭一个 pending tab（仅 UI 层移除，不调 DELETE） */
   onPendingDismiss?: (pendingId: string) => void;
+  /**
+   * "主机管理"按钮（tab 栏最左侧）点击后弹的 sheet 里，详情 modal "断开"按钮的回调。
+   * 不传 = 不显示主机管理按钮（向后兼容）
+   */
+  onDisconnectRequest?: (instance: InstanceListItem) => void;
+  /**
+   * 主机管理 sheet 受控开关。传了走外部状态（让父级在 create modal 关闭时
+   * reopen sheet，形成层级关系）；不传走内部 state（向后兼容）
+   */
+  manageOpen?: boolean;
+  onManageOpenChange?: (open: boolean) => void;
 }
 
 const LONG_PRESS_MS = 500;
@@ -62,8 +74,20 @@ export function InstanceTabs({
   onCloseRequest,
   onPendingRetry,
   onPendingDismiss,
+  onDisconnectRequest,
+  manageOpen: manageOpenProp,
+  onManageOpenChange,
 }: InstanceTabsProps): JSX.Element {
   const t = useT();
+  // 主机管理 sheet 开关（tab 栏最左侧按钮触发）
+  // 受控 / 非受控双模：传了 manageOpenProp 走外部 state（父级控制 reopen 语义），
+  // 否则走内部 state（向后兼容）
+  const [internalManageOpen, setInternalManageOpen] = useState(false);
+  const manageOpen = manageOpenProp ?? internalManageOpen;
+  const setManageOpen = (next: boolean): void => {
+    if (onManageOpenChange) onManageOpenChange(next);
+    else setInternalManageOpen(next);
+  };
   // 长按菜单：哪个实例在显示菜单 + 锚定坐标
   const [menuFor, setMenuFor] = useState<{ id: string; x: number; y: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -130,7 +154,7 @@ export function InstanceTabs({
 
   // host alias 改名后递增 token，让 useHostGroups 重新读 localStorage
   const [aliasTick, bumpAliasTick] = useReducer((n: number) => n + 1, 0);
-  const { groups, hasSingleHost } = useHostGroups(instances, pending, aliasTick);
+  const { groups } = useHostGroups(instances, pending, aliasTick);
 
   const renderInstanceTab = (i: InstanceListItem): JSX.Element => {
     const highlight = isHighlight(i);
@@ -233,28 +257,33 @@ export function InstanceTabs({
 
   return (
     <nav id="instance-tabs" className={s.nav} aria-label={t('instance.instancesAriaLabel')}>
-      {/* 单 host 时不显示 host header（视觉冗余）；多 host 时按 group 分段 */}
-      {hasSingleHost ? (
-        <>
-          {groups[0]?.instances.map(renderInstanceTab)}
-          {groups[0]?.pending.map(renderPendingTab)}
-        </>
-      ) : (
-        groups.map((g) => (
-          <div key={g.host} className={s.group}>
-            <HostGroupHeader
-              host={g.host}
-              displayName={g.displayName}
-              hasAlias={g.hasAlias}
-              onRenamed={bumpAliasTick}
-            />
-            <div className={s.groupTabs}>
-              {g.instances.map(renderInstanceTab)}
-              {g.pending.map(renderPendingTab)}
-            </div>
-          </div>
-        ))
+      {/* 最左侧：主机管理 sheet trigger（点击弹与移动端同款 sheet） */}
+      {onDisconnectRequest && (
+        <button
+          type="button"
+          onClick={() => setManageOpen(true)}
+          className={s.manage}
+          aria-label={t('topBar.manageHosts')}
+          title={t('topBar.manageHostsTooltip')}
+        >
+          <IconLayoutGrid size={12} stroke={1.5} />
+        </button>
       )}
+      {/* 始终按 host 分段渲染，单 host 也显示 group header（让用户能改别名） */}
+      {groups.map((g) => (
+        <div key={g.host} className={s.group}>
+          <HostGroupHeader
+            host={g.host}
+            displayName={g.displayName}
+            hasAlias={g.hasAlias}
+            onRenamed={bumpAliasTick}
+          />
+          <div className={s.groupTabs}>
+            {g.instances.map(renderInstanceTab)}
+            {g.pending.map(renderPendingTab)}
+          </div>
+        </div>
+      ))}
 
       <button
         type="button"
@@ -276,6 +305,24 @@ export function InstanceTabs({
           style={{ left: menuFor.x, top: menuFor.y }}
           onPointerDown={(e) => e.stopPropagation()}
           role="menu"
+        />
+      )}
+
+      {/* 主机管理 sheet（PC 端复用 MobileInstanceSwitcher 的 sheet body，隐藏其内置 trigger） */}
+      {onDisconnectRequest && (
+        <MobileInstanceSwitcher
+          instances={instances}
+          activeId={activeId}
+          pending={pending}
+          onCreateClick={onCreateClick}
+          onSwitch={onSwitch}
+          onCloseRequest={onCloseRequest}
+          onDisconnectRequest={onDisconnectRequest}
+          onPendingRetry={onPendingRetry}
+          onPendingDismiss={onPendingDismiss}
+          externalOpen={manageOpen}
+          onExternalOpenChange={setManageOpen}
+          hideTrigger
         />
       )}
     </nav>

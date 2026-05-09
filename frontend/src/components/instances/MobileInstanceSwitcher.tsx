@@ -47,6 +47,14 @@ export interface MobileInstanceSwitcherProps {
   onPendingRetry?: (pendingId: string) => void;
   /** 关闭一个 pending tab（仅 UI 层移除） */
   onPendingDismiss?: (pendingId: string) => void;
+  /**
+   * 外部控制 sheet 开关（PC 端 InstanceTabs 用：trigger 在 tab 栏左侧，由它控制）
+   * 不传 = 使用内部默认 trigger（移动端原行为）
+   */
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+  /** PC 端复用本组件的 sheet 但不渲染移动端的 trigger 按钮 */
+  hideTrigger?: boolean;
 }
 
 export function MobileInstanceSwitcher({
@@ -59,12 +67,21 @@ export function MobileInstanceSwitcher({
   onDisconnectRequest,
   onPendingRetry,
   onPendingDismiss,
+  externalOpen,
+  onExternalOpenChange,
+  hideTrigger = false,
 }: MobileInstanceSwitcherProps): JSX.Element {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  // 受控 / 非受控双模：传 externalOpen 走受控（PC 用），否则走内部 state（移动端原行为）
+  const open = externalOpen ?? internalOpen;
+  const setOpen = (next: boolean): void => {
+    if (onExternalOpenChange) onExternalOpenChange(next);
+    else setInternalOpen(next);
+  };
   const [detailFor, setDetailFor] = useState<InstanceListItem | null>(null);
   const [aliasTick, bumpAliasTick] = useReducer((n: number) => n + 1, 0);
-  const { groups, hasSingleHost } = useHostGroups(instances, pending, aliasTick);
+  const { groups } = useHostGroups(instances, pending, aliasTick);
 
   const isHighlight = (i: InstanceListItem): boolean =>
     activeId !== undefined ? i.instanceId === activeId : i.isCurrent;
@@ -180,44 +197,41 @@ export function MobileInstanceSwitcher({
 
   return (
     <>
-      <button
-        id="mobile-instance-switcher"
-        type="button"
-        onClick={() => setOpen(true)}
-        className={s.trigger}
-        aria-label={t('topBar.switchInstance')}
-      >
-        <IconLayoutGrid size={12} stroke={1.5} />
-        <span className={s.triggerName}>{active?.name ?? t('shortcuts.unnamed')}</span>
-        <span className={s.triggerPort}>:{active?.port ?? '-'}</span>
-      </button>
+      {!hideTrigger && (
+        <button
+          id="mobile-instance-switcher"
+          type="button"
+          onClick={() => setOpen(true)}
+          className={s.trigger}
+          aria-label={t('topBar.switchInstance')}
+        >
+          <IconLayoutGrid size={12} stroke={1.5} />
+          <span className={s.triggerName}>{active?.name ?? t('shortcuts.unnamed')}</span>
+          <span className={s.triggerPort}>:{active?.port ?? '-'}</span>
+        </button>
+      )}
 
       <Sheet id="mobile-instance-sheet" open={open} onOpenChange={setOpen} title={t('instance.sheetTitle')}>
         <div className={s.list}>
-          {hasSingleHost ? (
-            <>
-              {groups[0]?.instances.map((i) => renderInstanceItem(i))}
-              {groups[0]?.pending.map((p) => renderPendingItem(p))}
-            </>
-          ) : (
-            groups.map((g) => (
-              <div key={g.host} className={s.hostSection}>
-                <HostGroupHeader
-                  host={g.host}
-                  displayName={g.displayName}
-                  hasAlias={g.hasAlias}
-                  onRenamed={bumpAliasTick}
-                  compact
-                />
-                {g.instances.map((i) => renderInstanceItem(i))}
-                {g.pending.map((p) => renderPendingItem(p))}
-              </div>
-            ))
-          )}
+          {groups.map((g) => (
+            <div key={g.host} className={s.hostSection}>
+              <HostGroupHeader
+                host={g.host}
+                displayName={g.displayName}
+                hasAlias={g.hasAlias}
+                onRenamed={bumpAliasTick}
+                compact
+              />
+              {g.instances.map((i) => renderInstanceItem(i))}
+              {g.pending.map((p) => renderPendingItem(p))}
+            </div>
+          ))}
           <button
             type="button"
             onClick={() => {
-              setOpen(false);
+              // 不在这里关 sheet —— 让父级 onCreateClick 决定（外部受控时
+              // 父级会 setManageOpen(false) 并记录 reopenOnClose；内部受控
+              // 由 onCreateClick 之后保持 sheet 不变也可，但传统行为是关闭）
               onCreateClick();
             }}
             className={s.create}

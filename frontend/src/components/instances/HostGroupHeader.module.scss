@@ -78,13 +78,16 @@
   color: t.$fg-low;
 }
 
+// 编辑态 input：与 .row 的左右 padding 共用对齐基线，
+// 不要自带 border / 内 padding，避免文字起点比 host name 缩进 + 视觉上"框中框"
 .input {
   flex: 1;
   min-width: 0;
-  border: 1px solid t.$accent;
-  background: t.$bg-input;
+  border: none;
+  border-bottom: 1px solid t.$accent;
+  background: transparent;
   color: t.$fg;
-  padding: 2px t.$sp-2;
+  padding: 2px 0;
   font-family: t.$font-mono;
   font-size: t.$fs-xs;
   letter-spacing: t.$tracking-tight;
@@ -130,4 +133,14 @@
     color: t.$warn;
     border-color: t.$warn;
   }
+}
+
+// 内联错误文案：紧贴输入框右侧（或换行下方），告诉用户为何保存被拒
+.errorText {
+  flex-basis: 100%;
+  font-size: 9px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: t.$alarm;
+  padding-top: 2px;
 }

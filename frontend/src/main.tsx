@@ -9,6 +9,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import { I18nProvider } from './i18n/i18n-context.js';
+import { ConfirmProvider } from './components/ui/ConfirmProvider.js';
 import './styles/global.scss';
 
 // 移动端调试：eruda（屏幕浮层）+ console-bridge（转发到 backend）
@@ -44,7 +45,9 @@ if (!container) {
 createRoot(container).render(
   <StrictMode>
     <I18nProvider>
-      <App />
+      <ConfirmProvider>
+        <App />
+      </ConfirmProvider>
     </I18nProvider>
   </StrictMode>,
 );
