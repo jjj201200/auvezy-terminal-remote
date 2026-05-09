@@ -1,12 +1,12 @@
 # Path-routing 0.7.0 进度总览
 
-> 最后更新：2026-05-09（设计稿落地，待开工）
+> 最后更新：2026-05-09（阶段 1 完成）
 
 ## 阶段速查
 
 | # | 阶段 | 状态 | 关键产物 | 阻塞 / 风险 |
 |---|---|---|---|---|
-| 1 | 基础设施 | 未开始 | broker 模块骨架、共享 sessions store、broker.json 状态文件 | 无 |
+| 1 | 基础设施 | ✅ 已完成 | broker 模块骨架、共享 sessions store、broker.json 状态文件 | 无 |
 | 2 | worker 改造 | 未开始 | worker loopback only、ensure broker、cookie 统一 | 阶段 1 完成 |
 | 3 | broker HTTP 反代 | 未开始 | http-proxy 接入、`/i/<id>/*` 路由、WS upgrade 反代 | 阶段 1 完成 |
 | 4 | HTML / asset 改造 | 未开始 | `<base href>` 注入、vite base 相对路径、删除 withBase | 阶段 3 完成 |
