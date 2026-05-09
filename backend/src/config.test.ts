@@ -12,85 +12,17 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'no
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
-  createClaudeSettings,
-  saveClaudeSettings,
   extractSettingsFromArgs,
   loadUserConfig,
   saveUserConfig,
   loadConfig,
-  shouldInjectSettings,
 } from './config.js';
 import { DEFAULT_SHORTCUTS, DEFAULT_COMMANDS, DEFAULT_PORT } from 'auvezy-terminal-remote-shared';
 import type { ParsedCliArgs } from './cli-utils.js';
 
-describe('createClaudeSettings', () => {
-  it('无 existing → 仅返回我们的 hooks', () => {
-    const s = createClaudeSettings(8080);
-    const hooks = (s as { hooks: Record<string, unknown> }).hooks;
-    expect(hooks).toHaveProperty('Notification');
-    expect(hooks).toHaveProperty('PreToolUse');
-  });
-
-  it('hook command 包含 curl + 端口', () => {
-    const s = createClaudeSettings(12345) as {
-      hooks: {
-        Notification: Array<{ hooks: Array<{ command: string }> }>;
-      };
-    };
-    const cmd = s.hooks.Notification[0]!.hooks[0]!.command;
-    expect(cmd).toContain('curl');
-    expect(cmd).toContain('http://127.0.0.1:12345/api/hook');
-  });
-
-  it('与用户 settings 合并：保留其它字段，hooks 覆盖同名事件', () => {
-    const existing = {
-      env: { FOO: 'bar' },
-      hooks: {
-        Notification: [{ matcher: 'old' }],
-        SomeOther: [{ matcher: 'x' }],
-      },
-    };
-    const s = createClaudeSettings(8080, existing) as {
-      env: Record<string, string>;
-      hooks: Record<string, unknown>;
-    };
-    expect(s.env).toEqual({ FOO: 'bar' });
-    // SomeOther 保留
-    expect(s.hooks).toHaveProperty('SomeOther');
-    // Notification 被我们覆盖（不再是 'old'）
-    const notif = (s.hooks['Notification'] as Array<{ matcher: string }>)[0]!;
-    expect(notif.matcher).toBe('permission_prompt');
-  });
-
-  it('existing.hooks 不是对象时回退为空对象', () => {
-    const s = createClaudeSettings(8080, { hooks: 'invalid' }) as {
-      hooks: Record<string, unknown>;
-    };
-    expect(s.hooks).toHaveProperty('Notification');
-    expect(s.hooks).toHaveProperty('PreToolUse');
-  });
-});
-
-describe('saveClaudeSettings', () => {
-  let baseDir: string;
-
-  beforeEach(() => {
-    baseDir = mkdtempSync(resolve(tmpdir(), 'ocr-config-test-'));
-  });
-
-  afterEach(() => {
-    rmSync(baseDir, { recursive: true, force: true });
-  });
-
-  it('写入到 <baseDir>/settings/<port>.json，内容可被 JSON.parse', () => {
-    const settings = createClaudeSettings(9999);
-    const p = saveClaudeSettings(settings, 9999, baseDir);
-    expect(p).toBe(resolve(baseDir, 'settings', '9999.json'));
-    expect(existsSync(p)).toBe(true);
-    const parsed = JSON.parse(readFileSync(p, 'utf-8'));
-    expect(parsed).toHaveProperty('hooks');
-  });
-});
+// createClaudeSettings / saveClaudeSettings 已迁移到
+// backend/src/integrations/claude-code/settings-builder.ts;相关测试见同目录
+// shouldInjectSettings 已被 isClaudeCommand 替换,见 integrations/claude-code/detect.ts
 
 describe('extractSettingsFromArgs', () => {
   let tmpDir: string;
@@ -422,47 +354,3 @@ describe('loadConfig（CLI > env > 默认）', () => {
   });
 });
 
-describe('shouldInjectSettings', () => {
-  it('command 是 claude → true', () => {
-    expect(shouldInjectSettings('claude', undefined)).toBe(true);
-  });
-
-  it('command 带绝对路径但 basename 是 claude → true', () => {
-    expect(shouldInjectSettings('/usr/local/bin/claude', undefined)).toBe(true);
-  });
-
-  it('command 带 claude- 前缀 → true（覆盖 claude-dev / claude-canary 等）', () => {
-    expect(shouldInjectSettings('claude-dev', undefined)).toBe(true);
-    expect(shouldInjectSettings('/opt/bin/claude-canary', undefined)).toBe(true);
-  });
-
-  it('.exe / .cmd 后缀也能识别（含大小写）', () => {
-    expect(shouldInjectSettings('claude.exe', undefined)).toBe(true);
-    expect(shouldInjectSettings('Claude.EXE', undefined)).toBe(true);
-    expect(shouldInjectSettings('claude.cmd', undefined)).toBe(true);
-  });
-
-  it('bash / zsh / sh 等 shell → false（不会被坑）', () => {
-    expect(shouldInjectSettings('bash', undefined)).toBe(false);
-    expect(shouldInjectSettings('zsh', undefined)).toBe(false);
-    expect(shouldInjectSettings('/bin/sh', undefined)).toBe(false);
-    expect(shouldInjectSettings('python3', undefined)).toBe(false);
-  });
-
-  it('ATR_INJECT_SETTINGS=true 强制开（即使是 bash）', () => {
-    expect(shouldInjectSettings('bash', 'true')).toBe(true);
-    expect(shouldInjectSettings('bash', '1')).toBe(true);
-    expect(shouldInjectSettings('bash', 'YES')).toBe(true);
-  });
-
-  it('ATR_INJECT_SETTINGS=false 强制关（即使是 claude）', () => {
-    expect(shouldInjectSettings('claude', 'false')).toBe(false);
-    expect(shouldInjectSettings('claude', '0')).toBe(false);
-    expect(shouldInjectSettings('claude', 'No')).toBe(false);
-  });
-
-  it('ATR_INJECT_SETTINGS 是无效值时落回自动判定', () => {
-    expect(shouldInjectSettings('claude', 'maybe')).toBe(true);
-    expect(shouldInjectSettings('bash', 'whatever')).toBe(false);
-  });
-});

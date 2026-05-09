@@ -1,9 +1,9 @@
 /**
  * SessionController
  *
- * 系统的核心协调器：把 PTY、WsServer、OutputBuffer、HookReceiver 这些独立模块
- * 编织成一个完整的会话流。它本身不直接调用 node-pty 或 ws 库，而是通过依赖注入
- * 接收已构造好的实例，便于测试与扩展。
+ * 系统的核心协调器:把 PTY、WsServer、OutputBuffer、IntegrationManager 这些独立模块
+ * 编织成一个完整的会话流。它本身不直接调用 node-pty 或 ws 库,而是通过依赖注入
+ * 接收已构造好的实例,便于测试与扩展。
  *
  * 责任：
  *  1. 监听 PTY data 事件 → 三向分发：PC stdout、OutputBuffer 历史、WS 批合并广播
@@ -24,16 +24,17 @@
  */
 
 import { WebSocket } from 'ws';
-import type { SessionStatus } from 'auvezy-terminal-remote-shared';
+import type { SessionStatus, SessionStatusExtras } from 'auvezy-terminal-remote-shared';
 import type { IPtyManager } from '../pty/types.js';
 import { PtyManager } from '../pty/pty-manager.js';
 import { OutputBuffer } from '../pty/output-buffer.js';
 import { WsServer, type ClientType, type ClientCounts } from '../ws/ws-server.js';
 import { handleWsMessage } from '../ws/ws-handler.js';
-import { HookReceiver, type HookNotification } from '../hooks/hook-receiver.js';
 import { AnsiFilter } from '../utils/ansi-filter.js';
 import type { PushService } from '../push/push-service.js';
 import { logger } from '../logger/logger.js';
+import type { IntegrationManager } from '../integrations/manager.js';
+import type { IntegrationEvent } from '../integrations/types.js';
 import {
   WS_FLUSH_INTERVAL_MS,
   WS_MAX_CHUNK_BYTES,
@@ -57,9 +58,25 @@ export interface SessionControllerOptions {
 
 export class SessionController {
   // ──────────── 状态 ────────────
-  // 初始化为 pty_pending：listen 已就绪，但 PTY 子进程还没 spawn。
-  // index.ts 的 spawn 触发器命中后会 setStatus('running')；spawn 失败再 fallback 到 idle。
-  private _status: SessionStatus = 'pty_pending';
+  //
+  // 状态分两层:
+  //  - _baseStatus: PTY 进程级状态(pty_pending / running / idle)。SessionController
+  //    在 PTY 启动 / 退出时维护
+  //  - 富状态(pendingApprovals / activeTool / lastError 等):由 IntegrationManager
+  //    上报的 IntegrationEvent 维护
+  //
+  // 对外暴露的 SessionStatus 是两层派生:有 pendingApprovals → 'waiting_input';
+  // 否则 = _baseStatus。这保证旧客户端逻辑不变,同时新客户端可看到 extras 全量字段。
+  private _baseStatus: SessionStatus = 'pty_pending';
+  /** 进行中的审批,key = approval id(同一 id 多次 pending 仅记一次) */
+  private readonly pendingApprovals: Map<string, { tool: string; since: number }> = new Map();
+  /** 当前进行中的工具调用(LIFO,最后一条 tool_started 为准) */
+  private activeTool: { tool: string; summary: string; since: number; toolUseId: string } | null = null;
+  /** 最近一次 turn_failed,UI 红色 banner 用 */
+  private lastError: { kind: string; detail?: string; at: number } | null = null;
+  /** Stop 携带的 last_assistant_message,可用于推送正文 */
+  private lastAssistantMessage: string | null = null;
+
   private readonly buffer: OutputBuffer;
   private readonly writeToProcessStdout: boolean;
 
@@ -78,8 +95,8 @@ export class SessionController {
   private wsMaxPendingBytes = 0;
   private wsBackpressureEvents = 0;
 
-  /** 可选的 hook 接收器（阶段 3 启用） */
-  private hookReceiver: HookReceiver | null = null;
+  /** Integration 事件源(替换原 HookReceiver) */
+  private integrations: IntegrationManager | null = null;
 
   /**
    * PTY 尺寸主控连接：声明 master=true 的客户端 WebSocket 引用。
@@ -110,17 +127,20 @@ export class SessionController {
   }
 
   /**
-   * 注入 HookReceiver
+   * 注入 IntegrationManager
    *
-   * 设计为 setter 而非构造参数，因为 HookReceiver 只在阶段 3+ 启用，
-   * 且阶段 6a Web 创建实例的 headless 模式可能不需要它。
+   * 替换原 setHookReceiver。manager 已在外部完成 register + prepareSpawn,
+   * 此处只订阅 'event' 把 IntegrationEvent 喂进状态机。
+   *
+   * 多次调用 = 替换(旧 manager 的 listener 自动随其 shutdown 清掉),允许在
+   * 配置切换时重建。
    */
-  setHookReceiver(receiver: HookReceiver): void {
-    if (this.hookReceiver) {
-      logger.warn('SessionController.setHookReceiver 重复调用，覆盖旧 receiver');
+  setIntegrationManager(manager: IntegrationManager): void {
+    if (this.integrations) {
+      logger.warn('SessionController.setIntegrationManager 重复调用,覆盖旧 manager');
     }
-    this.hookReceiver = receiver;
-    receiver.on('notification', (notif: HookNotification) => this.onHookNotification(notif));
+    this.integrations = manager;
+    manager.on('event', (e: IntegrationEvent) => this.onIntegrationEvent(e));
   }
 
   /**
@@ -135,40 +155,150 @@ export class SessionController {
   }
 
   /**
-   * 处理 hook 触发的审批通知
+   * 消费 Integration 事件 → 维护富状态 → 派发 status_update + 推送通知
    *
-   * - 状态切到 waiting_input
-   * - 广播 status_update 让前端 StatusBar 显示警告色
-   * - detail 字段附加工具名让用户知道是哪个工具在等
-   *
-   * 不直接广播文本提示——审批 prompt 已经通过 PTY 输出到 xterm 显示了，
-   * 用户在 xterm 内输入 y/Esc 即可
+   * 设计要点:
+   *  - 所有富状态变更都最终走 broadcastStatus(),保证派生 SessionStatus 与 extras 同步
+   *  - 同一审批的 pending/resolved 用 id 精确配对(LIFO 仅在 id 缺失时兜底)
+   *  - turn_failed 后 lastError 保留;下次 turn_started/tool_started 时清除——避免
+   *    红色 banner 永远不消失
    */
-  private onHookNotification(notif: HookNotification): void {
-    logger.info({ tool: notif.tool }, '审批通知到达，切到 waiting_input');
-    this._status = 'waiting_input';
+  private onIntegrationEvent(e: IntegrationEvent): void {
+    logger.debug({ event: e }, 'integration event');
+    let pushTitle: string | null = null;
+    let pushBody: string | null = null;
+
+    switch (e.kind) {
+      case 'approval_pending': {
+        // 同 id 重复 pending 不重复入队;新 id = 真正多审批并发
+        if (!this.pendingApprovals.has(e.id)) {
+          this.pendingApprovals.set(e.id, { tool: e.tool, since: Date.now() });
+        }
+        pushTitle = 'Claude 等待审批';
+        pushBody = e.detail ?? `工具:${e.tool}`;
+        break;
+      }
+      case 'approval_resolved': {
+        if (this.pendingApprovals.has(e.id)) {
+          this.pendingApprovals.delete(e.id);
+        } else {
+          // id 不在 pending 集合里 → 可能是 PostToolUse 配对的 pending:<tool> 兜底,
+          // 或 Notification 没发就直接到了 PostToolUse(用户手动配置 hook 时可能漏)。
+          // LIFO 兜底:删最后一条同工具的 pending(如果有)
+          this.popLastApprovalByPrefix(e.id);
+        }
+        break;
+      }
+      case 'tool_started': {
+        // 新工具开始 = 上一次的 lastError 清掉(成功的进展遮掉历史失败)
+        this.lastError = null;
+        this.activeTool = {
+          tool: e.tool,
+          summary: e.summary,
+          since: Date.now(),
+          toolUseId: e.toolUseId,
+        };
+        break;
+      }
+      case 'tool_finished': {
+        // 仅在 toolUseId 与当前 active 匹配时清掉;否则可能是别的并发工具结束
+        if (this.activeTool?.toolUseId === e.toolUseId) {
+          this.activeTool = null;
+        }
+        break;
+      }
+      case 'turn_started': {
+        this.lastError = null;
+        break;
+      }
+      case 'turn_ended': {
+        // 一轮结束 = 清空 activeTool(残留 active 通常是 hook 漏发的边界情况)
+        this.activeTool = null;
+        if (e.lastMessage) this.lastAssistantMessage = e.lastMessage;
+        break;
+      }
+      case 'turn_failed': {
+        this.lastError = { kind: e.errorKind, ...(e.detail ? { detail: e.detail } : {}), at: Date.now() };
+        this.activeTool = null;
+        // rate_limit / billing_error 等需要用户立即关注 → 推送
+        pushTitle = `Claude turn 失败:${e.errorKind}`;
+        pushBody = e.detail ?? e.errorKind;
+        break;
+      }
+      case 'session_event': {
+        // 暂时只用日志;若未来要在 UI 显示"刚恢复了昨天会话"可加字段
+        logger.info({ phase: e.phase, detail: e.detail }, 'session event');
+        break;
+      }
+      case 'cwd_changed':
+      case 'user_prompt': {
+        // 这些事件目前不影响状态机;留给未来 UI 用。user_prompt 显式不进推送(隐私)
+        break;
+      }
+    }
+
+    this.broadcastStatus();
+
+    if (pushTitle && this.pushService && this.pushContext) {
+      const ctx = this.pushContext;
+      const title = `[${ctx.instanceName}] ${pushTitle}`;
+      void this.pushService
+        .notifyAll({ title, body: pushBody ?? '', url: ctx.url })
+        .catch((err) => logger.warn({ err }, '推送 integration 通知失败'));
+    }
+  }
+
+  /** approval id 不在集合中时,按"工具名前缀"删除最后一条同工具 pending */
+  private popLastApprovalByPrefix(_id: string): void {
+    // 当前 deriveApprovalId 在缺 tool_use_id 时返回 'pending:<tool>',若 PostToolUse 带
+    // tool_use_id 而 Notification 没带 → id 不一致。这里只能粗略按 LIFO 删最后一条
+    if (this.pendingApprovals.size === 0) return;
+    const lastKey = Array.from(this.pendingApprovals.keys()).pop();
+    if (lastKey) this.pendingApprovals.delete(lastKey);
+  }
+
+  /**
+   * 派发 status_update,从富状态派生 SessionStatus + extras 一并广播
+   *
+   * 派生规则:
+   *  - pty_pending / idle:base 直接透出
+   *  - pendingApprovals.size > 0:'waiting_input'(含义:用户该去看终端处理审批)
+   *  - 否则:base(running)
+   */
+  private broadcastStatus(): void {
+    const derived = this.deriveStatus();
+    const extras = this.buildStatusExtras();
     this.ws.broadcast({
       type: 'status_update',
-      status: 'waiting_input',
-      detail: `等待审批：${notif.tool}`,
+      status: derived,
+      ...extras,
     });
+  }
 
-    // 阶段 9：派发 Web Push（前台 webapp 在线也无伤大雅，service worker
-    // 自己会按需展示；锁屏场景才是核心价值）
-    if (this.pushService && this.pushContext) {
-      const ctx = this.pushContext;
-      const title = `[${ctx.instanceName}] Claude 等待审批`;
-      const body = `工具：${notif.tool}`;
-      void this.pushService
-        .notifyAll({ title, body, url: ctx.url })
-        .catch((err) => logger.warn({ err }, '推送 hook 通知失败'));
+  private deriveStatus(): SessionStatus {
+    if (this._baseStatus === 'pty_pending' || this._baseStatus === 'idle') {
+      return this._baseStatus;
     }
+    if (this.pendingApprovals.size > 0) return 'waiting_input';
+    return 'running';
+  }
+
+  private buildStatusExtras(): SessionStatusExtras {
+    const tools = Array.from(this.pendingApprovals.values()).map((v) => v.tool);
+    return {
+      integrationId: this.integrations?.activeId ?? null,
+      activeTool: this.activeTool?.summary ?? null,
+      pendingApprovals: this.pendingApprovals.size,
+      pendingApprovalTools: tools,
+      lastError: this.lastError,
+      lastAssistantMessage: this.lastAssistantMessage,
+    };
   }
 
   // ──────────────── 公共 API ────────────────
 
   get status(): SessionStatus {
-    return this._status;
+    return this.deriveStatus();
   }
 
   get connectedClients(): number {
@@ -176,13 +306,25 @@ export class SessionController {
   }
 
   /**
-   * 主动设置状态并广播给所有客户端
+   * 主动设置 base 状态并广播
    *
-   * 例如服务启动后将 idle → running，PTY 退出时 running → idle
+   * 用于 PTY 启动后 pty_pending → running、PTY 退出 running → idle 等"硬切换"。
+   * 若调用者传 'waiting_input',会被自动派生覆盖回去——审批状态是富状态派生,
+   * 不接受外部直接 setStatus('waiting_input')。
    */
   setStatus(status: SessionStatus, detail?: string): void {
-    this._status = status;
-    this.ws.broadcast({ type: 'status_update', status, ...(detail ? { detail } : {}) });
+    if (status === 'waiting_input') {
+      logger.warn('setStatus(waiting_input) 被忽略;审批状态由 IntegrationEvent 派生');
+      return;
+    }
+    this._baseStatus = status;
+    const extras = this.buildStatusExtras();
+    this.ws.broadcast({
+      type: 'status_update',
+      status: this.deriveStatus(),
+      ...(detail ? { detail } : {}),
+      ...extras,
+    });
   }
 
   /**
@@ -218,7 +360,10 @@ export class SessionController {
     this.pty.on('exit', (exitCode: number) => {
       // 先 flush 剩余输出，让最后一行能到达客户端
       this.flushPendingWsOutput();
-      this._status = 'idle';
+      this._baseStatus = 'idle';
+      // PTY 退出 = 工具调用 / 审批全部失效;清空状态避免悬空
+      this.activeTool = null;
+      this.pendingApprovals.clear();
       this.ws.broadcast({
         type: 'session_ended',
         exitCode,
@@ -365,7 +510,8 @@ export class SessionController {
         type: 'history_sync',
         data: this.buffer.getFullContent(),
         seq: this.buffer.sequenceNumber,
-        status: this._status,
+        status: this.deriveStatus(),
+        ...this.buildStatusExtras(),
         cols: this.pty.cols,
         rows: this.pty.rows,
       });

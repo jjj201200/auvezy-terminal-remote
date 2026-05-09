@@ -18,7 +18,10 @@
 // ============================================================
 
 /**
- * 会话状态
+ * 会话状态(派生值)
+ *
+ * 这个枚举是 status_update / history_sync 仍保留的"扁平摘要",由后端从 RichSessionState
+ * 派生:有 pendingApprovals → 'waiting_input';有 activeTool → 'running';否则按 PTY 状态。
  *
  * - pty_pending：backend 已 listen，但 PTY 子进程尚未 spawn
  *   （等待第一个 webapp 连入 / 用户按 Enter / 兜底超时）
@@ -27,6 +30,29 @@
  * - waiting_input：Claude 触发了 Notification hook，等待人工审批
  */
 export type SessionStatus = 'pty_pending' | 'idle' | 'running' | 'waiting_input';
+
+/**
+ * 会话状态的"富"字段。由 status_update / history_sync 携带,前端选用展示。
+ *
+ * 旧客户端忽略所有字段、只看 SessionStatus 即可继续工作;新客户端可以在
+ * StatusBar 上把 pending 计数 / 当前工具 / 最近错误一并显示。
+ *
+ * 字段全部可选,缺失 = 后端没接 integrations 或当前空载。
+ */
+export interface SessionStatusExtras {
+  /** 当前激活的 Integration id(如 'claude-code');null = 未激活 */
+  integrationId?: string | null;
+  /** 当前进行中的工具调用摘要(如 "Bash: npm test")。null = 无 */
+  activeTool?: string | null;
+  /** 处于 pending 的审批数。0 = 无 */
+  pendingApprovals?: number;
+  /** 处于 pending 的审批工具名列表(用于在 StatusBar 拼 "等待审批: Bash, Edit") */
+  pendingApprovalTools?: string[];
+  /** 最近一次轮次失败(如 rate_limit / billing_error);用于红色 banner */
+  lastError?: { kind: string; detail?: string; at: number } | null;
+  /** Claude 上一轮最后一句话(可用于 lock screen 推送正文) */
+  lastAssistantMessage?: string | null;
+}
 
 // ============================================================
 // 服务端 → 客户端
@@ -48,9 +74,10 @@ export interface TerminalOutputMessage {
 /**
  * 状态更新（idle / running / waiting_input 三态切换）
  *
+ * status 是 SessionStatus 派生摘要(向前兼容);extras 携带 RichSessionState 的全量信息。
  * detail 是可选的人类可读说明（如 "Waiting for input: Bash"）。
  */
-export interface StatusUpdateMessage {
+export interface StatusUpdateMessage extends SessionStatusExtras {
   type: 'status_update';
   status: SessionStatus;
   detail?: string;
@@ -62,7 +89,7 @@ export interface StatusUpdateMessage {
  * data 是 OutputBuffer 当前完整内容（最多 maxBufferLines 行）。
  * seq 是当前最新版本戳，cols/rows 是当前 PTY 尺寸（让前端 xterm 与 PTY 对齐）。
  */
-export interface HistorySyncMessage {
+export interface HistorySyncMessage extends SessionStatusExtras {
   type: 'history_sync';
   data: string;
   seq: number;

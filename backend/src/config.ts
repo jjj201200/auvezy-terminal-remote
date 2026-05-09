@@ -1,24 +1,16 @@
 /**
- * 配置模块（阶段 4 完整版）
+ * 配置模块
  *
- * 实现：
- *  - createClaudeSettings：生成 Claude Code 的 hooks 配置（指向 /api/hook）
- *  - saveClaudeSettings：把 settings 落到 ~/.atr/settings/<port>.json
- *  - extractSettingsFromArgs：从用户原始 --settings 参数中分离出 settings 内容
- *  - loadUserConfig：读取 ~/.atrrc，缺失/损坏时落默认
- *  - saveUserConfig：写入 config.json（atomic：tmp + rename）
- *  - loadConfig：把 ParsedCliArgs + 环境变量 + UserConfig + 默认值 合并成 AppConfig
+ * 实现:
+ *  - extractSettingsFromArgs:从用户原始 --settings 参数中分离出 settings 内容
+ *  - loadUserConfig:读取 ~/.atrrc,缺失/损坏时落默认
+ *  - saveUserConfig:写入 config.json(atomic:tmp + rename)
+ *  - loadConfig:把 ParsedCliArgs + 环境变量 + UserConfig + 默认值 合并成 AppConfig
  *
- * Hook 触发链路：
- *   Claude 弹审批 → 执行 hook command（curl POST /api/hook）→ HookReceiver
+ * 配置优先级(高 → 低):CLI 参数 > 环境变量 > config.json > 编译期默认
  *
- * 配置优先级（高 → 低）：
- *   CLI 参数 > 环境变量 > config.json > 编译期默认
- *
- * 为什么 settings 走文件而不是命令行内联：
- *  - claude --settings 接受文件路径或 JSON 字符串两种形式
- *  - 文件形式没有命令行长度上限和 shell 转义复杂度
- *  - 多实例时按 port 命名隔离（settings/<port>.json）
+ * Claude Code 的 hook settings 生成 / 文件落盘 / 命令检测全部迁到
+ * backend/src/integrations/claude-code/(模块化:可热插拔)。
  */
 
 import {
@@ -34,7 +26,6 @@ import { statSync } from 'node:fs';
 import {
   ATR_DATA_DIR,
   CONFIG_FILENAME,
-  SETTINGS_DIRNAME,
   DEFAULT_PORT,
   DEFAULT_MAX_BUFFER_LINES,
   DEFAULT_SESSION_TTL_MS,
@@ -48,123 +39,6 @@ import { ConfigError } from './errors.js';
 import { logger } from './logger/logger.js';
 import type { ParsedCliArgs } from './cli-utils.js';
 import { atomicWriteJson } from './utils/atomic-write.js';
-
-// ==============================
-// Claude settings 生成
-// ==============================
-
-/**
- * 生成 Claude Code 的 hook 配置对象
- *
- * 包含两个 hook 事件：
- *  - Notification.permission_prompt：审批触发
- *  - PreToolUse.AskUserQuestion：保留以便未来扩展（当前 HookReceiver 会忽略）
- *
- * 两个事件都用同一条 curl 命令把 stdin 的 hook payload POST 到本地 /api/hook。
- * 用 -d @- 从 stdin 读避免 shell 转义复杂的 JSON。
- *
- * @param port 当前实例端口
- * @param existing 用户已有的 settings（如果有的话），将与本配置合并
- * @returns 完整可写入文件的 settings 对象
- */
-export function createClaudeSettings(
-  port: number,
-  existing?: Record<string, unknown>,
-): Record<string, unknown> {
-  const hookUrl = `http://127.0.0.1:${port}/api/hook`;
-  const hookCommand = `curl -s -X POST ${hookUrl} -H 'Content-Type: application/json' -d @-`;
-
-  const ourHooks = {
-    Notification: [
-      {
-        matcher: 'permission_prompt',
-        hooks: [{ type: 'command', command: hookCommand }],
-      },
-    ],
-    PreToolUse: [
-      {
-        matcher: 'AskUserQuestion',
-        hooks: [{ type: 'command', command: hookCommand }],
-      },
-    ],
-  };
-
-  if (!existing) {
-    return { hooks: ourHooks };
-  }
-
-  // 与用户原 settings 合并：保留其它字段，hooks.Notification/PreToolUse 被我们覆盖
-  const existingHooks =
-    existing['hooks'] && typeof existing['hooks'] === 'object'
-      ? (existing['hooks'] as Record<string, unknown>)
-      : {};
-
-  const overlapped = ['Notification', 'PreToolUse'].filter((k) => k in existingHooks);
-  if (overlapped.length > 0) {
-    logger.warn(
-      { overlapped },
-      '用户已有同名 hook 事件被 atr 覆盖（这是必需的）',
-    );
-  }
-
-  return {
-    ...existing,
-    hooks: { ...existingHooks, ...ourHooks },
-  };
-}
-
-/**
- * 落盘 Claude settings 到 ~/.atr/settings/<port>.json
- *
- * 使用同步 IO，仅在启动阶段调用。
- *
- * @returns 文件绝对路径，调用方用此值传给 claude --settings <path>
- */
-export function saveClaudeSettings(
-  settings: Record<string, unknown>,
-  port: number,
-  baseDir?: string,
-): string {
-  const dir = baseDir ?? resolve(homedir(), ATR_DATA_DIR);
-  const settingsDir = resolve(dir, SETTINGS_DIRNAME);
-
-  if (!existsSync(settingsDir)) {
-    mkdirSync(settingsDir, { recursive: true, mode: 0o700 });
-  }
-
-  const path = resolve(settingsDir, `${port}.json`);
-  writeFileSync(path, JSON.stringify(settings, null, 2), { encoding: 'utf-8', mode: 0o600 });
-  logger.info({ path, port }, 'Claude settings 已写入');
-  return path;
-}
-
-/**
- * 判断是否应该把 `--settings <path>` 注入到子进程参数。
- *
- * 策略：
- *  - 显式指令 ATR_INJECT_SETTINGS=true / 1 → 强制开
- *  - 显式指令 ATR_INJECT_SETTINGS=false / 0 → 强制关
- *  - 否则按 command basename 自动判定（'claude' 或带前缀如 'claude-dev'）
- *
- * 这样跑 bash / zsh / python / node 等不认识 --settings 的程序时不会被坑死。
- *
- * @param command spawn 用的命令名（绝对路径或裸名都行）
- * @param envOverride ATR_INJECT_SETTINGS 环境变量值
- */
-export function shouldInjectSettings(
-  command: string,
-  envOverride: string | undefined,
-): boolean {
-  if (envOverride !== undefined) {
-    const v = envOverride.trim().toLowerCase();
-    if (v === 'true' || v === '1' || v === 'yes') return true;
-    if (v === 'false' || v === '0' || v === 'no') return false;
-    // 无法识别的值忽略，落回自动判定
-  }
-  // basename 后转小写，去掉 .exe / .cmd 等扩展（Windows 兼容）
-  const base = basename(command).toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
-  return base === 'claude' || base.startsWith('claude-');
-}
 
 // ==============================
 // 用户原参数中提取 --settings

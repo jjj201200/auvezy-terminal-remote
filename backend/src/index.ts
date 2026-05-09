@@ -7,7 +7,7 @@
  *  1.5 解析用户 --settings + 合并 atr hooks → 写 settings 文件
  *  1.6 detectDisplayIp 选 LAN IP，构造扫码 URL
  *  1.7 多实例：findAvailablePort（preferred 起递增）+ 生成 instanceId
- *  2. 创建 AuthModule（cookie 名按"实际端口"绑）+ HookReceiver
+ *  2. 创建 AuthModule(cookie 名按"实际端口"绑) + IntegrationManager
  *  3. Express + CORS（含 displayIp）+ /api 路由（含 /auth + /config + /hook + /instances）
  *  4. 静态前端 + SPA fallback
  *  5. HttpServer + WsServer
@@ -42,16 +42,14 @@ import {
 } from './auth/auth-middleware.js';
 import { generateToken } from './auth/token-generator.js';
 import { createWsAuthenticate } from './auth/ws-authenticate.js';
-import { HookReceiver } from './hooks/hook-receiver.js';
 import {
-  createClaudeSettings,
-  saveClaudeSettings,
   extractSettingsFromArgs,
   loadConfig,
   saveUserConfig,
-  shouldInjectSettings,
   type AppConfig,
 } from './config.js';
+import { IntegrationManager, DEFAULT_INTEGRATION_PREFS } from './integrations/manager.js';
+import { ClaudeCodeIntegration } from './integrations/claude-code/index.js';
 import type { ParsedCliArgs } from './cli-utils.js';
 import { acquireSharedToken } from './registry/shared-token.js';
 import { bindAvailablePort } from './registry/port-finder.js';
@@ -181,25 +179,53 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     '加载阶段 5 配置',
   );
 
-  // 1.5 Hook 配置 + Claude settings 文件
+  // 1.5 Integrations:可热插拔的"识别原终端工具上下文"模块体系
   //
-  // 仅当真正在跑 Claude 时才注入 --settings：
-  //  - 默认按 basename(command) === 'claude' 自动判定
-  //  - 别的命令（bash/zsh/python/...）不接受 --settings 会立刻退出
-  //  - 用户可设 ATR_INJECT_SETTINGS=true|false 强制开关
-  //
-  // 跳过时仍写一份 settings 文件（代价极低），方便用户日后切回 claude
-  // 直接 `claude --settings ~/.atr/settings/<port>.json` 即可。
+  // - IntegrationManager 持有所有已注册模块,在 spawn 阶段调用 detect 决定激活
+  //   哪个;hook payload 到达时由 manager 路由给激活模块翻译成 IntegrationEvent
+  // - 当前只内置 ClaudeCodeIntegration:detect=basename 是 claude;激活时给 spawn
+  //   注入 --settings <写好的 hooks 文件路径>
+  // - 用户偏好(总开关 / forceModule / 事件细分)从 cfg.userConfig.integrations 读
   const extracted = extractSettingsFromArgs(cfg.claudeArgs);
   const finalClaudeArgs = extracted ? extracted.remainingArgs : [...cfg.claudeArgs];
-  const settings = createClaudeSettings(cfg.port, extracted?.value);
-  const settingsPath = saveClaudeSettings(settings, cfg.port);
-  if (shouldInjectSettings(cfg.claudeCommand, process.env['ATR_INJECT_SETTINGS'])) {
-    finalClaudeArgs.push('--settings', settingsPath);
+
+  // ensureDefaultUserConfig 会填默认,但类型层面 integrations 仍是 Partial,这里收拢为完整结构
+  const rawIntegrations = cfg.userConfig.integrations;
+  const integrationPrefs = {
+    enabled: rawIntegrations?.enabled ?? DEFAULT_INTEGRATION_PREFS.enabled,
+    forceModule: rawIntegrations?.forceModule ?? DEFAULT_INTEGRATION_PREFS.forceModule,
+    perModule: rawIntegrations?.perModule ?? DEFAULT_INTEGRATION_PREFS.perModule,
+  };
+  const integrations = new IntegrationManager(integrationPrefs);
+  // 注册具体模块。新增模块在此一行加 register 即可
+  const ccPerModule =
+    typeof integrationPrefs.perModule === 'object' && integrationPrefs.perModule !== null
+      ? (integrationPrefs.perModule as Record<string, unknown>)['claude-code']
+      : undefined;
+  const ccEvents =
+    ccPerModule && typeof ccPerModule === 'object' && 'events' in ccPerModule
+      ? ((ccPerModule as { events?: unknown }).events as
+          | import('./integrations/claude-code/index.js').ClaudeCodeEventToggles
+          | undefined)
+      : undefined;
+  integrations.register(
+    new ClaudeCodeIntegration({
+      ...(ccEvents ? { events: ccEvents } : {}),
+      ...(extracted?.value ? { existingSettings: extracted.value } : {}),
+    }),
+  );
+
+  const aug = integrations.prepareSpawn({
+    command: cfg.claudeCommand,
+    args: finalClaudeArgs,
+    port: cfg.port,
+  });
+  if (aug?.extraArgs && aug.extraArgs.length > 0) {
+    finalClaudeArgs.push(...aug.extraArgs);
   } else {
     logger.info(
-      { command: cfg.claudeCommand, settingsPath },
-      '检测到非 Claude 子进程，跳过 --settings 注入（hook 路由仍可用，但子进程不会自动调用）',
+      { command: cfg.claudeCommand, activeIntegration: integrations.activeId },
+      'integrations: 未激活任何模块或模块无 spawn 增强(子进程不会自动调用 hook)',
     );
   }
 
@@ -211,9 +237,6 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     rateLimitPerMinute: cfg.authRateLimit,
     cookieName,
   });
-
-  // 2.5 HookReceiver（业务逻辑解耦：路由层只接收，控制器监听 'notification' 事件）
-  const hookReceiver = new HookReceiver();
 
   // 2.6 ConfigStore：把内存中的 userConfig 与 config.json 写盘连接起来
   //   - get() 返回当前内存值
@@ -277,7 +300,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     '/api',
     createApiRouter({
       authModule,
-      hookReceiver,
+      integrations,
       configStore,
       registry,
       currentInstanceId: instanceId,
@@ -345,7 +368,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     writeToProcessStdout: !cfg.noTerminal,
     ansiFilter,
   });
-  ctrl.setHookReceiver(hookReceiver);
+  ctrl.setIntegrationManager(integrations);
   ctrl.setPushService(pushService, {
     instanceName: cfg.instanceName,
     url: publicUrl,
@@ -401,6 +424,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }
     ipMonitor.stop();
     ctrl.destroy();
+    integrations.shutdown();
     ws.destroy();
     authModule.destroy();
     devProxy?.dispose();

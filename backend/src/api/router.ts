@@ -24,7 +24,7 @@ import {
   type WorkdirPolicySnapshot,
 } from './workdir-policy-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
-import type { HookReceiver } from '../hooks/hook-receiver.js';
+import type { IntegrationManager } from '../integrations/manager.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner } from '../registry/instance-spawner.js';
 import type { PushService } from '../push/push-service.js';
@@ -32,8 +32,8 @@ import type { PushService } from '../push/push-service.js';
 export interface ApiRouterOptions {
   /** 认证模块；不传则不挂 /auth 路由 */
   authModule?: AuthModule;
-  /** Hook 接收器；不传则不挂 /hook 路由（仅 localhost 可访问） */
-  hookReceiver?: HookReceiver;
+  /** Integration 管理器;不传则不挂 /hook 路由(仅 localhost 可访问) */
+  integrations?: IntegrationManager;
   /** 配置存储；与 authModule 同时存在时挂 /config 路由 */
   configStore?: ConfigStore;
   /** 实例注册表；与 authModule + currentInstanceId 同时存在时挂 /instances */
@@ -75,9 +75,9 @@ export function createApiRouter(opts: ApiRouterOptions = {}): Router {
     router.use(createConfigRoutes(opts.authModule, opts.configStore));
   }
 
-  // Hook 接收（路由内部做 loopback 限制，无需鉴权）
-  if (opts.hookReceiver) {
-    router.use(createHookRoutes(opts.hookReceiver));
+  // Hook 接收(路由内部做 loopback 限制,无需鉴权)
+  if (opts.integrations) {
+    router.use(createHookRoutes(opts.integrations));
   }
 
   // 实例列表 + 派生（需鉴权）

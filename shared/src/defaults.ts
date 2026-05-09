@@ -437,7 +437,66 @@ export interface UserConfig {
    * 注：列表为 undefined 时使用默认；为 [] 时表示用户显式想要"无任何黑名单"
    */
   workdirDeny?: string[];
+  /**
+   * Integrations 偏好(可热插拔的"识别原终端工具上下文"模块体系)
+   *
+   * - enabled:总开关。false → 不激活任何模块,纯透传 PTY
+   * - forceModule:'auto'(默认,各模块依次 detect)/ 模块 id(强制) / 'none'
+   * - perModule:各模块自己的子开关(如 ClaudeCode 的事件细分)
+   */
+  integrations?: IntegrationsPrefs;
 }
+
+/**
+ * Integrations 偏好结构。与 backend/src/integrations/types.ts 的 IntegrationPreferences 等价
+ * (不直接 import 跨包是为了让 shared 包不依赖 backend)。
+ */
+export interface IntegrationsPrefs {
+  enabled?: boolean;
+  forceModule?: 'auto' | 'claude-code' | 'none';
+  perModule?: {
+    'claude-code'?: {
+      events?: {
+        approvals?: boolean;
+        toolProgress?: boolean;
+        turnLifecycle?: boolean;
+        sessionLifecycle?: boolean;
+        userPrompts?: boolean;
+      };
+    };
+  };
+}
+
+/** Integrations 默认值(供 ensureDefaultUserConfig 兜底用) */
+export const DEFAULT_INTEGRATIONS: Required<{
+  enabled: boolean;
+  forceModule: 'auto' | 'claude-code' | 'none';
+  perModule: {
+    'claude-code': {
+      events: {
+        approvals: boolean;
+        toolProgress: boolean;
+        turnLifecycle: boolean;
+        sessionLifecycle: boolean;
+        userPrompts: boolean;
+      };
+    };
+  };
+}> = {
+  enabled: true,
+  forceModule: 'auto',
+  perModule: {
+    'claude-code': {
+      events: {
+        approvals: true,
+        toolProgress: true,
+        turnLifecycle: true,
+        sessionLifecycle: true,
+        userPrompts: false,
+      },
+    },
+  },
+};
 
 /**
  * 输入偏好
@@ -636,6 +695,49 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
       ? [...DEFAULT_WORKDIR_DENY]
       : normalizeStringArray(src.workdirDeny) ?? [];
 
+  // integrations:对象 deep-merge,缺失字段全用默认。
+  // 总开关 / forceModule 单字段;perModule 当前只认 'claude-code' 的 events,逐个字段填默认
+  const rawIntegrations = src.integrations;
+  const ccUserEvents =
+    rawIntegrations?.perModule?.['claude-code']?.events ?? {};
+  const ccDefaults = DEFAULT_INTEGRATIONS.perModule['claude-code'].events;
+  const integrations: IntegrationsPrefs = {
+    enabled:
+      typeof rawIntegrations?.enabled === 'boolean'
+        ? rawIntegrations.enabled
+        : DEFAULT_INTEGRATIONS.enabled,
+    forceModule:
+      rawIntegrations?.forceModule === 'auto' ||
+      rawIntegrations?.forceModule === 'claude-code' ||
+      rawIntegrations?.forceModule === 'none'
+        ? rawIntegrations.forceModule
+        : DEFAULT_INTEGRATIONS.forceModule,
+    perModule: {
+      'claude-code': {
+        events: {
+          approvals:
+            typeof ccUserEvents.approvals === 'boolean' ? ccUserEvents.approvals : ccDefaults.approvals,
+          toolProgress:
+            typeof ccUserEvents.toolProgress === 'boolean'
+              ? ccUserEvents.toolProgress
+              : ccDefaults.toolProgress,
+          turnLifecycle:
+            typeof ccUserEvents.turnLifecycle === 'boolean'
+              ? ccUserEvents.turnLifecycle
+              : ccDefaults.turnLifecycle,
+          sessionLifecycle:
+            typeof ccUserEvents.sessionLifecycle === 'boolean'
+              ? ccUserEvents.sessionLifecycle
+              : ccDefaults.sessionLifecycle,
+          userPrompts:
+            typeof ccUserEvents.userPrompts === 'boolean'
+              ? ccUserEvents.userPrompts
+              : ccDefaults.userPrompts,
+        },
+      },
+    },
+  };
+
   return {
     ...src,
     shortcuts,
@@ -643,6 +745,7 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
     input: inputPrefs as InputPrefs,
     workdirAllow,
     workdirDeny,
+    integrations,
   };
 }
 
