@@ -29,8 +29,8 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, openSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdirSync, openSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import {
   ATR_DATA_DIR,
@@ -105,6 +105,9 @@ export async function ensureBroker(opts: EnsureBrokerOptions): Promise<EnsureBro
   const spawnImpl = opts.spawnFn ?? spawn;
   const fetchImpl = opts.fetchFn ?? globalThis.fetch.bind(globalThis);
   const now = opts.now ?? Date.now;
+
+  // 锁目录的父目录必须先存在（首次启动时 ~/.atr 可能尚未创建）
+  ensureParentDir(lockDir);
 
   return withFileLock(lockDir, async () => {
     // —— 锁内 double-check ——
@@ -218,6 +221,17 @@ function resolveBrokerEntry(cliJsPath: string): { execPath: string; args: string
   }
   // fallback：让 spawn 自己 ENOENT，错误信息更具体
   return { execPath: process.execPath, args: [cliJsPath] };
+}
+
+/** 创建锁目录的父目录（递归），存在则跳过 */
+function ensureParentDir(lockDir: string): void {
+  const parent = dirname(lockDir);
+  if (existsSync(parent)) return;
+  try {
+    mkdirSync(parent, { recursive: true, mode: 0o700 });
+  } catch (err) {
+    logger.warn({ parent, err }, '创建 broker 锁父目录失败（继续尝试持锁）');
+  }
 }
 
 /**

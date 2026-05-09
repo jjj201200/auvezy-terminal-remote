@@ -203,6 +203,26 @@ describe('ensureBroker', () => {
     ).rejects.toThrow(/health/);
   });
 
+  it('锁目录的父目录不存在时也能持锁（首次启动 ~/.atr 不存在）', async () => {
+    const nestedLock = resolve(baseDir, 'never-existed', 'sub', '.broker.lock');
+    const nestedState = resolve(baseDir, 'never-existed', 'sub', 'broker.json');
+    const r = await ensureBroker({
+      cliJsPath: '/nonexistent/cli.js',
+      statePath: nestedState,
+      lockDir: nestedLock,
+      startupTimeoutMs: 2000,
+      probeTimeoutMs: 200,
+      fetchFn: mockFetch('ok'),
+      spawnFn: makeMockSpawn({
+        pid: process.pid,
+        writeStateAt: nestedState,
+        state: { pid: process.pid, port: 13099, host: '0.0.0.0', brokerVersion: '0.7.0' },
+      }),
+    });
+    expect(r.forked).toBe(true);
+    expect(r.state.port).toBe(13099);
+  });
+
   it('broker.json 存在但损坏 → 当作不存在处理 → fork', async () => {
     writeFileSync(statePath, 'bad json {{{');
     const r = await ensureBroker({

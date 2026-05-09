@@ -115,55 +115,82 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }
   }
 
-  // 1.6 displayIp（先选好让后续 banner / CORS 用）
+  // 1.6 displayIp（仍保留供 LAN URL banner 与 share endpoint 列表用；
+  //      0.7.0 worker 不再 listen LAN，但 banner 仍打印 broker URL —— 二维码以
+  //      broker URL 为准，displayIp 仅作为 share-routes 兼容字段）
   const displayIp = detectDisplayIp(cfg.host);
   const instanceId = randomUUID();
 
-  // 1.8 IP 监控（Wi-Fi 切换 → 广播 ip_changed）
+  // 1.7 ensureBroker（0.7.0 ADR-001/002）：worker 启动前先保证 broker 存在；
+  //     fork 失败 → 整个 worker 启动失败（不降级，broker 不在 = 没人能访问 webapp）
+  const __dirnameForBroker = dirname(fileURLToPath(import.meta.url));
+  const cliJsPathForBroker = resolve(__dirnameForBroker, 'cli.js');
+  const { ensureBroker } = await import('./broker/index.js');
+  let brokerState;
+  try {
+    const r = await ensureBroker({ cliJsPath: cliJsPathForBroker });
+    brokerState = r.state;
+    logger.info(
+      { brokerPort: brokerState.port, brokerHost: brokerState.host, forked: r.forked },
+      'broker 就绪',
+    );
+  } catch (err) {
+    process.stderr.write(
+      `[atr] broker 启动失败：${err instanceof Error ? err.message : String(err)}\n`
+        + `提示：检查 ~/.atr/broker.json 是否被旧进程占用；ATR_DEBUG_SPAWN=1 重启可看 /tmp/atr-broker-*.log\n`,
+    );
+    process.exit(1);
+  }
+
+  // 1.8 IP 监控（保留：用户切 Wi-Fi 时仍要广播 ip_changed 给前端做容错；
+  //      broker URL 由用户访问的 hostname 决定，不依赖 worker IP）
   const ipMonitor = new IpMonitor({ initialIp: displayIp, hostHint: cfg.host });
 
-  // 1.9 PushService（VAPID + 订阅；hook 触发时推送给已订阅手机）
+  // 1.9 PushService
   const pushService = new PushService();
   await pushService.init();
 
-  // 1.10 创建空 express + httpServer，但暂不挂 routes
-  //
-  // 关键点：cfg.port 在 listen 成功之前是"用户偏好"，listen 失败要能跳到下一个端口。
-  // 所有依赖最终 port 的副作用（settings / cookieName / authModule / banner）必须在
-  // listen 成功后才计算，否则失败回退时这些副作用会带着错的 port。
-  // express 路由是 lazy 的（每次 request 才查最新 stack），所以 listen 后追加 use
-  // 完全合法；listen 与 use 之间是同步代码，不会有真请求漏到 404。
   const app = express();
   app.use(express.json());
   const httpServer: HttpServer = createServer(app);
 
-  // 1.11 bindAvailablePort：探测 + listen 一体循环
+  // 1.11 bindAvailablePort：worker 0.7.0 起强制 loopback（ADR-009）
   //
-  // - probe 与 listen 用同一个 host（cfg.host），消除 macOS 上 0.0.0.0/127.0.0.1 误判
-  // - listen 触发 EADDRINUSE 自动跳下一个候选（covers TOCTOU + 多实例并发抢端口）
-  // - strict 模式 → maxAttempts=1，preferred 失败立即抛错
+  // - cfg.host 仅作为日志提示展示，不参与 listen
+  // - probe 与 listen 用 127.0.0.1：本机 worker 只接受 broker 的 loopback 连接
+  // - 端口冲突仍走自适应（多实例同时 fork 时常见）
+  const WORKER_LISTEN_HOST = '127.0.0.1';
+  if (cfg.host !== WORKER_LISTEN_HOST && cfg.host !== 'localhost') {
+    logger.warn(
+      { configuredHost: cfg.host },
+      `0.7.0 worker 强制只听 ${WORKER_LISTEN_HOST}（ADR-009）；--host ${cfg.host} 已忽略`,
+    );
+  }
   let bindResult;
   try {
     bindResult = await bindAvailablePort({
       preferred: cfg.port,
-      host: cfg.host,
+      host: WORKER_LISTEN_HOST,
       server: httpServer,
       strict: cfg.strictPort,
     });
   } catch (err) {
     if (err instanceof InstanceError && err.code === ErrorCode.PORT_UNAVAILABLE) {
-      // strict 模式 / 全部候选耗尽：友好的中文报错 + hint，按用户偏好走 stderr
       const hint = cfg.strictPort
         ? '提示：换用 --port <n> 或去掉 --strict-port 启用自适应'
         : '提示：换用 --port <n> 指定其他起始端口';
       process.stderr.write(`atr: ${err.message}\n${hint}\n`);
       process.exit(1);
     }
-    // 其他错误（EACCES / 其他不可恢复）外抛
     throw err;
   }
   cfg.port = bindResult.port;
+  // 0.7.0：publicUrl 仍按 displayIp 拼一份给 push payload 兜底（直连 broker 时
+  // X-ATR-Forwarded-* 头会覆盖；通过 broker 反代访问时 broker 会注入正确 host）。
+  // 阶段 2D 会改成 req-aware 的 getPublicUrl。
   const publicUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
+  // broker 入口 URL（banner 展示用；外部用户实际访问的入口）
+  const brokerEntryUrl = `http://${brokerState.host === '0.0.0.0' ? displayIp : brokerState.host}:${brokerState.port}/i/${instanceId}/`;
 
   logger.info(
     {
@@ -491,8 +518,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     process.stderr.write('║          Auvezy Terminal Remote · 启动           ║\n');
     process.stderr.write('╠══════════════════════════════════════════════════╣\n');
     process.stderr.write(`║  实例:    ${cfg.instanceName.padEnd(38)}║\n`);
-    process.stderr.write(`║  监听:    http://${cfg.host}:${cfg.port}`.padEnd(53) + '║\n');
-    process.stderr.write(`║  扫码:    http://${displayIp}:${cfg.port}`.padEnd(53) + '║\n');
+    process.stderr.write(`║  worker:  http://127.0.0.1:${cfg.port}（loopback only）`.padEnd(53) + '║\n');
+    process.stderr.write(`║  入口:    ${brokerEntryUrl}`.padEnd(53) + '║\n');
     process.stderr.write(`║  Token:   ${tokenPreview.padEnd(38)}║\n`);
     process.stderr.write(`║  来源:    ${cfg.tokenSource.padEnd(38)}║\n`);
 

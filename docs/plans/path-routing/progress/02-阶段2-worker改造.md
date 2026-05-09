@@ -48,13 +48,15 @@
 
 ### 2C — 切换 worker 监听（breaking 起点）
 
-- [ ] `index.ts`：`httpServer.listen('127.0.0.1', cfg.port)` 写死；保留 `cfg.host` 字段供
-      banner 显示但不参与 listen
-- [ ] worker 启动流前置 `await ensureBroker(...)`；broker.json port 写到 banner 让用户访问
-- [ ] banner 改：去掉 `扫码: http://<lanIp>:<port>`，改成 `入口: http://<broker-host>:<broker-port>/i/<id>/`
-      （broker port 取自 ensureBroker 返回值）
-- [ ] smoke：跑 `atr claude`，broker fork 出来 + worker loopback listen 成功；
-      curl broker /api/health + curl worker 127.0.0.1:port/api/health 都通
+- [x] cli-utils 加 `broker` 子命令（仅 `start` 动作，stop / status 留 6）
+- [x] cli.ts 分发到 broker/cli.ts
+- [x] broker/cli.ts: 启动 broker 进程（读 ATR_BROKER_PORT env），SIGINT/SIGTERM 优雅退出
+- [x] index.ts：worker 启动前 `await ensureBroker(...)`；listen 强制 `127.0.0.1`；
+      banner 顶行改为 broker 入口 URL
+- [x] ensureBroker：锁目录父目录不存在自动 mkdir（首次启动 ~/.atr 不存在）
+- [x] smoke：清干净 HOME → 启 worker → broker 自动 fork → broker.json 出现 +
+      broker /api/health 200 + worker 监听 127.0.0.1:13800 + 无任何 LAN listener；
+      `0.7.0 worker 强制只听 127.0.0.1` warn 日志按预期出现
 
 ### 2D — publicUrl 切换
 
@@ -111,6 +113,18 @@ ensureBroker + forwarded-headers 落地（21 个新单测）；commit `d4152fe`�
 
 切片重组：原 2A 包含的 AuthModule 改造拆分到独立 2B（async API breaking
 改动量大），原 2B/2C/2D 顺延为 2C/2D/2E。
+
+### 2026-05-09 — 2C 完成
+
+- cli-utils + cli.ts 新增 `atr broker start`；broker/cli.ts 提供进程入口
+  （读 ATR_BROKER_PORT env，SIGINT/SIGTERM 优雅 shutdown）
+- index.ts worker 启动流：`ensureBroker` 前置；listen 强制 `127.0.0.1`，
+  `cfg.host !== 127.0.0.1` 时 warn；banner 顶行改为 broker 入口 URL
+- ensureBroker 修补：锁父目录不存在自动 mkdir（首启 ~/.atr 不存在场景）
+- 新增 1 用例覆盖嵌套不存在父目录场景；全量 452/452 全绿
+- smoke：HOME=/tmp/<x> 跑 worker → broker 自动 fork（unref detached）→
+  broker.json 写出 → /api/health 200 → worker 仅 127.0.0.1 listen，无任何
+  LAN listener；ADR-009 warn 日志出现
 
 ### 2026-05-09 — 2B 完成
 

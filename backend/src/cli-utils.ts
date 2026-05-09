@@ -77,14 +77,19 @@ const SHORT_TO_LONG: Record<string, string> = {
   '-S': '--strict-port',
 };
 
+/** broker 子命令的二级动作；阶段 2 仅 `start`，阶段 6 加 `stop` / `status` / `service install` 等 */
+export type BrokerAction = 'start';
+
 /** CLI 解析结果 */
 export interface ParsedCliArgs {
   /** 子命令；默认 'start' */
-  subcommand: 'start' | 'attach' | 'stop' | 'list';
+  subcommand: 'start' | 'attach' | 'stop' | 'list' | 'broker';
   /** attach 子命令的 URL（仅 subcommand='attach' 时） */
   attachUrl?: string;
   /** stop 子命令的过滤模式（可选；不传 = 全部） */
   stopPattern?: string;
+  /** broker 子命令的二级动作（仅 subcommand='broker' 时） */
+  brokerAction?: BrokerAction;
   /** 用户显式指定的 PTY 子进程命令名（来自首位置参数；优先于 env OCR_COMMAND） */
   command?: string;
   /** 监听端口 */
@@ -201,6 +206,26 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
           cursor = 2;
         }
       }
+    } else if (sub === 'broker') {
+      result.subcommand = 'broker';
+      cursor = 1;
+      // 阶段 2：仅支持 `broker start`；其它动作（stop / status / service install）
+      // 留给阶段 6
+      const action = argv[1];
+      if (!action || action.startsWith('-')) {
+        throw new ConfigError(
+          ErrorCode.CONFIG_VALIDATION_FAIL,
+          'broker 子命令需要动作参数：atr broker start',
+        );
+      }
+      if (action !== 'start') {
+        throw new ConfigError(
+          ErrorCode.CONFIG_VALIDATION_FAIL,
+          `broker 动作 "${action}" 暂不支持（阶段 2 仅实现 start；stop / status / service install 见阶段 6）`,
+        );
+      }
+      result.brokerAction = 'start';
+      cursor = 2;
     } else {
       // 任意其它非 flag 字符串：当 PTY program 用
       result.command = sub;

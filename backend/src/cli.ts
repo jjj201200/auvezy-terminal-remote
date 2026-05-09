@@ -70,6 +70,11 @@ void (async () => {
     const code = await runAttachCli(cli.attachUrl);
     process.exit(code);
   }
+  if (cli.subcommand === 'broker') {
+    const { runBrokerCli } = await import('./broker/cli.js');
+    const code = await runBrokerCli();
+    process.exit(code);
+  }
 
   await startServer({ cli });
 })().catch((err: unknown) => {
