@@ -12,7 +12,7 @@
 import { type JSX, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Drawer } from 'vaul';
-import { IconX } from '@tabler/icons-react';
+import { IconArrowLeft, IconX } from '@tabler/icons-react';
 import clsx from 'clsx';
 import { useMediaQuery } from '../../hooks/useMediaQuery.js';
 import { useT } from '../../i18n/i18n-context.js';

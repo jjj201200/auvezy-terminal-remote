@@ -35,4 +35,72 @@
   color: t.$alarm;
 }
 
+// ────────────────── capture 模式（拍照扫码） ──────────────────
+
+.captureBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: t.$sp-4;
+  padding: t.$sp-6 t.$sp-5;
+  border: 1px dashed t.$border-hi;
+  background: t.$bg-canvas;
+  text-align: center;
+}
+
+.captureHint {
+  margin: 0;
+  font-size: t.$fs-xs;
+  line-height: t.$lh-loose;
+  color: t.$fg-dim;
+}
+
+.captureStatus {
+  margin: 0;
+  font-family: t.$font-mono;
+  font-size: t.$fs-2xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+}
+
+.captureBtn {
+  appearance: none;
+  border: 1px solid t.$accent;
+  background: t.$accent-soft;
+  color: t.$fg;
+  padding: t.$sp-4 t.$sp-6;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  font-weight: 600;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: t.$sp-3;
+  min-height: 44px;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, opacity 120ms;
+
+  svg {
+    color: t.$accent;
+    transition: color 120ms;
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(182, 240, 156, 0.18);
+    border-color: t.$accent;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: progress;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.$shadow-focus;
+  }
+}
+
 @include qr.qr-keyframes;

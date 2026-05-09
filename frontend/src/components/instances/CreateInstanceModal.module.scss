@@ -206,3 +206,142 @@
 
 .altActions { @include qr.qr-alt-actions; }
 .altBtn     { @include qr.qr-alt-button; }
+
+// ──────────────── 阶段 1：方式选择 ────────────────
+
+.methods {
+  @include m.col-flex(t.$sp-3);
+}
+
+.methodHeader {
+  @include m.col-flex(2px);
+  text-align: center;
+  margin-bottom: t.$sp-2;
+}
+
+.methodTitle {
+  font-family: t.$font-mono;
+  font-size: t.$fs-xs;
+  letter-spacing: t.$tracking-wide;
+  text-transform: uppercase;
+  color: t.$fg-dim;
+}
+
+.methodHint {
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  line-height: t.$lh-loose;
+}
+
+.methodCard {
+  @include m.btn-reset;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: t.$sp-3;
+  padding: t.$sp-3 t.$sp-4;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  text-align: left;
+  color: t.$fg;
+  cursor: pointer;
+  @include m.transition(border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    border-color: t.$accent;
+    background: t.$bg-hover;
+  }
+}
+
+.methodIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: t.$fg-dim;
+
+  .methodCard:hover & {
+    color: t.$accent;
+  }
+}
+
+.methodBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.methodLabel {
+  font-size: t.$fs-sm;
+  color: t.$fg;
+  letter-spacing: t.$tracking-tight;
+}
+
+.methodDesc {
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  line-height: t.$lh-loose;
+}
+
+// ──────────────── 阶段 2-A：form 模式的 host 选择器 ────────────────
+
+.hostSelect {
+  @include m.btn-reset;
+  appearance: none;
+  width: 100%;
+  padding: t.$sp-2 t.$sp-3;
+  border: 1px solid t.$border;
+  background: t.$bg;
+  color: t.$fg;
+  font-family: t.$font-mono;
+  font-size: t.$fs-sm;
+  cursor: pointer;
+  @include m.transition(border-color t.$dur-fast);
+
+  &:hover, &:focus {
+    border-color: t.$border-hi;
+  }
+}
+
+.hostNote {
+  margin: 0;
+  font-size: t.$fs-2xs;
+  color: t.$fg-low;
+  line-height: t.$lh-loose;
+}
+
+// 白名单为空时的醒目警告横幅
+.allowEmptyWarn {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: t.$sp-2;
+  padding: t.$sp-3;
+  border: 1px solid t.$warn;
+  background: color-mix(in srgb, t.$warn 12%, transparent);
+  color: t.$warn;
+  font-size: t.$fs-2xs;
+  line-height: t.$lh-loose;
+
+  > svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+}
+
+// "返回方式选择"按钮（form/scan/url 模式 footer 复用）
+.backBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  border: 1px solid t.$border;
+  background: transparent;
+  color: t.$fg-dim;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, color t.$dur-fast);
+
+  &:hover {
+    background: t.$bg-hover;
+    color: t.$fg;
+  }
+}

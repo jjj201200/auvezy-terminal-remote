@@ -21,6 +21,7 @@ import { IconArrowLeft, IconQrcode, IconLink } from '@tabler/icons-react';
 import { useT } from '../i18n/i18n-context.js';
 import { QrScanPane } from '../components/auth/QrScanPane.js';
 import { UrlPastePane, parseAccessUrl } from '../components/auth/UrlPastePane.js';
+import { useScanCtaLabel } from '../hooks/useScanCtaLabel.js';
 import s from './AuthPage.module.scss';
 
 export interface AuthPageProps {
@@ -166,6 +167,7 @@ interface TokenPaneProps {
 
 function TokenPane(props: TokenPaneProps): JSX.Element {
   const t = useT();
+  const scanLabel = useScanCtaLabel({ defaultKey: 'authPage.scanCta' });
   const { token, setToken, error, submitting, onSubmit, onSwitchScan, onSwitchUrl } = props;
   return (
     <>
@@ -204,7 +206,7 @@ function TokenPane(props: TokenPaneProps): JSX.Element {
       <div className={s.altActions}>
         <button type="button" className={s.altBtn} onClick={onSwitchScan}>
           <IconQrcode size={16} stroke={1.5} />
-          <span>{t('authPage.scanCta')}</span>
+          <span>{scanLabel}</span>
         </button>
         <button type="button" className={s.altBtn} onClick={onSwitchUrl}>
           <IconLink size={16} stroke={1.5} />

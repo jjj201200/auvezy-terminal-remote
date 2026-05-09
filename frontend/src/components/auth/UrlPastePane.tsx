@@ -32,6 +32,13 @@ export interface UrlPastePaneProps {
   onCancel: () => void;
   /** placeholder 文案 */
   placeholder: string;
+  /**
+   * 隐藏 pane 内置的"取消 / 提交"按钮，把按钮交给容器（如 Sheet footer）。
+   * 容器可通过 form 的 id 让外部 submit 按钮触发提交（见 formId）
+   */
+  hideActions?: boolean;
+  /** form 元素的 id；外部 submit 按钮通过 `form={formId}` 关联触发 */
+  formId?: string;
 }
 
 export function UrlPastePane(props: UrlPastePaneProps): JSX.Element {
@@ -44,6 +51,8 @@ export function UrlPastePane(props: UrlPastePaneProps): JSX.Element {
     onSubmit,
     onCancel,
     placeholder,
+    hideActions = false,
+    formId,
   } = props;
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +69,7 @@ export function UrlPastePane(props: UrlPastePaneProps): JSX.Element {
   };
 
   return (
-    <form className={s.urlPane} onSubmit={handleSubmit}>
+    <form id={formId} className={s.urlPane} onSubmit={handleSubmit}>
       <h1 className={s.title}>{title}</h1>
       <p className={s.subtitle}>{subtitle}</p>
 
@@ -84,18 +93,20 @@ export function UrlPastePane(props: UrlPastePaneProps): JSX.Element {
 
       {error && <p className={s.error}>{error}</p>}
 
-      <div className={s.urlActions}>
-        <button type="button" className={s.ghostBtn} onClick={onCancel}>
-          {cancelLabel}
-        </button>
-        <button
-          type="submit"
-          className={s.submit}
-          disabled={value.trim().length === 0}
-        >
-          {submitLabel}
-        </button>
-      </div>
+      {!hideActions && (
+        <div className={s.urlActions}>
+          <button type="button" className={s.ghostBtn} onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button
+            type="submit"
+            className={s.submit}
+            disabled={value.trim().length === 0}
+          >
+            {submitLabel}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

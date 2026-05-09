@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
-import { IconArrowAutofitWidth, IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
+import { IconArrowAutofitWidth, IconRefresh, IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
 import type { InstanceListItem, SessionStatus } from 'auvezy-terminal-remote-shared';
 import { useUserConfig } from '../hooks/useUserConfig.js';
 import { useInstances } from '../hooks/useInstances.js';
@@ -35,6 +35,7 @@ import { IconButton } from '../components/ui/IconButton.js';
 import { ConfirmModal } from '../components/ui/ConfirmModal.js';
 import { loadToken } from '../services/token-storage.js';
 import { buildInstanceUrl } from '../services/instance-url.js';
+import { hardReload } from '../utils/hard-reload.js';
 import s from './ConsolePage.module.scss';
 
 /** 关闭实例的确认状态机（互斥的几种 modal 形态） */
@@ -109,6 +110,24 @@ export function MultiInstanceConsole(): JSX.Element {
   const [shareOpen, setShareOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // 主机管理 sheet 开关（PC 端在 InstanceTabs 最左侧 / 移动端在右上角触发）
+  // 提到这一层是为了：从 sheet 进入 CreateInstanceModal 后，取消时能重开 sheet
+  // 形成层级关系：实例列表 → 新增方式选择 →（form/scan/url）
+  const [manageOpen, setManageOpen] = useState(false);
+  // 记录"打开 create modal 之前 sheet 是否开着"——关 create 时据此决定是否重开 sheet
+  const reopenManageOnCreateCloseRef = useRef(false);
+  const handleOpenCreate = useCallback((): void => {
+    reopenManageOnCreateCloseRef.current = manageOpen;
+    if (manageOpen) setManageOpen(false);
+    setCreateOpen(true);
+  }, [manageOpen]);
+  const handleCloseCreate = useCallback((): void => {
+    setCreateOpen(false);
+    if (reopenManageOnCreateCloseRef.current) {
+      reopenManageOnCreateCloseRef.current = false;
+      setManageOpen(true);
+    }
+  }, []);
   // 关闭实例的页内 ConfirmModal 状态机（替代 window.confirm/alert）
   const [closeDialog, setCloseDialog] = useState<CloseDialog>({ kind: 'idle' });
 
@@ -280,23 +299,28 @@ export function MultiInstanceConsole(): JSX.Element {
               instances={tabsInstances}
               activeId={activeId}
               pending={pending}
-              onCreateClick={() => setCreateOpen(true)}
+              onCreateClick={handleOpenCreate}
               onSwitch={handleSwitch}
               onCloseRequest={handleCloseRequest}
               onDisconnectRequest={(i) => disconnect(i.instanceId)}
               onPendingRetry={retryPending}
               onPendingDismiss={dismissPending}
+              externalOpen={manageOpen}
+              onExternalOpenChange={setManageOpen}
             />
           ) : (
             <InstanceTabs
               instances={tabsInstances}
               activeId={activeId}
               pending={pending}
-              onCreateClick={() => setCreateOpen(true)}
+              onCreateClick={handleOpenCreate}
               onSwitch={handleSwitch}
               onCloseRequest={handleCloseRequest}
+              onDisconnectRequest={(i) => disconnect(i.instanceId)}
               onPendingRetry={retryPending}
               onPendingDismiss={dismissPending}
+              manageOpen={manageOpen}
+              onManageOpenChange={setManageOpen}
             />
           )}
         </div>
@@ -305,6 +329,15 @@ export function MultiInstanceConsole(): JSX.Element {
           session={session}
           onReconnect={reconnectFn ?? undefined}
         />
+        <IconButton
+          onClick={() => {
+            void hardReload();
+          }}
+          aria-label={t('topBar.hardReload')}
+          title={t('topBar.hardReloadTooltip')}
+        >
+          <IconRefresh size={14} stroke={1.5} />
+        </IconButton>
         {adaptFn && (
           <IconButton
             onClick={() => adaptFn()}
@@ -366,7 +399,7 @@ export function MultiInstanceConsole(): JSX.Element {
       <CreateInstanceModal
         open={createOpen}
         onSubmit={createInstance}
-        onClose={() => setCreateOpen(false)}
+        onClose={handleCloseCreate}
       />
       <ShareSheet open={shareOpen} onOpenChange={setShareOpen} />
 
