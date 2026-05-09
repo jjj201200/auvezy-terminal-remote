@@ -401,6 +401,28 @@
 
 // ──────────────── 分组级 CRUD ────────────────
 
+// 分组级拖拽手柄（GroupBlock head 末端）
+.groupGripBtn {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: t.$fg-low;
+  cursor: grab;
+  @include m.transition(color t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
 // 分组 head 右侧的紧凑图标按钮（编辑标题 / 删组）
 .groupAction {
   @include m.btn-reset;

@@ -91,6 +91,14 @@ export function CommandSettings({ groups, onChange }: CommandSettingsProps): JSX
       withGroup: (r, gid) => ({ ...r, groupId: gid }),
     });
 
+  // 分组级拖拽
+  const groupDrag = useDragReorder<CommandGroup>({
+    value: groups,
+    onChange,
+    groupOf: () => 'groups',
+    withGroup: (g) => g,
+  });
+
   const toggleExpanded = (id: string): void => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -261,7 +269,7 @@ export function CommandSettings({ groups, onChange }: CommandSettingsProps): JSX
 
   return (
     <div id="command-settings" className={clsx(s.root, isDragging && s.rootDragging)}>
-      {groups.map((g) => (
+      {groups.map((g, gIdx) => (
         <GroupBlock
           key={g.id}
           group={g}
@@ -273,6 +281,11 @@ export function CommandSettings({ groups, onChange }: CommandSettingsProps): JSX
             dropIndicator.groupId === g.id &&
             g.items.length === 0
           }
+          registerGroupSectionEl={(el) => groupDrag.register.row(gIdx, el)}
+          groupDragHandleProps={groupDrag.getHandleProps(gIdx)}
+          groupDragSourceIdx={groupDrag.dragState?.sourceIdx ?? null}
+          groupIdx={gIdx}
+          groupIndicator={groupDrag.dropIndicator}
           registerListEl={(el) => register.group(g.id, el)}
           onToggle={() => toggleExpanded(g.id)}
           onEnableAll={() => setGroupAllEnabled(g.id, true)}
@@ -354,6 +367,11 @@ interface GroupBlockProps {
   editingGroupState: EditingGroupState | null;
   isDropTarget: boolean;
   registerListEl: (el: HTMLElement | null) => void;
+  registerGroupSectionEl: (el: HTMLElement | null) => void;
+  groupDragHandleProps: ReturnType<ReturnType<typeof useDragReorder<CommandGroup>>['getHandleProps']>;
+  groupDragSourceIdx: number | null;
+  groupIdx: number;
+  groupIndicator: DropIndicator | null;
   onToggle: () => void;
   onEnableAll: () => void;
   onDisableAll: () => void;
@@ -374,6 +392,11 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
     editingGroupState,
     isDropTarget,
     registerListEl,
+    registerGroupSectionEl,
+    groupDragHandleProps,
+    groupDragSourceIdx,
+    groupIdx,
+    groupIndicator,
     onToggle,
     onEnableAll,
     onDisableAll,
@@ -389,12 +412,24 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
   const total = group.items.length;
   const enabledCount = group.items.filter((it) => it.enabled).length;
   const allOn = total > 0 && enabledCount === total;
+  const isGroupDragSource = groupDragSourceIdx === groupIdx;
+  const showGroupIndicatorBefore =
+    groupIndicator?.kind === 'row' && groupIndicator.idx === groupIdx && groupIndicator.position === 'before';
+  const showGroupIndicatorAfter =
+    groupIndicator?.kind === 'row' && groupIndicator.idx === groupIdx && groupIndicator.position === 'after';
 
   return (
     <section
-      className={clsx(s.group, isDropTarget && s.groupDropTarget)}
+      ref={registerGroupSectionEl}
+      className={clsx(
+        s.group,
+        isDropTarget && s.groupDropTarget,
+        isGroupDragSource && s.rowDragSource,
+      )}
       data-group-id={group.id}
+      style={{ position: 'relative' }}
     >
+      {showGroupIndicatorBefore && <div className={s.dropIndicatorTop} />}
       <div className={s.head}>
         {isEditingTitle && editingGroupState ? (
           <div className={s.groupTitleEdit}>
@@ -489,6 +524,15 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
             >
               <IconTrash size={12} stroke={1.5} />
             </button>
+            <button
+              type="button"
+              aria-label={t('commands.dragHandleTooltip')}
+              title={t('commands.dragHandleTooltip')}
+              className={s.groupGripBtn}
+              {...groupDragHandleProps}
+            >
+              <IconGripVertical size={12} stroke={1.5} />
+            </button>
           </>
         )}
       </div>
@@ -508,6 +552,7 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
           </div>
         </div>
       )}
+      {showGroupIndicatorAfter && <div className={s.dropIndicatorBot} />}
     </section>
   );
 }

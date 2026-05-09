@@ -101,6 +101,14 @@ export function ShortcutSettings({ groups, onChange }: ShortcutSettingsProps): J
       withGroup: (r, gid) => ({ ...r, groupId: gid }),
     });
 
+  // 分组级拖拽：让用户能调整分组顺序。所有 group 视为同一虚拟"groups"列表
+  const groupDrag = useDragReorder<ShortcutGroup>({
+    value: groups,
+    onChange,
+    groupOf: () => 'groups',
+    withGroup: (g) => g, // groups 列表内拖拽，不需要修改 group 字段
+  });
+
   const toggleExpanded = (id: string): void => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -269,7 +277,7 @@ export function ShortcutSettings({ groups, onChange }: ShortcutSettingsProps): J
 
   return (
     <div id="shortcut-settings" className={clsx(s.root, isDragging && s.rootDragging)}>
-      {groups.map((g) => (
+      {groups.map((g, gIdx) => (
         <GroupBlock
           key={g.id}
           group={g}
@@ -281,6 +289,12 @@ export function ShortcutSettings({ groups, onChange }: ShortcutSettingsProps): J
             dropIndicator.groupId === g.id &&
             g.items.length === 0
           }
+          // 分组级拖拽
+          registerGroupSectionEl={(el) => groupDrag.register.row(gIdx, el)}
+          groupDragHandleProps={groupDrag.getHandleProps(gIdx)}
+          groupDragSourceIdx={groupDrag.dragState?.sourceIdx ?? null}
+          groupIdx={gIdx}
+          groupIndicator={groupDrag.dropIndicator}
           registerListEl={(el) => register.group(g.id, el)}
           onToggle={() => toggleExpanded(g.id)}
           onEnableAll={() => setGroupAllEnabled(g.id, true)}
@@ -369,6 +383,12 @@ interface GroupBlockProps {
   editingGroupState: EditingGroupState | null;
   isDropTarget: boolean;
   registerListEl: (el: HTMLElement | null) => void;
+  // 分组级拖拽
+  registerGroupSectionEl: (el: HTMLElement | null) => void;
+  groupDragHandleProps: ReturnType<ReturnType<typeof useDragReorder<ShortcutGroup>>['getHandleProps']>;
+  groupDragSourceIdx: number | null;
+  groupIdx: number;
+  groupIndicator: DropIndicator | null;
   onToggle: () => void;
   onEnableAll: () => void;
   onDisableAll: () => void;
@@ -389,6 +409,11 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
     editingGroupState,
     isDropTarget,
     registerListEl,
+    registerGroupSectionEl,
+    groupDragHandleProps,
+    groupDragSourceIdx,
+    groupIdx,
+    groupIndicator,
     onToggle,
     onEnableAll,
     onDisableAll,
@@ -400,6 +425,11 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
     onAddItem,
     children,
   } = props;
+  const isGroupDragSource = groupDragSourceIdx === groupIdx;
+  const showGroupIndicatorBefore =
+    groupIndicator?.kind === 'row' && groupIndicator.idx === groupIdx && groupIndicator.position === 'before';
+  const showGroupIndicatorAfter =
+    groupIndicator?.kind === 'row' && groupIndicator.idx === groupIdx && groupIndicator.position === 'after';
   const t = useT();
   const total = group.items.length;
   const enabledCount = group.items.filter((it) => it.enabled).length;
@@ -407,9 +437,16 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
 
   return (
     <section
-      className={clsx(s.group, isDropTarget && s.groupDropTarget)}
+      ref={registerGroupSectionEl}
+      className={clsx(
+        s.group,
+        isDropTarget && s.groupDropTarget,
+        isGroupDragSource && s.rowDragSource,
+      )}
       data-group-id={group.id}
+      style={{ position: 'relative' }}
     >
+      {showGroupIndicatorBefore && <div className={s.dropIndicatorTop} />}
       <div className={s.head}>
         {isEditingTitle && editingGroupState ? (
           <div className={s.groupTitleEdit}>
@@ -505,6 +542,15 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
             >
               <IconTrash size={12} stroke={1.5} />
             </button>
+            <button
+              type="button"
+              aria-label={t('shortcuts.dragHandleTooltip')}
+              title={t('shortcuts.dragHandleTooltip')}
+              className={s.groupGripBtn}
+              {...groupDragHandleProps}
+            >
+              <IconGripVertical size={12} stroke={1.5} />
+            </button>
           </>
         )}
       </div>
@@ -524,6 +570,7 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
           </div>
         </div>
       )}
+      {showGroupIndicatorAfter && <div className={s.dropIndicatorBot} />}
     </section>
   );
 }
