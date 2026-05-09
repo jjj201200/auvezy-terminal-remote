@@ -12,7 +12,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
-import type { ServerMessage, SessionStatus, ClientMessage, UserConfig } from 'auvezy-terminal-remote-shared';
+import type {
+  ServerMessage,
+  SessionStatus,
+  SessionStatusExtras,
+  ClientMessage,
+  UserConfig,
+} from 'auvezy-terminal-remote-shared';
 import { useTerminal } from '../../hooks/useTerminal.js';
 import { useTouchSwipeScroll } from '../../hooks/useTouchSwipeScroll.js';
 import { isMouseReportingActive } from '../../utils/xterm-internals.js';
@@ -30,6 +36,23 @@ import { Toolbar } from '../input/Toolbar.js';
 import { IpChangeToast, type IpChangeInfo } from '../common/IpChangeToast.js';
 import s from '../../pages/ConsolePage.module.scss';
 
+/**
+ * 从 status_update / history_sync 消息里抽出 SessionStatusExtras 字段
+ *
+ * 旧后端没有这些字段,统一返回空对象;新后端会把 extras 平铺在消息上(协议层
+ * 设计为 extends SessionStatusExtras),这里只挑感兴趣的字段。
+ */
+function extractExtras(msg: SessionStatusExtras): SessionStatusExtras {
+  return {
+    integrationId: msg.integrationId,
+    activeTool: msg.activeTool,
+    pendingApprovals: msg.pendingApprovals,
+    pendingApprovalTools: msg.pendingApprovalTools,
+    lastError: msg.lastError,
+    lastAssistantMessage: msg.lastAssistantMessage,
+  };
+}
+
 export interface InstanceViewProps {
   /** 实例标识，仅用于 React key 与日志，不影响连接 */
   instanceId: string;
@@ -45,7 +68,12 @@ export interface InstanceViewProps {
    */
   onStatusChange?: (
     instanceId: string,
-    s: { connection: 'connecting' | 'connected' | 'disconnected' | 'gave_up'; session: SessionStatus },
+    s: {
+      connection: 'connecting' | 'connected' | 'disconnected' | 'gave_up';
+      session: SessionStatus;
+      /** 富状态:integration 模块上报的活跃工具 / 审批计数 / 失败信息等 */
+      extras?: SessionStatusExtras;
+    },
   ) => void;
   /** 上层提供 reconnect 回调；第一参数也是 instanceId（同上） */
   registerReconnect?: (instanceId: string, fn: () => void) => void;
@@ -108,6 +136,7 @@ export function InstanceView({
   const sendRef = useRef<((msg: ClientMessage) => boolean) | null>(null);
 
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
+  const [sessionExtras, setSessionExtras] = useState<SessionStatusExtras>({});
   const [hasPtyOutput, setHasPtyOutput] = useState(false);
   const [ipChange, setIpChange] = useState<IpChangeInfo | null>(null);
   // 由 backend pty-manager 监听 DECSET 1049/1047/47 推送
@@ -154,9 +183,11 @@ export function InstanceView({
             adaptToPtySize(msg.cols, msg.rows);
           }
           setSessionStatus(msg.status);
+          setSessionExtras(extractExtras(msg));
           break;
         case 'status_update':
           setSessionStatus(msg.status);
+          setSessionExtras(extractExtras(msg));
           if (msg.status === 'waiting_input') {
             localNotify.notify('Claude 等待审批', msg.detail ?? '请在 Claude 中确认');
           }
@@ -226,8 +257,12 @@ export function InstanceView({
 
   // 把状态变化上报给父组件（active 时父组件会显示）
   useEffect(() => {
-    onStatusChange?.(instanceId, { connection: connectionStatus, session: sessionStatus });
-  }, [instanceId, connectionStatus, sessionStatus, onStatusChange]);
+    onStatusChange?.(instanceId, {
+      connection: connectionStatus,
+      session: sessionStatus,
+      extras: sessionExtras,
+    });
+  }, [instanceId, connectionStatus, sessionStatus, sessionExtras, onStatusChange]);
 
   // active 时把 reconnect 函数注册给父组件
   useEffect(() => {

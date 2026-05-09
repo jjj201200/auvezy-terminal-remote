@@ -157,6 +157,7 @@ export interface Messages {
       display: string;
       notifications: string;
       network: string;
+      integrations: string;
       dev: string;
       about: string;
     };
@@ -238,6 +239,37 @@ export interface Messages {
     reconnectMaxHint: string;
     reconnectMaxAriaLabel: string;
     reconnectMaxUnit: string;
+  };
+
+  // 设置 - 集成模块(可热插拔识别原终端工具上下文)
+  integrations: {
+    sectionGlobal: string;
+    enabledTitle: string;
+    enabledHint: string;
+    forceModuleTitle: string;
+    forceModuleHint: string;
+    forceModuleAuto: string;
+    forceModuleNone: string;
+    activeBadge: string;
+    inactiveBadge: string;
+    detectedBadge: string;
+    notDetectedBadge: string;
+
+    sectionClaudeCode: string;
+    claudeCodeDescription: string;
+    eventsTitle: string;
+    eventsHint: string;
+    eventApprovals: string;
+    eventApprovalsHint: string;
+    eventToolProgress: string;
+    eventToolProgressHint: string;
+    eventTurnLifecycle: string;
+    eventTurnLifecycleHint: string;
+    eventSessionLifecycle: string;
+    eventSessionLifecycleHint: string;
+    eventUserPrompts: string;
+    eventUserPromptsHint: string;
+    eventUserPromptsWarning: string;
   };
 
   // 设置 - 开发者

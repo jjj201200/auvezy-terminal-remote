@@ -8,7 +8,7 @@
  */
 
 import { type JSX } from 'react';
-import type { SessionStatus } from 'auvezy-terminal-remote-shared';
+import type { SessionStatus, SessionStatusExtras } from 'auvezy-terminal-remote-shared';
 import type { ConnectionStatus } from '../../stores/app-store.js';
 import { Pill, type PillTone } from '../ui/Pill.js';
 import { useConfirm } from '../ui/ConfirmProvider.js';
@@ -19,6 +19,8 @@ import s from './StatusBar.module.scss';
 export interface StatusBarProps {
   connection: ConnectionStatus;
   session: SessionStatus;
+  /** 富状态(integration 模块产生的 activeTool / 审批列表 / 失败信息等) */
+  extras?: SessionStatusExtras;
   /** 用户点击 disconnected Pill 时触发；不传则不可点击 */
   onReconnect?: () => void;
 }
@@ -65,10 +67,15 @@ const SESSION_DESC_KEY: Record<SessionStatus, string> = {
   waiting_input: 'status.descWaitingInput',
 };
 
-export function StatusBar({ connection, session, onReconnect }: StatusBarProps): JSX.Element {
+export function StatusBar({
+  connection,
+  session,
+  extras,
+  onReconnect,
+}: StatusBarProps): JSX.Element {
   const t = useT();
   const confirm = useConfirm();
-  // 窄屏切紧凑模式：只显示圆点，状态含义靠 title / 点击弹 modal 暴露
+  // 窄屏切紧凑模式：只显示圆点,状态含义靠 title / 点击弹 modal 暴露
   const compact = useMediaQuery('(max-width: 640px)');
 
   const canReconnect =
@@ -79,7 +86,21 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
       ? t('status.gaveUpReconnect')
       : t('status.disconnectedReconnect')
     : t(CONN_KEY[connection]);
-  const sessionLabel = t(SESSION_KEY[session]);
+
+  // 会话标签:派生自 extras
+  // - waiting_input + 多个 pending → "等待审批: Bash, Edit"
+  // - running + activeTool → "Bash: npm test"
+  // - 否则 → 标准 i18n 文案
+  const pendingTools = extras?.pendingApprovalTools ?? [];
+  const sessionLabel =
+    session === 'waiting_input' && pendingTools.length > 0
+      ? `${t(SESSION_KEY.waiting_input)}: ${pendingTools.slice(0, 3).join(', ')}${pendingTools.length > 3 ? '…' : ''}`
+      : session === 'running' && extras?.activeTool
+        ? extras.activeTool
+        : t(SESSION_KEY[session]);
+
+  // session pill tone:lastError 存在时升级为 error 色;否则按基本派生
+  const sessionTone: PillTone = extras?.lastError ? 'error' : SESSION_TONE[session];
 
   const showConnectionInfo = (): void => {
     void confirm({
@@ -89,9 +110,17 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
     });
   };
   const showSessionInfo = (): void => {
+    // 拼接 extras 信息让 modal 也能查看富状态
+    const lines: string[] = [sessionLabel, '', t(SESSION_DESC_KEY[session])];
+    if (extras?.lastError) {
+      lines.push('', `Error: ${extras.lastError.kind}${extras.lastError.detail ? ` — ${extras.lastError.detail}` : ''}`);
+    }
+    if (extras?.integrationId) {
+      lines.push('', `Integration: ${extras.integrationId}`);
+    }
     void confirm({
       title: t('status.sessionDialogTitle'),
-      message: `${sessionLabel}\n\n${t(SESSION_DESC_KEY[session])}`,
+      message: lines.join('\n'),
       singleButton: true,
     });
   };
@@ -125,7 +154,7 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
         title={sessionLabel}
         aria-label={sessionLabel}
       >
-        <Pill tone={SESSION_TONE[session]} className={s.statusSession} compact={compact}>
+        <Pill tone={sessionTone} className={s.statusSession} compact={compact}>
           {sessionLabel}
         </Pill>
       </button>

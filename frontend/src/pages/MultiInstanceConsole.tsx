@@ -44,6 +44,7 @@ import s from './ConsolePage.module.scss';
 interface InstanceStatus {
   connection: ConnectionStatus;
   session: SessionStatus;
+  extras?: import('auvezy-terminal-remote-shared').SessionStatusExtras;
 }
 
 export function MultiInstanceConsole(): JSX.Element {
@@ -244,7 +245,16 @@ export function MultiInstanceConsole(): JSX.Element {
     (instanceId: string, st: InstanceStatus) => {
       setStatusMap((prev) => {
         const old = prev[instanceId];
-        if (old?.connection === st.connection && old?.session === st.session) return prev;
+        // 浅比较 connection / session + 关键 extras 字段;深 diff 没必要
+        if (
+          old?.connection === st.connection &&
+          old?.session === st.session &&
+          old?.extras?.activeTool === st.extras?.activeTool &&
+          old?.extras?.pendingApprovals === st.extras?.pendingApprovals &&
+          old?.extras?.lastError?.at === st.extras?.lastError?.at
+        ) {
+          return prev;
+        }
         return { ...prev, [instanceId]: st };
       });
     },
@@ -287,6 +297,7 @@ export function MultiInstanceConsole(): JSX.Element {
   const activeStatus = activeId ? statusMap[activeId] : undefined;
   const connection = activeStatus?.connection ?? 'connecting';
   const session = activeStatus?.session ?? 'idle';
+  const extras = activeStatus?.extras;
 
   // 注意：保留 backend 真实 isCurrent（决定"该实例是否是 serve webapp 的进程"，
   // 用于关闭按钮的"必须先跳转"判断），高亮态用单独的 activeId prop 传给 InstanceTabs
@@ -361,6 +372,7 @@ export function MultiInstanceConsole(): JSX.Element {
         <StatusBar
           connection={connection}
           session={session}
+          extras={extras}
           onReconnect={reconnectFn ?? undefined}
         />
         <IconButton

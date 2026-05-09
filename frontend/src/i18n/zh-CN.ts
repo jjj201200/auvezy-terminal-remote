@@ -118,6 +118,7 @@ export const zhCN: Messages = {
       display: '显示',
       notifications: '通知',
       network: '网络',
+      integrations: '集成',
       dev: '开发',
       about: '关于',
     },
@@ -192,6 +193,44 @@ export const zhCN: Messages = {
       '达到此次数后停止自动重试，避免移动端流量被无效重连消耗。超过上限后点状态栏的重连标签可以恢复。',
     reconnectMaxAriaLabel: '自动重连次数上限',
     reconnectMaxUnit: '次',
+  },
+
+  integrations: {
+    sectionGlobal: '总开关',
+    enabledTitle: '启用集成模块',
+    enabledHint:
+      '关闭后,创建实例时不会注入任何工具特定配置,纯透传 PTY。已运行实例不受影响。',
+    forceModuleTitle: '识别策略',
+    forceModuleHint:
+      '默认按命令名自动识别;可强制指定模块以便在用别名启动 Claude Code 时仍能识别。',
+    forceModuleAuto: '自动识别(推荐)',
+    forceModuleNone: '禁用所有模块',
+    activeBadge: '已激活',
+    inactiveBadge: '未激活',
+    detectedBadge: '已检出',
+    notDetectedBadge: '未检出',
+
+    sectionClaudeCode: 'Claude Code',
+    claudeCodeDescription:
+      '检测到 Claude Code 时,把审批 / 工具进度 / 轮次 / 会话生命周期等事件接到状态栏与推送通知。',
+    eventsTitle: '订阅事件',
+    eventsHint:
+      '细分订阅;关掉某项 = 不接收该类事件,但模块自身仍激活。',
+    eventApprovals: '审批信号(必需)',
+    eventApprovalsHint:
+      '把"等待审批"/"审批已结束"两端打通,保证状态栏不会卡住。这是修复审批状态卡住问题的关键能力,建议保持开启。',
+    eventToolProgress: '工具进度',
+    eventToolProgressHint: '在状态栏显示当前正在执行的工具(如 "Bash: npm test")。',
+    eventTurnLifecycle: '轮次生命周期',
+    eventTurnLifecycleHint: '订阅 Claude 一轮回复结束 / API 错误,显示 rate_limit 等失败警告。',
+    eventSessionLifecycle: '会话生命周期',
+    eventSessionLifecycleHint:
+      '订阅 SessionStart / SessionEnd / 上下文压缩 / cwd 变化等事件;用于"刚恢复了昨天会话"等提示。',
+    eventUserPrompts: '用户输入(隐私)',
+    eventUserPromptsHint:
+      '订阅用户在原终端的 prompt 文本。可用于在 PWA 显示对话历史,但 prompt 原文会进入 backend 内存。',
+    eventUserPromptsWarning:
+      '默认关闭。开启前请确保你的 ATR 实例只在受信网络中可达——任何持有 token 的客户端都能看到这些原文。',
   },
 
   dev: {

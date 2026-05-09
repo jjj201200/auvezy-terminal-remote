@@ -21,6 +21,7 @@ import { DisplaySettings } from './DisplaySettings.js';
 import { NetworkSettings } from './NetworkSettings.js';
 import { GeneralSettings } from './GeneralSettings.js';
 import { ActionsSettings } from './ActionsSettings.js';
+import { IntegrationsSettings } from './IntegrationsSettings.js';
 import { DevSettings } from './DevSettings.js';
 import { AboutSettings } from './AboutSettings.js';
 import { PushToggle } from '../common/PushToggle.js';
@@ -43,6 +44,7 @@ type TabKey =
   | 'actions'
   | 'display'
   | 'network'
+  | 'integrations'
   | 'dev'
   | 'about'
   | 'notifications';
@@ -163,13 +165,14 @@ export function SettingsModal({
     else alert(t('settings.saveError'));
   };
 
-  // tabs 顺序：通用 → 操作（输入 / 快捷键 / 命令汇总）→ 显示 → 网络 → 开发 → 关于
+  // tabs 顺序:通用 → 操作 → 显示 → 网络 → 集成 → 开发 → 关于
   const tabs: SheetTab[] = useMemo(
     () => [
       { id: 'general', title: t('settings.tab.general') },
       { id: 'actions', title: t('settings.tab.actions') },
       { id: 'display', title: t('settings.tab.display') },
       { id: 'network', title: t('settings.tab.network') },
+      { id: 'integrations', title: t('settings.tab.integrations') },
       { id: 'dev', title: t('settings.tab.dev') },
       { id: 'about', title: t('settings.tab.about') },
     ],
@@ -228,6 +231,12 @@ export function SettingsModal({
         <NetworkSettings
           value={draft.network}
           onChange={(network) => setDraft({ ...draft, network })}
+        />
+      )}
+      {tab === 'integrations' && (
+        <IntegrationsSettings
+          value={draft.integrations}
+          onChange={(integrations) => setDraft({ ...draft, integrations })}
         />
       )}
       {tab === 'dev' && <DevSettings value={prefsDraft} onChange={setPrefsDraft} />}

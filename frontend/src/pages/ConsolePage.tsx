@@ -18,7 +18,12 @@
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
-import type { ServerMessage, SessionStatus, ClientMessage } from 'auvezy-terminal-remote-shared';
+import type {
+  ServerMessage,
+  SessionStatus,
+  SessionStatusExtras,
+  ClientMessage,
+} from 'auvezy-terminal-remote-shared';
 import { useTerminal } from '../hooks/useTerminal.js';
 import { isMouseReportingActive } from '../utils/xterm-internals.js';
 import { copyToClipboard } from '../utils/clipboard.js';
@@ -44,9 +49,22 @@ import { IconButton } from '../components/ui/IconButton.js';
 import { useLocalNotification } from '../hooks/useLocalNotification.js';
 import s from './ConsolePage.module.scss';
 
+/** 从消息提取 SessionStatusExtras(与 InstanceView 重复一份,避免相互依赖) */
+function extractExtrasConsole(msg: SessionStatusExtras): SessionStatusExtras {
+  return {
+    integrationId: msg.integrationId,
+    activeTool: msg.activeTool,
+    pendingApprovals: msg.pendingApprovals,
+    pendingApprovalTools: msg.pendingApprovalTools,
+    lastError: msg.lastError,
+    lastAssistantMessage: msg.lastAssistantMessage,
+  };
+}
+
 export function ConsolePage(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
+  const [sessionExtras, setSessionExtras] = useState<SessionStatusExtras>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -103,9 +121,11 @@ export function ConsolePage(): JSX.Element {
             adaptToPtySize(msg.cols, msg.rows);
           }
           setSessionStatus(msg.status);
+          setSessionExtras(extractExtrasConsole(msg));
           break;
         case 'status_update':
           setSessionStatus(msg.status);
+          setSessionExtras(extractExtrasConsole(msg));
           if (msg.status === 'waiting_input') {
             localNotify.notify('Claude 等待审批', msg.detail ?? '请在 Claude 中确认');
           }
@@ -232,6 +252,7 @@ export function ConsolePage(): JSX.Element {
         <StatusBar
           connection={connectionStatus}
           session={sessionStatus}
+          extras={sessionExtras}
           onReconnect={connect}
         />
         <IconButton

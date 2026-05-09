@@ -123,6 +123,7 @@ export const en: Messages = {
       display: 'Display',
       notifications: 'Notifications',
       network: 'Network',
+      integrations: 'Integrations',
       dev: 'Developer',
       about: 'About',
     },
@@ -199,6 +200,44 @@ export const en: Messages = {
       'Stop auto-retrying after this many tries. Mobile data is consumed even when retries fail. Tap the reconnect badge to resume after the cap.',
     reconnectMaxAriaLabel: 'Max auto-reconnect attempts',
     reconnectMaxUnit: 'times',
+  },
+
+  integrations: {
+    sectionGlobal: 'Global',
+    enabledTitle: 'Enable integration modules',
+    enabledHint:
+      'When off, no tool-specific config is injected when spawning instances. Existing instances are unaffected.',
+    forceModuleTitle: 'Detection strategy',
+    forceModuleHint:
+      'Auto-detect by command name; force a module if you launch Claude Code under an alias.',
+    forceModuleAuto: 'Auto-detect (recommended)',
+    forceModuleNone: 'Disable all modules',
+    activeBadge: 'Active',
+    inactiveBadge: 'Inactive',
+    detectedBadge: 'Detected',
+    notDetectedBadge: 'Not detected',
+
+    sectionClaudeCode: 'Claude Code',
+    claudeCodeDescription:
+      "When Claude Code is detected, wire approvals / tool progress / turn / session lifecycle events into the status bar and push notifications.",
+    eventsTitle: 'Subscribed events',
+    eventsHint: 'Per-event toggles. Disabling one stops that event but the module stays active.',
+    eventApprovals: 'Approval signals (required)',
+    eventApprovalsHint:
+      "Bridges 'awaiting approval' and 'approval resolved' so the status bar never gets stuck. Keep this on—it's the fix for the stuck-approval bug.",
+    eventToolProgress: 'Tool progress',
+    eventToolProgressHint: 'Show the currently running tool in the status bar (e.g. "Bash: npm test").',
+    eventTurnLifecycle: 'Turn lifecycle',
+    eventTurnLifecycleHint:
+      "Subscribe to Claude's turn-end / API errors so rate_limit and similar failures surface as warnings.",
+    eventSessionLifecycle: 'Session lifecycle',
+    eventSessionLifecycleHint:
+      'Subscribe to SessionStart / SessionEnd / context compaction / cwd changes for "resumed yesterday\'s session" hints.',
+    eventUserPrompts: 'User prompts (privacy)',
+    eventUserPromptsHint:
+      'Subscribe to the prompt text the user submits in the host terminal. Useful for chat history in the PWA, but prompt text enters backend memory.',
+    eventUserPromptsWarning:
+      'Off by default. Only enable if your ATR instance is on a trusted network—any client holding the token can see this text.',
   },
 
   dev: {
