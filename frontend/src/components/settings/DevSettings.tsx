@@ -1,26 +1,26 @@
 /**
  * DevSettings
  *
- * 开发者选项。仅本设备生效（写 localStorage，不上传后端 UserConfig）。
+ * 开发者选项。仅本设备生效（client prefs，写 localStorage）。
  * 切换后需刷新页面才能生效（开关在 main.tsx 启动时被读取）。
+ *
+ * 受控：外部（SettingsModal）持有草稿，本组件只渲染并 onChange 上报。保存
+ * 由 SettingsModal 的"保存"按钮统一触发，与其它 tab 一致。
  */
 
-import { useState, type JSX } from 'react';
+import type { JSX } from 'react';
 import { Toggle } from '../ui/Toggle.js';
 import { useT } from '../../i18n/i18n-context.js';
+import type { ClientPrefs } from '../../services/client-prefs.js';
 import s from './GeneralSettings.module.scss';
 
-const ERUDA_KEY = 'atr.devtools.eruda';
-const CONSOLE_BRIDGE_KEY = 'atr.devtools.consoleBridge';
+export interface DevSettingsProps {
+  value: ClientPrefs;
+  onChange: (next: ClientPrefs) => void;
+}
 
-export function DevSettings(): JSX.Element {
+export function DevSettings({ value, onChange }: DevSettingsProps): JSX.Element {
   const t = useT();
-  const [eruda, setEruda] = useState<boolean>(
-    () => typeof localStorage !== 'undefined' && localStorage.getItem(ERUDA_KEY) === '1',
-  );
-  const [bridge, setBridge] = useState<boolean>(
-    () => typeof localStorage !== 'undefined' && localStorage.getItem(CONSOLE_BRIDGE_KEY) === '1',
-  );
 
   return (
     <div className={s.root}>
@@ -30,13 +30,9 @@ export function DevSettings(): JSX.Element {
           <p className={s.hint}>{t('dev.erudaHint')}</p>
         </header>
         <Toggle
-          checked={eruda}
-          onCheckedChange={(next) => {
-            setEruda(next);
-            if (next) localStorage.setItem(ERUDA_KEY, '1');
-            else localStorage.removeItem(ERUDA_KEY);
-          }}
-          label={eruda ? t('dev.erudaToggleOn') : t('dev.erudaToggleOff')}
+          checked={value.eruda}
+          onCheckedChange={(next) => onChange({ ...value, eruda: next })}
+          label={value.eruda ? t('dev.erudaToggleOn') : t('dev.erudaToggleOff')}
         />
       </section>
 
@@ -46,13 +42,9 @@ export function DevSettings(): JSX.Element {
           <p className={s.hint}>{t('dev.consoleBridgeHint')}</p>
         </header>
         <Toggle
-          checked={bridge}
-          onCheckedChange={(next) => {
-            setBridge(next);
-            if (next) localStorage.setItem(CONSOLE_BRIDGE_KEY, '1');
-            else localStorage.removeItem(CONSOLE_BRIDGE_KEY);
-          }}
-          label={bridge ? t('dev.consoleBridgeOn') : t('dev.consoleBridgeOff')}
+          checked={value.consoleBridge}
+          onCheckedChange={(next) => onChange({ ...value, consoleBridge: next })}
+          label={value.consoleBridge ? t('dev.consoleBridgeOn') : t('dev.consoleBridgeOff')}
         />
       </section>
     </div>

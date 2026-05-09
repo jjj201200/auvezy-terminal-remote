@@ -67,6 +67,22 @@ export interface Messages {
     scanUnsupported: string;
     scanError: string;
     scanInvalidQr: string;
+    // —— 拍照扫码（iOS LAN HTTP fallback）
+    /** 拍照模式 cta（替代实时扫描按钮文案） */
+    scanCaptureCta: string;
+    /** 拍照模式 hint（说明为什么是拍照而不是实时扫） */
+    scanCaptureHint: string;
+    /** 拍照后正在解码 */
+    scanCaptureDecoding: string;
+    /** 拍照解码失败，让用户重拍 */
+    scanCaptureNoCode: string;
+    /** "拍另一张"按钮 */
+    scanCaptureRetry: string;
+    // —— 完全不支持时的引导
+    /** 'none' 模式的标题 */
+    scanFallbackTitle: string;
+    /** 'none' 模式的引导文字 */
+    scanFallbackHint: string;
     // 链接登录
     urlCta: string;
     urlLabel: string;
@@ -84,6 +100,14 @@ export interface Messages {
     instances: string;
     createInstance: string;
     switchInstance: string;
+    /** 硬刷新按钮 aria */
+    hardReload: string;
+    /** 硬刷新按钮 tooltip（解释这是清 SW cache 的硬刷） */
+    hardReloadTooltip: string;
+    /** PC InstanceTabs 最左侧"主机管理"按钮 aria */
+    manageHosts: string;
+    /** PC InstanceTabs 最左侧"主机管理"按钮 tooltip */
+    manageHostsTooltip: string;
   };
 
   // 终端覆盖层（启动 / 空载提示）
@@ -137,6 +161,10 @@ export interface Messages {
       about: string;
     };
     saving: string;
+    /** 应用按钮：保存但不关闭 modal */
+    apply: string;
+    /** 应用进行中文案 */
+    applying: string;
   };
 
   // 设置 - 显示
@@ -388,6 +416,47 @@ export interface Messages {
     hostRenamePlaceholder: string;
     /** "保留 host 默认名"按钮（清空 alias） */
     hostRenameReset: string;
+    /** 保存别名前的二次确认文案模板（含 {{host}} {{alias}} 占位） */
+    hostRenameConfirm: string;
+    /** 重置别名（清空）前的二次确认 */
+    hostRenameResetConfirm: string;
+    /** 别名为空时 inline 错误提示 */
+    hostRenameEmptyError: string;
+
+    // —— 两阶段新增实例（方式选择 → 表单）
+    /** 阶段 1 标题 */
+    addPickMethodTitle: string;
+    /** 阶段 1 副标（一句话） */
+    addPickMethodHint: string;
+    /** 阶段 1 卡片：cwd 在已有主机新增 */
+    addMethodCwdLabel: string;
+    addMethodCwdDesc: string;
+    /** 阶段 1 卡片：扫码 */
+    addMethodScanLabel: string;
+    addMethodScanDesc: string;
+    /** 阶段 1 卡片：URL */
+    addMethodUrlLabel: string;
+    addMethodUrlDesc: string;
+    /** form 模式 host 选择器 label */
+    addHostLabel: string;
+    /** host 选择项中"远程主机当前不可创建"的禁用 hint */
+    addHostRemoteDisabled: string;
+    /** host 选择项中标记"当前主机" */
+    addHostCurrentTag: string;
+    /** 返回方式选择按钮 */
+    addBackToMethods: string;
+    /** cwd 两段式：base 标签 */
+    cwdBaseLabel: string;
+    /** cwd 两段式：相对路径标签 */
+    cwdRelativeLabel: string;
+    /** cwd 两段式：相对路径 placeholder */
+    cwdRelativeHelper: string;
+    /** cwd 拼接预览为空时的提示 */
+    cwdPreviewEmpty: string;
+    /** 白名单为空时的醒目警告（提示用户去主机配置加路径约束） */
+    cwdAllowEmptyWarn: string;
+    /** 提交前 picomatch 校验失败 */
+    errorCwdNotAllowed: string;
   };
 
   // 设置 - 通知（PushToggle）

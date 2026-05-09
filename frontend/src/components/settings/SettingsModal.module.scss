@@ -75,3 +75,25 @@
     cursor: not-allowed;
   }
 }
+
+// 应用按钮：与保存外观接近但用次级强调（accent 边框 + 透明底），
+// 跟"保存=保存并关闭"区分开
+.applyBtn {
+  @include m.btn-reset;
+  padding: t.$sp-3 t.$sp-5;
+  border: 1px solid t.$accent;
+  background: transparent;
+  color: t.$accent;
+  font-size: t.$fs-sm;
+  letter-spacing: t.$tracking-tight;
+  @include m.transition(background t.$dur-fast, opacity t.$dur-fast, color t.$dur-fast);
+
+  &:hover:not(:disabled) {
+    background: t.$accent-soft;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}

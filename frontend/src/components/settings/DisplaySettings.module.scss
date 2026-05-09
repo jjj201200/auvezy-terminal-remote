@@ -221,6 +221,13 @@
   text-align: right;
 }
 
+// 单个汉字单位（如"次"）：不要 56px 留白，紧贴输入框
+.valueLabelTight {
+  font-size: t.$fs-xs;
+  font-family: t.$font-mono;
+  color: t.$fg-dim;
+}
+
 .resetBtn {
   appearance: none;
   padding: t.$sp-2 t.$sp-3;
