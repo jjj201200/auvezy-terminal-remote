@@ -9,11 +9,12 @@
  * footer 可选（按钮区，桌面 / 移动一致）。
  */
 
-import { type JSX, type ReactNode } from 'react';
+import { type CSSProperties, type JSX, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Drawer } from 'vaul';
 import { IconX } from '@tabler/icons-react';
 import clsx from 'clsx';
+import { useModalLayer } from './modal-stack/ModalStack.js';
 import { useMediaQuery } from '../../hooks/useMediaQuery.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { ScrollableTabs } from '../input/ScrollableTabs.js';
@@ -60,6 +61,14 @@ export function Sheet({
   const isMobile = useMediaQuery('(max-width: 767px)');
   const overlayClass = s.overlay;
   const t = useT();
+  // 取本 modal 在栈中的层级。Radix Portal 把 DOM 提到 body 末尾 → CSS var
+  // 不能继承，必须 inline-style 写死 z-index + 加深 backdrop。
+  const { index: layerZ } = useModalLayer();
+  // 嵌套层 backdrop 加深：第 0 层 1×、第 1 层 2×、第 2 层 3× ...
+  // 让一层比一层暗，下层不会"看着像没遮罩"
+  const overlayStyle: CSSProperties = {
+    ['--modal-layer-z' as string]: String(layerZ),
+  };
 
   // header 主区域：tabs 模式 → ScrollableTabs（自动溢出滚动）；否则显示 title 文本
   const headerMain = tabs && tabs.length > 0 ? (
@@ -89,10 +98,15 @@ export function Sheet({
           {/* 点遮罩 = 关闭。手动绑 onClick 显式接管，不靠 Radix outside 自动检测——
               键盘弹起期 visualViewport 与 layout viewport 不一致，Radix 把 drawer
               内点击误判为外部 → 触发关闭，是之前的关弹层 bug 根因 */}
-          <Drawer.Overlay className={overlayClass} onClick={() => onOpenChange(false)} />
+          <Drawer.Overlay
+            className={overlayClass}
+            style={overlayStyle}
+            onClick={() => onOpenChange(false)}
+          />
           <Drawer.Content
             id={id}
             className={clsx(s.drawerContent, className)}
+            style={overlayStyle}
             // 屏蔽 Radix 默认 outside / focus 自动关闭，由 Overlay onClick 显式接管
             onPointerDownOutside={(e) => e.preventDefault()}
             onInteractOutside={(e) => e.preventDefault()}
@@ -127,11 +141,13 @@ export function Sheet({
       <Dialog.Portal>
         <Dialog.Overlay
           className={overlayClass}
+          style={overlayStyle}
           onClick={() => onOpenChange(false)}
         />
         <Dialog.Content
           id={id}
           className={clsx(s.dialogContent, className)}
+          style={overlayStyle}
           // 屏蔽 Radix 默认 outside 检测（键盘弹起时坐标算不准），
           // 由 Overlay onClick 显式接管"点外部关闭"
           onPointerDownOutside={(e) => e.preventDefault()}

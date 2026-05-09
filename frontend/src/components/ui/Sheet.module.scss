@@ -15,6 +15,17 @@ $layer-step: 5;
   inset: 0;
   z-index: calc(#{t.$z-overlay} + var(--modal-layer-z, 0) * #{$layer-step});
   @include m.glass-overlay;
+  // 嵌套层背景加深：layer 0 用基础 0.65 alpha；layer ≥ 1 用 0.88，
+  // 让上层 backdrop 完全盖住下层 modal content（避免"看着像没遮罩"）
+  // 用 selector 而不是 var 计算 alpha，因 sass color-mix 还不普及
+  &[style*='--modal-layer-z: 1'],
+  &[style*='--modal-layer-z: 2'],
+  &[style*='--modal-layer-z: 3'],
+  &[style*='--modal-layer-z: 4'] {
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  }
   animation: fade-in t.$dur-modal t.$ease both;
   &[data-state='closed'] {
     animation: fade-out t.$dur-modal t.$ease both;

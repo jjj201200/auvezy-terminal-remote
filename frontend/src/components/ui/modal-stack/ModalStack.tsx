@@ -64,6 +64,24 @@ interface OutletCtxValue {
 }
 const ModalStackOutletCtx = createContext<OutletCtxValue | null>(null);
 
+/**
+ * 当前 modal 在栈中的下标。Sheet / 其它"被 push 的 modal 内容"读取此 ctx
+ * 决定 z-index、overlay 加深程度。
+ *
+ * 为什么要单独的 ctx：Radix Dialog.Portal / vaul Drawer.Portal 把 DOM 渲染
+ * 到 body 末尾，CSS var --modal-layer-z 不能通过 DOM 继承传过去。改为 React
+ * ctx 传递（React tree 不受 portal 影响），由 Sheet 自己 inline-style 写到
+ * Radix Portal 内的 overlay/content 元素上。
+ */
+const ModalLayerCtx = createContext<{ index: number; isTop: boolean }>({
+  index: 0,
+  isTop: true,
+});
+
+export function useModalLayer(): { index: number; isTop: boolean } {
+  return useContext(ModalLayerCtx);
+}
+
 let idSeq = 0;
 const newId = (): string => `modal-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
 
@@ -257,18 +275,21 @@ function ModalLayerRoot({
   isTop: boolean;
   children: ReactNode;
 }): JSX.Element {
-  // CSS var --modal-layer-z 由各 modal 的 SCSS 用 calc(t.$z-modal + var(--modal-layer-z) * 5) 计算
-  // inert 让下层 modal 不抢焦点 / 不响应点击
+  // 通过 React ctx 把 layer 信息透传给 Sheet —— Radix/vaul 的 Portal 会把 DOM
+  // 提到 body 末尾，CSS var 不能继承过去；用 ctx 不受 portal 影响
+  const layerValue = useMemo(() => ({ index: idx, isTop }), [idx, isTop]);
   return (
-    <div
-      data-modal-layer={idx}
-      data-modal-top={isTop ? 'true' : 'false'}
-      style={{ ['--modal-layer-z' as string]: String(idx) }}
-      // React 19 支持 inert={true|false}；下层 modal 不响应交互 / 不抢焦点
-      inert={!isTop}
-    >
-      {children}
-    </div>
+    <ModalLayerCtx.Provider value={layerValue}>
+      <div
+        data-modal-layer={idx}
+        data-modal-top={isTop ? 'true' : 'false'}
+        style={{ ['--modal-layer-z' as string]: String(idx) }}
+        // React 19 支持 inert={true|false}；下层 modal 不响应交互 / 不抢焦点
+        inert={!isTop}
+      >
+        {children}
+      </div>
+    </ModalLayerCtx.Provider>
   );
 }
 
