@@ -167,6 +167,15 @@ export const zhCN: Messages = {
     sectionShortcuts: '快捷键',
     sectionCommands: '命令',
 
+    shortcutsHint: '管理输入栏上方的快捷按键，按需分组、启用 / 禁用。',
+    commandsHint: '管理常用命令片段。打开"详细设置"管理分组与启用项。',
+    countActive: '已启用 {active} / 共 {total}',
+    shortcutsModalTitle: '快捷键',
+    shortcutsModalHint: '分组管理快捷键。改动随父级"应用"按钮统一保存。',
+    commandsModalTitle: '命令',
+    commandsModalHint: '分组管理命令片段。改动随父级"应用"按钮统一保存。',
+    openDetails: '详细设置',
+
     inputModeTitle: '输入方式',
     inputModeHint: '底部输入框：行编辑后回车一次性发送，适合中文 / 长命令；直接输入：按键实时发往 PTY，更接近桌面终端，但移动端中文 IME 兼容性因浏览器而异（实验性）。',
     inputModeUseBar: '底部输入框',

@@ -213,6 +213,17 @@ export interface Messages {
     sectionShortcuts: string;
     sectionCommands: string;
 
+    /** 快捷键 / 命令卡片简短说明，"详细设置"按钮文字，子 modal 标题 */
+    shortcutsHint: string;
+    commandsHint: string;
+    /** 卡片右上角计数标签：已启用 N / 共 M */
+    countActive: string;
+    shortcutsModalTitle: string;
+    shortcutsModalHint: string;
+    commandsModalTitle: string;
+    commandsModalHint: string;
+    openDetails: string;
+
     inputModeTitle: string;
     inputModeHint: string;
     inputModeUseBar: string;

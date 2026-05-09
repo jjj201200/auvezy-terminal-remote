@@ -20,6 +20,14 @@ import {
   ClaudeCodeSettingsModal,
   type ClaudeCodeSettingsModalProps,
 } from '../../settings/ClaudeCodeSettingsModal.js';
+import {
+  ShortcutSettingsModal,
+  type ShortcutSettingsModalProps,
+} from '../../settings/ShortcutSettingsModal.js';
+import {
+  CommandSettingsModal,
+  type CommandSettingsModalProps,
+} from '../../settings/CommandSettingsModal.js';
 import { ShareSheet, type ShareSheetProps } from '../../share/ShareSheet.js';
 import { MobileInstanceSwitcher, type MobileInstanceSwitcherProps } from '../../instances/MobileInstanceSwitcher.js';
 
@@ -120,6 +128,58 @@ export function useClaudeCodeSettingsPresenter(): (
         render: (ctx) => (
           <ClaudeCodeSettingsModal
             {...(rest as WithoutOpen<ClaudeCodeSettingsModalProps>)}
+            open={ctx.isOpen}
+            onClose={ctx.close}
+          />
+        ),
+      });
+    },
+    [stack],
+  );
+}
+
+// ─────────────────────── 快捷键管理 ───────────────────────
+
+export function useShortcutSettingsPresenter(): (
+  args: WithoutOpen<ShortcutSettingsModalProps> & { onClosed?: () => void },
+) => string {
+  const stack = useModalStack();
+  return useCallback(
+    (args) => {
+      const { onClosed, ...rest } = args;
+      return stack.push({
+        kind: 'shortcut-settings',
+        debugLabel: 'shortcut-settings',
+        onClosed,
+        render: (ctx) => (
+          <ShortcutSettingsModal
+            {...(rest as WithoutOpen<ShortcutSettingsModalProps>)}
+            open={ctx.isOpen}
+            onClose={ctx.close}
+          />
+        ),
+      });
+    },
+    [stack],
+  );
+}
+
+// ─────────────────────── 命令管理 ───────────────────────
+
+export function useCommandSettingsPresenter(): (
+  args: WithoutOpen<CommandSettingsModalProps> & { onClosed?: () => void },
+) => string {
+  const stack = useModalStack();
+  return useCallback(
+    (args) => {
+      const { onClosed, ...rest } = args;
+      return stack.push({
+        kind: 'command-settings',
+        debugLabel: 'command-settings',
+        onClosed,
+        render: (ctx) => (
+          <CommandSettingsModal
+            {...(rest as WithoutOpen<CommandSettingsModalProps>)}
             open={ctx.isOpen}
             onClose={ctx.close}
           />

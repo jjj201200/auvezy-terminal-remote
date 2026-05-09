@@ -174,6 +174,15 @@ export const en: Messages = {
     sectionShortcuts: 'Shortcuts',
     sectionCommands: 'Commands',
 
+    shortcutsHint: 'Manage the quick keys above the input bar — group them, enable / disable as needed.',
+    commandsHint: 'Manage frequently-used command snippets. Open the details to organize groups and toggles.',
+    countActive: '{active} active / {total} total',
+    shortcutsModalTitle: 'Shortcuts',
+    shortcutsModalHint: 'Group and manage shortcuts. Changes are saved with the parent "Apply" button.',
+    commandsModalTitle: 'Commands',
+    commandsModalHint: 'Group and manage command snippets. Changes are saved with the parent "Apply" button.',
+    openDetails: 'Details',
+
     inputModeTitle: 'Input mode',
     inputModeHint: 'Bottom input bar: line-edit then send on Enter — best for Chinese / long commands. Direct input: keystrokes go straight to PTY — closer to a desktop terminal, but IME (Chinese/Japanese) support on mobile varies by browser (experimental).',
     inputModeUseBar: 'Bottom input bar',
