@@ -5,6 +5,57 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-09
+
+### Breaking changes
+
+- **配置体系迁移到 `~/.atr/`**：
+  - 主配置：`~/.auvezy/terminal-remote/config.json` → `~/.atrrc`（顶级 dotfile）
+  - 内部数据：`~/.auvezy/terminal-remote/{instances,vapid,push-subscriptions,settings}` → `~/.atr/{...}`
+  - **不做向后兼容**：升级到 0.6.0 后旧路径会被忽略；用户需手动 `mv` 或重新生成 token
+  - 设计：`.atrrc` 走 unix dotfile 惯例（同 `.npmrc` / `.gitconfig`）；`~/.atr/` 是工具内部数据目录
+
+### Added
+
+- **新增实例 Modal 加扫码 / 链接两个远端接入入口**：
+  - 主表单下方加分隔线 + "从其它机器接入" section
+  - 复用 AuthPage 的 QrScanPane / UrlPastePane 共享组件（按 mixin 一处定义）
+  - 扫到 / 输入合法 URL 即跳转该实例（与认证页一致）
+- **Workdir 白名单 / 黑名单**（核心安全）：
+  - CLI flag `--workdir-allow <patterns>` / `--workdir-deny <patterns>`（picomatch glob，逗号分隔）
+  - env `OCR_WORKDIR_ALLOW` / `OCR_WORKDIR_DENY`
+  - `~/.atrrc` 字段 `workdirAllow` / `workdirDeny`
+  - 优先级：CLI > env > 配置文件 > 默认黑名单
+  - 默认黑名单：`/etc/**` `/root/**` `/sys/**` `/proc/**`（用户可在 `~/.atrrc` 显式 `"workdirDeny": []` 清空）
+  - 校验在 `instance-spawner` 内 → 所有 spawn 路径（API / 未来 CLI）统一覆盖
+- **实例面板主机分组 UI 骨架**：
+  - InstanceTabs / MobileInstanceSwitcher 按 host 分组渲染（≥ 2 host 时显示 HostGroupHeader）
+  - HostGroupHeader 支持 inline 重命名（铅笔 hover 浮出，Enter 保存 / Esc 取消）
+  - 别名持久化到 localStorage（`atr.host_aliases`）
+  - 当前单 host 场景视觉无变化；为未来跨主机管理预留架构
+- **"创建实例" → "新增实例"措辞调整**（中英文）：避免与"远端接入"语义冲突
+
+### Changed
+
+- `tagged-template-literal` 风格内联使用 picomatch 进行 glob 匹配，dot:true 让 `.config` 等隐藏目录可被通配符命中
+- AuthPage.tsx 从 ~380 行 → ~220 行（抽 QrScanPane + UrlPastePane）
+- AuthPage.module.scss 从 ~440 行 → 241 行（用 `_qr-input-mixins.scss` 共享样式）
+
+### Removed
+
+- 删未引用的 `createInstance.*` i18n key block（顶层 8 key，全代码库 0 引用）
+
+### Internal
+
+- 新增 `frontend/src/components/auth/QrScanPane.tsx` + `UrlPastePane.tsx`（与 SCSS）
+- 新增 `frontend/src/styles/_qr-input-mixins.scss`（扫码 / URL 输入样式 mixin 库）
+- 新增 `frontend/src/services/host-aliases.ts`（host alias localStorage）
+- 新增 `frontend/src/hooks/useHostGroups.ts`（按 host 分组 + alias 反查）
+- 新增 `frontend/src/components/instances/HostGroupHeader.tsx` + scss
+- 新增 `backend/src/utils/workdir-policy.ts` + 19 测试用例
+- 新增依赖：`picomatch@^4.0.4` + `@types/picomatch`
+- shared 包导出 `DEFAULT_WORKDIR_DENY` 默认敏感路径列表
+
 ## [0.5.0] - 2026-05-08
 
 ### Added

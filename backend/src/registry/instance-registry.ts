@@ -1,7 +1,7 @@
 /**
  * instance-registry：跨实例的进程注册表
  *
- * 数据落地：~/.auvezy/terminal-remote/instances.json
+ * 数据落地：~/.atr/instances.json
  *
  * 设计：
  *  - 文件结构带 version=1，向前兼容
@@ -33,7 +33,7 @@ import { logger } from '../logger/logger.js';
 
 /** Manager 构造选项 */
 export interface InstanceRegistryOptions {
-  /** 注册表文件目录；默认 ~/.auvezy/terminal-remote/ */
+  /** 注册表文件目录；默认 ~/.atr/ */
   baseDir?: string;
   /** 注册表文件名；默认 'instances.json' */
   filename?: string;

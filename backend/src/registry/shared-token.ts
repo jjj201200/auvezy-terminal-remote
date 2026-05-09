@@ -2,7 +2,7 @@
  * shared-token：跨实例共享的 token 文件
  *
  * 场景：
- *   用户 A 启动 instance 1（端口 3000），生成 token X 写到 ~/.auvezy/terminal-remote/config.json
+ *   用户 A 启动 instance 1（端口 3000），生成 token X 写到 ~/.atrrc
  *   用户 A 又启动 instance 2（端口 3001）——它应当读到同一个 token X，
  *   而不是另起一个 token Y——否则手机上扫码的二维码会随机失效。
  *
@@ -47,7 +47,7 @@ export interface SharedTokenResult {
 
 /** acquireSharedToken 入参 */
 export interface AcquireSharedTokenOptions {
-  /** config.json 完整路径；默认 ~/.auvezy/terminal-remote/config.json */
+  /** config.json 完整路径；默认 ~/.atrrc */
   path?: string;
   /** 锁目录路径；默认 <dir>/.shared-token.lock */
   lockDir?: string;
@@ -74,14 +74,19 @@ export async function acquireSharedToken(
 ): Promise<SharedTokenResult> {
   const path = opts.path ?? defaultPath();
   const lockDir = opts.lockDir ?? `${defaultDir()}/.shared-token.lock`;
-  const dir = resolve(path, '..');
 
-  // 锁目录的父目录必须存在
-  if (!existsSync(dir)) {
-    try {
-      mkdirSync(dir, { recursive: true, mode: 0o700 });
-    } catch (err) {
-      logger.warn({ dir, err }, 'shared-token 父目录创建失败（继续）');
+  // 0.6.0 起 path（~/.atrrc）和 lockDir（~/.atr/.shared-token.lock）分属不同目录：
+  //  - path 父目录 = ~（一定存在）
+  //  - lockDir 父目录 = ~/.atr（首次启动时不存在 → 必须先建）
+  // 同时建两个父目录，对存在情况 mkdir recursive 会无操作返回
+  const lockParent = resolve(lockDir, '..');
+  for (const dir of [resolve(path, '..'), lockParent]) {
+    if (!existsSync(dir)) {
+      try {
+        mkdirSync(dir, { recursive: true, mode: 0o700 });
+      } catch (err) {
+        logger.warn({ dir, err }, 'shared-token 父目录创建失败（继续）');
+      }
     }
   }
 
@@ -136,5 +141,6 @@ function defaultDir(): string {
 }
 
 function defaultPath(): string {
-  return resolve(defaultDir(), CONFIG_FILENAME);
+  // 主配置 .atrrc 是顶级 dotfile（与 ATR_DATA_DIR 同级，直接放 ~ 下）
+  return resolve(homedir(), CONFIG_FILENAME);
 }

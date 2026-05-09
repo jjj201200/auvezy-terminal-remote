@@ -50,6 +50,8 @@ const KNOWN_FLAGS_VALUE = new Set([
   '--auth-rate-limit',
   '--log-dir',
   '--spawn-timeout',
+  '--workdir-allow',
+  '--workdir-deny',
 ]);
 
 /**
@@ -133,6 +135,18 @@ export interface ParsedCliArgs {
    * 仅本地调试用；不指定则不启用。
    */
   devProxy?: number;
+  /**
+   * Workdir 白名单（picomatch glob 模式，逗号分隔）。
+   * 优先级高于 ~/.atrrc 的 workdirAllow 字段（命令行覆盖文件）。
+   * 示例：--workdir-allow "/home/me/projects/**,/mnt/d/work/**"
+   */
+  workdirAllow?: string[];
+  /**
+   * Workdir 黑名单（picomatch glob 模式，逗号分隔）。
+   * 优先级高于 ~/.atrrc 的 workdirDeny 字段。
+   * 注意：CLI 显式 --workdir-deny "" 等同于"不要任何黑名单"，可绕过默认敏感路径保护
+   */
+  workdirDeny?: string[];
   /** 显示 help 后退出 */
   help?: boolean;
   /** 显示版本号后退出 */
@@ -348,9 +362,34 @@ function assignFlag(out: ParsedCliArgs, key: string, value: string | boolean): v
     case '--log-dir':
       out.logDir = String(value);
       return;
+    case '--workdir-allow':
+      out.workdirAllow = parsePatternList(value);
+      return;
+    case '--workdir-deny':
+      // 显式 --workdir-deny "" 视为"我要清空黑名单"——保留 [] 而不是 fallback 到默认
+      out.workdirDeny = parsePatternList(value);
+      return;
     default:
       throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `未知参数：${key}`);
   }
+}
+
+/**
+ * 解析逗号分隔的 glob pattern 列表。
+ *
+ * 空字符串 → []（用户显式想清空，比如 --workdir-deny ""）
+ * 多个值用逗号分隔；每项 trim；空项剔除。
+ *
+ * 不在这里校验 pattern 合法性 —— picomatch 接受任意字符串，非法的会自然 not match
+ */
+function parsePatternList(value: string | boolean): string[] {
+  if (typeof value !== 'string') return [];
+  const out: string[] = [];
+  for (const part of value.split(',')) {
+    const trimmed = part.trim();
+    if (trimmed.length > 0) out.push(trimmed);
+  }
+  return out;
 }
 
 function parsePort(value: string | boolean): number {
@@ -409,11 +448,19 @@ atr — auvezy/terminal-remote · 局域网内远程访问 PC 终端的代理
   --token <hex>         指定 Token（默认从共享文件读或生成）
   --workdir <path>      子进程工作目录（默认当前目录）
   --instance-name <s>   实例显示名（默认工作目录最后一段）
-  --config <path>       config.json 路径（默认 ~/.auvezy/terminal-remote/config.json）
+  --config <path>       config.json 路径（默认 ~/.atrrc）
   --max-buffer-lines    输出缓冲行数（默认 10000）
   --session-ttl <ms>    Session 有效期，毫秒（默认 24h）
   --auth-rate-limit <n> 每分钟每 IP 认证次数上限（默认 20）
   --log-dir <path>      日志目录覆盖
+  --workdir-allow <patterns>
+                        cwd 白名单（picomatch glob，逗号分隔）。
+                        非空时创建实例的 cwd 必须命中至少一个 pattern。
+                        例：--workdir-allow "/home/me/projects/**,/mnt/d/**"
+  --workdir-deny <patterns>
+                        cwd 黑名单（picomatch glob，逗号分隔）。
+                        命中即拒绝。默认含敏感系统路径（/etc/** /root/** ...），
+                        显式传 "" 可清空。CLI 优先级高于 ~/.atrrc。
   --no-terminal         不在本进程 stdout 显示 PTY 输出
   --no-color            禁用彩色输出
   --no-open             不自动打开浏览器

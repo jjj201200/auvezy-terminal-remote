@@ -51,7 +51,7 @@ export interface FileLockOptions {
  * @throws LockError(LOCK_TIMEOUT) 重试用尽仍拿不到
  *
  * @example
- * await withFileLock('~/.auvezy/terminal-remote/.shared-token.lock', async () => {
+ * await withFileLock('~/.atr/.shared-token.lock', async () => {
  *   if (!existsSync(tokenPath)) writeToken();
  * });
  */

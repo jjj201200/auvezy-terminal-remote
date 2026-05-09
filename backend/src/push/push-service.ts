@@ -3,7 +3,7 @@
  *
  * 设计：
  *  - VAPID 密钥三优先级：env（VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY） > 文件 > 生成
- *  - 订阅持久化到 ~/.auvezy/terminal-remote/push-subscriptions.json（atomic 写）
+ *  - 订阅持久化到 ~/.atr/push-subscriptions.json（atomic 写）
  *  - sendNotification 失败 410（Gone） → 自动从订阅列表移除
  *  - p256dh 长度防御性校验（合法 65 字节，base64url ≈ 87 字符）
  *
@@ -56,7 +56,7 @@ export interface PushPayload {
 }
 
 export interface PushServiceOptions {
-  /** 工作目录；默认 ~/.auvezy/terminal-remote/ */
+  /** 工作目录；默认 ~/.atr/ */
   baseDir?: string;
   /** 注入便于单测 */
   env?: NodeJS.ProcessEnv;

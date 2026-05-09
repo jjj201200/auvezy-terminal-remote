@@ -3,9 +3,9 @@
  *
  * 实现：
  *  - createClaudeSettings：生成 Claude Code 的 hooks 配置（指向 /api/hook）
- *  - saveClaudeSettings：把 settings 落到 ~/.auvezy/terminal-remote/settings/<port>.json
+ *  - saveClaudeSettings：把 settings 落到 ~/.atr/settings/<port>.json
  *  - extractSettingsFromArgs：从用户原始 --settings 参数中分离出 settings 内容
- *  - loadUserConfig：读取 ~/.auvezy/terminal-remote/config.json，缺失/损坏时落默认
+ *  - loadUserConfig：读取 ~/.atrrc，缺失/损坏时落默认
  *  - saveUserConfig：写入 config.json（atomic：tmp + rename）
  *  - loadConfig：把 ParsedCliArgs + 环境变量 + UserConfig + 默认值 合并成 AppConfig
  *
@@ -114,7 +114,7 @@ export function createClaudeSettings(
 }
 
 /**
- * 落盘 Claude settings 到 ~/.auvezy/terminal-remote/settings/<port>.json
+ * 落盘 Claude settings 到 ~/.atr/settings/<port>.json
  *
  * 使用同步 IO，仅在启动阶段调用。
  *
@@ -274,9 +274,14 @@ export interface LoadedUserConfig {
   recovered: boolean;
 }
 
-/** 计算 config.json 默认完整路径 */
+/**
+ * 计算主配置文件默认完整路径
+ *
+ * 0.6.0 起：~/.atrrc（顶级 dotfile，CONFIG_FILENAME 已含前导点）
+ * 与 ATR_DATA_DIR（~/.atr/，工具内部数据目录）同级；用户主要编辑入口
+ */
 export function defaultUserConfigPath(): string {
-  return resolve(homedir(), ATR_DATA_DIR, CONFIG_FILENAME);
+  return resolve(homedir(), CONFIG_FILENAME);
 }
 
 /**
@@ -398,7 +403,7 @@ export interface AppConfig {
    * Token 来源：
    *  - cli       --token
    *  - env       AUTH_TOKEN 环境变量
-   *  - shared    从 ~/.auvezy/terminal-remote/config.json 共享文件读到（多实例共享）
+   *  - shared    从 ~/.atrrc 共享文件读到（多实例共享）
    *  - generated 共享文件未含 token，本进程刚生成并写盘
    */
   tokenSource: 'cli' | 'env' | 'shared' | 'generated';
@@ -427,6 +432,18 @@ export interface AppConfig {
    * 仅本地调试用：让手机扫码访问真后端端口也能拿到 vite HMR 实时前端。
    */
   devProxyPort?: number;
+  /**
+   * Workdir 白名单（picomatch glob 列表）。
+   * 来源优先级：CLI > env(OCR_WORKDIR_ALLOW) > userConfig.workdirAllow > undefined。
+   * undefined / [] 都视为"不设白名单"（不限制）。
+   */
+  workdirAllow?: string[];
+  /**
+   * Workdir 黑名单（picomatch glob 列表）。
+   * 来源优先级：CLI > env(OCR_WORKDIR_DENY) > userConfig.workdirDeny > DEFAULT_WORKDIR_DENY。
+   * 非 undefined 时即生效（包括用户显式 [] —— 表示"我要清空黑名单"，谨慎使用）。
+   */
+  workdirDeny: string[];
   /** 已加载的用户偏好（默认值兜底过） */
   userConfig: UserConfig;
   /** 用户配置文件路径（用于后续保存） */
@@ -506,8 +523,21 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
     tokenSource = 'generated';
   }
 
-  // UserConfig
+  // UserConfig（loadUser 已通过 ensureDefaultUserConfig 兜底过，
+  // 所以 workdirAllow/workdirDeny 字段一定存在 —— 后者还包含默认黑名单）
   const loaded = loadUser(cli.configPath);
+
+  // Workdir 白/黑名单：CLI > env > userConfig
+  // ensureDefaultUserConfig 保证 loaded.value.workdirDeny 至少是 DEFAULT_WORKDIR_DENY
+  const workdirAllow =
+    cli.workdirAllow ??
+    parseEnvPatternList(env['OCR_WORKDIR_ALLOW']) ??
+    loaded.value.workdirAllow;
+  const workdirDeny =
+    cli.workdirDeny ??
+    parseEnvPatternList(env['OCR_WORKDIR_DENY']) ??
+    loaded.value.workdirDeny ??
+    [];
 
   return {
     port,
@@ -525,9 +555,23 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
     strictPort,
     spawnTimeoutSec,
     devProxyPort,
+    workdirAllow,
+    workdirDeny,
     userConfig: loaded.value,
     userConfigPath: loaded.path,
   };
+}
+
+/** 解析 env 中逗号分隔的 glob 列表；undefined / 空字符串保持 undefined（让链路继续往下走） */
+function parseEnvPatternList(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  const out: string[] = [];
+  for (const part of value.split(',')) {
+    const trimmed = part.trim();
+    if (trimmed.length > 0) out.push(trimmed);
+  }
+  // 显式空值 → 视为"无白/黑名单"（让用户能用 OCR_WORKDIR_DENY="" 清空 —— 与 CLI 一致）
+  return out;
 }
 
 /**

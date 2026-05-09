@@ -1,7 +1,7 @@
 /**
  * 实例注册表类型（前后端共享）
  *
- * 多实例场景下，每个 atr 进程在 ~/.auvezy/terminal-remote/instances.json
+ * 多实例场景下，每个 atr 进程在 ~/.atr/instances.json
  * 注册自己的元信息，前端可拉取此列表实现 Tab 切换。
  *
  * 文件结构带版本号是为了向前兼容——以后如要升级 schema，

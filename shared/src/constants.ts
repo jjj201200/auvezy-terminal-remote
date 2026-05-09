@@ -61,17 +61,28 @@ export const MAX_WS_MESSAGE_SIZE = 1024 * 1024;
 /**
  * 用户数据目录（位于 ~ 之下，相对路径）
  *
- * 嵌套两层：~/.auvezy/terminal-remote/
- *  - .auvezy 是组织级 dotfile 目录（未来 auvezy 系列其它工具也可挂在这里）
- *  - terminal-remote 是本产品独占子目录
+ * 当前：~/.atr/
+ *  - 工具内部数据（instances/vapid/push-subscriptions/settings 等），
+ *    用户一般不直接编辑
+ *  - 主配置在 `~/.atrrc`（CONFIG_FILENAME），是用户主要编辑入口
+ *
+ * 历史：0.5.x 及之前用 `~/.auvezy/terminal-remote/` 双层嵌套，0.6.0 起改为
+ * `~/.atr/` + `~/.atrrc`（顶级 dotfile）。不做向后兼容（breaking，CHANGELOG 已说明）。
  *
  * `path.resolve(homedir(), ATR_DATA_DIR)` 会跨平台正确处理路径分隔符。
  * 所有 mkdir 调用必须传 `recursive: true`，否则父目录不会自动创建。
  */
-export const ATR_DATA_DIR = '.auvezy/terminal-remote';
+export const ATR_DATA_DIR = '.atr';
 
-/** 配置文件名 */
-export const CONFIG_FILENAME = 'config.json';
+/**
+ * 主配置文件名（.atrrc，顶级 dotfile，与 ATR_DATA_DIR 同级，直接放 ~ 下）
+ *
+ * 路径：~/.atrrc
+ *
+ * 形式上是 dotfile（npm/eslint/git 等惯例），用户最常编辑这个文件。
+ * 内容仍为 JSON（不是 ini 也不是 yaml）—— 与 0.5.x 兼容（结构未变，只改了路径）
+ */
+export const CONFIG_FILENAME = '.atrrc';
 
 /** 实例注册表文件名 */
 export const REGISTRY_FILENAME = 'instances.json';

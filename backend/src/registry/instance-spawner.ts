@@ -22,6 +22,7 @@ import { resolve, isAbsolute, dirname } from 'node:path';
 import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
+import { checkWorkdir } from '../utils/workdir-policy.js';
 
 export interface SpawnInstanceInput {
   /** 工作目录（绝对路径，必须已存在） */
@@ -50,6 +51,16 @@ export interface DefaultInstanceSpawnerOptions {
   cliJsPath: string;
   /** 透传给子进程的额外环境（如 HOME 重定向，主要用于测试） */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Workdir 白名单 picomatch 模式列表。空 / undefined = 不限制。
+   * 由 AppConfig 传入；CLI > env > userConfig 的合并已在 loadConfig 完成。
+   */
+  workdirAllow?: readonly string[];
+  /**
+   * Workdir 黑名单 picomatch 模式列表。命中即拒绝。
+   * 默认值（包含 /etc/** 等敏感路径）由 ensureDefaultUserConfig 兜底。
+   */
+  workdirDeny?: readonly string[];
 }
 
 /**
@@ -66,6 +77,17 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
     }
     if (!statSync(cwd).isDirectory()) {
       throw new InstanceError(ErrorCode.CWD_NOT_EXIST, `cwd 不是目录：${cwd}`, 400);
+    }
+
+    // 白/黑名单校验：先黑后白，命中则拒绝
+    const verdict = checkWorkdir(cwd, this.opts.workdirAllow, this.opts.workdirDeny);
+    if (verdict !== null) {
+      logger.warn({ cwd, verdict }, 'workdir 策略拒绝 spawn');
+      throw new InstanceError(
+        ErrorCode.CWD_NOT_EXIST,
+        `工作目录不在允许范围内：${verdict.reason}`,
+        403,
+      );
     }
 
     const name = input.name && input.name.trim() ? input.name.trim() : basename(cwd);
@@ -91,7 +113,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
           ...process.env,
           ...this.opts.env,
           INSTANCE_NAME: name,
-          // 不重置 HOME，让子进程读同一个 ~/.auvezy/terminal-remote/config.json（共享 token）
+          // 不重置 HOME，让子进程读同一个 ~/.atrrc（共享 token）
         },
         detached: true,
         stdio: ['ignore', logFd, logFd],

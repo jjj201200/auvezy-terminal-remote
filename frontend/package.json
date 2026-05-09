@@ -33,6 +33,7 @@
     "auvezy-terminal-remote-shared": "workspace:*",
     "clsx": "^2.1.1",
     "jsqr": "^1.4.0",
+    "picomatch": "^4.0.4",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -42,6 +43,7 @@
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "@testing-library/react": "^16.0.0",
+    "@types/picomatch": "^4.0.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
