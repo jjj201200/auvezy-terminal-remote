@@ -20,7 +20,6 @@ import { buildInstanceUrl } from '../../services/instance-url.js';
 import type { PendingInstance } from '../../hooks/useInstances.js';
 import { useHostGroups } from '../../hooks/useHostGroups.js';
 import { HostGroupHeader } from './HostGroupHeader.js';
-import { MobileInstanceSwitcher } from './MobileInstanceSwitcher.js';
 import s from './InstanceTabs.module.scss';
 
 export interface InstanceTabsProps {
@@ -75,18 +74,14 @@ export function InstanceTabs({
   onPendingRetry,
   onPendingDismiss,
   onDisconnectRequest,
-  manageOpen: manageOpenProp,
+  manageOpen: _manageOpenProp,
   onManageOpenChange,
 }: InstanceTabsProps): JSX.Element {
   const t = useT();
-  // 主机管理 sheet 开关（tab 栏最左侧按钮触发）
-  // 受控 / 非受控双模：传了 manageOpenProp 走外部 state（父级控制 reopen 语义），
-  // 否则走内部 state（向后兼容）
-  const [internalManageOpen, setInternalManageOpen] = useState(false);
-  const manageOpen = manageOpenProp ?? internalManageOpen;
-  const setManageOpen = (next: boolean): void => {
-    if (onManageOpenChange) onManageOpenChange(next);
-    else setInternalManageOpen(next);
+  // 主机管理按钮：点击只调 onManageOpenChange(true) 通知父级（父级用 ModalStack push）
+  // 不再需要内部 state；manageOpen prop 保留是为了向后兼容旧 API（不真正使用）
+  const triggerManageHosts = (): void => {
+    if (onManageOpenChange) onManageOpenChange(true);
   };
   // 长按菜单：哪个实例在显示菜单 + 锚定坐标
   const [menuFor, setMenuFor] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -261,7 +256,7 @@ export function InstanceTabs({
       {onDisconnectRequest && (
         <button
           type="button"
-          onClick={() => setManageOpen(true)}
+          onClick={triggerManageHosts}
           className={s.manage}
           aria-label={t('topBar.manageHosts')}
           title={t('topBar.manageHostsTooltip')}
@@ -305,24 +300,6 @@ export function InstanceTabs({
           style={{ left: menuFor.x, top: menuFor.y }}
           onPointerDown={(e) => e.stopPropagation()}
           role="menu"
-        />
-      )}
-
-      {/* 主机管理 sheet（PC 端复用 MobileInstanceSwitcher 的 sheet body，隐藏其内置 trigger） */}
-      {onDisconnectRequest && (
-        <MobileInstanceSwitcher
-          instances={instances}
-          activeId={activeId}
-          pending={pending}
-          onCreateClick={onCreateClick}
-          onSwitch={onSwitch}
-          onCloseRequest={onCloseRequest}
-          onDisconnectRequest={onDisconnectRequest}
-          onPendingRetry={onPendingRetry}
-          onPendingDismiss={onPendingDismiss}
-          externalOpen={manageOpen}
-          onExternalOpenChange={setManageOpen}
-          hideTrigger
         />
       )}
     </nav>

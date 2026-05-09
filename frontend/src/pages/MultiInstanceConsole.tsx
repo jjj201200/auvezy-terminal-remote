@@ -25,30 +25,21 @@ import { pruneDisconnected } from '../services/disconnected-instances.js';
 import { useT } from '../i18n/i18n-context.js';
 import type { ConnectionStatus } from '../stores/app-store.js';
 import { StatusBar } from '../components/status/StatusBar.js';
-import { SettingsModal } from '../components/settings/SettingsModal.js';
 import { InstanceTabs } from '../components/instances/InstanceTabs.js';
 import { MobileInstanceSwitcher } from '../components/instances/MobileInstanceSwitcher.js';
-import { CreateInstanceModal } from '../components/instances/CreateInstanceModal.js';
-import { ShareSheet } from '../components/share/ShareSheet.js';
 import { InstanceView } from '../components/instances/InstanceView.js';
 import { IconButton } from '../components/ui/IconButton.js';
-import { ConfirmModal } from '../components/ui/ConfirmModal.js';
+import {
+  useCreateInstancePresenter,
+  useManageHostsPresenter,
+  useSettingsPresenter,
+  useSharePresenter,
+} from '../components/ui/modal-stack/presenters.js';
+import { useConfirm } from '../components/ui/ConfirmProvider.js';
 import { loadToken } from '../services/token-storage.js';
 import { buildInstanceUrl } from '../services/instance-url.js';
 import { hardReload } from '../utils/hard-reload.js';
 import s from './ConsolePage.module.scss';
-
-/** 关闭实例的确认状态机（互斥的几种 modal 形态） */
-type CloseDialog =
-  | { kind: 'idle' }
-  // 普通关闭确认（非 isCurrent）
-  | { kind: 'confirm'; instance: InstanceListItem }
-  // 关闭当前 webapp 服务实例的确认（确认后跳到另一个实例 + killAfterSwitch）
-  | { kind: 'confirmCurrent'; instance: InstanceListItem; target: InstanceListItem }
-  // 唯一实例不可关
-  | { kind: 'lastBlocked'; instance: InstanceListItem }
-  // 关闭失败结果展示
-  | { kind: 'failed'; message: string };
 
 interface InstanceStatus {
   connection: ConnectionStatus;
@@ -82,7 +73,7 @@ export function MultiInstanceConsole(): JSX.Element {
       if (err === null) {
         const remaining = instances.filter((i) => i.instanceId !== instanceId);
         if (remaining.length === 0) {
-          setCreateOpen(true);
+          presentCreate({ onSubmit: createInstance });
         }
       }
       return err;
@@ -105,31 +96,15 @@ export function MultiInstanceConsole(): JSX.Element {
     void rawRemoveInstance(killId);
   }, [rawRemoveInstance]);
 
-  // 共享 modal 开关
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
+  // 仅 SearchBar 还需要本地受控（它是嵌入式 UI，不走 modal stack）
   const [searchOpen, setSearchOpen] = useState(false);
-  // 主机管理 sheet 开关（PC 端在 InstanceTabs 最左侧 / 移动端在右上角触发）
-  // 提到这一层是为了：从 sheet 进入 CreateInstanceModal 后，取消时能重开 sheet
-  // 形成层级关系：实例列表 → 新增方式选择 →（form/scan/url）
-  const [manageOpen, setManageOpen] = useState(false);
-  // 记录"打开 create modal 之前 sheet 是否开着"——关 create 时据此决定是否重开 sheet
-  const reopenManageOnCreateCloseRef = useRef(false);
-  const handleOpenCreate = useCallback((): void => {
-    reopenManageOnCreateCloseRef.current = manageOpen;
-    if (manageOpen) setManageOpen(false);
-    setCreateOpen(true);
-  }, [manageOpen]);
-  const handleCloseCreate = useCallback((): void => {
-    setCreateOpen(false);
-    if (reopenManageOnCreateCloseRef.current) {
-      reopenManageOnCreateCloseRef.current = false;
-      setManageOpen(true);
-    }
-  }, []);
-  // 关闭实例的页内 ConfirmModal 状态机（替代 window.confirm/alert）
-  const [closeDialog, setCloseDialog] = useState<CloseDialog>({ kind: 'idle' });
+
+  // Modal presenter 函数（每个调用 push 一个 stack entry）
+  const presentSettings = useSettingsPresenter();
+  const presentShare = useSharePresenter();
+  const presentCreate = useCreateInstancePresenter();
+  const presentManageHosts = useManageHostsPresenter();
+  const confirm = useConfirm();
 
   // 当前 active 实例 id；首次默认 = 当前服务进程标记 isCurrent 的那个
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -169,51 +144,78 @@ export function MultiInstanceConsole(): JSX.Element {
     setActiveId(instanceId);
   }, []);
 
-  // tab 关闭按钮 → 触发页内 ConfirmModal（区分 isCurrent / 唯一实例 / 普通三路）
-  const handleCloseRequest = useCallback((i: InstanceListItem): void => {
-    if (i.isCurrent) {
-      const others = instances.filter((x) => x.instanceId !== i.instanceId);
-      if (others.length === 0) {
-        setCloseDialog({ kind: 'lastBlocked', instance: i });
+  // ───── modal triggers（用 ModalStack push） ─────
+  const openCreate = useCallback(() => {
+    presentCreate({ onSubmit: createInstance });
+  }, [presentCreate, createInstance]);
+
+  const openSettings = useCallback(() => {
+    presentSettings({ current: config, onSave: save });
+  }, [presentSettings, config, save]);
+
+  const openShare = useCallback(() => {
+    presentShare({});
+  }, [presentShare]);
+
+  // tab 关闭按钮 → 走 useConfirm 的 Promise 流程
+  // 三种形态合并到一条线性代码：lastBlocked = singleButton；其它两种是
+  // 三按钮（取消 / 断开 / 关闭）；confirmCurrent 在确认后 location.assign 跳到 target
+  const handleCloseRequest = useCallback(
+    async (i: InstanceListItem): Promise<void> => {
+      if (i.isCurrent) {
+        const others = instances.filter((x) => x.instanceId !== i.instanceId);
+        if (others.length === 0) {
+          await confirm({
+            title: t('instance.closeCurrentLastTitle'),
+            message: t('instance.closeCurrentLast'),
+            singleButton: true,
+          });
+          return;
+        }
+        const target = others[0]!;
+        const result = await confirm({
+          title: t('instance.closeCurrentConfirmTitle'),
+          messageTemplate: t('instance.closeCurrentConfirm'),
+          messageVars: { name: i.name },
+          highlightVar: 'name',
+          tone: 'danger',
+          confirmLabel: t('instance.close'),
+          extraLabel: t('instance.disconnect'),
+        });
+        if (result === true) {
+          // 跳转到 target 实例，URL 带 killAfterSwitch 让新前端 mount 后 DELETE 老进程
+          const url = new URL(buildInstanceUrl(target.host, target.port), window.location.href);
+          url.searchParams.set('killAfterSwitch', i.instanceId);
+          window.location.assign(url.toString());
+        } else if (result === 'extra') {
+          disconnect(i.instanceId);
+        }
         return;
       }
-      // 选一个目标实例（第一个非 self 即可）
-      const target = others[0]!;
-      setCloseDialog({ kind: 'confirmCurrent', instance: i, target });
-      return;
-    }
-    setCloseDialog({ kind: 'confirm', instance: i });
-  }, [instances]);
-
-  // ConfirmModal "确认" = 删除（破坏性）
-  const handleConfirmClose = useCallback(async (): Promise<void> => {
-    if (closeDialog.kind === 'confirm') {
-      const id = closeDialog.instance.instanceId;
-      setCloseDialog({ kind: 'idle' });
-      const err = await removeInstance(id);
-      if (err !== null) setCloseDialog({ kind: 'failed', message: err });
-    } else if (closeDialog.kind === 'confirmCurrent') {
-      // 跳转到 target 实例，URL 带 killAfterSwitch 让新前端 mount 后 DELETE 老进程
-      const { instance, target } = closeDialog;
-      const url = new URL(buildInstanceUrl(target.host, target.port), window.location.href);
-      url.searchParams.set('killAfterSwitch', instance.instanceId);
-      window.location.assign(url.toString());
-    } else {
-      // lastBlocked / failed：单按钮，确认 = 关闭
-      setCloseDialog({ kind: 'idle' });
-    }
-  }, [closeDialog, removeInstance]);
-
-  // ConfirmModal "断开"（非 isCurrent / isCurrent 都支持）= 仅本设备断开 WS，
-  // backend 进程不动，其他设备不受影响
-  const handleDisconnectFromDialog = useCallback((): void => {
-    if (closeDialog.kind === 'confirm') {
-      disconnect(closeDialog.instance.instanceId);
-    } else if (closeDialog.kind === 'confirmCurrent') {
-      disconnect(closeDialog.instance.instanceId);
-    }
-    setCloseDialog({ kind: 'idle' });
-  }, [closeDialog, disconnect]);
+      const result = await confirm({
+        title: t('instance.closeOrDisconnectTitle'),
+        messageTemplate: t('instance.closeOrDisconnectBody'),
+        messageVars: { name: i.name },
+        highlightVar: 'name',
+        tone: 'danger',
+        confirmLabel: t('instance.close'),
+        extraLabel: t('instance.disconnect'),
+      });
+      if (result === true) {
+        const err = await removeInstance(i.instanceId);
+        if (err !== null) {
+          await confirm({
+            title: t('instance.closeFailedTitle'),
+            message: err,
+            singleButton: true,
+          });
+        }
+      } else if (result === 'extra') {
+        disconnect(i.instanceId);
+      }
+    },
+    [instances, confirm, t, removeInstance, disconnect],
+  );
 
   // 给每个实例算 wsUrl
   // 关键：用"端口相同 = 同 backend = 同源"判断，而不是 hostname === host。
@@ -290,37 +292,69 @@ export function MultiInstanceConsole(): JSX.Element {
   // 用于关闭按钮的"必须先跳转"判断），高亮态用单独的 activeId prop 传给 InstanceTabs
   const tabsInstances = instances;
 
+  const openManageHosts = useCallback(() => {
+    presentManageHosts({
+      instances: tabsInstances,
+      activeId,
+      pending,
+      onCreateClick: openCreate,
+      onSwitch: handleSwitch,
+      onCloseRequest: (i) => void handleCloseRequest(i),
+      onDisconnectRequest: (i) => disconnect(i.instanceId),
+      onPendingRetry: retryPending,
+      onPendingDismiss: dismissPending,
+    });
+  }, [
+    presentManageHosts,
+    tabsInstances,
+    activeId,
+    pending,
+    openCreate,
+    handleSwitch,
+    handleCloseRequest,
+    disconnect,
+    retryPending,
+    dismissPending,
+  ]);
+
   return (
     <div id="multi-console" className={s.root}>
       <header id="console-header" className={s.header}>
         <div className={s.headerLeft}>
           {isMobile ? (
+            // 移动端：只渲染 trigger 按钮，点击通过 stack 推 sheet
+            // 用 hideTrigger=false / externalOpen=undefined 让组件自己管 trigger 显示
+            // 但点 trigger 时调外层 openManageHosts 而非内部 setOpen
             <MobileInstanceSwitcher
               instances={tabsInstances}
               activeId={activeId}
               pending={pending}
-              onCreateClick={handleOpenCreate}
+              onCreateClick={openCreate}
               onSwitch={handleSwitch}
-              onCloseRequest={handleCloseRequest}
+              onCloseRequest={(i) => void handleCloseRequest(i)}
               onDisconnectRequest={(i) => disconnect(i.instanceId)}
               onPendingRetry={retryPending}
               onPendingDismiss={dismissPending}
-              externalOpen={manageOpen}
-              onExternalOpenChange={setManageOpen}
+              externalOpen={false}
+              onExternalOpenChange={(next) => {
+                if (next) openManageHosts();
+              }}
             />
           ) : (
             <InstanceTabs
               instances={tabsInstances}
               activeId={activeId}
               pending={pending}
-              onCreateClick={handleOpenCreate}
+              onCreateClick={openCreate}
               onSwitch={handleSwitch}
-              onCloseRequest={handleCloseRequest}
+              onCloseRequest={(i) => void handleCloseRequest(i)}
               onDisconnectRequest={(i) => disconnect(i.instanceId)}
               onPendingRetry={retryPending}
               onPendingDismiss={dismissPending}
-              manageOpen={manageOpen}
-              onManageOpenChange={setManageOpen}
+              manageOpen={false}
+              onManageOpenChange={(next) => {
+                if (next) openManageHosts();
+              }}
             />
           )}
         </div>
@@ -357,14 +391,14 @@ export function MultiInstanceConsole(): JSX.Element {
           <IconSearch size={14} stroke={1.5} />
         </IconButton>
         <IconButton
-          onClick={() => setShareOpen(true)}
+          onClick={openShare}
           aria-label={t('topBar.share')}
           title={t('topBar.shareTooltip')}
         >
           <IconShare2 size={14} stroke={1.5} />
         </IconButton>
         <IconButton
-          onClick={() => setSettingsOpen(true)}
+          onClick={openSettings}
           aria-label={t('topBar.settings')}
           title={t('topBar.settingsTooltip')}
         >
@@ -390,82 +424,11 @@ export function MultiInstanceConsole(): JSX.Element {
         />
       ))}
 
-      <SettingsModal
-        open={settingsOpen}
-        current={config}
-        onSave={save}
-        onClose={() => setSettingsOpen(false)}
-      />
-      <CreateInstanceModal
-        open={createOpen}
-        onSubmit={createInstance}
-        onClose={handleCloseCreate}
-      />
-      <ShareSheet open={shareOpen} onOpenChange={setShareOpen} />
-
-      {/* 关闭实例的页内 ConfirmModal —— 根据 closeDialog.kind 派生 props，单实例 */}
-      {(() => {
-        switch (closeDialog.kind) {
-          case 'confirm':
-            return (
-              <ConfirmModal
-                open
-                title={t('instance.closeOrDisconnectTitle')}
-                messageTemplate={t('instance.closeOrDisconnectBody')}
-                messageVars={{ name: closeDialog.instance.name }}
-                highlightVar="name"
-                confirmTone="danger"
-                confirmLabel={t('instance.close')}
-                extraLabel={t('instance.disconnect')}
-                onExtra={handleDisconnectFromDialog}
-                onConfirm={handleConfirmClose}
-                onClose={() => setCloseDialog({ kind: 'idle' })}
-              />
-            );
-          case 'confirmCurrent':
-            return (
-              <ConfirmModal
-                open
-                title={t('instance.closeCurrentConfirmTitle')}
-                messageTemplate={t('instance.closeCurrentConfirm')}
-                messageVars={{ name: closeDialog.instance.name }}
-                highlightVar="name"
-                confirmTone="danger"
-                confirmLabel={t('instance.close')}
-                extraLabel={t('instance.disconnect')}
-                onExtra={handleDisconnectFromDialog}
-                onConfirm={handleConfirmClose}
-                onClose={() => setCloseDialog({ kind: 'idle' })}
-              />
-            );
-          case 'lastBlocked':
-            return (
-              <ConfirmModal
-                open
-                title={t('instance.closeCurrentLastTitle')}
-                message={t('instance.closeCurrentLast')}
-                singleButton
-                confirmLabel={t('common.confirm')}
-                onConfirm={handleConfirmClose}
-                onClose={() => setCloseDialog({ kind: 'idle' })}
-              />
-            );
-          case 'failed':
-            return (
-              <ConfirmModal
-                open
-                title={t('instance.closeFailedTitle')}
-                message={closeDialog.message}
-                singleButton
-                confirmLabel={t('common.confirm')}
-                onConfirm={handleConfirmClose}
-                onClose={() => setCloseDialog({ kind: 'idle' })}
-              />
-            );
-          default:
-            return null;
-        }
-      })()}
+      {/*
+        所有 modal（Settings / Create / Share / 主机管理 / 关闭实例确认）
+        统一由 ModalStack 管理，调用方走 presenter 函数 / useConfirm。
+        这里不再有 modal jsx。
+      */}
     </div>
   );
 }

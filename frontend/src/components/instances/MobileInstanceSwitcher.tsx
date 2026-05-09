@@ -28,7 +28,7 @@ import { buildInstanceUrl } from '../../services/instance-url.js';
 import type { PendingInstance } from '../../hooks/useInstances.js';
 import { useHostGroups } from '../../hooks/useHostGroups.js';
 import { HostGroupHeader } from './HostGroupHeader.js';
-import { InstanceDetailModal } from './InstanceDetailModal.js';
+import { useInstanceDetailPresenter } from '../ui/modal-stack/presenters.js';
 import s from './MobileInstanceSwitcher.module.scss';
 
 export interface MobileInstanceSwitcherProps {
@@ -79,7 +79,7 @@ export function MobileInstanceSwitcher({
     if (onExternalOpenChange) onExternalOpenChange(next);
     else setInternalOpen(next);
   };
-  const [detailFor, setDetailFor] = useState<InstanceListItem | null>(null);
+  const presentDetail = useInstanceDetailPresenter();
   const [aliasTick, bumpAliasTick] = useReducer((n: number) => n + 1, 0);
   const { groups } = useHostGroups(instances, pending, aliasTick);
 
@@ -100,7 +100,22 @@ export function MobileInstanceSwitcher({
     window.location.assign(buildInstanceUrl(i.host, i.port));
   };
 
-  const closeDetail = (): void => setDetailFor(null);
+  const showDetail = (i: InstanceListItem): void => {
+    presentDetail({
+      instance: i,
+      isActive: isHighlight(i),
+      onSwitch: () => handleSwitch(i),
+      onDisconnect: () => {
+        if (onDisconnectRequest) onDisconnectRequest(i);
+        setOpen(false);
+      },
+      onCloseInstance: () => {
+        // 关掉本 sheet（manage hosts），让 confirm modal 浮起来不被叠盖
+        setOpen(false);
+        if (onCloseRequest) onCloseRequest(i);
+      },
+    });
+  };
 
   const renderInstanceItem = (i: InstanceListItem): JSX.Element => {
     const highlight = isHighlight(i);
@@ -110,9 +125,9 @@ export function MobileInstanceSwitcher({
         key={i.instanceId}
         role="button"
         tabIndex={0}
-        onClick={() => setDetailFor(i)}
+        onClick={() => showDetail(i)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') setDetailFor(i);
+          if (e.key === 'Enter' || e.key === ' ') showDetail(i);
         }}
         aria-pressed={highlight}
         aria-label={t('instance.switchAriaLabel')}
@@ -242,29 +257,7 @@ export function MobileInstanceSwitcher({
         </div>
       </Sheet>
 
-      <InstanceDetailModal
-        open={detailFor !== null}
-        instance={detailFor}
-        isActive={detailFor ? isHighlight(detailFor) : false}
-        onClose={closeDetail}
-        onSwitch={() => {
-          if (detailFor) handleSwitch(detailFor);
-          closeDetail();
-        }}
-        onDisconnect={() => {
-          if (detailFor && onDisconnectRequest) onDisconnectRequest(detailFor);
-          closeDetail();
-          setOpen(false);
-        }}
-        onCloseInstance={() => {
-          // 关掉详情先，让父组件的 ConfirmModal（二次确认）能盖在最上层
-          // 否则两层 modal 叠加视觉混乱 + Sheet 焦点抢夺
-          const target = detailFor;
-          closeDetail();
-          setOpen(false);
-          if (target && onCloseRequest) onCloseRequest(target);
-        }}
-      />
+      {/* 详情 modal 由 ModalStack 在 showDetail() 中 push，无需在此渲染 */}
     </>
   );
 }

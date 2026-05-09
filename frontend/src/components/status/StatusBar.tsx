@@ -7,11 +7,11 @@
  * 默认指数退避最长 30s 才会重试一次，用户主动点击可立即重连，省掉等待。
  */
 
-import { useState, type JSX } from 'react';
+import { type JSX } from 'react';
 import type { SessionStatus } from 'auvezy-terminal-remote-shared';
 import type { ConnectionStatus } from '../../stores/app-store.js';
 import { Pill, type PillTone } from '../ui/Pill.js';
-import { ConfirmModal } from '../ui/ConfirmModal.js';
+import { useConfirm } from '../ui/ConfirmProvider.js';
 import { useMediaQuery } from '../../hooks/useMediaQuery.js';
 import { useT } from '../../i18n/i18n-context.js';
 import s from './StatusBar.module.scss';
@@ -51,8 +51,6 @@ const SESSION_TONE: Record<SessionStatus, PillTone> = {
   waiting_input: 'warn',
 };
 
-type DialogKind = 'connection' | 'session' | null;
-
 const CONN_DESC_KEY: Record<ConnectionStatus, string> = {
   connecting: 'status.descConnecting',
   connected: 'status.descConnected',
@@ -69,9 +67,9 @@ const SESSION_DESC_KEY: Record<SessionStatus, string> = {
 
 export function StatusBar({ connection, session, onReconnect }: StatusBarProps): JSX.Element {
   const t = useT();
+  const confirm = useConfirm();
   // 窄屏切紧凑模式：只显示圆点，状态含义靠 title / 点击弹 modal 暴露
   const compact = useMediaQuery('(max-width: 640px)');
-  const [dialog, setDialog] = useState<DialogKind>(null);
 
   const canReconnect =
     (connection === 'disconnected' || connection === 'gave_up') &&
@@ -82,6 +80,21 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
       : t('status.disconnectedReconnect')
     : t(CONN_KEY[connection]);
   const sessionLabel = t(SESSION_KEY[session]);
+
+  const showConnectionInfo = (): void => {
+    void confirm({
+      title: t('status.connectionDialogTitle'),
+      message: `${connectionLabel}\n\n${t(CONN_DESC_KEY[connection])}`,
+      singleButton: true,
+    });
+  };
+  const showSessionInfo = (): void => {
+    void confirm({
+      title: t('status.sessionDialogTitle'),
+      message: `${sessionLabel}\n\n${t(SESSION_DESC_KEY[session])}`,
+      singleButton: true,
+    });
+  };
 
   return (
     <div id="status-bar" className={s.root}>
@@ -94,7 +107,7 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
         className={s.reconnectBtn}
         onClick={() => {
           if (canReconnect) onReconnect?.();
-          else setDialog('connection');
+          else showConnectionInfo();
         }}
         title={canReconnect ? t('status.reconnectTooltip') : connectionLabel}
         aria-label={canReconnect ? t('status.reconnectTooltip') : connectionLabel}
@@ -108,7 +121,7 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
       <button
         type="button"
         className={s.reconnectBtn}
-        onClick={() => setDialog('session')}
+        onClick={showSessionInfo}
         title={sessionLabel}
         aria-label={sessionLabel}
       >
@@ -116,27 +129,6 @@ export function StatusBar({ connection, session, onReconnect }: StatusBarProps):
           {sessionLabel}
         </Pill>
       </button>
-
-      {dialog === 'connection' && (
-        <ConfirmModal
-          open
-          title={t('status.connectionDialogTitle')}
-          message={`${connectionLabel}\n\n${t(CONN_DESC_KEY[connection])}`}
-          confirmLabel={t('common.confirm')}
-          onConfirm={() => setDialog(null)}
-          onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog === 'session' && (
-        <ConfirmModal
-          open
-          title={t('status.sessionDialogTitle')}
-          message={`${sessionLabel}\n\n${t(SESSION_DESC_KEY[session])}`}
-          confirmLabel={t('common.confirm')}
-          onConfirm={() => setDialog(null)}
-          onClose={() => setDialog(null)}
-        />
-      )}
     </div>
   );
 }

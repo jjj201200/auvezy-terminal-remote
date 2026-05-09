@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import { I18nProvider } from './i18n/i18n-context.js';
 import { ConfirmProvider } from './components/ui/ConfirmProvider.js';
+import { ModalStackProvider } from './components/ui/modal-stack/ModalStack.js';
 import './styles/global.scss';
 
 // 移动端调试：eruda（屏幕浮层）+ console-bridge（转发到 backend）
@@ -45,9 +46,11 @@ if (!container) {
 createRoot(container).render(
   <StrictMode>
     <I18nProvider>
-      <ConfirmProvider>
-        <App />
-      </ConfirmProvider>
+      <ModalStackProvider>
+        <ConfirmProvider>
+          <App />
+        </ConfirmProvider>
+      </ModalStackProvider>
     </I18nProvider>
   </StrictMode>,
 );

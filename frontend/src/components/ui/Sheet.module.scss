@@ -2,32 +2,23 @@
 @use '../../styles/mixins' as m;
 
 // ──────────────── 共享 overlay（高斯模糊）────────────────
+//
+// 嵌套层级由 ModalStack 通过 --modal-layer-z 自动控制，每层 +5 z-index。
+// 不再需要 overlayTone='strong' / contentBoost 等手工 hack。
+
+// 每个 modal 层的 z 偏移基数（每多一层 +这个值）。让多层叠加时下层 backdrop
+// 也能盖住上一层 backdrop（避免双 backdrop 加色）
+$layer-step: 5;
 
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: t.$z-overlay;
+  z-index: calc(#{t.$z-overlay} + var(--modal-layer-z, 0) * #{$layer-step});
   @include m.glass-overlay;
-  // open / close 各自的关键帧由 Radix 的 data-state 控制
   animation: fade-in t.$dur-modal t.$ease both;
   &[data-state='closed'] {
     animation: fade-out t.$dur-modal t.$ease both;
   }
-}
-
-// 嵌套场景：详情 modal 叠在另一个 sheet 上时，下层 sheet 的 bg-elev 还会
-// 透过来。这里用接近不透明的纯黑 + 大模糊半径，并把 z-index 拉到 modal 之上
-// 确保叠在第一层 sheet 之上而不是被同层 z 打架。
-.overlayStrong {
-  z-index: t.$z-toast; // 比 modal(50) 还高，避免和第一层 modal 同层叠加问题
-  background: rgba(0, 0, 0, 0.95);
-  backdrop-filter: blur(32px) saturate(1.4);
-  -webkit-backdrop-filter: blur(32px) saturate(1.4);
-}
-
-// 嵌套 modal 内容也要拉高 z-index，否则会被自己的 strong overlay 盖住
-.contentBoost {
-  z-index: calc(#{t.$z-toast} + 1) !important;
 }
 
 // ──────────────── 桌面 Dialog ────────────────
@@ -36,7 +27,7 @@
   position: fixed;
   left: 50%;
   top: 50%;
-  z-index: t.$z-modal;
+  z-index: calc(#{t.$z-modal} + var(--modal-layer-z, 0) * #{$layer-step});
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -72,7 +63,7 @@
   position: fixed;
   inset-inline: 0;
   bottom: 0;
-  z-index: t.$z-modal;
+  z-index: calc(#{t.$z-modal} + var(--modal-layer-z, 0) * #{$layer-step});
   display: flex;
   flex-direction: column;
   // 容器位置 / 高度保持稳定（变化会被 vaul 误识别为 drag-to-dismiss），

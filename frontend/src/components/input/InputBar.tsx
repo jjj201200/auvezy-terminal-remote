@@ -33,7 +33,7 @@ import {
 } from 'react';
 import { IconSend, IconSettings, IconX } from '@tabler/icons-react';
 import { IconButton } from '../ui/IconButton.js';
-import { ConfirmModal } from '../ui/ConfirmModal.js';
+import { useConfirm } from '../ui/ConfirmProvider.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useTextareaInputGuard } from '../../hooks/useTextareaInputGuard.js';
 import s from './InputBar.module.scss';
@@ -61,7 +61,7 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
   ref,
 ) {
   const t = useT();
-  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const confirm = useConfirm();
   const composingRef = useRef(false);
   const elRef = useRef<HTMLTextAreaElement | null>(null);
   // CodeMirror 模式的"显示文本"：跟 hook truth (bufferRef) 同步，渲染到 .display
@@ -143,8 +143,20 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
       setComposingText('');
       return;
     }
-    setConfirmClearOpen(true);
-  }, [getBuffer, clear]);
+    void (async () => {
+      const ok = await confirm({
+        title: t('input.clearConfirmTitle'),
+        message: t('input.clearConfirmBody'),
+        tone: 'danger',
+        confirmLabel: t('common.clear'),
+      });
+      if (ok === true) {
+        clear();
+        setDisplayText('');
+        setComposingText('');
+      }
+    })();
+  }, [getBuffer, clear, confirm, t]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -262,22 +274,6 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
           </IconButton>
         )}
       </form>
-      {confirmClearOpen && (
-        <ConfirmModal
-          open
-          title={t('input.clearConfirmTitle')}
-          message={t('input.clearConfirmBody')}
-          confirmTone="danger"
-          confirmLabel={t('common.clear')}
-          onConfirm={() => {
-            clear();
-            setDisplayText('');
-            setComposingText('');
-            setConfirmClearOpen(false);
-          }}
-          onClose={() => setConfirmClearOpen(false)}
-        />
-      )}
     </>
   );
 });

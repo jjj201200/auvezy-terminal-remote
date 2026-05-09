@@ -149,9 +149,6 @@ export function InstanceDetailModal({
         if (!next) onClose();
       }}
       title={t('instance.detailTitle')}
-      // 嵌套：本 modal 叠在外层 mobile-instance-sheet 上，普通 overlay 不够浓
-      // 会让下层 sheet 内容透过来视觉混乱，用 strong 加深 + 加大模糊
-      overlayTone="strong"
       footer={
         <div className={s.footer}>
           <button type="button" onClick={onClose} className={s.cancelBtn}>
