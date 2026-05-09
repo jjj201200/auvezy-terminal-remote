@@ -1,17 +1,16 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .root {
   display: flex;
   flex-direction: column;
-  gap: t.$sp-6;
-  padding: t.$sp-2 0;
+  gap: var(--sp-6);
+  padding: var(--sp-2) 0;
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: t.$sp-4;
+  gap: var(--sp-4);
 }
 
 // 预览 section：sticky 在 tab body 顶部，让用户调下方参数时始终能看到效果
@@ -21,46 +20,46 @@
   top: 0;
   z-index: 1;
   // 给 sticky 加底色 + 模糊背景，避免下方内容滚到这下面被透出来
-  background: t.$bg-elev;
+  background: var(--color-bg-elev);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   // padding 让 sticky 内容跟正常 section 视觉一致
-  padding-top: t.$sp-3;
-  padding-bottom: t.$sp-3;
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-3);
   // 跟 sheet body 边到边对齐：扩大到容器边缘后用 padding 还原内容
-  margin-left: -#{t.$sp-5};
-  margin-right: -#{t.$sp-5};
-  padding-left: t.$sp-5;
-  padding-right: t.$sp-5;
+  margin-left: -#{var(--sp-5)};
+  margin-right: -#{var(--sp-5)};
+  padding-left: var(--sp-5);
+  padding-right: var(--sp-5);
   // 下方淡分隔线
-  border-bottom: 1px solid t.$border;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sectionHeader {
   display: flex;
   flex-direction: column;
-  gap: t.$sp-1;
+  gap: var(--sp-1);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: t.$fs-sm;
+  font-size: var(--fs-sm);
   font-weight: 500;
-  color: t.$fg;
-  letter-spacing: t.$tracking-tight;
+  color: var(--color-fg);
+  letter-spacing: var(--tracking-tight);
 }
 
 .sectionHint {
   margin: 0;
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
-  line-height: t.$lh-base;
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  line-height: var(--lh-base);
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: t.$sp-2;
+  gap: var(--sp-2);
   flex-wrap: wrap;
 }
 
@@ -68,11 +67,11 @@
 
 .preview {
   background: #050608; // 与 xterm theme.background 同
-  border: 1px solid t.$border;
-  border-radius: t.$radius-sm;
-  padding: t.$sp-4 t.$sp-5;
-  font-family: t.$font-mono;
-  line-height: t.$lh-base;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-4) var(--sp-5);
+  font-family: var(--font-mono);
+  line-height: var(--lh-base);
   // 字号 / letterSpacing 由 inline style 注入
   color: #e6e7ea; // theme.foreground
   overflow-x: auto;
@@ -94,64 +93,64 @@
 .cYellow { color: #d29922; }
 
 .previewMeta {
-  margin-top: t.$sp-3;
-  padding-top: t.$sp-2;
-  border-top: 1px solid rgba(110, 118, 129, 0.18);
-  font-size: t.$fs-2xs;
-  color: t.$fg-dim;
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-dim);
   // meta 是说明文字，不该被预览的 letter-spacing 影响
   letter-spacing: normal;
-  font-family: t.$font-mono;
+  font-family: var(--font-mono);
 }
 
 // ──────────── 列数预设 ────────────
 
 .presetBtn {
   appearance: none;
-  padding: t.$sp-2 t.$sp-3;
-  font-size: t.$fs-xs;
-  font-family: t.$font-mono;
-  color: t.$fg-dim;
-  background: t.$bg-input;
-  border: 1px solid t.$border;
-  border-radius: t.$radius-sm;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--color-fg-dim);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: center;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    color: t.$fg;
-    border-color: t.$border-hi;
+    color: var(--color-fg);
+    border-color: var(--color-border-hi);
   }
 
   &:focus-visible {
     outline: none;
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 }
 
 .presetBtnActive {
-  color: t.$accent;
-  border-color: t.$accent;
-  background: t.$accent-soft;
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 
   &:hover {
-    color: t.$accent;
-    border-color: t.$accent;
+    color: var(--color-accent);
+    border-color: var(--color-accent);
   }
 }
 
 .numInput {
   width: 56px;
-  padding: t.$sp-2;
+  padding: var(--sp-2);
   text-align: center;
-  font-size: t.$fs-xs;
-  font-family: t.$font-mono;
-  color: t.$fg;
-  background: t.$bg-input;
-  border: 1px solid t.$border;
-  border-radius: t.$radius-sm;
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--color-fg);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   outline: none;
   // 隐藏 number input 的上下旋钮（与紧凑视觉冲突）
   -moz-appearance: textfield;
@@ -162,12 +161,12 @@
   }
 
   &::placeholder {
-    color: t.$fg-low;
+    color: var(--color-fg-low);
   }
 
   &:focus-visible {
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 }
 
@@ -179,8 +178,8 @@
   -webkit-appearance: none;
   appearance: none;
   height: 4px;
-  background: t.$border;
-  border-radius: t.$radius-pill;
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
   outline: none;
   cursor: pointer;
 
@@ -190,58 +189,58 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: t.$accent;
+    background: var(--color-accent);
     cursor: pointer;
-    border: 2px solid t.$bg-elev;
-    @include m.transition(transform t.$dur-fast);
+    border: 2px solid var(--color-bg-elev);
+    @include m.transition(transform var(--dur-fast));
   }
 
   &::-moz-range-thumb {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: t.$accent;
+    background: var(--color-accent);
     cursor: pointer;
-    border: 2px solid t.$bg-elev;
+    border: 2px solid var(--color-bg-elev);
   }
 
   &:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 0 3px t.$accent-glow;
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
   }
   &:focus-visible::-moz-range-thumb {
-    box-shadow: 0 0 0 3px t.$accent-glow;
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
   }
 }
 
 .valueLabel {
-  font-size: t.$fs-xs;
-  font-family: t.$font-mono;
-  color: t.$fg-dim;
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--color-fg-dim);
   min-width: 56px;
   text-align: right;
 }
 
 // 单个汉字单位（如"次"）：不要 56px 留白，紧贴输入框
 .valueLabelTight {
-  font-size: t.$fs-xs;
-  font-family: t.$font-mono;
-  color: t.$fg-dim;
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--color-fg-dim);
 }
 
 .resetBtn {
   appearance: none;
-  padding: t.$sp-2 t.$sp-3;
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
   background: transparent;
-  border: 1px solid t.$border;
-  border-radius: t.$radius-sm;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast);
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast));
 
   &:hover:not(:disabled) {
-    color: t.$fg;
-    border-color: t.$border-hi;
+    color: var(--color-fg);
+    border-color: var(--color-border-hi);
   }
 
   &:disabled {
@@ -251,41 +250,42 @@
 
   &:focus-visible {
     outline: none;
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 }
 
 // ──────────── 调色板主题（折叠 select 风格）────────────
 
 .themeSelect {
+  position: relative;   // 让 .themeList 用 absolute 锚定到这里
   display: flex;
   flex-direction: column;
-  gap: t.$sp-2;
+  gap: var(--sp-2);
 }
 
 .themeItem {
   appearance: none;
   display: flex;
   align-items: center;
-  gap: t.$sp-3;
-  padding: t.$sp-3 t.$sp-4;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
   width: 100%;
-  background: t.$bg-input;
-  border: 1px solid t.$border;
-  border-radius: t.$radius-sm;
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: left;
-  @include m.transition(border-color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    border-color: t.$border-hi;
+    border-color: var(--color-border-hi);
   }
 
   &:focus-visible {
     outline: none;
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 }
 
@@ -296,24 +296,35 @@
 
 .themeChevron {
   flex-shrink: 0;
-  color: t.$fg-low;
-  @include m.transition(transform t.$dur-fast, color t.$dur-fast);
+  color: var(--color-fg-low);
+  @include m.transition(transform var(--dur-fast), color var(--dur-fast));
 }
 
 .themeChevronOpen {
   transform: rotate(180deg);
-  color: t.$accent;
+  color: var(--color-accent);
 }
 
 .themeList {
-  // 替代 select 的下拉，但放在文档流内（不是 absolute），避免移动端 modal 内
-  // 弹层定位踩坑。容器加边框 + 内部用 list 样式
+  // 悬浮于 trigger 下方：不撑开 sheet body，不会触发滚动条出现导致预览抖动
+  position: absolute;
+  top: calc(100% + var(--sp-1));
+  left: 0;
+  right: 0;
+  z-index: 10;
   list-style: none;
   margin: 0;
-  padding: 0;
+  // 用实色背景 + 阴影区分浮层（trigger 单项是 bg-input，浮层升一档到 bg-elev-solid）
+  background: var(--color-bg-elev-solid);
+  border: 1px solid var(--color-border-hi);
+  box-shadow: var(--shadow-3);
+  padding: var(--sp-2);
   display: flex;
   flex-direction: column;
-  gap: t.$sp-2;
+  gap: var(--sp-2);
+  // 主题列表较长时允许内部滚动，不会无限撑开
+  max-height: 320px;
+  overflow-y: auto;
   // 进入动画
   animation: themeListIn 120ms ease-out;
 }
@@ -324,18 +335,18 @@
 }
 
 .themeItemActive {
-  border-color: t.$accent;
-  background: t.$accent-soft;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 
   &:hover {
-    border-color: t.$accent;
+    border-color: var(--color-accent);
   }
 }
 
 .themeCheck {
   margin-left: auto;
   flex-shrink: 0;
-  color: t.$accent;
+  color: var(--color-accent);
 }
 
 // 6 个色块的横条预览：每个块固定宽，整体显示主题色调
@@ -344,7 +355,7 @@
   flex-shrink: 0;
   border-radius: 3px;
   overflow: hidden;
-  border: 1px solid t.$border;
+  border: 1px solid var(--color-border);
 
   > span {
     display: inline-block;
@@ -354,12 +365,12 @@
 }
 
 .themeLabel {
-  font-size: t.$fs-xs;
-  color: t.$fg;
-  letter-spacing: t.$tracking-tight;
+  font-size: var(--fs-xs);
+  color: var(--color-fg);
+  letter-spacing: var(--tracking-tight);
   // 长名（dark-daltonized）允许折行
   word-break: break-word;
-  line-height: t.$lh-tight;
+  line-height: var(--lh-tight);
   // trigger 里要让 label 占满中间空间，把 chevron 推到右边
   flex: 1;
   min-width: 0;

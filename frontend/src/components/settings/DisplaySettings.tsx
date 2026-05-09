@@ -70,15 +70,19 @@ function ThemeRowContent(props: {
 
 /**
  * 与 useTerminal 中 computeFontPrefs 同算法
- * targetCols=0 → 用默认字号；否则按容器宽度反推
+ * targetCols=0 → 用默认字号；否则按参考宽度反推
+ *
+ * 这里的「参考宽度」必须是稳定值（不随预览容器抖动）。预览容器一旦因为
+ * sheet body 出现滚动条而改变宽度，会反推回不同字号，造成"调列数下面就跳字号"
+ * 的视觉 bug。所以我们传 window.innerWidth —— 这接近真实终端会用的宽度。
  */
 function computePreviewFontSize(
-  containerWidth: number,
+  referenceWidth: number,
   targetCols: number,
   letterSpacing: number,
 ): number {
-  if (!targetCols || targetCols <= 0 || containerWidth <= 0) return XTERM_FONT_SIZE;
-  const raw = (containerWidth / targetCols - letterSpacing) / CHAR_WIDTH_RATIO;
+  if (!targetCols || targetCols <= 0 || referenceWidth <= 0) return XTERM_FONT_SIZE;
+  const raw = (referenceWidth / targetCols - letterSpacing) / CHAR_WIDTH_RATIO;
   return Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.floor(raw)));
 }
 
@@ -124,33 +128,30 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
     setColsInput(targetCols > 0 ? String(targetCols) : '');
   }, [targetCols]);
 
-  // ──────────────── 预览框宽度测量 ────────────────
-  // 用 ResizeObserver 实时拿预览容器的可用宽度，按 useTerminal 同算法反推 fontSize
-  // 预览容器宽度通常 ≠ 终端宽度，但视觉密度感（字号/字间距/列数比例）可如实反映
-  const previewRef = useRef<HTMLDivElement | null>(null);
-  const [previewWidth, setPreviewWidth] = useState<number>(0);
+  // ──────────────── 参考宽度（用于反推字号 / 预设列数）────────────────
+  // 不再用预览容器实时宽度——sheet body 一旦因为下拉展开/收起触发滚动条出现
+  // 容器宽度抖动几像素，ResizeObserver 就会反推出不同字号，造成"调下面字号跳"
+  // 的视觉 bug。改用 window.innerWidth：它代表真实终端会拿到的宽度，与预览
+  // 容器的临时尺寸无关，只在窗口 resize 时变化。
+  const [referenceWidth, setReferenceWidth] = useState<number>(
+    () => (typeof window !== 'undefined' ? window.innerWidth : 0),
+  );
   useEffect(() => {
-    const el = previewRef.current;
-    if (!el) return;
-    setPreviewWidth(el.clientWidth);
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0;
-      if (w > 0) setPreviewWidth(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+    const onResize = (): void => setReferenceWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const previewFontSize = computePreviewFontSize(previewWidth, targetCols, letterSpacing);
+  const previewFontSize = computePreviewFontSize(referenceWidth, targetCols, letterSpacing);
 
-  // 用预览容器宽度反推预设——它跟终端宽度量级接近，比 window.innerWidth 更准
-  const presets = useMemo(() => computeMeaningfulPresets(previewWidth), [previewWidth]);
+  // 用「参考宽度」反推预设——保持稳定，不随 sheet 内滚动条抖动
+  const presets = useMemo(() => computeMeaningfulPresets(referenceWidth), [referenceWidth]);
   // Auto 模式下使用默认字号 XTERM_FONT_SIZE，对应一个 cols
   // 把它从预设里去掉避免重复，并用来给 Auto 按钮显示具体数值
   const autoCols = useMemo(() => {
-    if (previewWidth <= 0) return 0;
-    return Math.floor(previewWidth / XTERM_FONT_SIZE / CHAR_WIDTH_RATIO);
-  }, [previewWidth]);
+    if (referenceWidth <= 0) return 0;
+    return Math.floor(referenceWidth / XTERM_FONT_SIZE / CHAR_WIDTH_RATIO);
+  }, [referenceWidth]);
   const presetsWithoutAuto = useMemo(
     () => presets.filter((p) => p !== autoCols),
     [presets, autoCols],
@@ -194,6 +195,27 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
   };
 
   const [themeOpen, setThemeOpen] = useState(false);
+  const themeSelectRef = useRef<HTMLDivElement | null>(null);
+  // 点击外部 / Esc 关闭主题下拉
+  useEffect(() => {
+    if (!themeOpen) return;
+    const onPointerDown = (e: PointerEvent): void => {
+      const root = themeSelectRef.current;
+      if (root && e.target instanceof Node && !root.contains(e.target)) {
+        setThemeOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setThemeOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [themeOpen]);
+
   const currentThemeMeta = useMemo(
     () => THEME_LIST.find((m) => m.key === theme) ?? THEME_LIST[0]!,
     [theme],
@@ -209,7 +231,6 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
           <p className={s.sectionHint}>{t('display.previewHint')}</p>
         </header>
         <div
-          ref={previewRef}
           className={s.preview}
           style={{
             fontSize: `${previewFontSize}px`,
@@ -260,7 +281,7 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
           <h3 className={s.sectionTitle}>{t('display.themeTitle')}</h3>
           <p className={s.sectionHint}>{t('display.themeHint')}</p>
         </header>
-        <div className={s.themeSelect}>
+        <div className={s.themeSelect} ref={themeSelectRef}>
           <button
             type="button"
             onClick={() => setThemeOpen((v) => !v)}
