@@ -44,6 +44,11 @@ $accent-glow:  rgba(182, 240, 156, 0.32);   // focus ring / hover 边框
 $alarm:        #ff6b6b;   // 错误（珊瑚红，不刺眼）
 $warn:         #ffb84d;   // 警告（琥珀）
 $ok:           $accent;   // 成功 = 主 accent（不引入新色）
+$info:         #6cb6ff;   // 信息(柔和蓝,与 alarm/warn 区分,亮度匹配整体暗背景)
+
+// soft 半透明底:用于 inline 提示条背景。沿用 $accent-soft 同款 0.10 alpha
+$warn-soft:    rgba(255, 184, 77, 0.10);
+$info-soft:    rgba(108, 182, 255, 0.10);
 
 // 遮罩（高斯模糊用）
 $overlay-bg:   rgba(2, 4, 6, 0.65);   // dialog / drawer overlay
@@ -185,6 +190,7 @@ $z-toast:    60;
   --color-accent-soft:  #{$accent-soft};
   --color-alarm:        #{$alarm};
   --color-warn:         #{$warn};
+  --color-info:         #{$info};
 
   --font-mono:          #{$font-mono};
   --font-sans:          #{$font-sans};

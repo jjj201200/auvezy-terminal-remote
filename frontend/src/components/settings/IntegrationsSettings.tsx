@@ -1,20 +1,27 @@
 /**
  * IntegrationsSettings
  *
- * 设置面板的"集成"tab。控制 UserConfig.integrations 的总开关 / 识别策略 /
- * 各模块事件细分。当前内置的模块只有 ClaudeCode。
+ * 设置面板的"集成"tab。两段式结构:
+ *  1. 顶层(适用所有模块):总开关 + 识别策略
+ *  2. 模块列表:每个具体模块一行(名称 + 状态 + 详细设置按钮)。点击按钮推一层
+ *     子 modal 编辑该模块的细节(走 ModalStack)
  *
- * 编辑模型:value/onChange 形态(与其它 settings panel 一致),由 SettingsModal
- * 注入草稿 + apply 按钮统一保存。
+ * 这样未来加 gemini-cli / aider / codex 时只需在模块列表里多一行,顶层不变。
+ *
+ * 编辑模型与其它 settings panel 一致:value/onChange,父 SettingsModal 接管 dirty
+ * 检测与保存。子 modal 编辑结果直接写回这里的 value,不另起一套保存路径。
  */
 
 import { type JSX } from 'react';
+import clsx from 'clsx';
 import {
   DEFAULT_INTEGRATIONS,
   type IntegrationsPrefs,
 } from 'auvezy-terminal-remote-shared';
 import { useT } from '../../i18n/i18n-context.js';
-import s from './DisplaySettings.module.scss';
+import { BoolToggleRow } from './BoolToggleRow.js';
+import { useClaudeCodeSettingsPresenter } from '../ui/modal-stack/presenters.js';
+import s from './GeneralSettings.module.scss';
 
 export interface IntegrationsSettingsProps {
   value: IntegrationsPrefs | undefined;
@@ -29,8 +36,11 @@ const FORCE_OPTIONS: ReadonlyArray<'auto' | 'claude-code' | 'none'> = [
 
 export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsProps): JSX.Element {
   const t = useT();
+  const presentClaudeCode = useClaudeCodeSettingsPresenter();
+
   const enabled = value?.enabled ?? DEFAULT_INTEGRATIONS.enabled;
   const forceModule = value?.forceModule ?? DEFAULT_INTEGRATIONS.forceModule;
+
   // 逐字段 fallback;value 的 events 是 Partial,defaults 是完整结构
   const userCcEvents = value?.perModule?.['claude-code']?.events;
   const ccDefaults = DEFAULT_INTEGRATIONS.perModule['claude-code'].events;
@@ -48,195 +58,98 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
   const setForceModule = (next: 'auto' | 'claude-code' | 'none'): void => {
     onChange({ ...value, forceModule: next });
   };
-  const setEvent = (
-    key: keyof typeof DEFAULT_INTEGRATIONS.perModule['claude-code']['events'],
-    next: boolean,
-  ): void => {
+  const setCcEvents = (next: typeof ccEvents): void => {
     onChange({
       ...value,
       perModule: {
         ...value?.perModule,
         'claude-code': {
           ...value?.perModule?.['claude-code'],
-          events: { ...ccEvents, [key]: next },
+          events: next,
         },
       },
     });
   };
 
-  // 模块视为"激活"的条件:总开关开 + (forceModule='auto' 或 forceModule='claude-code')
-  // 注:这里只是 UI 显示,实际 detect 在 backend spawn 时跑;这里只反映"会不会被激活"
+  // 当前会被激活的模块判定:总开关 + 识别策略派生
   const ccActive = enabled && (forceModule === 'auto' || forceModule === 'claude-code');
+
+  const openClaudeCodeSettings = (): void => {
+    presentClaudeCode({
+      value: ccEvents,
+      onChange: setCcEvents,
+      active: ccActive,
+    });
+  };
 
   return (
     <div className={s.root}>
-      {/* ──── 总开关 ──── */}
-      <section className={s.section}>
-        <header className={s.sectionHeader}>
-          <h3 className={s.sectionTitle}>{t('integrations.sectionGlobal')}</h3>
+      {/* ──── 顶层:总开关 ──── */}
+      <BoolToggleRow
+        title={t('integrations.enabledTitle')}
+        hint={t('integrations.enabledHint')}
+        value={enabled}
+        onChange={setEnabled}
+      />
+
+      {/* ──── 顶层:识别策略 ──── */}
+      <section className={s.section} aria-disabled={!enabled || undefined}>
+        <header className={s.header}>
+          <h3 className={s.title}>{t('integrations.forceModuleTitle')}</h3>
+          <p className={s.hint}>{t('integrations.forceModuleHint')}</p>
         </header>
-
-        <div className={s.row}>
-          <h4 style={{ flex: 1, margin: 0, fontSize: 'var(--fs-sm, 13px)' }}>
-            {t('integrations.enabledTitle')}
-          </h4>
-          <ToggleButton
-            on={enabled}
-            onClick={() => setEnabled(!enabled)}
-            ariaLabel={t('integrations.enabledTitle')}
-          />
-        </div>
-        <p className={s.sectionHint}>{t('integrations.enabledHint')}</p>
-
-        <h4 style={{ marginTop: 'var(--sp-4, 12px)', marginBottom: 0, fontSize: 'var(--fs-sm, 13px)' }}>
-          {t('integrations.forceModuleTitle')}
-        </h4>
-        <p className={s.sectionHint}>{t('integrations.forceModuleHint')}</p>
-        <div className={s.row}>
-          {FORCE_OPTIONS.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              className={[s.presetBtn, forceModule === opt && s.presetBtnActive]
-                .filter(Boolean)
-                .join(' ')}
-              onClick={() => setForceModule(opt)}
-              disabled={!enabled}
-            >
-              {opt === 'auto'
+        <div
+          className={s.row}
+          role="radiogroup"
+          aria-label={t('integrations.forceModuleTitle')}
+          style={!enabled ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+        >
+          {FORCE_OPTIONS.map((opt) => {
+            const active = forceModule === opt;
+            const label =
+              opt === 'auto'
                 ? t('integrations.forceModuleAuto')
                 : opt === 'none'
                   ? t('integrations.forceModuleNone')
-                  : 'Claude Code'}
-            </button>
-          ))}
+                  : 'Claude Code';
+            return (
+              <button
+                key={opt}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                disabled={!enabled}
+                onClick={() => setForceModule(opt)}
+                className={clsx(s.btn, active && s.btnActive)}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      {/* ──── ClaudeCode 模块 ──── */}
+      {/* ──── 模块列表(平铺,不再 section 包裹) ──── */}
+      {/* ClaudeCode */}
       <section className={s.section}>
-        <header className={s.sectionHeader}>
-          <h3 className={s.sectionTitle}>
+        <header className={s.header}>
+          <h3 className={s.title}>
             {t('integrations.sectionClaudeCode')}
             <span
-              style={{
-                marginLeft: 8,
-                fontSize: 'var(--fs-2xs, 10px)',
-                fontWeight: 400,
-                color: ccActive ? 'var(--ok, #3fb950)' : 'var(--fg-low, #6e7681)',
-              }}
+              className={s.titleStatus}
+              data-tone={ccActive ? 'info' : 'muted'}
             >
               {ccActive ? t('integrations.activeBadge') : t('integrations.inactiveBadge')}
             </span>
           </h3>
-          <p className={s.sectionHint}>{t('integrations.claudeCodeDescription')}</p>
+          <p className={s.hint}>{t('integrations.claudeCodeDescription')}</p>
         </header>
-
-        <h4 style={{ marginTop: 0, marginBottom: 0, fontSize: 'var(--fs-sm, 13px)' }}>
-          {t('integrations.eventsTitle')}
-        </h4>
-        <p className={s.sectionHint}>{t('integrations.eventsHint')}</p>
-
-        <EventToggleRow
-          title={t('integrations.eventApprovals')}
-          hint={t('integrations.eventApprovalsHint')}
-          on={ccEvents.approvals}
-          disabled={!enabled || !ccActive}
-          onToggle={(v) => setEvent('approvals', v)}
-        />
-        <EventToggleRow
-          title={t('integrations.eventToolProgress')}
-          hint={t('integrations.eventToolProgressHint')}
-          on={ccEvents.toolProgress}
-          disabled={!enabled || !ccActive}
-          onToggle={(v) => setEvent('toolProgress', v)}
-        />
-        <EventToggleRow
-          title={t('integrations.eventTurnLifecycle')}
-          hint={t('integrations.eventTurnLifecycleHint')}
-          on={ccEvents.turnLifecycle}
-          disabled={!enabled || !ccActive}
-          onToggle={(v) => setEvent('turnLifecycle', v)}
-        />
-        <EventToggleRow
-          title={t('integrations.eventSessionLifecycle')}
-          hint={t('integrations.eventSessionLifecycleHint')}
-          on={ccEvents.sessionLifecycle}
-          disabled={!enabled || !ccActive}
-          onToggle={(v) => setEvent('sessionLifecycle', v)}
-        />
-        <EventToggleRow
-          title={t('integrations.eventUserPrompts')}
-          hint={t('integrations.eventUserPromptsHint')}
-          warning={t('integrations.eventUserPromptsWarning')}
-          on={ccEvents.userPrompts}
-          disabled={!enabled || !ccActive}
-          onToggle={(v) => setEvent('userPrompts', v)}
-        />
+        <div className={s.row}>
+          <button type="button" onClick={openClaudeCodeSettings} className={s.btn}>
+            {t('integrations.openDetails')}
+          </button>
+        </div>
       </section>
-    </div>
-  );
-}
-
-// ──────── 内联辅助组件 ────────
-
-function ToggleButton({
-  on,
-  onClick,
-  ariaLabel,
-  disabled,
-}: {
-  on: boolean;
-  onClick: () => void;
-  ariaLabel: string;
-  disabled?: boolean;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={ariaLabel}
-      disabled={disabled}
-      className={[s.presetBtn, on && s.presetBtnActive].filter(Boolean).join(' ')}
-      onClick={onClick}
-      style={{ minWidth: 56 }}
-    >
-      {on ? 'ON' : 'OFF'}
-    </button>
-  );
-}
-
-function EventToggleRow({
-  title,
-  hint,
-  warning,
-  on,
-  disabled,
-  onToggle,
-}: {
-  title: string;
-  hint: string;
-  warning?: string;
-  on: boolean;
-  disabled: boolean;
-  onToggle: (next: boolean) => void;
-}): JSX.Element {
-  return (
-    <div style={{ marginTop: 'var(--sp-3, 8px)' }}>
-      <div className={s.row}>
-        <span style={{ flex: 1, fontSize: 'var(--fs-sm, 13px)', color: 'var(--fg)' }}>{title}</span>
-        <ToggleButton on={on} onClick={() => onToggle(!on)} ariaLabel={title} disabled={disabled} />
-      </div>
-      <p className={s.sectionHint}>{hint}</p>
-      {warning && (
-        <p
-          className={s.sectionHint}
-          style={{ color: 'var(--warn, #d29922)', marginTop: 'var(--sp-1, 4px)' }}
-        >
-          {warning}
-        </p>
-      )}
     </div>
   );
 }

@@ -21,13 +21,15 @@ import { logger } from '../../logger/logger.js';
 /**
  * 各类事件的子开关。设置面板的 perModule['claude-code'].events 字段。
  *
- * 注:`approvals` 同时管 Notification(permission_prompt) + PermissionRequest +
- * PostToolUse + PostToolUseFailure(后两者用于把"等待审批"翻回"运行中")。
- * 关掉 approvals 后状态机会失去"审批结束"信号,审批 bug 可能复现——这是一个
- * 整体能力,不允许只开一半。
+ * 各开关相互独立;按事件语义归属拆分,而非按"修复某个 bug 需要哪些事件":
+ *  - approvals:Notification(permission_prompt) + PermissionRequest 两类纯审批信号
+ *  - toolProgress:PreToolUse / PostToolUse / PostToolUseFailure,完整工具生命周期
+ *  - turnLifecycle:Stop / StopFailure
+ *  - sessionLifecycle:SessionStart / SessionEnd / PreCompact / PostCompact / CwdChanged
+ *  - userPrompts:UserPromptSubmit;默认 false 防 Web Push 带出 prompt 原文
  *
- * `userPrompts` 默认 false 防止 Web Push 把用户输入原文带出主机(隐私顾虑);
- * 用户可在设置中显式开启。
+ * 注:用户关掉 approvals 后,backend 不再收到 PermissionRequest,也就永远不会
+ * 切到 waiting_input,自然不存在"审批后状态卡住"问题。开关之间不存在隐式 coupling。
  */
 export interface ClaudeCodeEventToggles {
   approvals: boolean;
@@ -67,17 +69,11 @@ export function buildHooksConfig(
   if (toggles.approvals) {
     out['Notification'] = [{ matcher: 'permission_prompt', hooks: [handler] }];
     out['PermissionRequest'] = allMatcher;
-    // PostToolUse / PostToolUseFailure 是把 waiting_input 翻回 running 的关键信号
-    out['PostToolUse'] = allMatcher;
-    out['PostToolUseFailure'] = allMatcher;
   }
   if (toggles.toolProgress) {
     out['PreToolUse'] = allMatcher;
-    // PostToolUse 已在 approvals 里注册过;若 approvals 关而 toolProgress 开,这里补
-    if (!toggles.approvals) {
-      out['PostToolUse'] = allMatcher;
-      out['PostToolUseFailure'] = allMatcher;
-    }
+    out['PostToolUse'] = allMatcher;
+    out['PostToolUseFailure'] = allMatcher;
   }
   if (toggles.turnLifecycle) {
     out['Stop'] = allMatcher;

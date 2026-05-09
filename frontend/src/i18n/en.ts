@@ -25,6 +25,8 @@ export const en: Messages = {
     auto: 'Auto',
     custom: 'Custom',
     clear: 'Clear',
+    on: 'On',
+    off: 'Off',
   },
 
   app: {
@@ -217,14 +219,17 @@ export const en: Messages = {
     detectedBadge: 'Detected',
     notDetectedBadge: 'Not detected',
 
+    openDetails: 'Configure',
+
     sectionClaudeCode: 'Claude Code',
+    claudeCodeModalTitle: 'Claude Code integration',
     claudeCodeDescription:
       "When Claude Code is detected, wire approvals / tool progress / turn / session lifecycle events into the status bar and push notifications.",
-    eventsTitle: 'Subscribed events',
-    eventsHint: 'Per-event toggles. Disabling one stops that event but the module stays active.',
-    eventApprovals: 'Approval signals (required)',
+    claudeCodeInactiveNote:
+      'This module is currently inactive (global switch off, or detection strategy is "Disable all modules" / forces a different module). Event toggles below can still be edited; they will take effect once the module is activated.',
+    eventApprovals: 'Approval signals',
     eventApprovalsHint:
-      "Bridges 'awaiting approval' and 'approval resolved' so the status bar never gets stuck. Keep this on—it's the fix for the stuck-approval bug.",
+      'Subscribe to "approval requested" / "approval resolved" events; the status bar marks "awaiting approval" and clears it once resolved. Off: approvals are not tracked.',
     eventToolProgress: 'Tool progress',
     eventToolProgressHint: 'Show the currently running tool in the status bar (e.g. "Bash: npm test").',
     eventTurnLifecycle: 'Turn lifecycle',
@@ -243,15 +248,11 @@ export const en: Messages = {
   dev: {
     erudaTitle: 'Mobile DevTools overlay (eruda)',
     erudaHint:
-      'Inject a floating debug console (console / network / elements) at the bottom-right corner. Local to this device; reload to apply.',
-    erudaToggleOn: 'Enabled — refresh page to show the debug button',
-    erudaToggleOff: 'Disabled',
-    reloadHint: 'Reload the page after toggling to take effect',
+      'Inject a floating debug console (console / network / elements) at the bottom-right corner. Local to this device.',
+    reloadHint: 'Reload the page after toggling to take effect.',
     consoleBridgeTitle: 'Console bridge (remote dev)',
     consoleBridgeHint:
       'Forward browser console output to the backend stderr via WebSocket so developers can `tail -f` server logs. Reload to apply.',
-    consoleBridgeOn: 'Enabled — subsequent console logs forwarded to backend',
-    consoleBridgeOff: 'Disabled',
   },
 
   about: {

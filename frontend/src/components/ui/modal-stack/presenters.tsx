@@ -16,6 +16,10 @@ import { useModalStack } from './ModalStack.js';
 import { CreateInstanceModal, type CreateInstanceModalProps } from '../../instances/CreateInstanceModal.js';
 import { InstanceDetailModal, type InstanceDetailModalProps } from '../../instances/InstanceDetailModal.js';
 import { SettingsModal, type SettingsModalProps } from '../../settings/SettingsModal.js';
+import {
+  ClaudeCodeSettingsModal,
+  type ClaudeCodeSettingsModalProps,
+} from '../../settings/ClaudeCodeSettingsModal.js';
 import { ShareSheet, type ShareSheetProps } from '../../share/ShareSheet.js';
 import { MobileInstanceSwitcher, type MobileInstanceSwitcherProps } from '../../instances/MobileInstanceSwitcher.js';
 
@@ -90,6 +94,32 @@ export function useSettingsPresenter(): (
         render: (ctx) => (
           <SettingsModal
             {...(rest as WithoutOpen<SettingsModalProps>)}
+            open={ctx.isOpen}
+            onClose={ctx.close}
+          />
+        ),
+      });
+    },
+    [stack],
+  );
+}
+
+// ─────────────────────── ClaudeCode 集成详细设置 ───────────────────────
+
+export function useClaudeCodeSettingsPresenter(): (
+  args: WithoutOpen<ClaudeCodeSettingsModalProps> & { onClosed?: () => void },
+) => string {
+  const stack = useModalStack();
+  return useCallback(
+    (args) => {
+      const { onClosed, ...rest } = args;
+      return stack.push({
+        kind: 'claude-code-settings',
+        debugLabel: 'claude-code-settings',
+        onClosed,
+        render: (ctx) => (
+          <ClaudeCodeSettingsModal
+            {...(rest as WithoutOpen<ClaudeCodeSettingsModalProps>)}
             open={ctx.isOpen}
             onClose={ctx.close}
           />

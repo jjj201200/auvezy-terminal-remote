@@ -20,6 +20,8 @@ export const zhCN: Messages = {
     auto: '自动',
     custom: '自定义',
     clear: '清空',
+    on: '开启',
+    off: '关闭',
   },
 
   app: {
@@ -210,15 +212,17 @@ export const zhCN: Messages = {
     detectedBadge: '已检出',
     notDetectedBadge: '未检出',
 
+    openDetails: '设置',
+
     sectionClaudeCode: 'Claude Code',
+    claudeCodeModalTitle: 'Claude Code 集成设置',
     claudeCodeDescription:
       '检测到 Claude Code 时,把审批 / 工具进度 / 轮次 / 会话生命周期等事件接到状态栏与推送通知。',
-    eventsTitle: '订阅事件',
-    eventsHint:
-      '细分订阅;关掉某项 = 不接收该类事件,但模块自身仍激活。',
-    eventApprovals: '审批信号(必需)',
+    claudeCodeInactiveNote:
+      '当前模块未激活(总开关已关 或 识别策略选了"禁用所有模块" / 强制了其它模块)。下方的事件订阅设置仍可调整,但要等模块激活后才会生效。',
+    eventApprovals: '审批信号',
     eventApprovalsHint:
-      '把"等待审批"/"审批已结束"两端打通,保证状态栏不会卡住。这是修复审批状态卡住问题的关键能力,建议保持开启。',
+      '订阅 Claude 弹审批 / 审批已处理两端的事件,在状态栏标记"等待审批"并在处理后自动恢复。关闭则不识别审批态。',
     eventToolProgress: '工具进度',
     eventToolProgressHint: '在状态栏显示当前正在执行的工具(如 "Bash: npm test")。',
     eventTurnLifecycle: '轮次生命周期',
@@ -236,15 +240,11 @@ export const zhCN: Messages = {
   dev: {
     erudaTitle: '移动端调试浮层（eruda）',
     erudaHint:
-      '在屏幕右下角注入一个调试控制台，可在移动端浏览器查看 console / network / 元素。仅本设备生效，需刷新页面。',
-    erudaToggleOn: '已启用 — 刷新页面后右下角出现调试按钮',
-    erudaToggleOff: '已关闭',
-    reloadHint: '切换后请刷新页面以生效',
+      '在屏幕右下角注入一个调试控制台，可在移动端浏览器查看 console / network / 元素。仅本设备生效。',
+    reloadHint: '切换后请刷新页面以生效。',
     consoleBridgeTitle: '控制台桥接（开发者远程调试）',
     consoleBridgeHint:
       '把前端 console 输出经 WebSocket 转到 backend 进程的 stderr，开发者可用 `tail -f` 查看。需刷新页面生效。',
-    consoleBridgeOn: '已启用 — 后续 console 输出会发到 backend',
-    consoleBridgeOff: '已关闭',
   },
 
   about: {

@@ -59,6 +59,16 @@ export interface InstanceTabsProps {
 const LONG_PRESS_MS = 500;
 
 /**
+ * 是否在 tab 栏显示主机分组 header(主机名)。
+ *
+ * 暂时隐藏:UI 评审认为单主机场景下主机名视觉冗余;多主机场景需要更完整的
+ * "主机管理"入口而非只在 tab 栏挤一个 header。打开此开关恢复显示。
+ *
+ * HostGroupHeader 组件本身保留(主机管理 sheet 还在用),只是不在 tab 栏渲染。
+ */
+const SHOW_HOST_GROUP_HEADER = false;
+
+/**
  * 长按 / 右键菜单总开关。当前菜单为空 → 整个机制禁用，长按和右键都不响应。
  * 未来如果加了菜单项（比如"重启实例" / "复制 URL"），改回 true 即可。
  */
@@ -264,15 +274,17 @@ export function InstanceTabs({
           <IconLayoutGrid size={12} stroke={1.5} />
         </button>
       )}
-      {/* 始终按 host 分段渲染，单 host 也显示 group header（让用户能改别名） */}
+      {/* 仍按 host 分段渲染(保留分组语义),但 group header 受 SHOW_HOST_GROUP_HEADER 控制 */}
       {groups.map((g) => (
         <div key={g.host} className={s.group}>
-          <HostGroupHeader
-            host={g.host}
-            displayName={g.displayName}
-            hasAlias={g.hasAlias}
-            onRenamed={bumpAliasTick}
-          />
+          {SHOW_HOST_GROUP_HEADER && (
+            <HostGroupHeader
+              host={g.host}
+              displayName={g.displayName}
+              hasAlias={g.hasAlias}
+              onRenamed={bumpAliasTick}
+            />
+          )}
           <div className={s.groupTabs}>
             {g.instances.map(renderInstanceTab)}
             {g.pending.map(renderPendingTab)}

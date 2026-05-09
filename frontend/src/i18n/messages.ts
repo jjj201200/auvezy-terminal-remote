@@ -40,6 +40,8 @@ export interface Messages {
     auto: string;
     custom: string;
     clear: string;
+    on: string;
+    off: string;
   };
 
   // 加载页 / 通用状态
@@ -255,10 +257,12 @@ export interface Messages {
     detectedBadge: string;
     notDetectedBadge: string;
 
+    openDetails: string;
+
     sectionClaudeCode: string;
+    claudeCodeModalTitle: string;
     claudeCodeDescription: string;
-    eventsTitle: string;
-    eventsHint: string;
+    claudeCodeInactiveNote: string;
     eventApprovals: string;
     eventApprovalsHint: string;
     eventToolProgress: string;
@@ -276,13 +280,9 @@ export interface Messages {
   dev: {
     erudaTitle: string;
     erudaHint: string;
-    erudaToggleOn: string;
-    erudaToggleOff: string;
     reloadHint: string;
     consoleBridgeTitle: string;
     consoleBridgeHint: string;
-    consoleBridgeOn: string;
-    consoleBridgeOff: string;
   };
 
   // 设置 - 关于

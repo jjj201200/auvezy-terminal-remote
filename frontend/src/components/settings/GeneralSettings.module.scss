@@ -76,3 +76,55 @@
     border-color: t.$accent;
   }
 }
+
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+
+  &:hover {
+    color: t.$fg-dim;
+    border-color: t.$border;
+  }
+}
+
+// 标题旁的状态文字(直接附在标题尾部,无背景无边框,纯彩色文字)
+// data-tone='info' = 已激活蓝;data-tone='muted' = 未激活灰
+.titleStatus {
+  margin-left: t.$sp-2;
+  font-size: t.$fs-xs;
+  font-weight: 400;
+  letter-spacing: t.$tracking-tight;
+
+  &[data-tone='info'] {
+    color: t.$info;
+  }
+  &[data-tone='muted'] {
+    color: t.$fg-low;
+  }
+}
+
+// ──────────── 辅助说明条(info / warn,放在设置项 hint 下方) ────────────
+//
+// 用于在 toggle / 单选下方再补一条彩色短提示;比 hint 更醒目但比 toast 轻。
+// 颜色取自 token 体系,避免硬编码 hex。
+.note {
+  margin: 0;
+  padding: t.$sp-2 t.$sp-3;
+  font-size: t.$fs-xs;
+  line-height: t.$lh-base;
+  border-radius: t.$radius-sm;
+  border: 1px solid transparent;
+}
+
+.noteInfo {
+  color: t.$info;
+  background: t.$info-soft;
+  border-color: t.$info-soft;
+}
+
+.noteWarn {
+  color: t.$warn;
+  background: t.$warn-soft;
+  border-color: t.$warn-soft;
+}
