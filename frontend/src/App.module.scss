@@ -1,15 +1,13 @@
-@use './styles/tokens' as t;
-
 .loading {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  letter-spacing: t.$tracking-wide;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: t.$fg-low;
+  color: var(--color-fg-low);
 }
 
 .loadingText {
@@ -21,8 +19,8 @@
   width: 4px;
   height: 4px;
   margin-left: 6px;
-  background: t.$accent;
-  animation: blink 1.2s t.$ease infinite;
+  background: var(--color-accent);
+  animation: blink 1.2s var(--ease) infinite;
 }
 
 @keyframes blink {

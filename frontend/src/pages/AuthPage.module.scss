@@ -1,4 +1,3 @@
-@use '../styles/tokens' as t;
 @use '../styles/mixins' as m;
 @use '../styles/qr-input-mixins' as qr;
 
@@ -7,12 +6,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: t.$sp-7 t.$sp-5;
+  padding: var(--sp-7) var(--sp-5);
 
   // 极弱的径向高光（顶部偏左，营造立体感）
   background-image: radial-gradient(
     ellipse 60% 40% at 50% 0%,
-    rgba(182, 240, 156, 0.04),
+    var(--color-accent-04),
     transparent 70%
   );
 }
@@ -20,11 +19,11 @@
 .card {
   width: 100%;
   max-width: 360px;
-  border: 1px solid t.$border;
-  background: t.$bg-elev;
-  padding: t.$sp-7 t.$sp-7 t.$sp-6;
-  box-shadow: t.$shadow-3;
-  animation: pop-in t.$dur-base t.$ease both;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elev);
+  padding: var(--sp-7) var(--sp-7) var(--sp-6);
+  box-shadow: var(--shadow-3);
+  animation: pop-in var(--dur-base) var(--ease) both;
   position: relative;
 
   // 顶部一条 accent 高亮线（精致细节）
@@ -32,13 +31,13 @@
     content: '';
     position: absolute;
     top: -1px;
-    left: t.$sp-7;
-    right: t.$sp-7;
+    left: var(--sp-7);
+    right: var(--sp-7);
     height: 1px;
     background: linear-gradient(
       90deg,
       transparent,
-      t.$accent 50%,
+      var(--color-accent) 50%,
       transparent
     );
     opacity: 0.6;
@@ -46,48 +45,48 @@
 }
 
 .brand {
-  @include m.row-flex(t.$sp-2);
-  margin-bottom: t.$sp-6;
+  @include m.row-flex(var(--sp-2));
+  margin-bottom: var(--sp-6);
 }
 
 .brandDot {
   width: 6px;
   height: 6px;
-  background: t.$accent;
+  background: var(--color-accent);
   box-shadow:
-    0 0 4px rgba(182, 240, 156, 0.65),
-    0 0 12px rgba(182, 240, 156, 0.35),
-    0 0 24px rgba(182, 240, 156, 0.18);
-  animation: pulse 2s t.$ease infinite;
+    0 0 4px var(--color-accent-65),
+    0 0 12px var(--color-accent-35),
+    0 0 24px var(--color-accent-18);
+  animation: pulse 2s var(--ease) infinite;
 }
 
 .brandName {
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  letter-spacing: t.$tracking-wide;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
   font-weight: 500;
 }
 
 .title {
-  margin: 0 0 t.$sp-2;
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xl;
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xl);
   font-weight: 500;
-  color: t.$fg;
-  letter-spacing: t.$tracking-tight;
+  color: var(--color-fg);
+  letter-spacing: var(--tracking-tight);
 }
 
 .subtitle {
-  margin: 0 0 t.$sp-6;
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
-  line-height: t.$lh-loose;
+  margin: 0 0 var(--sp-6);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  line-height: var(--lh-loose);
 }
 
 .form {
-  @include m.col-flex(t.$sp-3);
+  @include m.col-flex(var(--sp-3));
 }
 
 .fieldLabel {
@@ -96,28 +95,28 @@
 }
 
 .input {
-  border: 1px solid t.$border;
-  background: t.$bg-input;
-  color: t.$fg;
-  padding: t.$sp-4 t.$sp-4;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-tight;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input);
+  color: var(--color-fg);
+  padding: var(--sp-4) var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-tight);
   outline: none;
-  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), box-shadow var(--dur-fast));
 
   &::placeholder {
-    color: t.$fg-low;
-    letter-spacing: t.$tracking-tight;
+    color: var(--color-fg-low);
+    letter-spacing: var(--tracking-tight);
   }
 
   &:hover:not(:disabled) {
-    border-color: t.$border-hi;
+    border-color: var(--color-border-hi);
   }
 
   &:focus-visible {
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 
   &:disabled {
@@ -127,26 +126,26 @@
 
 .error {
   margin: 0;
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  color: t.$alarm;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-alarm);
 }
 
 .submit {
   @include m.btn-reset;
-  margin-top: t.$sp-2;
-  padding: t.$sp-4 t.$sp-5;
-  background: t.$accent;
-  color: #0a0c0f;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  margin-top: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   font-weight: 600;
-  letter-spacing: t.$tracking-wide;
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  @include m.transition(background t.$dur-fast, opacity t.$dur-fast, transform t.$dur-snap);
+  @include m.transition(background var(--dur-fast), opacity var(--dur-fast), transform var(--dur-snap));
 
   &:hover:not(:disabled) {
-    background: color-mix(in srgb, t.$accent 92%, white 8%);
+    background: color-mix(in srgb, var(--color-accent) 92%, white 8%);
   }
 
   &:active:not(:disabled) {
@@ -161,9 +160,9 @@
 
 .divider {
   position: relative;
-  margin: t.$sp-6 0 t.$sp-5;
+  margin: var(--sp-6) 0 var(--sp-5);
   height: 1px;
-  background: t.$border;
+  background: var(--color-border);
 
   &::after {
     content: 'OR';
@@ -171,19 +170,19 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    background: t.$bg-elev;
-    padding: 0 t.$sp-3;
-    font-size: t.$fs-2xs;
-    letter-spacing: t.$tracking-wide;
-    color: t.$fg-low;
+    background: var(--color-bg-elev);
+    padding: 0 var(--sp-3);
+    font-size: var(--fs-2xs);
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-fg-low);
   }
 }
 
 .hint {
-  margin: t.$sp-4 0 0;
-  font-size: t.$fs-2xs;
-  line-height: t.$lh-loose;
-  color: t.$fg-low;
+  margin: var(--sp-4) 0 0;
+  font-size: var(--fs-2xs);
+  line-height: var(--lh-loose);
+  color: var(--color-fg-low);
   text-align: center;
 }
 
@@ -210,32 +209,32 @@
 // 「磷光熄灭」呼吸：50% 处变冷灰、辉光全灭，不是 opacity 淡出
 @keyframes pulse {
   0%, 100% {
-    background: t.$accent;
+    background: var(--color-accent);
     box-shadow:
-      0 0 4px rgba(182, 240, 156, 0.65),
-      0 0 12px rgba(182, 240, 156, 0.35),
-      0 0 24px rgba(182, 240, 156, 0.18);
+      0 0 4px var(--color-accent-65),
+      0 0 12px var(--color-accent-35),
+      0 0 24px var(--color-accent-18);
   }
   50% {
-    background: t.$fg-low;
+    background: var(--color-fg-low);
     box-shadow: none;
   }
 }
 
 .backBtn {
   @include m.btn-reset;
-  @include m.row-flex(t.$sp-2);
+  @include m.row-flex(var(--sp-2));
   align-self: flex-start;
-  padding: t.$sp-2 t.$sp-3;
-  margin-bottom: t.$sp-3;
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
-  border: 1px solid t.$border;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  border: 1px solid var(--color-border);
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast));
 
   &:hover {
-    color: t.$fg;
-    border-color: t.$border-hi;
+    color: var(--color-fg);
+    border-color: var(--color-border-hi);
   }
 }

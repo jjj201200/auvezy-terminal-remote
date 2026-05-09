@@ -1,20 +1,19 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .trigger {
   @include m.btn-reset;
-  @include m.row-flex(t.$sp-2);
-  padding: t.$sp-2 t.$sp-3;
+  @include m.row-flex(var(--sp-2));
+  padding: var(--sp-2) var(--sp-3);
   border: 0;
   background: transparent;
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
   // 用 hover 背景淡入 + active 缩放给交互反馈，不依赖边框
-  @include m.transition(color t.$dur-fast, background t.$dur-fast, transform t.$dur-fast);
+  @include m.transition(color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast));
 
   &:hover {
-    color: t.$fg;
-    background: t.$bg-hover;
+    color: var(--color-fg);
+    background: var(--color-bg-hover);
   }
 
   &:active {
@@ -23,7 +22,7 @@
 
   &:focus-visible {
     outline: none;
-    box-shadow: t.$shadow-focus;
+    box-shadow: var(--shadow-focus);
   }
 }
 
@@ -33,42 +32,42 @@
 }
 
 .triggerPort {
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xs;
-  color: t.$fg-low;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
 }
 
 .list {
-  @include m.col-flex(t.$sp-2);
+  @include m.col-flex(var(--sp-2));
 }
 
 // 多主机分段：HostGroupHeader 接 N 个 .item，再接下一个 host section
 .hostSection {
-  @include m.col-flex(t.$sp-2);
+  @include m.col-flex(var(--sp-2));
 }
 
 .item {
   @include m.btn-reset;
-  @include m.row-flex(t.$sp-3);
+  @include m.row-flex(var(--sp-3));
   justify-content: space-between;
-  padding: t.$sp-4;
-  border: 1px solid t.$border;
-  background: t.$bg-input;
+  padding: var(--sp-4);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input);
   text-align: left;
-  font-size: t.$fs-sm;
-  color: t.$fg-dim;
-  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+  font-size: var(--fs-sm);
+  color: var(--color-fg-dim);
+  @include m.transition(background var(--dur-fast), border-color var(--dur-fast));
 
   &:hover {
-    background: t.$bg-hover;
-    border-color: t.$border-hi;
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hi);
   }
 }
 
 .itemActive {
-  border-color: t.$accent;
-  background: t.$accent-soft;
-  color: t.$fg;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
 }
 
 .itemBody {
@@ -77,42 +76,42 @@
 }
 
 .itemName {
-  color: t.$fg;
+  color: var(--color-fg);
   @include m.truncate;
 }
 
 .itemCwd {
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
   // 完整可见，长路径折行不省略——这是详情功能未弹时让用户也能看到的核心信息
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
-  line-height: t.$lh-base;
+  line-height: var(--lh-base);
 }
 
 .itemPort {
-  margin-left: t.$sp-3;
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  color: t.$fg-low;
+  margin-left: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-low);
 }
 
 .create {
   @include m.btn-reset;
-  @include m.row-flex(t.$sp-2);
+  @include m.row-flex(var(--sp-2));
   justify-content: center;
-  padding: t.$sp-4;
-  border: 1px dashed t.$border;
-  color: t.$accent;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-tight;
-  @include m.transition(border-color t.$dur-fast, background t.$dur-fast);
+  padding: var(--sp-4);
+  border: 1px dashed var(--color-border);
+  color: var(--color-accent);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-tight);
+  @include m.transition(border-color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    border-color: t.$accent;
-    background: t.$accent-soft;
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
   }
 }
 
@@ -124,15 +123,15 @@
   width: 28px;
   height: 28px;
   margin-left: 8px;
-  color: t.$fg-low;
-  border: 1px solid t.$border;
+  color: var(--color-fg-low);
+  border: 1px solid var(--color-border);
   flex-shrink: 0;
-  @include m.transition(color t.$dur-fast, background t.$dur-fast, border-color t.$dur-fast);
+  @include m.transition(color var(--dur-fast), background var(--dur-fast), border-color var(--dur-fast));
 
   &:hover, &:active {
-    color: t.$warn;
-    border-color: t.$warn;
-    background: rgba(255, 99, 71, 0.08);
+    color: var(--color-warn);
+    border-color: var(--color-warn);
+    background: var(--color-alarm-08);
   }
 }
 
@@ -146,23 +145,23 @@
   width: 28px;
   height: 28px;
   margin-left: 8px;
-  color: t.$fg-dim;
-  border: 1px solid t.$border;
+  color: var(--color-fg-dim);
+  border: 1px solid var(--color-border);
   flex-shrink: 0;
   cursor: pointer;
-  @include m.transition(color t.$dur-fast, background t.$dur-fast, border-color t.$dur-fast);
+  @include m.transition(color var(--dur-fast), background var(--dur-fast), border-color var(--dur-fast));
 
   &:hover, &:active {
-    color: t.$accent;
-    border-color: t.$accent;
-    background: t.$accent-soft;
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
   }
 
   &:disabled {
-    color: t.$fg-low;
+    color: var(--color-fg-low);
     cursor: not-allowed;
     background: transparent;
-    border-color: t.$border;
+    border-color: var(--color-border);
   }
 }
 
@@ -179,8 +178,8 @@
 }
 
 .itemPendingFailed {
-  color: t.$warn;
-  border-color: t.$warn !important;
+  color: var(--color-warn);
+  border-color: var(--color-warn) !important;
   font-style: normal;
   opacity: 1;
 }

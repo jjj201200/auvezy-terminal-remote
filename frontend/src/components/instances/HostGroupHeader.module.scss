@@ -1,22 +1,21 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .row {
   display: flex;
   align-items: center;
-  gap: t.$sp-2;
-  padding: t.$sp-2 t.$sp-3;
-  border-bottom: 1px solid t.$border;
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xs;
-  letter-spacing: t.$tracking-wide;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: t.$fg-low;
+  color: var(--color-fg-low);
 
   &.compact {
-    padding: t.$sp-2 t.$sp-3;
+    padding: var(--sp-2) var(--sp-3);
     border-bottom: none;
-    border-top: 1px solid t.$border;
+    border-top: 1px solid var(--color-border);
 
     &:first-child {
       border-top: none;
@@ -25,12 +24,12 @@
 }
 
 .editing {
-  background: t.$bg-input;
+  background: var(--color-bg-input);
 }
 
 .nameBtn {
   @include m.btn-reset;
-  @include m.row-flex(t.$sp-2);
+  @include m.row-flex(var(--sp-2));
   flex: 1;
   min-width: 0;
   padding: 0;
@@ -40,16 +39,16 @@
   letter-spacing: inherit;
   text-transform: inherit;
   cursor: pointer;
-  @include m.transition(color t.$dur-fast);
+  @include m.transition(color var(--dur-fast));
 
   // 编辑铅笔默认隐形，hover 时浮出
   .editIcon {
     opacity: 0;
-    @include m.transition(opacity t.$dur-fast);
+    @include m.transition(opacity var(--dur-fast));
   }
 
   &:hover {
-    color: t.$fg-dim;
+    color: var(--color-fg-dim);
 
     .editIcon {
       opacity: 0.8;
@@ -60,7 +59,7 @@
 .host {
   @include m.truncate;
   flex-shrink: 0;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
 }
 
 // 当用户起了 alias 时同行小字显示原 host（避免"我连的哪台"丢失）
@@ -69,13 +68,13 @@
   font-size: 9px;
   text-transform: none;
   letter-spacing: normal;
-  color: t.$fg-low;
+  color: var(--color-fg-low);
   opacity: 0.7;
 }
 
 .editIcon {
   flex-shrink: 0;
-  color: t.$fg-low;
+  color: var(--color-fg-low);
 }
 
 // 编辑态 input：与 .row 的左右 padding 共用对齐基线，
@@ -84,17 +83,17 @@
   flex: 1;
   min-width: 0;
   border: none;
-  border-bottom: 1px solid t.$accent;
+  border-bottom: 1px solid var(--color-accent);
   background: transparent;
-  color: t.$fg;
+  color: var(--color-fg);
   padding: 2px 0;
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  letter-spacing: t.$tracking-tight;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-tight);
   outline: none;
 
   &::placeholder {
-    color: t.$fg-low;
+    color: var(--color-fg-low);
     text-transform: none;
     letter-spacing: normal;
   }
@@ -107,31 +106,31 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid t.$border;
-  color: t.$fg-dim;
+  border: 1px solid var(--color-border);
+  color: var(--color-fg-dim);
   background: transparent;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    color: t.$fg;
-    border-color: t.$border-hi;
-    background: t.$bg-hover;
+    color: var(--color-fg);
+    border-color: var(--color-border-hi);
+    background: var(--color-bg-hover);
   }
 }
 
 .resetBtn {
   @include m.btn-reset;
-  padding: 2px t.$sp-2;
-  border: 1px solid t.$border;
-  color: t.$fg-low;
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xs;
+  padding: 2px var(--sp-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-fg-low);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
   background: transparent;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast);
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast));
 
   &:hover {
-    color: t.$warn;
-    border-color: t.$warn;
+    color: var(--color-warn);
+    border-color: var(--color-warn);
   }
 }
 
@@ -141,6 +140,6 @@
   font-size: 9px;
   text-transform: none;
   letter-spacing: normal;
-  color: t.$alarm;
+  color: var(--color-alarm);
   padding-top: 2px;
 }

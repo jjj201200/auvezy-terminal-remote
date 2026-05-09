@@ -1,25 +1,24 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 @use '../../styles/qr-input-mixins' as qr;
 
 .form {
-  @include m.col-flex(t.$sp-5);
+  @include m.col-flex(var(--sp-5));
 }
 
 .field {
-  @include m.col-flex(t.$sp-2);
+  @include m.col-flex(var(--sp-2));
 }
 
 .fieldLabel {
   @include m.caps;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
 }
 
 .error {
   margin: 0;
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  color: t.$alarm;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-alarm);
 }
 
 // cwd 输入框 + 下拉历史 anchor 容器
@@ -33,9 +32,9 @@
   left: 0;
   right: 0;
   z-index: 10;
-  border: 1px solid t.$border;
-  background: hsla(216, 16%, 6%, 1);
-  box-shadow: t.$shadow-3;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elev-solid);
+  box-shadow: var(--shadow-3);
   max-height: 240px;
   overflow-y: auto;
   display: flex;
@@ -45,38 +44,38 @@
 .recentHeader {
   display: flex;
   align-items: center;
-  gap: t.$sp-2;
-  padding: t.$sp-2 t.$sp-3;
-  font-size: t.$fs-2xs;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-2xs);
   text-transform: uppercase;
-  letter-spacing: t.$tracking-tight;
-  color: t.$fg-low;
-  border-bottom: 1px solid t.$border;
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-fg-low);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .recentEmpty {
-  padding: t.$sp-3;
+  padding: var(--sp-3);
   text-align: center;
-  color: t.$fg-low;
-  font-size: t.$fs-xs;
+  color: var(--color-fg-low);
+  font-size: var(--fs-xs);
   font-style: italic;
 }
 
 .recentItem {
   display: flex;
   align-items: center;
-  gap: t.$sp-2;
-  padding: t.$sp-2 t.$sp-3;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   cursor: pointer;
-  font-size: t.$fs-xs;
-  color: t.$fg;
+  font-size: var(--fs-xs);
+  color: var(--color-fg);
 
   &:hover, &:focus {
-    background: t.$bg-hover;
+    background: var(--color-bg-hover);
   }
   // 点击高亮反馈：mousedown / 键盘 active
   &:active {
-    background: t.$accent-soft;
+    background: var(--color-accent-soft);
   }
 }
 
@@ -89,16 +88,16 @@
 }
 
 .recentCwd {
-  font-family: t.$font-mono;
-  color: t.$fg;
+  font-family: var(--font-mono);
+  color: var(--color-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .recentName {
-  font-size: t.$fs-2xs;
-  color: t.$fg-dim;
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -113,44 +112,44 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  color: t.$fg-low;
+  color: var(--color-fg-low);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color t.$dur-fast;
+  transition: color var(--dur-fast);
 
   &:hover {
-    color: t.$warn;
+    color: var(--color-warn);
   }
 }
 
 .cancelBtn {
   @include m.btn-reset;
-  padding: t.$sp-3 t.$sp-5;
-  border: 1px solid t.$border;
+  padding: var(--sp-3) var(--sp-5);
+  border: 1px solid var(--color-border);
   background: transparent;
-  color: t.$fg;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-tight;
-  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+  color: var(--color-fg);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-tight);
+  @include m.transition(background var(--dur-fast), border-color var(--dur-fast));
 
   &:hover {
-    background: t.$bg-hover;
-    border-color: t.$border-hi;
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hi);
   }
 }
 
 .submitBtn {
   @include m.btn-reset;
-  padding: t.$sp-3 t.$sp-5;
-  background: t.$accent;
-  color: #0a0c0f;
-  font-size: t.$fs-sm;
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--fs-sm);
   font-weight: 500;
-  letter-spacing: t.$tracking-tight;
-  @include m.transition(background t.$dur-fast, opacity t.$dur-fast);
+  letter-spacing: var(--tracking-tight);
+  @include m.transition(background var(--dur-fast), opacity var(--dur-fast));
 
   &:hover:not(:disabled) {
-    background: color-mix(in srgb, t.$accent 92%, white 8%);
+    background: color-mix(in srgb, var(--color-accent) 92%, white 8%);
   }
 
   &:disabled {
@@ -163,9 +162,9 @@
 
 .divider {
   position: relative;
-  margin: t.$sp-3 0 t.$sp-1;
+  margin: var(--sp-3) 0 var(--sp-1);
   height: 1px;
-  background: t.$border;
+  background: var(--color-border);
 
   &::after {
     content: 'OR';
@@ -173,16 +172,16 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    background: t.$bg-elev;
-    padding: 0 t.$sp-3;
-    font-size: t.$fs-2xs;
-    letter-spacing: t.$tracking-wide;
-    color: t.$fg-low;
+    background: var(--color-bg-elev);
+    padding: 0 var(--sp-3);
+    font-size: var(--fs-2xs);
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-fg-low);
   }
 }
 
 .altSection {
-  @include m.col-flex(t.$sp-3);
+  @include m.col-flex(var(--sp-3));
 }
 
 .altHeader {
@@ -191,17 +190,17 @@
 }
 
 .altTitle {
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  letter-spacing: t.$tracking-wide;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
 }
 
 .altHint {
-  font-size: t.$fs-2xs;
-  color: t.$fg-low;
-  line-height: t.$lh-loose;
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
+  line-height: var(--lh-loose);
 }
 
 .altActions { @include qr.qr-alt-actions; }
@@ -210,27 +209,27 @@
 // ──────────────── 阶段 1：方式选择 ────────────────
 
 .methods {
-  @include m.col-flex(t.$sp-3);
+  @include m.col-flex(var(--sp-3));
 }
 
 .methodHeader {
   @include m.col-flex(2px);
   text-align: center;
-  margin-bottom: t.$sp-2;
+  margin-bottom: var(--sp-2);
 }
 
 .methodTitle {
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  letter-spacing: t.$tracking-wide;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
 }
 
 .methodHint {
-  font-size: t.$fs-2xs;
-  color: t.$fg-low;
-  line-height: t.$lh-loose;
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
+  line-height: var(--lh-loose);
 }
 
 .methodCard {
@@ -238,18 +237,18 @@
   display: grid;
   grid-template-columns: 28px 1fr;
   align-items: center;
-  gap: t.$sp-3;
-  padding: t.$sp-3 t.$sp-4;
-  border: 1px solid t.$border;
-  background: t.$bg;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   text-align: left;
-  color: t.$fg;
+  color: var(--color-fg);
   cursor: pointer;
-  @include m.transition(border-color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    border-color: t.$accent;
-    background: t.$bg-hover;
+    border-color: var(--color-accent);
+    background: var(--color-bg-hover);
   }
 }
 
@@ -257,10 +256,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
 
   .methodCard:hover & {
-    color: t.$accent;
+    color: var(--color-accent);
   }
 }
 
@@ -272,15 +271,15 @@
 }
 
 .methodLabel {
-  font-size: t.$fs-sm;
-  color: t.$fg;
-  letter-spacing: t.$tracking-tight;
+  font-size: var(--fs-sm);
+  color: var(--color-fg);
+  letter-spacing: var(--tracking-tight);
 }
 
 .methodDesc {
-  font-size: t.$fs-2xs;
-  color: t.$fg-low;
-  line-height: t.$lh-loose;
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
+  line-height: var(--lh-loose);
 }
 
 // ──────────────── 阶段 2-A：form 模式的 host 选择器 ────────────────
@@ -289,25 +288,25 @@
   @include m.btn-reset;
   appearance: none;
   width: 100%;
-  padding: t.$sp-2 t.$sp-3;
-  border: 1px solid t.$border;
-  background: t.$bg;
-  color: t.$fg;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   cursor: pointer;
-  @include m.transition(border-color t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast));
 
   &:hover, &:focus {
-    border-color: t.$border-hi;
+    border-color: var(--color-border-hi);
   }
 }
 
 .hostNote {
   margin: 0;
-  font-size: t.$fs-2xs;
-  color: t.$fg-low;
-  line-height: t.$lh-loose;
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
+  line-height: var(--lh-loose);
 }
 
 // 白名单为空时的醒目警告横幅
@@ -315,13 +314,13 @@
   margin: 0;
   display: flex;
   align-items: flex-start;
-  gap: t.$sp-2;
-  padding: t.$sp-3;
-  border: 1px solid t.$warn;
-  background: color-mix(in srgb, t.$warn 12%, transparent);
-  color: t.$warn;
-  font-size: t.$fs-2xs;
-  line-height: t.$lh-loose;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--color-warn);
+  background: color-mix(in srgb, var(--color-warn) 12%, transparent);
+  color: var(--color-warn);
+  font-size: var(--fs-2xs);
+  line-height: var(--lh-loose);
 
   > svg {
     flex-shrink: 0;
@@ -332,16 +331,16 @@
 // "返回方式选择"按钮（form/scan/url 模式 footer 复用）
 .backBtn {
   @include m.btn-reset;
-  padding: t.$sp-3 t.$sp-5;
-  border: 1px solid t.$border;
+  padding: var(--sp-3) var(--sp-5);
+  border: 1px solid var(--color-border);
   background: transparent;
-  color: t.$fg-dim;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-tight;
-  @include m.transition(background t.$dur-fast, color t.$dur-fast);
+  color: var(--color-fg-dim);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-tight);
+  @include m.transition(background var(--dur-fast), color var(--dur-fast));
 
   &:hover {
-    background: t.$bg-hover;
-    color: t.$fg;
+    background: var(--color-bg-hover);
+    color: var(--color-fg);
   }
 }

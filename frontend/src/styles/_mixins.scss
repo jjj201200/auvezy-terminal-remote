@@ -2,18 +2,16 @@
 // 通用 mixin
 // ============================================================
 
-@use 'sass:color';
 @use 'sass:list';
 @use 'sass:meta';
-@use 'tokens' as t;
 
-@mixin row-flex($gap: t.$sp-3) {
+@mixin row-flex($gap: var(--sp-3)) {
   display: flex;
   align-items: center;
   gap: $gap;
 }
 
-@mixin col-flex($gap: t.$sp-3) {
+@mixin col-flex($gap: var(--sp-3)) {
   display: flex;
   flex-direction: column;
   gap: $gap;
@@ -32,7 +30,7 @@
   -webkit-touch-callout: none;
 }
 
-@mixin focus-ring($color: t.$accent) {
+@mixin focus-ring($color: var(--color-accent)) {
   outline: none;
   &:focus-visible {
     box-shadow: 0 0 0 1px $color;
@@ -41,11 +39,11 @@
 
 // transition mixin（支持两种写法）：
 //
-// 1) 单条 shorthand：@include m.transition(color, t.$dur-fast, t.$ease)
+// 1) 单条 shorthand：@include m.transition(color, var(--dur-fast), var(--ease))
 //    → 等价 transition: color 120ms cubic-bezier(...);
 //
 // 2) 多条 shorthand 用逗号分隔（每条自带 dur/ease）：
-//    @include m.transition(color t.$dur-fast t.$ease, border-color t.$dur-fast t.$ease)
+//    @include m.transition(color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease))
 //    → 等价 transition: color 120ms ..., border-color 120ms ...;
 //
 // 实现：用变长参数 $args... 接所有参数，再用 list.length 判分支
@@ -57,7 +55,7 @@
   // 判 #2：单参数（无 dur 无 ease）→ 用默认值
   // 判 #3：3 参数版（props, dur, ease）
   @if $count == 1 and meta.type-of($first) != 'list' {
-    transition: $first t.$dur-fast t.$ease;
+    transition: $first var(--dur-fast) var(--ease);
   } @else if $count == 3 and meta.type-of($first) != 'list' {
     transition: list.nth($args, 1) list.nth($args, 2) list.nth($args, 3);
   } @else {
@@ -67,9 +65,9 @@
       // 没自带 ease 就补默认 ease
       $len: list.length($shorthand);
       @if $len == 2 {
-        $shorthand: list.append($shorthand, t.$ease, $separator: space);
+        $shorthand: list.append($shorthand, var(--ease), $separator: space);
       } @else if $len == 1 {
-        $shorthand: list.append(list.append($shorthand, t.$dur-fast, $separator: space), t.$ease, $separator: space);
+        $shorthand: list.append(list.append($shorthand, var(--dur-fast), $separator: space), var(--ease), $separator: space);
       }
       $out: list.append($out, $shorthand, $separator: comma);
     }
@@ -103,9 +101,9 @@
 }
 
 @mixin glass-overlay {
-  background: t.$overlay-bg;
-  backdrop-filter: t.$overlay-blur;
-  -webkit-backdrop-filter: t.$overlay-blur;
+  background: var(--color-overlay-bg);
+  backdrop-filter: var(--overlay-blur);
+  -webkit-backdrop-filter: var(--overlay-blur);
 }
 
 @mixin mobile {
@@ -119,20 +117,20 @@
 // 大写小标题（间距更宽）
 @mixin caps {
   text-transform: uppercase;
-  letter-spacing: t.$tracking-wide;
-  font-size: t.$fs-2xs;
-  color: t.$fg-dim;
+  letter-spacing: var(--tracking-wide);
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-dim);
   font-weight: 500;
 }
 
 // 工业级阴影（按层级）
 @mixin elevated($level: 2) {
   @if $level == 1 {
-    box-shadow: t.$shadow-1;
+    box-shadow: var(--shadow-1);
   } @else if $level == 2 {
-    box-shadow: t.$shadow-2;
+    box-shadow: var(--shadow-2);
   } @else if $level == 3 {
-    box-shadow: t.$shadow-3;
+    box-shadow: var(--shadow-3);
   }
 }
 
@@ -144,32 +142,27 @@
 //   3. 远距 12px：扩散柔光
 // 三层透明度递减，模拟磷光衰减曲线。
 //
-// 默认是 accent（磷光绿），但接受任意颜色 —— warn / error / 自定义都可以发光。
-// 用 sass color.channel 把 hex 拆成 r/g/b，再用 rgba 注入透明度。
+// 接受 CSS 颜色值 —— 推荐传 var(--color-accent) / var(--color-warn) 等
+// CSS 变量。用 CSS 相对颜色语法 rgb(from <c> r g b / <a>) 注入 alpha，
+// 不再依赖 SCSS 编译期 color.channel —— 调用方传任何运行时色都能正常工作。
 //
 // 用法：
-//   color: t.$warn;
-//   @include t.phosphor-glow(t.$warn);
+//   color: var(--color-warn);
+//   @include m.phosphor-glow(var(--color-warn));
 //
 // 注意：仅给小面积关键文字用（标题、状态值、tag），大段正文加会模糊难读。
-@mixin phosphor-glow($color: #b6f09c) {
-  $r: color.channel($color, 'red', $space: rgb);
-  $g: color.channel($color, 'green', $space: rgb);
-  $b: color.channel($color, 'blue', $space: rgb);
+@mixin phosphor-glow($color: var(--color-accent)) {
   text-shadow:
-    0 0 0.3px rgba($r, $g, $b, 0.65),
-    0 0 4px   rgba($r, $g, $b, 0.45),
-    0 0 12px  rgba($r, $g, $b, 0.18);
+    0 0 0.3px rgb(from #{$color} r g b / 0.65),
+    0 0 4px   rgb(from #{$color} r g b / 0.45),
+    0 0 12px  rgb(from #{$color} r g b / 0.18);
 }
 
 // 磷光元素（图标、小色块）的辉光：用 filter drop-shadow，比 box-shadow 更贴形状
-@mixin phosphor-glow-shape($color: #b6f09c) {
-  $r: color.channel($color, 'red', $space: rgb);
-  $g: color.channel($color, 'green', $space: rgb);
-  $b: color.channel($color, 'blue', $space: rgb);
+@mixin phosphor-glow-shape($color: var(--color-accent)) {
   filter:
-    drop-shadow(0 0 2px rgba($r, $g, $b, 0.5))
-    drop-shadow(0 0 6px rgba($r, $g, $b, 0.25));
+    drop-shadow(0 0 2px rgb(from #{$color} r g b / 0.5))
+    drop-shadow(0 0 6px rgb(from #{$color} r g b / 0.25));
 }
 
 // 微妙渐变边框（B 系精致细节）

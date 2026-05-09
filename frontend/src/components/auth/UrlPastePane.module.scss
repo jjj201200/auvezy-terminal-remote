@@ -1,4 +1,3 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 @use '../../styles/qr-input-mixins' as qr;
 
@@ -7,19 +6,19 @@
 .ghostBtn   { @include qr.qr-ghost-button; }
 
 .title {
-  margin: 0 0 t.$sp-2;
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xl;
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xl);
   font-weight: 500;
-  color: t.$fg;
-  letter-spacing: t.$tracking-tight;
+  color: var(--color-fg);
+  letter-spacing: var(--tracking-tight);
 }
 
 .subtitle {
-  margin: 0 0 t.$sp-3;
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
-  line-height: t.$lh-loose;
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  line-height: var(--lh-loose);
 }
 
 .fieldLabel {
@@ -28,28 +27,28 @@
 }
 
 .input {
-  border: 1px solid t.$border;
-  background: t.$bg-input;
-  color: t.$fg;
-  padding: t.$sp-4 t.$sp-4;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-tight;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input);
+  color: var(--color-fg);
+  padding: var(--sp-4) var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-tight);
   outline: none;
-  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), box-shadow var(--dur-fast));
 
   &::placeholder {
-    color: t.$fg-low;
-    letter-spacing: t.$tracking-tight;
+    color: var(--color-fg-low);
+    letter-spacing: var(--tracking-tight);
   }
 
   &:hover:not(:disabled) {
-    border-color: t.$border-hi;
+    border-color: var(--color-border-hi);
   }
 
   &:focus-visible {
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 
   &:disabled {
@@ -59,19 +58,19 @@
 
 .submit {
   @include m.btn-reset;
-  padding: t.$sp-4 t.$sp-5;
-  background: t.$accent;
-  color: #0a0c0f;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   font-weight: 600;
-  letter-spacing: t.$tracking-wide;
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   min-height: 44px;
-  @include m.transition(background t.$dur-fast, opacity t.$dur-fast, transform t.$dur-snap);
+  @include m.transition(background var(--dur-fast), opacity var(--dur-fast), transform var(--dur-snap));
 
   &:hover:not(:disabled) {
-    background: color-mix(in srgb, t.$accent 92%, white 8%);
+    background: color-mix(in srgb, var(--color-accent) 92%, white 8%);
   }
 
   &:active:not(:disabled) {
@@ -86,9 +85,9 @@
 
 .error {
   margin: 0;
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  color: t.$alarm;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-alarm);
 }
 
 @include qr.qr-keyframes;

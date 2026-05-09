@@ -1,4 +1,3 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 // ──────────────── 共享 overlay（高斯模糊）────────────────
@@ -11,11 +10,11 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: t.$z-overlay;
+  z-index: var(--z-overlay);
   @include m.glass-overlay;
-  animation: fade-in t.$dur-modal t.$ease both;
+  animation: fade-in var(--dur-modal) var(--ease) both;
   &[data-state='closed'] {
-    animation: fade-out t.$dur-modal t.$ease both;
+    animation: fade-out var(--dur-modal) var(--ease) both;
   }
 }
 
@@ -25,7 +24,7 @@
 .overlayMobile {
   position: fixed;
   inset: 0;
-  z-index: t.$z-overlay;
+  z-index: var(--z-overlay);
   @include m.glass-overlay;
 }
 
@@ -35,7 +34,7 @@
   position: fixed;
   left: 50%;
   top: 50%;
-  z-index: t.$z-modal;
+  z-index: var(--z-modal);
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -44,12 +43,12 @@
   height: 80dvh;
   max-height: 720px;
   transform: translate(-50%, -50%);
-  background: t.$bg-elev;
+  background: var(--color-bg-elev);
   outline: none;
-  box-shadow: t.$shadow-3;
-  animation: pop-in t.$dur-modal t.$ease both;
+  box-shadow: var(--shadow-3);
+  animation: pop-in var(--dur-modal) var(--ease) both;
   &[data-state='closed'] {
-    animation: pop-out t.$dur-modal t.$ease both;
+    animation: pop-out var(--dur-modal) var(--ease) both;
   }
 
   // 抽屉内默认全部禁止文字选中：避免拖拽 / 长按时把无关文字"刷蓝"，
@@ -71,15 +70,15 @@
   position: fixed;
   inset-inline: 0;
   bottom: 0;
-  z-index: t.$z-modal;
+  z-index: var(--z-modal);
   display: flex;
   flex-direction: column;
   // 容器位置 / 高度保持稳定（变化会被 vaul 误识别为 drag-to-dismiss），
   // 让 input 可见的责任交给 .body 的 padding-bottom（见下方）
   height: 88dvh;
-  background: t.$bg-elev;
+  background: var(--color-bg-elev);
   outline: none;
-  box-shadow: t.$shadow-3;
+  box-shadow: var(--shadow-3);
 
   // 抽屉内默认禁止文字选中：避免列表 / 长文案在拖拽时被"刷蓝"
   // 也避免 vaul 把"长按选词"误当成拖拽手势
@@ -96,21 +95,21 @@
 }
 
 .drawerGrip {
-  margin: t.$sp-3 auto t.$sp-2;
+  margin: var(--sp-3) auto var(--sp-2);
   height: 3px;
   width: 32px;
   flex-shrink: 0;
-  border-radius: t.$radius-pill;
-  background: t.$border-hi;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-hi);
 }
 
 // ──────────────── 头部 / 内容 / 底部 ────────────────
 
 .header {
-  @include m.row-flex(t.$sp-3);
+  @include m.row-flex(var(--sp-3));
   justify-content: space-between;
-  padding: t.$sp-3 t.$sp-5;
-  border-bottom: 1px solid t.$border;
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid var(--color-border);
   min-height: 36px;
 }
 
@@ -118,8 +117,8 @@
 // 关键：min-width: 0 + flex: 1 让 ScrollableTabs 容器真正受限于剩余宽度，
 // 否则它会按内容撑出去把 close 推出 modal 边界
 .headerWithTabs {
-  padding-left: t.$sp-3;  // tabs 自带按钮内 padding，外层缩一点更紧凑
-  padding-right: t.$sp-3;
+  padding-left: var(--sp-3);  // tabs 自带按钮内 padding，外层缩一点更紧凑
+  padding-right: var(--sp-3);
 }
 
 .headerTabs {
@@ -136,15 +135,15 @@
 }
 
 .headerMobile {
-  padding: t.$sp-2 t.$sp-4;
+  padding: var(--sp-2) var(--sp-4);
 }
 
 .title {
-  font-family: t.$font-mono;
-  font-size: t.$fs-md;
-  color: t.$fg;
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  color: var(--color-fg);
   font-weight: 500;
-  letter-spacing: t.$tracking-tight;
+  letter-spacing: var(--tracking-tight);
   // 避免与 headerExtra 抢空间导致 tabs 溢出 modal 边界
   flex-shrink: 0;
   white-space: nowrap;
@@ -152,15 +151,15 @@
 
 .close {
   @include m.btn-reset;
-  padding: t.$sp-2;
-  color: t.$fg-dim;
-  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+  padding: var(--sp-2);
+  color: var(--color-fg-dim);
+  @include m.transition(color var(--dur-fast), background var(--dur-fast));
   width: 24px;
   height: 24px;
 
   &:hover {
-    color: t.$fg;
-    background: t.$bg-hover;
+    color: var(--color-fg);
+    background: var(--color-bg-hover);
   }
 }
 
@@ -169,7 +168,7 @@
   overflow-y: auto;
   // 键盘弹起时（移动端 drawer），padding-bottom 给键盘让出空间，
   // 使内部 input scrollIntoView 后能停在键盘以上
-  padding: t.$sp-5 t.$sp-6 calc(t.$sp-5 + var(--vv-bottom, 0px));
+  padding: var(--sp-5) var(--sp-6) calc(var(--sp-5) + var(--vv-bottom, 0px));
   // input 聚焦后浏览器调用 scrollIntoView 时给底部留余量
   scroll-padding-bottom: calc(96px + var(--vv-bottom, 0px));
   // 即使外层是 overflow: hidden，body 自身也允许触摸惯性滚动
@@ -177,14 +176,14 @@
 }
 
 .footer {
-  @include m.row-flex(t.$sp-3);
+  @include m.row-flex(var(--sp-3));
   justify-content: flex-end;
-  padding: t.$sp-4 t.$sp-6;
-  border-top: 1px solid t.$border;
+  padding: var(--sp-4) var(--sp-6);
+  border-top: 1px solid var(--color-border);
 }
 
 .footerMobile {
-  @include m.safe-bottom(t.$sp-5);
+  @include m.safe-bottom(var(--sp-5));
 }
 
 .srOnly {

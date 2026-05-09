@@ -1,4 +1,3 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 // ──────────────── 按钮基础（语义占位） ────────────────
@@ -16,12 +15,12 @@
 
 // 仅按下的那个按钮发光；其它兄弟按钮不变
 .pressing {
-  border-color: t.$accent !important;
-  background: t.$accent-soft !important;
-  color: t.$accent !important;
+  border-color: var(--color-accent) !important;
+  background: var(--color-accent-soft) !important;
+  color: var(--color-accent) !important;
   @include m.phosphor-glow;
   // 给按钮一点向外的辉光，与边框区分开
-  box-shadow: 0 0 12px rgba(182, 240, 156, 0.42);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent) 42%, transparent);
   // 防止 iOS 长按弹出复制菜单
   -webkit-user-select: none;
   user-select: none;
@@ -33,7 +32,7 @@
 .layer {
   position: fixed;
   inset: 0;
-  z-index: t.$z-modal;
+  z-index: var(--z-modal);
   pointer-events: none;
 }
 
@@ -44,12 +43,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: t.$bg-elev;
-  border: 1px solid t.$accent;
-  color: t.$accent;
-  font-family: t.$font-mono;
-  font-size: t.$fs-md;
-  letter-spacing: t.$tracking-tight;
+  background: var(--color-bg-elev);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  letter-spacing: var(--tracking-tight);
   white-space: nowrap;
   // 该层接收 pointer 事件 → 落在它上面 = armed=true
   pointer-events: auto;
@@ -59,21 +58,21 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 8px 24px rgba(0, 0, 0, 0.45),
-    0 0 8px rgba(182, 240, 156, 0.18);
+    0 0 8px var(--color-accent-18);
   @include m.phosphor-glow;
-  @include m.transition(background t.$dur-fast, box-shadow t.$dur-fast, transform t.$dur-fast);
+  @include m.transition(background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast));
 }
 
 // 已武装：手指落在确认按钮上 → 强磷光，提示松开即发送
 .confirmArmed {
-  background: t.$accent;
-  color: #0a0c0f;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
   text-shadow: none;
   transform: translateY(-2px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     0 12px 28px rgba(0, 0, 0, 0.5),
-    0 0 18px rgba(182, 240, 156, 0.65);
+    0 0 18px var(--color-accent-65);
 }
 
 // ──────────────── 说明气泡 ────────────────
@@ -81,13 +80,13 @@
 .bubble {
   position: fixed;
   max-width: 240px;
-  padding: t.$sp-2 t.$sp-3;
-  background: t.$bg-elev;
-  border: 1px solid t.$border-hi;
-  color: t.$fg-dim;
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xs;
-  line-height: t.$lh-loose;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--color-bg-elev);
+  border: 1px solid var(--color-border-hi);
+  color: var(--color-fg-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  line-height: var(--lh-loose);
   white-space: normal;
   word-break: break-word;
   pointer-events: none;
@@ -103,9 +102,9 @@
     bottom: -4px;
     width: 6px;
     height: 6px;
-    background: t.$bg-elev;
-    border-right: 1px solid t.$border-hi;
-    border-bottom: 1px solid t.$border-hi;
+    background: var(--color-bg-elev);
+    border-right: 1px solid var(--color-border-hi);
+    border-bottom: 1px solid var(--color-border-hi);
     transform: translateX(-50%) rotate(45deg);
   }
 }

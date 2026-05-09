@@ -1,31 +1,30 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .wrap {
-  @include m.col-flex(t.$sp-2);
+  @include m.col-flex(var(--sp-2));
   min-width: 0;
   flex: 1;
 }
 
 .input {
   width: 100%;
-  border: 1px solid t.$border;
-  background: t.$bg-input;
-  color: t.$fg;
-  padding: t.$sp-3 t.$sp-4;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  line-height: t.$lh-tight;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input);
+  color: var(--color-fg);
+  padding: var(--sp-3) var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
   outline: none;
-  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), box-shadow var(--dur-fast));
 
   &:hover:not(:disabled) {
-    border-color: t.$border-hi;
+    border-color: var(--color-border-hi);
   }
 
   &:focus-visible {
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 
   &:disabled {
@@ -35,21 +34,21 @@
 }
 
 .mono {
-  font-family: t.$font-mono;
+  font-family: var(--font-mono);
 }
 
 .errored {
-  border-color: t.$alarm;
+  border-color: var(--color-alarm);
 
   &:focus-visible {
-    border-color: t.$alarm;
-    box-shadow: 0 0 0 1px t.$alarm;
+    border-color: var(--color-alarm);
+    box-shadow: 0 0 0 1px var(--color-alarm);
   }
 }
 
 .helper {
-  font-size: t.$fs-xs;
-  color: t.$fg-low;
+  font-size: var(--fs-xs);
+  color: var(--color-fg-low);
 }
 
 // 清空按钮容器：让 input 与 × 按钮共占同一行；按钮绝对定位在 input 右内侧
@@ -76,18 +75,18 @@
   height: 20px;
   border: none;
   background: transparent;
-  color: t.$fg-low;
+  color: var(--color-fg-low);
   cursor: pointer;
   border-radius: 2px;
-  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    color: t.$fg;
-    background: t.$bg-hover;
+    color: var(--color-fg);
+    background: var(--color-bg-hover);
   }
 }
 
 .error {
-  font-size: t.$fs-xs;
-  color: t.$alarm;
+  font-size: var(--fs-xs);
+  color: var(--color-alarm);
 }

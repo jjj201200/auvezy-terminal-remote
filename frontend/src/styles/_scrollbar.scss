@@ -2,7 +2,6 @@
 // 全局滚动条（精致细条 / 暗色 / 无圆角）
 // ============================================================
 
-@use 'tokens' as t;
 @use 'mixins' as m;
 
 @include m.desktop {
@@ -14,14 +13,14 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: t.$border-hi;
+    background: var(--color-border-hi);
     border: 2px solid transparent;
     background-clip: padding-box;
     border-radius: 0;
-    @include m.transition(background t.$dur-fast);
+    @include m.transition(background var(--dur-fast));
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: t.$fg-low;
+    background: var(--color-fg-low);
     background-clip: padding-box;
   }
   *::-webkit-scrollbar-corner {
@@ -30,7 +29,7 @@
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: t.$border-hi transparent;
+    scrollbar-color: var(--color-border-hi) transparent;
   }
 }
 

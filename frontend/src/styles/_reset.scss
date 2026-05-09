@@ -2,8 +2,6 @@
 // 极小 reset
 // ============================================================
 
-@use 'tokens' as t;
-
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -30,20 +28,21 @@ html, body {
 
 body {
   margin: 0;
-  background: t.$bg;
-  color: t.$fg;
-  font-family: t.$font-mono;        // 全局默认 mono（终端身份）
-  font-size: t.$fs-md;
-  line-height: t.$lh-base;
-  letter-spacing: t.$tracking-normal;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-mono);        // 全局默认 mono（终端身份）
+  font-size: var(--fs-md);
+  line-height: var(--lh-base);
+  letter-spacing: var(--tracking-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 
-  // 极弱径向高光（顶部偏亮，营造空间感）
+  // 极弱径向高光（顶部偏亮，营造空间感）。
+  // alpha 0.025 太低没必要预生成 token，直接 color-mix 注入
   background-image: radial-gradient(
     ellipse 80% 60% at 50% -10%,
-    rgba(182, 240, 156, 0.025),
+    color-mix(in srgb, var(--color-accent) 2.5%, transparent),
     transparent 70%
   );
 }
@@ -60,7 +59,7 @@ button, input, textarea, select {
 }
 
 a {
-  color: t.$accent;
+  color: var(--color-accent);
   text-decoration: none;
 }
 a:hover {
@@ -75,8 +74,8 @@ body[data-keyboard='true'] .hide-on-keyboard {
 
 // 选区
 ::selection {
-  background: t.$accent-soft;
-  color: t.$fg;
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
 }
 
 // 默认 focus 无 outline（focus-visible 由组件控制）
@@ -84,6 +83,6 @@ body[data-keyboard='true'] .hide-on-keyboard {
 
 // 占位符
 ::placeholder {
-  color: t.$fg-low;
+  color: var(--color-fg-low);
   opacity: 1;
 }

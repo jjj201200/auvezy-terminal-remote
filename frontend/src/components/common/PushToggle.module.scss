@@ -1,34 +1,33 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .root {
-  @include m.col-flex(t.$sp-4);
+  @include m.col-flex(var(--sp-4));
 }
 
 .head {
-  @include m.row-flex(t.$sp-3);
+  @include m.row-flex(var(--sp-3));
 }
 
 .headDesc {
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
-  line-height: t.$lh-base;
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  line-height: var(--lh-base);
 }
 
 .btn {
   @include m.btn-reset;
   align-self: flex-start;
-  padding: t.$sp-3 t.$sp-5;
-  border: 1px solid t.$border;
-  background: t.$bg-input;
-  color: t.$fg;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-tight;
-  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+  padding: var(--sp-3) var(--sp-5);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input);
+  color: var(--color-fg);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-tight);
+  @include m.transition(background var(--dur-fast), border-color var(--dur-fast));
 
   &:hover:not(:disabled) {
-    background: t.$bg-hover;
-    border-color: t.$border-hi;
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hi);
   }
 
   &:disabled {
@@ -38,6 +37,6 @@
 }
 
 .error {
-  font-size: t.$fs-xs;
-  color: t.$alarm;
+  font-size: var(--fs-xs);
+  color: var(--color-alarm);
 }

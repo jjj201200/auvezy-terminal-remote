@@ -8,18 +8,30 @@
 //   - 工业级阴影（顶部高光 + 长投影 + 蚀刻边）
 //   - 100% 直角，无圆角
 //
-// 双轨制：
-//   SCSS 变量（$xxx）—— 编译期常量，组件 SCSS 用
-//   CSS 变量（--xxx）—— 运行期可读，给 inline style / JS / 第三方主题用
+// ─── 双轨制（原则）───────────────────────────────────────────
+//
+// 我们以 **CSS 自定义属性 (var(--xxx))** 为主导：
+//   - 浏览器 DevTools 可直接看到、修改、调试
+//   - 主题切换 / 媒体查询 / 容器查询 都能动态响应
+//   - 减小 CSS 体积（var() 是引用，不会内联展开）
+//
+// SCSS 变量（$xxx）只在 **编译期必须** 的地方保留：
+//   - @mixin 的默认参数（如 `@mixin row-flex($gap: $sp-3)` 必须编译期常量）
+//   - 字体 fallback 链 / 复合 shadow（多行 tuple 写在 var 里也不优雅）
+//   - 不再让组件 SCSS 直接用 t.$xxx —— 一律改用 var(--xxx)
+//
+// 大原则：**新写组件样式时，永远用 var(--xxx)；SCSS 变量是 mixin 内部的
+// 实现细节**。这条原则让浏览器调试体验最佳。
 // ============================================================
 
 // ──────────────── 背景层（接近黑，带 1° 冷调）────────────────
 
-$bg:           #08090b;   // 主背景
-$bg-elev:      hsla(216, 16%, 6%, 0.5);   // 卡片 / 面板（悬浮层）
-$bg-canvas:    #050608;   // 终端 canvas 渲染区，最深
-$bg-input:     #0a0c0f;   // 输入框背景
-$bg-hover:     #14171c;   // hover 高亮
+$bg:            #08090b;   // 主背景
+$bg-elev:       hsla(216, 16%, 6%, 0.5);   // 卡片 / 面板（悬浮层，半透明）
+$bg-elev-solid: hsla(216, 16%, 6%, 1);     // 实色版本（用于 dropdown / popover 等需要遮挡下层内容的浮层）
+$bg-canvas:     #050608;   // 终端 canvas 渲染区，最深
+$bg-input:      #0a0c0f;   // 输入框背景
+$bg-hover:      #14171c;   // hover 高亮
 
 // ──────────────── 边框（极细对比）────────────────
 
@@ -40,6 +52,20 @@ $accent:       #b6f09c;   // 主 accent（按钮、focus、active 边框）
 $accent-soft:  rgba(182, 240, 156, 0.10);   // soft fill / glow 底
 $accent-glow:  rgba(182, 240, 156, 0.32);   // focus ring / hover 边框
 
+// accent 上的对比文字色（按钮里的字、tag 里的字）
+// 不直接复用 $bg-input —— 语义不同：「在 accent 背景上的前景」未来若换主题
+// 可独立调，避免被背景色变化牵连
+$on-accent:    #0a0c0f;
+
+// accent alpha 梯子 —— 散落在 box-shadow / focus ring / 辉光底
+// 都是同一个绿色乘以不同透明度。预生成成 token 让 devtools 中可一眼看到
+// 当前各处用的 alpha 是多少。命名：百分数 ×100，如 0.32 → -32。
+$accent-04:    rgba(182, 240, 156, 0.04);   // 大面积背景晕（登录页）
+$accent-18:    rgba(182, 240, 156, 0.18);   // 辉光最外层 / Toggle focus 软层
+$accent-35:    rgba(182, 240, 156, 0.35);   // 文字辉光中层
+$accent-40:    rgba(182, 240, 156, 0.40);   // active 阴影
+$accent-65:    rgba(182, 240, 156, 0.65);   // 文字辉光内层
+
 // 状态色
 $alarm:        #ff6b6b;   // 错误（珊瑚红，不刺眼）
 $warn:         #ffb84d;   // 警告（琥珀）
@@ -49,6 +75,17 @@ $info:         #6cb6ff;   // 信息(柔和蓝,与 alarm/warn 区分,亮度匹配
 // soft 半透明底:用于 inline 提示条背景。沿用 $accent-soft 同款 0.10 alpha
 $warn-soft:    rgba(255, 184, 77, 0.10);
 $info-soft:    rgba(108, 182, 255, 0.10);
+
+// warn / alarm 的同款梯子（08 / 32），用于 Pill 这类带状态色边框的组件
+$warn-08:      rgba(255, 184, 77, 0.08);
+$warn-32:      rgba(255, 184, 77, 0.32);
+$alarm-08:     rgba(255, 107, 107, 0.08);
+$alarm-32:     rgba(255, 107, 107, 0.32);
+
+// 终端视觉红（与 ANSI brightRed 同色，跟实例终端字符颜色一致）
+// 这是「终端语义专用色」，不跟随主题切换 —— 终端里的红错误信息
+// 在任何主题下都该是这个红，否则跟终端背景里的红不匹配
+$terminal-red: #e74856;
 
 // 遮罩（高斯模糊用）
 $overlay-bg:   rgba(2, 4, 6, 0.65);   // dialog / drawer overlay
@@ -171,33 +208,123 @@ $z-modal:    50;
 $z-toast:    60;
 
 // ──────────────── 暴露给运行时的 CSS 变量 ────────────────
+//
+// 命名规范：
+//   颜色 →  --color-<name>      (--color-bg / --color-accent / --color-fg-dim …)
+//   间距 →  --sp-<n>            (--sp-0 … --sp-9)
+//   字号 →  --fs-<size>         (--fs-2xs … --fs-2xl)
+//   行高 →  --lh-<name>         (--lh-tight / --lh-base / --lh-loose)
+//   字距 →  --tracking-<name>
+//   圆角 →  --radius-<name>
+//   阴影 →  --shadow-<n>        + --shadow-focus
+//   时长 →  --dur-<name>
+//   缓动 →  --ease / --ease-snap
+//   层级 →  --z-<name>
+//   字体 →  --font-mono / --font-sans
+//
+// 组件样式应一律使用 var(--xxx)；SCSS 变量只在 _mixins.scss 内部使用。
 
 @mixin css-vars-root {
+  // ── 语义间距（顶栏/输入栏统一内边距） ──
   --bar-pad:            #{$bar-pad};
   --bar-gap:            #{$bar-gap};
 
-  --color-bg:           #{$bg};
-  --color-bg-elev:      #{$bg-elev};
-  --color-bg-canvas:    #{$bg-canvas};
-  --color-bg-input:     #{$bg-input};
-  --color-bg-hover:     #{$bg-hover};
+  // ── 颜色 ──
+  --color-bg:             #{$bg};
+  --color-bg-elev:        #{$bg-elev};
+  --color-bg-elev-solid:  #{$bg-elev-solid};
+  --color-bg-canvas:      #{$bg-canvas};
+  --color-bg-input:       #{$bg-input};
+  --color-bg-hover:       #{$bg-hover};
   --color-border:       #{$border};
   --color-border-hi:    #{$border-hi};
   --color-fg:           #{$fg};
   --color-fg-dim:       #{$fg-dim};
   --color-fg-low:       #{$fg-low};
   --color-accent:       #{$accent};
-  --color-accent-soft:  #{$accent-soft};
+  --color-accent-soft:  #{$accent-soft};   // alpha 0.10
+  --color-accent-glow:  #{$accent-glow};   // alpha 0.32
+  --color-accent-04:    #{$accent-04};
+  --color-accent-18:    #{$accent-18};
+  --color-accent-35:    #{$accent-35};
+  --color-accent-40:    #{$accent-40};
+  --color-accent-65:    #{$accent-65};
+  --color-on-accent:    #{$on-accent};
   --color-alarm:        #{$alarm};
+  --color-alarm-08:     #{$alarm-08};
+  --color-alarm-32:     #{$alarm-32};
   --color-warn:         #{$warn};
+  --color-warn-soft:    #{$warn-soft};     // alpha 0.10
+  --color-warn-08:      #{$warn-08};
+  --color-warn-32:      #{$warn-32};
+  --color-ok:           #{$ok};
   --color-info:         #{$info};
+  --color-info-soft:    #{$info-soft};
+  --color-terminal-red: #{$terminal-red};
 
+  --color-overlay-bg:   #{$overlay-bg};
+  --overlay-blur:       #{$overlay-blur};
+
+  // ── 字体 ──
   --font-mono:          #{$font-mono};
   --font-sans:          #{$font-sans};
 
+  // ── 字号 ──
+  --fs-2xs:             #{$fs-2xs};
+  --fs-xs:              #{$fs-xs};
+  --fs-sm:              #{$fs-sm};
+  --fs-md:              #{$fs-md};
+  --fs-lg:              #{$fs-lg};
+  --fs-xl:              #{$fs-xl};
+  --fs-2xl:             #{$fs-2xl};
+
+  // ── 行高 / 字距 ──
+  --lh-tight:           #{$lh-tight};
+  --lh-base:            #{$lh-base};
+  --lh-loose:           #{$lh-loose};
+  --tracking-tight:     #{$tracking-tight};
+  --tracking-normal:    #{$tracking-normal};
+  --tracking-wide:      #{$tracking-wide};
+
+  // ── 间距 ──
+  --sp-0:               #{$sp-0};
+  --sp-1:               #{$sp-1};
+  --sp-2:               #{$sp-2};
+  --sp-3:               #{$sp-3};
+  --sp-4:               #{$sp-4};
+  --sp-5:               #{$sp-5};
+  --sp-6:               #{$sp-6};
+  --sp-7:               #{$sp-7};
+  --sp-8:               #{$sp-8};
+  --sp-9:               #{$sp-9};
+
+  // ── 圆角 ──
+  --radius-0:           #{$radius-0};
+  --radius-sm:          #{$radius-sm};
+  --radius-pill:        #{$radius-pill};
+
+  // ── 阴影 ──
   --shadow-1:           #{$shadow-1};
   --shadow-2:           #{$shadow-2};
   --shadow-3:           #{$shadow-3};
+  --shadow-focus:       #{$shadow-focus};
 
+  // ── 动效 ──
+  --dur-snap:           #{$dur-snap};
+  --dur-fast:           #{$dur-fast};
+  --dur-base:           #{$dur-base};
+  --dur-slow:           #{$dur-slow};
+  --dur-modal:          #{$dur-modal};
+  --ease:               #{$ease};
+  --ease-snap:          #{$ease-snap};
+
+  // ── 层级 ──
+  --z-base:             #{$z-base};
+  --z-sticky:           #{$z-sticky};
+  --z-overlay:          #{$z-overlay};
+  --z-modal:            #{$z-modal};
+  --z-toast:            #{$z-toast};
+
+  // ── 视口 ──
   --app-vh: 100dvh;
 }

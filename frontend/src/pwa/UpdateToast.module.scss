@@ -1,26 +1,25 @@
-@use '../styles/tokens' as t;
 @use '../styles/mixins' as m;
 
 .root {
   position: fixed;
-  right: t.$sp-3;
-  bottom: t.$sp-3;
+  right: var(--sp-3);
+  bottom: var(--sp-3);
   z-index: 100;
-  @include m.row-flex(t.$sp-3);
-  border: 1px solid t.$border;
-  background: t.$bg-elev;
-  backdrop-filter: t.$overlay-blur;
-  -webkit-backdrop-filter: t.$overlay-blur;
-  padding: t.$sp-3 t.$sp-4;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  color: t.$fg;
-  box-shadow: t.$shadow-3;
+  @include m.row-flex(var(--sp-3));
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elev);
+  backdrop-filter: var(--overlay-blur);
+  -webkit-backdrop-filter: var(--overlay-blur);
+  padding: var(--sp-3) var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--color-fg);
+  box-shadow: var(--shadow-3);
 
   // 移动端向上挪让出 InputBar
   @include m.mobile {
     bottom: calc(env(safe-area-inset-bottom) + 80px);
-    left: t.$sp-3;
+    left: var(--sp-3);
   }
 }
 
@@ -31,17 +30,17 @@
 
 .btn {
   @include m.btn-reset;
-  padding: t.$sp-1 t.$sp-3;
-  border: 1px solid t.$accent;
-  color: t.$accent;
-  background: t.$accent-soft;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  @include m.transition(background t.$dur-fast);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  @include m.transition(background var(--dur-fast));
 
   &:hover {
-    background: t.$accent;
-    color: #0a0c0f;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
   }
 }
 
@@ -49,11 +48,11 @@
   @include m.btn-reset;
   width: 22px;
   height: 22px;
-  color: t.$fg-low;
-  font-size: t.$fs-md;
+  color: var(--color-fg-low);
+  font-size: var(--fs-md);
   line-height: 1;
 
   &:hover {
-    color: t.$fg;
+    color: var(--color-fg);
   }
 }

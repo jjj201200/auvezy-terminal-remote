@@ -1,21 +1,20 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .root {
   position: fixed;
-  left: t.$sp-3;
-  right: t.$sp-3;
-  bottom: calc(48px + env(safe-area-inset-bottom) + #{t.$sp-3});
-  z-index: t.$z-toast;
-  @include m.row-flex(t.$sp-4);
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: calc(48px + env(safe-area-inset-bottom) + #{var(--sp-3)});
+  z-index: var(--z-toast);
+  @include m.row-flex(var(--sp-4));
   flex-wrap: wrap;
-  padding: t.$sp-4 t.$sp-5;
-  background: t.$bg-elev;
-  border: 1px solid t.$warn;
-  color: t.$fg;
-  font-size: t.$fs-sm;
-  box-shadow: t.$shadow-3;
-  animation: slide-in t.$dur-base t.$ease both;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--color-bg-elev);
+  border: 1px solid var(--color-warn);
+  color: var(--color-fg);
+  font-size: var(--fs-sm);
+  box-shadow: var(--shadow-3);
+  animation: slide-in var(--dur-base) var(--ease) both;
 }
 
 .body {
@@ -26,40 +25,40 @@
 
 .title {
   font-weight: 500;
-  color: t.$warn;
-  font-size: t.$fs-xs;
-  letter-spacing: t.$tracking-wide;
+  color: var(--color-warn);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
 }
 
 .ips {
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
 }
 
 .url {
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xs;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
   word-break: break-all;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
 }
 
 .actions {
-  @include m.row-flex(t.$sp-2);
+  @include m.row-flex(var(--sp-2));
 }
 
 .actionBtn {
   @include m.btn-reset;
-  padding: t.$sp-2 t.$sp-4;
-  background: t.$bg-input;
-  border: 1px solid t.$border;
-  color: t.$fg;
-  font-size: t.$fs-xs;
-  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  color: var(--color-fg);
+  font-size: var(--fs-xs);
+  @include m.transition(background var(--dur-fast), border-color var(--dur-fast));
 
   &:hover {
-    background: t.$bg-hover;
-    border-color: t.$border-hi;
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hi);
   }
 }
 

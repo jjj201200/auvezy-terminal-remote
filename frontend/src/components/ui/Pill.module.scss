@@ -1,14 +1,13 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .root {
   display: inline-flex;
   align-items: center;
-  gap: t.$sp-2;
-  padding: 2px t.$sp-3;
-  border: 1px solid t.$border;
-  font-size: t.$fs-2xs;
-  letter-spacing: t.$tracking-wide;
+  gap: var(--sp-2);
+  padding: 2px var(--sp-3);
+  border: 1px solid var(--color-border);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   white-space: nowrap;
   font-weight: 500;
@@ -24,9 +23,9 @@
 }
 
 .toneOk {
-  border-color: rgba(182, 240, 156, 0.32);
-  color: t.$accent;
-  background: t.$accent-soft;
+  border-color: var(--color-accent-glow);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
   @include m.phosphor-glow;
 
   &::before {
@@ -35,35 +34,35 @@
 }
 
 .toneWarn {
-  border-color: rgba(255, 184, 77, 0.32);
-  color: t.$warn;
-  background: rgba(255, 184, 77, 0.08);
-  @include m.phosphor-glow(t.$warn);
+  border-color: var(--color-warn-32);
+  color: var(--color-warn);
+  background: var(--color-warn-08);
+  @include m.phosphor-glow(var(--color-warn));
 
   &::before {
-    @include m.phosphor-glow-shape(t.$warn);
+    @include m.phosphor-glow-shape(var(--color-warn));
   }
 }
 
 .toneError {
-  border-color: rgba(255, 107, 107, 0.32);
-  color: t.$alarm;
-  background: rgba(255, 107, 107, 0.08);
-  @include m.phosphor-glow(t.$alarm);
+  border-color: var(--color-alarm-32);
+  color: var(--color-alarm);
+  background: var(--color-alarm-08);
+  @include m.phosphor-glow(var(--color-alarm));
 
   &::before {
-    @include m.phosphor-glow-shape(t.$alarm);
+    @include m.phosphor-glow-shape(var(--color-alarm));
   }
 }
 
 .toneMuted {
-  border-color: t.$border;
-  color: t.$fg-dim;
+  border-color: var(--color-border);
+  color: var(--color-fg-dim);
 }
 
 .toneAccent {
-  border-color: rgba(182, 240, 156, 0.32);
-  color: t.$accent;
+  border-color: var(--color-accent-glow);
+  color: var(--color-accent);
   @include m.phosphor-glow;
 
   &::before {

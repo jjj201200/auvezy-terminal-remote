@@ -1,15 +1,14 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 // ──────────────── 输入栏 ────────────────
 
 .form {
   flex-shrink: 0;
-  @include m.row-flex(t.$bar-gap);
-  border-top: 1px solid t.$border;
-  background: t.$bg-elev;
-  padding: t.$bar-pad;
-  @include m.safe-bottom(t.$bar-pad);
+  @include m.row-flex(var(--bar-gap));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-elev);
+  padding: var(--bar-pad);
+  @include m.safe-bottom(var(--bar-pad));
 }
 
 // input + 内嵌清空按钮的容器：撑满 form 剩余空间，让按钮绝对定位在右内侧
@@ -28,22 +27,22 @@
   inset: 0;
   // 让 div 跟下面 textarea 完全对齐：同样的 padding / font / line-height
   box-sizing: border-box;
-  padding: t.$sp-0 28px t.$sp-0 t.$sp-3;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  padding: var(--sp-0) 28px var(--sp-0) var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   line-height: 1.5;
   white-space: pre;
   overflow: hidden;
   pointer-events: none;
   display: flex;
   align-items: center;
-  color: t.$fg;
+  color: var(--color-fg);
   z-index: 1;
 }
 
 // 占位符：buffer 为空时显示
 .placeholder {
-  color: t.$fg-low;
+  color: var(--color-fg-low);
 }
 
 // 自管光标：div 末尾闪烁的竖线
@@ -51,7 +50,7 @@
   display: inline-block;
   width: 1px;
   height: 1.2em;
-  background: t.$accent;
+  background: var(--color-accent);
   margin-left: 1px;
   vertical-align: middle;
   animation: blink 1s steps(2, start) infinite;
@@ -71,8 +70,8 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  border: 1px solid t.$border;
-  background: t.$bg-input;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input);
   // CodeMirror 模式：textarea 视觉透明，文字 / caret / 选区都不渲染；用户看到
   // 的字符由 .display div 自管。这样 iOS 智能键盘对 textarea 的中间态修改
   // (Smart Punctuation 删空格再插标点等) 对用户完全不可见
@@ -83,9 +82,9 @@
     background: transparent;
   }
   // 右内侧留出空间给 × 按钮（即使 value 为空也留着，避免布局抖动）
-  padding: t.$sp-0 28px t.$sp-0 t.$sp-3;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  padding: var(--sp-0) 28px var(--sp-0) var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   line-height: 1.5;
   // 单行高度感（rows=1 + 隐藏 resize 把柄）
   resize: none;
@@ -94,21 +93,21 @@
   // 强制单行外观：长内容横向滚不换行
   white-space: nowrap;
   outline: none;
-  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), box-shadow var(--dur-fast));
 
   &::placeholder {
-    color: t.$fg-low;
+    color: var(--color-fg-low);
   }
 
   &:hover:not(:disabled) {
-    border-color: t.$border-hi;
+    border-color: var(--color-border-hi);
   }
 
   // 用 :focus 而非 :focus-visible：程序 focus()（如点 terminal 转移焦点）不
   // 触发 focus-visible，用户看不到焦点反馈。文本输入框任何方式聚焦都该有 ring
   &:focus {
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 
   &:disabled {
@@ -129,13 +128,13 @@
   height: 22px;
   border: none;
   background: transparent;
-  color: t.$fg-low;
+  color: var(--color-fg-low);
   cursor: pointer;
   border-radius: 2px;
-  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    color: t.$fg;
-    background: t.$bg-hover;
+    color: var(--color-fg);
+    background: var(--color-bg-hover);
   }
 }

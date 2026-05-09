@@ -1,4 +1,3 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 // Tabs 现在嵌入到 Sheet header 同行，没有独立分隔线，每项是个紧凑按钮
@@ -7,67 +6,67 @@
 // 这里让 tab 不被 flex 压缩并保持紧凑，超出时让 headerExtra 横向滚（不挤 title / close）
 .tabsList {
   display: flex;
-  gap: t.$sp-1;
+  gap: var(--sp-1);
   flex-shrink: 0; // 不被 header flex 容器挤压；超长走 headerExtra 滚动
 }
 
 .tabBtn {
   @include m.btn-reset;
-  padding: t.$sp-1 t.$sp-2;
-  font-size: t.$fs-2xs;
-  letter-spacing: t.$tracking-tight; // uppercase + wide 在 5 tab 时太宽，去掉
-  color: t.$fg-dim;
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--tracking-tight); // uppercase + wide 在 5 tab 时太宽，去掉
+  color: var(--color-fg-dim);
   border: 1px solid transparent;
   white-space: nowrap;
   flex-shrink: 0;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast, text-shadow t.$dur-fast);
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast), text-shadow var(--dur-fast));
 
   &:hover {
-    color: t.$fg;
-    background: t.$bg-hover;
+    color: var(--color-fg);
+    background: var(--color-bg-hover);
   }
 }
 
 .tabBtnActive {
-  color: t.$accent;
-  border-color: rgba(182, 240, 156, 0.32);
-  background: t.$accent-soft;
+  color: var(--color-accent);
+  border-color: var(--color-accent-glow);
+  background: var(--color-accent-soft);
   @include m.phosphor-glow;
 
   &:hover {
-    color: t.$accent;
-    background: t.$accent-soft;
+    color: var(--color-accent);
+    background: var(--color-accent-soft);
   }
 }
 
 .cancelBtn {
   @include m.btn-reset;
-  padding: t.$sp-3 t.$sp-5;
-  border: 1px solid t.$border;
+  padding: var(--sp-3) var(--sp-5);
+  border: 1px solid var(--color-border);
   background: transparent;
-  color: t.$fg;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-tight;
-  @include m.transition(background t.$dur-fast, border-color t.$dur-fast);
+  color: var(--color-fg);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-tight);
+  @include m.transition(background var(--dur-fast), border-color var(--dur-fast));
 
   &:hover {
-    background: t.$bg-hover;
-    border-color: t.$border-hi;
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hi);
   }
 }
 
 .saveBtn {
   @include m.btn-reset;
-  padding: t.$sp-3 t.$sp-5;
-  background: t.$accent;
-  color: #0a0c0f;
-  font-size: t.$fs-sm;
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--fs-sm);
   font-weight: 500;
-  letter-spacing: t.$tracking-tight;
-  @include m.transition(background t.$dur-fast, opacity t.$dur-fast);
+  letter-spacing: var(--tracking-tight);
+  @include m.transition(background var(--dur-fast), opacity var(--dur-fast));
 
   &:hover:not(:disabled) {
-    background: color-mix(in srgb, t.$accent 92%, white 8%);
+    background: color-mix(in srgb, var(--color-accent) 92%, white 8%);
   }
 
   &:disabled {
@@ -80,16 +79,16 @@
 // 跟"保存=保存并关闭"区分开
 .applyBtn {
   @include m.btn-reset;
-  padding: t.$sp-3 t.$sp-5;
-  border: 1px solid t.$accent;
+  padding: var(--sp-3) var(--sp-5);
+  border: 1px solid var(--color-accent);
   background: transparent;
-  color: t.$accent;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-tight;
-  @include m.transition(background t.$dur-fast, opacity t.$dur-fast, color t.$dur-fast);
+  color: var(--color-accent);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-tight);
+  @include m.transition(background var(--dur-fast), opacity var(--dur-fast), color var(--dur-fast));
 
   &:hover:not(:disabled) {
-    background: t.$accent-soft;
+    background: var(--color-accent-soft);
   }
 
   &:disabled {

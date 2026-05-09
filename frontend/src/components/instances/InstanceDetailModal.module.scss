@@ -1,26 +1,25 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .body {
-  @include m.col-flex(t.$sp-5);
-  padding: t.$sp-2 0;
+  @include m.col-flex(var(--sp-5));
+  padding: var(--sp-2) 0;
 }
 
 .field {
-  @include m.col-flex(t.$sp-2);
+  @include m.col-flex(var(--sp-2));
   min-width: 0;
 }
 
 .fieldRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: t.$sp-5;
+  gap: var(--sp-5);
 }
 
 .label {
-  font-size: t.$fs-2xs;
-  color: t.$fg-low;
-  letter-spacing: t.$tracking-wide;
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
 }
 
@@ -29,11 +28,11 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: t.$sp-2;
-  padding-right: t.$sp-1;
-  font-size: t.$fs-2xs;
-  color: t.$fg-low;
-  letter-spacing: t.$tracking-tight;
+  gap: var(--sp-2);
+  padding-right: var(--sp-1);
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
+  letter-spacing: var(--tracking-tight);
 }
 
 // 字段值统一用带边框的框（之前只有 cwd 用，现在所有字段对齐）
@@ -44,30 +43,30 @@
   display: block;
   width: 100%;
   text-align: left;
-  font-family: t.$font-mono;
-  font-size: t.$fs-xs;
-  color: t.$fg;
-  line-height: t.$lh-base;
-  background: t.$bg-input;
-  border: 1px solid t.$border;
-  padding: t.$sp-3 t.$sp-4;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-fg);
+  line-height: var(--lh-base);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  padding: var(--sp-3) var(--sp-4);
   cursor: pointer;
   word-break: break-word;
-  @include m.transition(border-color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    border-color: t.$border-hi;
-    background: t.$bg-hover;
+    border-color: var(--color-border-hi);
+    background: var(--color-bg-hover);
   }
 
   &:active {
-    border-color: t.$accent;
+    border-color: var(--color-accent);
   }
 
   &:focus-visible {
     outline: none;
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 }
 
@@ -78,20 +77,20 @@
 
 // 复制成功瞬时态：边框变 accent 1.2s
 .valueBoxCopied {
-  border-color: t.$accent;
-  background: t.$accent-soft;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 
   &:hover {
-    border-color: t.$accent;
+    border-color: var(--color-accent);
   }
 }
 
 // 复制失败瞬时态：边框变 warn 2.2s
 .valueBoxFailed {
-  border-color: t.$warn;
+  border-color: var(--color-warn);
 
   &:hover {
-    border-color: t.$warn;
+    border-color: var(--color-warn);
   }
 }
 
@@ -105,11 +104,11 @@
 
 // 已选中瞬时态：边框 accent，跟"已复制"区分用稍弱的 toast 文案，不让用户以为已复制
 .valueBoxSelected {
-  border-color: t.$accent;
-  background: t.$accent-soft;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 
   &:hover {
-    border-color: t.$accent;
+    border-color: var(--color-accent);
   }
 }
 
@@ -121,21 +120,21 @@
 .copiedToast {
   position: absolute;
   top: 4px;
-  right: t.$sp-3;
-  padding: 1px t.$sp-2;
-  font-size: t.$fs-2xs;
-  letter-spacing: t.$tracking-tight;
-  color: t.$accent;
-  background: t.$bg-elev;
-  border: 1px solid t.$accent;
+  right: var(--sp-3);
+  padding: 1px var(--sp-2);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-accent);
+  background: var(--color-bg-elev);
+  border: 1px solid var(--color-accent);
   pointer-events: none;
   animation: copiedToastIn 120ms ease-out, copiedToastOut 200ms ease-in 1s forwards;
 }
 
 // 失败 toast：橙红警告色，且持续更久（2s 给用户读完"长按手动复制"的指引时间）
 .copiedToastFail {
-  color: t.$warn;
-  border-color: t.$warn;
+  color: var(--color-warn);
+  border-color: var(--color-warn);
   animation: copiedToastIn 120ms ease-out, copiedToastOut 200ms ease-in 2s forwards;
 }
 
@@ -157,29 +156,29 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: t.$sp-3;
+  gap: var(--sp-3);
   width: 100%;
 }
 
 %baseBtn {
   @include m.btn-reset;
-  padding: t.$sp-3 t.$sp-5;
-  font-size: t.$fs-sm;
-  border: 1px solid t.$border;
+  padding: var(--sp-3) var(--sp-5);
+  font-size: var(--fs-sm);
+  border: 1px solid var(--color-border);
   background: transparent;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
   cursor: pointer;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast));
 
   &:hover, &:active {
-    color: t.$fg;
-    border-color: t.$border-hi;
-    background: t.$bg-hover;
+    color: var(--color-fg);
+    border-color: var(--color-border-hi);
+    background: var(--color-bg-hover);
   }
 
   &:focus-visible {
     outline: none;
-    box-shadow: t.$shadow-focus;
+    box-shadow: var(--shadow-focus);
   }
 
   &:disabled {
@@ -193,47 +192,47 @@
 // 断开 = 警告级（黄/琥珀），影响本设备但不动 backend
 .disconnectBtn {
   @extend %baseBtn;
-  color: t.$warn;
-  border-color: t.$warn;
+  color: var(--color-warn);
+  border-color: var(--color-warn);
 
   &:hover, &:active {
-    color: t.$warn;
-    background: rgba(255, 184, 77, 0.10);
-    border-color: t.$warn;
+    color: var(--color-warn);
+    background: var(--color-warn-soft);
+    border-color: var(--color-warn);
   }
 }
 
 // 关闭实例 = 破坏级（红），杀 backend 进程，所有连接者一起断
-$danger-red: #e74856; // 与 ANSI brightRed 同色 (Campbell)，跟实例终端视觉一致
+// 用 --color-terminal-red（与 ANSI brightRed 同色 Campbell，跟实例终端视觉一致）
 .closeBtn {
   @extend %baseBtn;
-  color: $danger-red;
-  border-color: $danger-red;
+  color: var(--color-terminal-red);
+  border-color: var(--color-terminal-red);
 
   &:hover, &:active {
-    color: $danger-red;
-    background: rgba(231, 72, 86, 0.12);
-    border-color: $danger-red;
+    color: var(--color-terminal-red);
+    background: color-mix(in srgb, var(--color-terminal-red) 12%, transparent);
+    border-color: var(--color-terminal-red);
   }
 }
 
 // 切换 = 主行动，accent 填色
 .switchBtn {
   @extend %baseBtn;
-  color: t.$bg;
-  background: t.$accent;
-  border-color: t.$accent;
+  color: var(--color-bg);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 
   &:hover, &:active {
-    color: t.$bg;
-    background: t.$accent;
-    border-color: t.$accent;
+    color: var(--color-bg);
+    background: var(--color-accent);
+    border-color: var(--color-accent);
     filter: brightness(1.05);
   }
 
   &:disabled {
-    color: t.$fg-low;
+    color: var(--color-fg-low);
     background: transparent;
-    border-color: t.$border;
+    border-color: var(--color-border);
   }
 }

@@ -1,21 +1,20 @@
-@use '../styles/tokens' as t;
 @use '../styles/mixins' as m;
 
 .root {
   position: fixed;
-  left: t.$sp-3;
-  right: t.$sp-3;
-  bottom: calc(env(safe-area-inset-bottom) + #{t.$sp-3});
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: calc(env(safe-area-inset-bottom) + #{var(--sp-3)});
   z-index: 90;
-  @include m.row-flex(t.$sp-3);
-  border: 1px solid t.$accent;
-  background: t.$bg-elev;
-  backdrop-filter: t.$overlay-blur;
-  -webkit-backdrop-filter: t.$overlay-blur;
-  padding: t.$sp-3 t.$sp-4;
-  font-family: t.$font-mono;
-  color: t.$fg;
-  box-shadow: t.$shadow-3;
+  @include m.row-flex(var(--sp-3));
+  border: 1px solid var(--color-accent);
+  background: var(--color-bg-elev);
+  backdrop-filter: var(--overlay-blur);
+  -webkit-backdrop-filter: var(--overlay-blur);
+  padding: var(--sp-3) var(--sp-4);
+  font-family: var(--font-mono);
+  color: var(--color-fg);
+  box-shadow: var(--shadow-3);
   max-width: 480px;
   margin-inline: auto;
 
@@ -33,27 +32,27 @@
 }
 
 .title {
-  font-size: t.$fs-sm;
-  color: t.$fg;
+  font-size: var(--fs-sm);
+  color: var(--color-fg);
   font-weight: 500;
 }
 
 .body {
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
-  line-height: t.$lh-base;
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  line-height: var(--lh-base);
 }
 
 .btn {
   @include m.btn-reset;
-  padding: t.$sp-2 t.$sp-3;
-  border: 1px solid t.$accent;
-  color: #0a0c0f;
-  background: t.$accent;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--color-accent);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   white-space: nowrap;
-  @include m.transition(filter t.$dur-fast);
+  @include m.transition(filter var(--dur-fast));
 
   &:hover {
     filter: brightness(1.1);
@@ -64,11 +63,11 @@
   @include m.btn-reset;
   width: 24px;
   height: 24px;
-  color: t.$fg-low;
-  font-size: t.$fs-md;
+  color: var(--color-fg-low);
+  font-size: var(--fs-md);
   line-height: 1;
 
   &:hover {
-    color: t.$fg;
+    color: var(--color-fg);
   }
 }

@@ -1,9 +1,8 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 // 滚动区内部的 gap（tab 之间）—— wrap/scroller 本身在 HScroller 里
 .tabsScroller {
-  gap: t.$bar-gap;
+  gap: var(--bar-gap);
 }
 
 // ──────────────── 单个 tab ────────────────
@@ -12,18 +11,18 @@
   @include m.btn-reset;
   flex-shrink: 0;
   white-space: nowrap;
-  padding: 3px t.$sp-3;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  letter-spacing: t.$tracking-wide;
+  padding: 3px var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: t.$fg-dim;
+  color: var(--color-fg-dim);
   border-bottom: 1px solid transparent;
   margin-bottom: -1px;
-  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, text-shadow t.$dur-fast);
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast), text-shadow var(--dur-fast));
 
   &:hover:not(:disabled) {
-    color: t.$fg-dim;
+    color: var(--color-fg-dim);
   }
 
   &:disabled {
@@ -33,11 +32,11 @@
 }
 
 .tabActive {
-  color: t.$accent;
-  border-bottom-color: t.$accent;
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
   @include m.phosphor-glow;
 
   &:hover:not(:disabled) {
-    color: t.$accent;
+    color: var(--color-accent);
   }
 }

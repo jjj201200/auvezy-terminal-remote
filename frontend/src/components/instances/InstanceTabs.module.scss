@@ -1,8 +1,7 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 .nav {
-  @include m.row-flex(t.$sp-2);
+  @include m.row-flex(var(--sp-2));
   overflow-x: auto;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
@@ -13,32 +12,32 @@
 .group {
   display: flex;
   flex-direction: column;
-  gap: t.$sp-1;
+  gap: var(--sp-1);
   // 与相邻 group / .add 之间留间距
   flex-shrink: 0;
 }
 
 .groupTabs {
-  @include m.row-flex(t.$sp-2);
+  @include m.row-flex(var(--sp-2));
 }
 
 .tab {
   @include m.btn-reset;
-  @include m.row-flex(t.$sp-2);
+  @include m.row-flex(var(--sp-2));
   white-space: nowrap;
-  padding: t.$sp-2 t.$sp-3 t.$sp-2 t.$sp-2;
-  border: 1px solid t.$border;
-  background: t.$bg;
-  font-size: t.$fs-xs;
-  color: t.$fg-dim;
-  letter-spacing: t.$tracking-tight;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  letter-spacing: var(--tracking-tight);
   cursor: pointer;
-  @include m.transition(background t.$dur-fast, border-color t.$dur-fast, color t.$dur-fast);
+  @include m.transition(background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast));
 
   &:hover:not([aria-disabled='true']):not(:disabled) {
-    color: t.$fg;
-    background: t.$bg-hover;
-    border-color: t.$border-hi;
+    color: var(--color-fg);
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hi);
   }
 
   &[aria-disabled='true'] {
@@ -47,24 +46,24 @@
 }
 
 .tabActive {
-  border-color: t.$accent;
-  background: t.$accent-soft;
-  color: t.$fg;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
   cursor: default;
 
   &:hover:not(:disabled) {
-    border-color: t.$accent;
-    background: t.$accent-soft;
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
   }
 }
 
 .tabPort {
-  font-family: t.$font-mono;
-  font-size: t.$fs-2xs;
-  color: t.$fg-low;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
 
   .tabActive & {
-    color: t.$accent;
+    color: var(--color-accent);
   }
 }
 
@@ -74,15 +73,15 @@
   justify-content: center;
   height: 24px;
   width: 24px;
-  border: 1px solid t.$border;
-  background: t.$bg;
-  color: t.$fg-dim;
-  @include m.transition(border-color t.$dur-fast, color t.$dur-fast, background t.$dur-fast);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-fg-dim);
+  @include m.transition(border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    color: t.$accent;
-    border-color: t.$border-hi;
-    background: t.$bg-hover;
+    color: var(--color-accent);
+    border-color: var(--color-border-hi);
+    background: var(--color-bg-hover);
   }
 }
 
@@ -94,16 +93,16 @@
   justify-content: center;
   height: 24px;
   width: 24px;
-  border: 1px solid t.$border;
-  background: t.$bg;
-  color: t.$fg-dim;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-fg-dim);
   flex-shrink: 0;
-  @include m.transition(border-color t.$dur-fast, color t.$dur-fast, background t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast));
 
   &:hover {
-    color: t.$fg;
-    border-color: t.$border-hi;
-    background: t.$bg-hover;
+    color: var(--color-fg);
+    border-color: var(--color-border-hi);
+    background: var(--color-bg-hover);
   }
 }
 
@@ -121,8 +120,8 @@
 }
 
 .tabPendingFailed {
-  color: t.$warn;
-  border-color: t.$warn !important;
+  color: var(--color-warn);
+  border-color: var(--color-warn) !important;
   cursor: pointer;
   font-style: normal;
   opacity: 1;
@@ -146,11 +145,11 @@
 .menu {
   position: fixed;
   z-index: 1000;
-  border: 1px solid t.$border;
-  background: t.$bg-elev;
-  backdrop-filter: t.$overlay-blur;
-  -webkit-backdrop-filter: t.$overlay-blur;
-  box-shadow: t.$shadow-3;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elev);
+  backdrop-filter: var(--overlay-blur);
+  -webkit-backdrop-filter: var(--overlay-blur);
+  box-shadow: var(--shadow-3);
   padding: 4px;
   min-width: 120px;
 }
@@ -162,17 +161,17 @@
   gap: 8px;
   width: 100%;
   padding: 6px 10px;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
-  color: t.$fg;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--color-fg);
   text-align: left;
 
   &:hover:not(:disabled) {
-    background: t.$bg-hover;
+    background: var(--color-bg-hover);
   }
 
   &:disabled {
-    color: t.$fg-low;
+    color: var(--color-fg-low);
     cursor: not-allowed;
   }
 }
@@ -187,9 +186,9 @@
   width: 14px;
   height: 14px;
   margin-right: 2px;
-  color: t.$fg-low;
+  color: var(--color-fg-low);
   opacity: 0.5;
-  @include m.transition(color t.$dur-fast, opacity t.$dur-fast);
+  @include m.transition(color var(--dur-fast), opacity var(--dur-fast));
 
   // 父 tab hover 时显现
   .tab:hover & {
@@ -198,6 +197,6 @@
 
   // 自身 hover：变 warn 红
   &:hover {
-    color: t.$warn;
+    color: var(--color-warn);
   }
 }

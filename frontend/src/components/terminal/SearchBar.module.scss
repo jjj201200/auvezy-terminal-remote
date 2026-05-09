@@ -1,42 +1,41 @@
-@use '../../styles/tokens' as t;
 @use '../../styles/mixins' as m;
 
 // 作为顶栏与终端之间的常规 flex 项：不再 absolute，
 // open 时占行高 → terminalWrap 自动收缩 → xterm 自适应行数
 .root {
   flex-shrink: 0;
-  @include m.row-flex(t.$bar-gap);
-  border-top: 1px solid t.$border;
-  border-bottom: 1px solid t.$border;
-  background: t.$bg-elev;
-  padding: t.$sp-2 t.$sp-3;
+  @include m.row-flex(var(--bar-gap));
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elev);
+  padding: var(--sp-2) var(--sp-3);
 }
 
 .input {
   flex: 0 1 240px;
   min-width: 0;
   border: none;
-  background: t.$bg-input;
-  color: t.$fg;
-  padding: t.$sp-1 t.$sp-2;
-  font-family: t.$font-mono;
-  font-size: t.$fs-sm;
+  background: var(--color-bg-input);
+  color: var(--color-fg);
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   outline: none;
-  @include m.transition(border-color t.$dur-fast, box-shadow t.$dur-fast);
+  @include m.transition(border-color var(--dur-fast), box-shadow var(--dur-fast));
 
   &:focus {
-    border-color: t.$accent;
-    box-shadow: t.$shadow-focus;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
   }
 
   &[aria-invalid='true'] {
-    border-color: t.$warn;
+    border-color: var(--color-warn);
   }
 
   // 移动端：input 撑满剩余空间；font-size 16px 防 iOS 自动缩放
   @include m.mobile {
     flex: 1 1 auto;
-    font-size: t.$fs-sm;
-    padding: t.$sp-2 t.$sp-3;
+    font-size: var(--fs-sm);
+    padding: var(--sp-2) var(--sp-3);
   }
 }
