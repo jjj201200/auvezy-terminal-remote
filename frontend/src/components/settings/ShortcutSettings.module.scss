@@ -399,3 +399,82 @@
   color: t.$alarm;
 }
 
+// ──────────────── 分组级 CRUD ────────────────
+
+// 分组 head 右侧的紧凑图标按钮（编辑标题 / 删组）
+.groupAction {
+  @include m.btn-reset;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: t.$fg-low;
+  flex-shrink: 0;
+  @include m.transition(color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$fg;
+    background: t.$bg-hover;
+  }
+}
+
+.groupActionDanger:hover {
+  color: t.$alarm;
+}
+
+// 分组标题编辑 inline form
+.groupTitleEdit {
+  @include m.row-flex(t.$sp-2);
+  flex: 1;
+}
+
+.groupTitleInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-bottom: 1px solid t.$accent;
+  background: transparent;
+  color: t.$fg;
+  padding: 2px 0;
+  font-size: t.$fs-sm;
+  font-family: inherit;
+  letter-spacing: t.$tracking-tight;
+  outline: none;
+}
+
+// "+ 新建分组" 大按钮（root 级 footer）
+.addGroupBtn {
+  @include m.btn-reset;
+  align-self: flex-start;
+  @include m.row-flex(t.$sp-2);
+  padding: t.$sp-3 t.$sp-4;
+  border: 1px dashed t.$border-hi;
+  color: t.$fg-dim;
+  font-size: t.$fs-xs;
+  letter-spacing: t.$tracking-tight;
+  background: transparent;
+  @include m.transition(color t.$dur-fast, border-color t.$dur-fast, background t.$dur-fast);
+
+  &:hover {
+    color: t.$accent;
+    border-color: t.$accent;
+    background: t.$accent-soft;
+  }
+}
+
+// 项级 "重置为默认" 按钮（仅 builtinKey 命中的项可见）
+.resetItemBtn {
+  &:hover {
+    color: t.$accent;
+  }
+}
+
+// 标题编辑 inline error
+.groupErrorText {
+  flex-basis: 100%;
+  font-size: t.$fs-2xs;
+  color: t.$alarm;
+  padding-top: 2px;
+}
+

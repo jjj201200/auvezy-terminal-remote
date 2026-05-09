@@ -308,6 +308,27 @@ export interface Messages {
     dragHandleTooltip: string;
     listAriaLabel: string;
     groupListAriaLabel: string;
+    /** 分组标题点击编辑 tooltip */
+    groupEditTooltip: string;
+    /** 分组删除按钮 tooltip */
+    groupDeleteTooltip: string;
+    /** 分组删除二次确认 title */
+    groupDeleteConfirmTitle: string;
+    /** 分组删除二次确认 message（{{title}} {{count}} 项） */
+    groupDeleteConfirm: string;
+    /** 新建分组按钮 */
+    addGroupBtn: string;
+    /** 新建分组 prompt 标题 */
+    addGroupTitle: string;
+    /** 新建分组 placeholder */
+    addGroupPlaceholder: string;
+    /** 标题不能为空 */
+    groupTitleEmptyError: string;
+    /** 项级"重置为默认"tooltip */
+    resetItemTooltip: string;
+    /** 项级"重置为默认"二次确认 */
+    resetItemConfirmTitle: string;
+    resetItemConfirm: string;
   };
 
   // 设置 - 命令
@@ -327,6 +348,27 @@ export interface Messages {
     saveTooltip: string;
     cancelTooltip: string;
     dragHandleTooltip: string;
+    /** 分组标题点击编辑 tooltip */
+    groupEditTooltip: string;
+    /** 分组删除按钮 tooltip */
+    groupDeleteTooltip: string;
+    /** 分组删除二次确认 title */
+    groupDeleteConfirmTitle: string;
+    /** 分组删除二次确认 message */
+    groupDeleteConfirm: string;
+    /** 新建分组按钮 */
+    addGroupBtn: string;
+    /** 新建分组 prompt 标题 */
+    addGroupTitle: string;
+    /** 新建分组 placeholder */
+    addGroupPlaceholder: string;
+    /** 标题不能为空 */
+    groupTitleEmptyError: string;
+    /** 项级"重置为默认"tooltip */
+    resetItemTooltip: string;
+    /** 项级"重置为默认"二次确认 */
+    resetItemConfirmTitle: string;
+    resetItemConfirm: string;
   };
 
   // Toolbar

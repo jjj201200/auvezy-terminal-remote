@@ -1,17 +1,9 @@
 /**
- * CommandSettings
+ * CommandSettings（嵌套树形态，0.6 起）
  *
- * 按内置分组（session/context/agent/workflow/auth/help/tools）+ custom 组展示。
- *
- * 与 ShortcutSettings 设计同源：
- *  - 行高紧凑、组默认折叠（除「会话」）、行内编辑
- *  - 任何组都允许编辑、删除、新增（custom 组提供新增按钮）
- *  - 所有组之间通过左侧 grip 手柄拖拽重排，跨组拖动同步修改 group 字段
- *
- * 命令字段比快捷键多两个：
- *  - command：要发送的命令文本（如 /clear）
- *  - autoSend：true=点击直接发送，false=填到输入框等待编辑
- *  - desc：可选描述（编辑时也可改，按钮 title 与设置面板都展示）
+ * 与 ShortcutSettings 设计同源，差异：
+ *  - item 字段是 command（不是 data） + autoSend 开关 + 编辑时可改 desc
+ *  - 行内显示 "自动" / "编辑" 标签
  */
 
 import { useMemo, useState, type JSX, type ReactNode } from 'react';
@@ -23,65 +15,83 @@ import {
   IconCheck,
   IconX,
   IconGripVertical,
+  IconRefresh,
 } from '@tabler/icons-react';
 import {
-  type ConfigurableCommand,
-  type CommandGroupId,
-  COMMAND_GROUPS,
+  type CommandGroup,
+  type CommandItem,
+  lookupBuiltinCommand,
+  makeActionId,
 } from 'auvezy-terminal-remote-shared';
 import clsx from 'clsx';
 import { Toggle } from '../ui/Toggle.js';
 import { useDragReorder, type DropIndicator } from '../../hooks/useDragReorder.js';
 import { useT } from '../../i18n/i18n-context.js';
+import { useConfirm } from '../ui/ConfirmProvider.js';
 import s from './ShortcutSettings.module.scss';
 import sc from './CommandSettings.module.scss';
 
 export interface CommandSettingsProps {
-  value: ConfigurableCommand[];
-  onChange: (next: ConfigurableCommand[]) => void;
+  groups: CommandGroup[];
+  onChange: (next: CommandGroup[]) => void;
 }
 
-interface EditingState {
-  idx: number;
+interface FlatRow {
+  groupId: string;
+  itemIdx: number;
+  item: CommandItem;
+}
+
+interface EditingItemState {
+  flatIdx: number;
   label: string;
   command: string;
   desc: string;
   autoSend: boolean;
 }
 
-const CUSTOM_GROUP_ID: CommandGroupId = 'custom';
+interface EditingGroupState {
+  groupId: string;
+  title: string;
+  error: string | null;
+}
 
-export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.Element {
+export function CommandSettings({ groups, onChange }: CommandSettingsProps): JSX.Element {
   const t = useT();
-  const CUSTOM_GROUP_TITLE = t('toolbar.customGroup');
-  const CUSTOM_GROUP_DESC = t('commands.descPlaceholder');
-  // 默认全部折叠，让用户主动选择要编辑的分组
-  const [expanded, setExpanded] = useState<Set<CommandGroupId>>(() => new Set());
-  const [editing, setEditing] = useState<EditingState | null>(null);
+  const confirm = useConfirm();
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [editingItem, setEditingItem] = useState<EditingItemState | null>(null);
+  const [editingGroup, setEditingGroup] = useState<EditingGroupState | null>(null);
+
+  const flat = useMemo<FlatRow[]>(
+    () =>
+      groups.flatMap((g) =>
+        g.items.map((item, itemIdx) => ({ groupId: g.id, itemIdx, item })),
+      ),
+    [groups],
+  );
 
   const { register, getHandleProps, dragState, dropIndicator, isDragging } =
-    useDragReorder<ConfigurableCommand>({
-      value,
-      onChange,
-      groupOf: (c) => c.group ?? CUSTOM_GROUP_ID,
-      withGroup: (c, gid) => ({ ...c, group: gid as CommandGroupId }),
+    useDragReorder<FlatRow>({
+      value: flat,
+      onChange: (nextFlat) => {
+        const byGroup = new Map<string, CommandItem[]>();
+        for (const g of groups) byGroup.set(g.id, []);
+        for (const row of nextFlat) {
+          let bucket = byGroup.get(row.groupId);
+          if (!bucket) {
+            bucket = [];
+            byGroup.set(row.groupId, bucket);
+          }
+          bucket.push(row.item);
+        }
+        onChange(groups.map((g) => ({ ...g, items: byGroup.get(g.id) ?? [] })));
+      },
+      groupOf: (r) => r.groupId,
+      withGroup: (r, gid) => ({ ...r, groupId: gid }),
     });
 
-  const buckets = useMemo(() => {
-    const map = new Map<CommandGroupId, Array<{ c: ConfigurableCommand; idx: number }>>();
-    for (const g of COMMAND_GROUPS) map.set(g.id, []);
-    map.set(CUSTOM_GROUP_ID, []);
-    value.forEach((c, idx) => {
-      const gid =
-        c.group && map.has(c.group as CommandGroupId)
-          ? (c.group as CommandGroupId)
-          : CUSTOM_GROUP_ID;
-      map.get(gid)!.push({ c, idx });
-    });
-    return map;
-  }, [value]);
-
-  const toggleExpanded = (id: CommandGroupId): void => {
+  const toggleExpanded = (id: string): void => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -90,38 +100,105 @@ export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.
     });
   };
 
-  const updateAt = (idx: number, patch: Partial<ConfigurableCommand>): void => {
-    onChange(value.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  // ─── group 级 ───
+
+  const updateGroup = (groupId: string, patch: Partial<CommandGroup>): void => {
+    onChange(groups.map((g) => (g.id === groupId ? { ...g, ...patch } : g)));
   };
 
-  const removeAt = (idx: number): void => {
-    onChange(value.filter((_, i) => i !== idx));
-    if (editing?.idx === idx) setEditing(null);
+  const deleteGroup = async (g: CommandGroup): Promise<void> => {
+    const ok = await confirm({
+      title: t('commands.groupDeleteConfirmTitle'),
+      messageTemplate: t('commands.groupDeleteConfirm'),
+      messageVars: { title: g.title, count: String(g.items.length) },
+      tone: 'danger',
+    });
+    if (!ok) return;
+    onChange(groups.filter((x) => x.id !== g.id));
   };
 
-  const setGroupEnabled = (gid: CommandGroupId, enabled: boolean): void => {
+  const addGroup = (): void => {
+    const id = makeActionId('g');
+    const newGroup: CommandGroup = {
+      id,
+      title: t('commands.addGroupTitle'),
+      items: [],
+    };
+    onChange([...groups, newGroup]);
+    setExpanded((prev) => new Set(prev).add(id));
+    setEditingGroup({ groupId: id, title: newGroup.title, error: null });
+  };
+
+  const startEditGroup = (g: CommandGroup): void => {
+    setEditingGroup({ groupId: g.id, title: g.title, error: null });
+  };
+
+  const commitEditGroup = (): void => {
+    if (!editingGroup) return;
+    const trimmed = editingGroup.title.trim();
+    if (trimmed.length === 0) {
+      setEditingGroup({ ...editingGroup, error: t('commands.groupTitleEmptyError') });
+      return;
+    }
+    updateGroup(editingGroup.groupId, { title: trimmed });
+    setEditingGroup(null);
+  };
+
+  const cancelEditGroup = (): void => setEditingGroup(null);
+
+  // ─── item 级 ───
+
+  const updateItem = (groupId: string, itemIdx: number, patch: Partial<CommandItem>): void => {
     onChange(
-      value.map((c) => {
-        const owns =
-          (c.group ?? CUSTOM_GROUP_ID) === gid ||
-          (gid === CUSTOM_GROUP_ID && !c.group);
-        return owns ? { ...c, enabled } : c;
-      }),
+      groups.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              items: g.items.map((it, i) => (i === itemIdx ? { ...it, ...patch } : it)),
+            }
+          : g,
+      ),
     );
   };
 
-  const addCustom = (): void => {
-    setExpanded((prev) => new Set(prev).add(CUSTOM_GROUP_ID));
-    const newItem: ConfigurableCommand = {
+  const removeItem = (groupId: string, itemIdx: number): void => {
+    onChange(
+      groups.map((g) =>
+        g.id === groupId ? { ...g, items: g.items.filter((_, i) => i !== itemIdx) } : g,
+      ),
+    );
+    setEditingItem(null);
+  };
+
+  const setGroupAllEnabled = (groupId: string, enabled: boolean): void => {
+    onChange(
+      groups.map((g) =>
+        g.id === groupId ? { ...g, items: g.items.map((it) => ({ ...it, enabled })) } : g,
+      ),
+    );
+  };
+
+  const addItemToGroup = (groupId: string): void => {
+    const newItem: CommandItem = {
+      id: makeActionId('i'),
       label: '',
       command: '',
       enabled: true,
       autoSend: true,
-      group: CUSTOM_GROUP_ID,
     };
-    onChange([...value, newItem]);
-    setEditing({
-      idx: value.length,
+    onChange(
+      groups.map((g) =>
+        g.id === groupId ? { ...g, items: [...g.items, newItem] } : g,
+      ),
+    );
+    setExpanded((prev) => new Set(prev).add(groupId));
+    const baseFlatIdx = groups
+      .slice(0, groups.findIndex((g) => g.id === groupId))
+      .reduce((acc, g) => acc + g.items.length, 0);
+    const targetGroup = groups.find((g) => g.id === groupId);
+    const newFlatIdx = baseFlatIdx + (targetGroup?.items.length ?? 0);
+    setEditingItem({
+      flatIdx: newFlatIdx,
       label: '',
       command: '',
       desc: '',
@@ -129,98 +206,127 @@ export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.
     });
   };
 
-  const startEdit = (idx: number, c: ConfigurableCommand): void => {
-    setEditing({
-      idx,
-      label: c.label,
-      command: c.command,
-      desc: c.desc ?? '',
-      autoSend: c.autoSend ?? true,
+  const startEditItem = (flatIdx: number, item: CommandItem): void => {
+    setEditingItem({
+      flatIdx,
+      label: item.label,
+      command: item.command,
+      desc: item.desc ?? '',
+      autoSend: item.autoSend ?? true,
     });
   };
 
-  const commitEdit = (): void => {
-    if (!editing) return;
-    updateAt(editing.idx, {
-      label: editing.label,
-      command: editing.command,
-      desc: editing.desc.length > 0 ? editing.desc : undefined,
-      autoSend: editing.autoSend,
+  const commitEditItem = (): void => {
+    if (!editingItem) return;
+    const row = flat[editingItem.flatIdx];
+    if (!row) {
+      setEditingItem(null);
+      return;
+    }
+    updateItem(row.groupId, row.itemIdx, {
+      label: editingItem.label,
+      command: editingItem.command,
+      desc: editingItem.desc.trim() || undefined,
+      autoSend: editingItem.autoSend,
     });
-    setEditing(null);
+    setEditingItem(null);
   };
 
-  const cancelEdit = (): void => setEditing(null);
+  const cancelEditItem = (): void => setEditingItem(null);
 
-  const renderGroup = (
-    gid: CommandGroupId,
-    title: string,
-    desc: string,
-    isCustomGroup: boolean,
-  ): JSX.Element => {
-    const items = buckets.get(gid) ?? [];
-    const enabledCount = items.filter((it) => it.c.enabled).length;
-    const isOpen = expanded.has(gid);
-    const isDropTarget =
-      dropIndicator?.kind === 'group-empty' &&
-      dropIndicator.groupId === gid &&
-      items.length === 0;
-
-    return (
-      <GroupBlock
-        key={gid}
-        groupId={gid}
-        title={title}
-        desc={desc}
-        isOpen={isOpen}
-        enabledCount={enabledCount}
-        totalCount={items.length}
-        isDropTarget={isDropTarget}
-        registerListEl={(el) => register.group(gid, el)}
-        onToggle={() => toggleExpanded(gid)}
-        onEnableAll={() => setGroupEnabled(gid, true)}
-        onDisableAll={() => setGroupEnabled(gid, false)}
-        footer={
-          isCustomGroup ? (
-            <button type="button" onClick={addCustom} className={s.addBtn}>
-              <IconPlus size={12} stroke={1.5} />
-              {t('list.add')}
-            </button>
-          ) : undefined
-        }
-      >
-        {items.map(({ c, idx }) => (
-          <RowWithIndicator
-            key={idx}
-            idx={idx}
-            command={c}
-            editing={editing?.idx === idx ? editing : null}
-            registerRowEl={(el) => register.row(idx, el)}
-            handleProps={getHandleProps(idx)}
-            dragSourceIdx={dragState?.sourceIdx ?? null}
-            indicator={dropIndicator}
-            onToggleEnabled={(checked) => updateAt(idx, { enabled: checked })}
-            onStartEdit={() => startEdit(idx, c)}
-            onChangeField={(patch) =>
-              setEditing((prev) => (prev ? { ...prev, ...patch } : prev))
-            }
-            onCommit={commitEdit}
-            onCancel={cancelEdit}
-            onDelete={() => removeAt(idx)}
-          />
-        ))}
-      </GroupBlock>
-    );
+  const resetItemToDefault = async (
+    groupId: string,
+    itemIdx: number,
+    item: CommandItem,
+  ): Promise<void> => {
+    if (!item.builtinKey) return;
+    const builtin = lookupBuiltinCommand(item.builtinKey);
+    if (!builtin) return;
+    const ok = await confirm({
+      title: t('commands.resetItemConfirmTitle'),
+      messageTemplate: t('commands.resetItemConfirm'),
+      messageVars: { label: item.label || builtin.label },
+      tone: 'danger',
+    });
+    if (!ok) return;
+    updateItem(groupId, itemIdx, {
+      label: builtin.label,
+      command: builtin.command,
+      desc: builtin.desc,
+      autoSend: builtin.autoSend,
+    });
   };
 
-  const ghostItem = dragState ? value[dragState.sourceIdx] : null;
+  const ghostRow = dragState ? flat[dragState.sourceIdx] : null;
 
   return (
     <div id="command-settings" className={clsx(s.root, isDragging && s.rootDragging)}>
-      {COMMAND_GROUPS.map((g) => renderGroup(g.id, g.title, g.desc, false))}
-      {renderGroup(CUSTOM_GROUP_ID, CUSTOM_GROUP_TITLE, CUSTOM_GROUP_DESC, true)}
+      {groups.map((g) => (
+        <GroupBlock
+          key={g.id}
+          group={g}
+          isOpen={expanded.has(g.id)}
+          isEditingTitle={editingGroup?.groupId === g.id}
+          editingGroupState={editingGroup?.groupId === g.id ? editingGroup : null}
+          isDropTarget={
+            dropIndicator?.kind === 'group-empty' &&
+            dropIndicator.groupId === g.id &&
+            g.items.length === 0
+          }
+          registerListEl={(el) => register.group(g.id, el)}
+          onToggle={() => toggleExpanded(g.id)}
+          onEnableAll={() => setGroupAllEnabled(g.id, true)}
+          onDisableAll={() => setGroupAllEnabled(g.id, false)}
+          onStartEditTitle={() => startEditGroup(g)}
+          onChangeEditingTitle={(title) =>
+            setEditingGroup((prev) => (prev ? { ...prev, title, error: null } : prev))
+          }
+          onCommitEditTitle={commitEditGroup}
+          onCancelEditTitle={cancelEditGroup}
+          onDeleteGroup={() => void deleteGroup(g)}
+          onAddItem={() => addItemToGroup(g.id)}
+        >
+          {g.items.map((item, itemIdx) => {
+            const flatIdx = flat.findIndex(
+              (r) => r.groupId === g.id && r.itemIdx === itemIdx,
+            );
+            return (
+              <RowWithIndicator
+                key={item.id}
+                flatIdx={flatIdx}
+                item={item}
+                editing={editingItem?.flatIdx === flatIdx ? editingItem : null}
+                registerRowEl={(el) => register.row(flatIdx, el)}
+                handleProps={getHandleProps(flatIdx)}
+                dragSourceIdx={dragState?.sourceIdx ?? null}
+                indicator={dropIndicator}
+                onToggleEnabled={(checked) =>
+                  updateItem(g.id, itemIdx, { enabled: checked })
+                }
+                onStartEdit={() => startEditItem(flatIdx, item)}
+                onChangeField={(patch) =>
+                  setEditingItem((prev) => (prev ? { ...prev, ...patch } : prev))
+                }
+                onCommit={commitEditItem}
+                onCancel={cancelEditItem}
+                onDelete={() => removeItem(g.id, itemIdx)}
+                onResetToDefault={
+                  item.builtinKey
+                    ? () => void resetItemToDefault(g.id, itemIdx, item)
+                    : undefined
+                }
+              />
+            );
+          })}
+        </GroupBlock>
+      ))}
 
-      {dragState && ghostItem && (
+      <button type="button" onClick={addGroup} className={s.addGroupBtn}>
+        <IconPlus size={12} stroke={1.5} />
+        {t('commands.addGroupBtn')}
+      </button>
+
+      {dragState && ghostRow && (
         <div
           className={s.dragGhost}
           style={{
@@ -229,8 +335,8 @@ export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.
           }}
         >
           <IconGripVertical size={12} stroke={1.5} />
-          <span className={s.dragGhostLabel}>{ghostItem.label || t('commands.unnamed')}</span>
-          <span className={s.dragGhostData}>{ghostItem.command}</span>
+          <span className={s.dragGhostLabel}>{ghostRow.item.label || t('commands.unnamed')}</span>
+          <span className={s.dragGhostData}>{ghostRow.item.command}</span>
         </div>
       )}
     </div>
@@ -242,76 +348,164 @@ export function CommandSettings({ value, onChange }: CommandSettingsProps): JSX.
 // ============================================================
 
 interface GroupBlockProps {
-  groupId: string;
-  title: string;
-  desc: string;
+  group: CommandGroup;
   isOpen: boolean;
-  enabledCount: number;
-  totalCount: number;
+  isEditingTitle: boolean;
+  editingGroupState: EditingGroupState | null;
   isDropTarget: boolean;
   registerListEl: (el: HTMLElement | null) => void;
   onToggle: () => void;
   onEnableAll: () => void;
   onDisableAll: () => void;
+  onStartEditTitle: () => void;
+  onChangeEditingTitle: (title: string) => void;
+  onCommitEditTitle: () => void;
+  onCancelEditTitle: () => void;
+  onDeleteGroup: () => void;
+  onAddItem: () => void;
   children: ReactNode;
-  footer?: ReactNode;
 }
 
-function GroupBlock({
-  groupId,
-  title,
-  desc,
-  isOpen,
-  enabledCount,
-  totalCount,
-  isDropTarget,
-  registerListEl,
-  onToggle,
-  onEnableAll,
-  onDisableAll,
-  children,
-  footer,
-}: GroupBlockProps): JSX.Element {
+function GroupBlock(props: GroupBlockProps): JSX.Element {
+  const {
+    group,
+    isOpen,
+    isEditingTitle,
+    editingGroupState,
+    isDropTarget,
+    registerListEl,
+    onToggle,
+    onEnableAll,
+    onDisableAll,
+    onStartEditTitle,
+    onChangeEditingTitle,
+    onCommitEditTitle,
+    onCancelEditTitle,
+    onDeleteGroup,
+    onAddItem,
+    children,
+  } = props;
   const t = useT();
-  const allOn = totalCount > 0 && enabledCount === totalCount;
+  const total = group.items.length;
+  const enabledCount = group.items.filter((it) => it.enabled).length;
+  const allOn = total > 0 && enabledCount === total;
+
   return (
-    <section className={clsx(s.group, isDropTarget && s.groupDropTarget)} data-group-id={groupId}>
+    <section
+      className={clsx(s.group, isDropTarget && s.groupDropTarget)}
+      data-group-id={group.id}
+    >
       <div className={s.head}>
-        <button
-          type="button"
-          onClick={onToggle}
-          className={s.headBtn}
-          aria-expanded={isOpen}
-        >
-          <IconChevronRight
-            size={12}
-            stroke={1.5}
-            className={clsx(s.chev, isOpen && s.chevOpen)}
-          />
-          <span>{title}</span>
-          <span className={s.count}>
-            {enabledCount}/{totalCount}
-          </span>
-        </button>
-        {totalCount > 0 && (
-          <button
-            type="button"
-            onClick={allOn ? onDisableAll : onEnableAll}
-            className={s.bulkBtn}
-          >
-            {allOn ? t('list.disableAll') : t('list.enableAll')}
-          </button>
+        {isEditingTitle && editingGroupState ? (
+          <div className={s.groupTitleEdit}>
+            <input
+              type="text"
+              value={editingGroupState.title}
+              onChange={(e) => onChangeEditingTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onCommitEditTitle();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  onCancelEditTitle();
+                }
+              }}
+              onBlur={(e) => {
+                if (e.relatedTarget instanceof Node) {
+                  const headEl = (e.currentTarget as HTMLElement).closest(`.${s.head}`);
+                  if (headEl?.contains(e.relatedTarget)) return;
+                }
+                onCancelEditTitle();
+              }}
+              autoFocus
+              placeholder={t('commands.addGroupPlaceholder')}
+              className={s.groupTitleInput}
+            />
+            <button
+              type="button"
+              onClick={onCommitEditTitle}
+              aria-label={t('commands.saveTooltip')}
+              title={t('commands.saveTooltip')}
+              className={s.commitBtn}
+            >
+              <IconCheck size={12} stroke={2} />
+            </button>
+            <button
+              type="button"
+              onClick={onCancelEditTitle}
+              aria-label={t('commands.cancelTooltip')}
+              title={t('commands.cancelTooltip')}
+              className={s.cancelBtn}
+            >
+              <IconX size={12} stroke={1.5} />
+            </button>
+            {editingGroupState.error && (
+              <span className={s.groupErrorText}>{editingGroupState.error}</span>
+            )}
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onToggle}
+              className={s.headBtn}
+              aria-expanded={isOpen}
+            >
+              <IconChevronRight
+                size={12}
+                stroke={1.5}
+                className={clsx(s.chev, isOpen && s.chevOpen)}
+              />
+              <span>{group.title}</span>
+              <span className={s.count}>
+                {enabledCount}/{total}
+              </span>
+            </button>
+            {total > 0 && (
+              <button
+                type="button"
+                onClick={allOn ? onDisableAll : onEnableAll}
+                className={s.bulkBtn}
+              >
+                {allOn ? t('list.disableAll') : t('list.enableAll')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onStartEditTitle}
+              aria-label={t('commands.groupEditTooltip')}
+              title={t('commands.groupEditTooltip')}
+              className={s.groupAction}
+            >
+              <IconPencil size={12} stroke={1.5} />
+            </button>
+            <button
+              type="button"
+              onClick={onDeleteGroup}
+              aria-label={t('commands.groupDeleteTooltip')}
+              title={t('commands.groupDeleteTooltip')}
+              className={clsx(s.groupAction, s.groupActionDanger)}
+            >
+              <IconTrash size={12} stroke={1.5} />
+            </button>
+          </>
         )}
       </div>
 
       {isOpen && (
         <div className={s.body}>
-          {desc && <p className={s.desc}>{desc}</p>}
-          {totalCount === 0 && !footer && <p className={s.empty}>{t('commands.emptyList')}</p>}
+          {group.desc && <p className={s.desc}>{group.desc}</p>}
+          {total === 0 && <p className={s.empty}>{t('commands.emptyList')}</p>}
           <div className={s.list} ref={registerListEl}>
             {children}
           </div>
-          {footer && <div className={s.footer}>{footer}</div>}
+          <div className={s.footer}>
+            <button type="button" onClick={onAddItem} className={s.addBtn}>
+              <IconPlus size={12} stroke={1.5} />
+              {t('list.add')}
+            </button>
+          </div>
         </div>
       )}
     </section>
@@ -319,44 +513,47 @@ function GroupBlock({
 }
 
 interface RowWithIndicatorProps {
-  idx: number;
-  command: ConfigurableCommand;
-  editing: EditingState | null;
+  flatIdx: number;
+  item: CommandItem;
+  editing: EditingItemState | null;
   registerRowEl: (el: HTMLElement | null) => void;
-  handleProps: ReturnType<ReturnType<typeof useDragReorder<ConfigurableCommand>>['getHandleProps']>;
+  handleProps: ReturnType<ReturnType<typeof useDragReorder<FlatRow>>['getHandleProps']>;
   dragSourceIdx: number | null;
   indicator: DropIndicator | null;
   onToggleEnabled: (checked: boolean) => void;
   onStartEdit: () => void;
-  onChangeField: (patch: Partial<EditingState>) => void;
+  onChangeField: (patch: Partial<EditingItemState>) => void;
   onCommit: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onResetToDefault?: () => void;
 }
 
-function RowWithIndicator({
-  idx,
-  command,
-  editing,
-  registerRowEl,
-  handleProps,
-  dragSourceIdx,
-  indicator,
-  onToggleEnabled,
-  onStartEdit,
-  onChangeField,
-  onCommit,
-  onCancel,
-  onDelete,
-}: RowWithIndicatorProps): JSX.Element {
+function RowWithIndicator(props: RowWithIndicatorProps): JSX.Element {
   const t = useT();
+  const {
+    flatIdx,
+    item,
+    editing,
+    registerRowEl,
+    handleProps,
+    dragSourceIdx,
+    indicator,
+    onToggleEnabled,
+    onStartEdit,
+    onChangeField,
+    onCommit,
+    onCancel,
+    onDelete,
+    onResetToDefault,
+  } = props;
   const inEdit = editing !== null;
-  const auto = command.autoSend ?? true;
-  const isDragSource = dragSourceIdx === idx;
+  const auto = item.autoSend ?? true;
+  const isDragSource = dragSourceIdx === flatIdx;
   const showIndicatorBefore =
-    indicator?.kind === 'row' && indicator.idx === idx && indicator.position === 'before';
+    indicator?.kind === 'row' && indicator.idx === flatIdx && indicator.position === 'before';
   const showIndicatorAfter =
-    indicator?.kind === 'row' && indicator.idx === idx && indicator.position === 'after';
+    indicator?.kind === 'row' && indicator.idx === flatIdx && indicator.position === 'after';
 
   if (inEdit) {
     return (
@@ -430,26 +627,22 @@ function RowWithIndicator({
   return (
     <div
       ref={registerRowEl}
-      className={clsx(
-        s.row,
-        !command.enabled && s.rowDisabled,
-        isDragSource && s.rowDragSource,
-      )}
+      className={clsx(s.row, !item.enabled && s.rowDisabled, isDragSource && s.rowDragSource)}
     >
       {showIndicatorBefore && <div className={s.dropIndicatorTop} />}
-      <Toggle checked={command.enabled} onCheckedChange={onToggleEnabled} />
-      <span className={clsx(s.rowLabel, !command.label && s.rowLabelEmpty)}>
-        {command.label || t('commands.unnamed')}
+      <Toggle checked={item.enabled} onCheckedChange={onToggleEnabled} />
+      <span className={clsx(s.rowLabel, !item.label && s.rowLabelEmpty)}>
+        {item.label || t('commands.unnamed')}
       </span>
-      <span className={clsx(s.rowData, !command.command && s.rowDataEmpty)}>
-        {command.command || t('commands.empty')}
+      <span className={clsx(s.rowData, !item.command && s.rowDataEmpty)}>
+        {item.command || t('commands.empty')}
       </span>
       <span className={clsx(sc.autoSendTag, !auto && sc.autoSendTagDraft)}>
         {auto ? '自动' : '编辑'}
       </span>
-      {command.desc && (
-        <span className={s.rowDesc} title={command.desc}>
-          {command.desc}
+      {item.desc && (
+        <span className={s.rowDesc} title={item.desc}>
+          {item.desc}
         </span>
       )}
       <button
@@ -461,6 +654,17 @@ function RowWithIndicator({
       >
         <IconPencil size={12} stroke={1.5} />
       </button>
+      {onResetToDefault && (
+        <button
+          type="button"
+          onClick={onResetToDefault}
+          aria-label={t('commands.resetItemTooltip')}
+          title={t('commands.resetItemTooltip')}
+          className={clsx(s.iconBtn, s.resetItemBtn)}
+        >
+          <IconRefresh size={12} stroke={1.5} />
+        </button>
+      )}
       <button
         type="button"
         onClick={onDelete}

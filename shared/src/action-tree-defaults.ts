@@ -137,7 +137,7 @@ export function migrateShortcutsToTree(
 ): ShortcutGroup[] {
   if (!Array.isArray(flat) || flat.length === 0) {
     if (metaEntries && metaEntries.length > 0) {
-      return buildEmptyGroupsFromMeta(metaEntries, SHORTCUT_GROUPS, 'shortcut');
+      return buildEmptyGroupsFromMeta<ShortcutGroup>(metaEntries, SHORTCUT_GROUPS);
     }
     return buildDefaultShortcutGroups();
   }
@@ -211,12 +211,14 @@ export function migrateShortcutsToTree(
   return groups;
 }
 
-/** meta 描述了空分组（用户新建的还没添加项）→ 生成空 items 的占位组 */
-function buildEmptyGroupsFromMeta(
+/**
+ * meta 描述了空分组（用户新建的还没添加项）→ 生成空 items 的占位组。
+ * 泛型避免 union return 让调用方拆类型。
+ */
+function buildEmptyGroupsFromMeta<T extends ShortcutGroup | CommandGroup>(
   entries: GroupMetaEntry[],
   builtinDefs: readonly { id: string; title: string; desc: string }[],
-  _kind: 'shortcut' | 'command',
-): Array<ShortcutGroup | CommandGroup> {
+): T[] {
   return entries.map((m) => {
     const def = builtinDefs.find((d) => d.id === m.id);
     return {
@@ -225,7 +227,7 @@ function buildEmptyGroupsFromMeta(
       desc: m.desc ?? def?.desc,
       builtinKey: def?.id,
       items: [],
-    };
+    } as unknown as T;
   });
 }
 
@@ -257,7 +259,7 @@ export function migrateCommandsToTree(
 ): CommandGroup[] {
   if (!Array.isArray(flat) || flat.length === 0) {
     if (metaEntries && metaEntries.length > 0) {
-      return buildEmptyGroupsFromMeta(metaEntries, COMMAND_GROUPS, 'command') as CommandGroup[];
+      return buildEmptyGroupsFromMeta<CommandGroup>(metaEntries, COMMAND_GROUPS);
     }
     return buildDefaultCommandGroups();
   }

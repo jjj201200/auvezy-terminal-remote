@@ -29,8 +29,14 @@ export interface ConfigurableShortcut {
   enabled: boolean;
   /** 可选描述（在按钮 title 提示与设置面板中展示） */
   desc?: string;
-  /** 所属分组 id；缺省视为旧配置 → UI 归入「自定义」组 */
-  group?: ShortcutGroupId;
+  /**
+   * 所属分组 id。
+   *
+   * 0.5 之前是 ShortcutGroupId 字面量 union；0.6 起放宽为 string，因为用户
+   * 能自定义分组（id 是 UUID）。运行时 normalize：内置组对应内置 id，自定义
+   * 组对应 UUID，缺省视为旧配置 → UI 归入「自定义」组。
+   */
+  group?: string;
 }
 
 /** 命令项（终端下方命令选择器，点击后填入或直接发送） */
@@ -45,8 +51,8 @@ export interface ConfigurableCommand {
   autoSend?: boolean;
   /** 可选描述 */
   desc?: string;
-  /** 所属分组 id；缺省视为旧配置 → UI 归入「自定义」组 */
-  group?: CommandGroupId;
+  /** 所属分组 id（0.6 起为开放 string，理由同 ConfigurableShortcut.group） */
+  group?: string;
 }
 
 // ============================================================
