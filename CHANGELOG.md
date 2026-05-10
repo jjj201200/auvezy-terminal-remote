@@ -5,6 +5,23 @@
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-05-10
+
+### Fixed
+
+- **`atr start` 撞 3000 端口直接退出**:0.7.1 漏修的 bug —— broker 走的是裸
+  `httpServer.listen(port)`,撞 EADDRINUSE 抛错就退出,而 worker 那边早就用
+  `bindAvailablePort` 自适应递增。现在 broker 也走 `bindAvailablePort`,默认
+  非严格,撞了自动 +1 直到找到可用端口;实际 port 与 preferred 不同时打印一行
+  黄色提示("preferred port N was busy; bound to M instead")。
+  - `--strict-port` flag 仍然生效:撞了直接拒,不自适应。
+  - 已有 broker 但用户传 `-p` 显式期望另一个端口的场景,错误消息改成多行 hint
+    指引"用旧 broker / `atr stop` 后重启"。
+
+### Changed
+
+- `port-finder.ts` 内部 InstanceError 消息英文化(对齐 0.7.0 起的 i18n)。
+
 ## [0.7.1] - 2026-05-10
 
 ### Breaking changes

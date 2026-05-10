@@ -178,13 +178,13 @@ export async function bindAvailablePort(
   if (strict) {
     throw new InstanceError(
       ErrorCode.PORT_UNAVAILABLE,
-      `端口 ${preferred} 已被占用（--strict-port 启用，未尝试自适应）`,
+      `port ${preferred} is in use (--strict-port set; not auto-incrementing)`,
       503,
     );
   }
   throw new InstanceError(
     ErrorCode.PORT_UNAVAILABLE,
-    `从端口 ${preferred} 起探测 ${maxAttempts} 个均不可用（最后 EADDRINUSE 端口：${lastEaddrPort ?? preferred}）`,
+    `none of ports ${preferred}..${preferred + maxAttempts - 1} are available (last EADDRINUSE: ${lastEaddrPort ?? preferred})`,
     503,
   );
 }

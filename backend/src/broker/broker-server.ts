@@ -36,6 +36,7 @@ import {
   type InstanceRouterHandle,
 } from './instance-router.js';
 import { createBrokerApiRouter } from '../api/router.js';
+import { bindAvailablePort } from '../registry/port-finder.js';
 import type { ConfigStore } from '../api/config-routes.js';
 import type { WorkdirPolicySnapshot } from '../api/workdir-policy-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
@@ -102,12 +103,19 @@ export interface BrokerApiDeps {
 }
 
 export interface BrokerServerOptions extends BrokerAppOptions {
-  /** 监听端口；默认 3000 */
+  /** 监听端口；默认 3000。被占且 strictPort=false 时自动递增 */
   port?: number;
   /** 监听 host；默认 0.0.0.0 */
   host?: string;
   /** broker.json 路径；默认 `~/.atr/broker.json` */
   statePath?: string;
+  /**
+   * 严格端口模式：preferred 端口被占即报错，不自适应递增。
+   * 默认 false —— 用户没显式 --strict-port 时,broker 会从 preferred 起依次试,
+   * 直到 PORT_FINDER_MAX_ATTEMPTS。这样 atr start 不会因为 3000 被别的进程占
+   * 着就直接退出。
+   */
+  strictPort?: boolean;
 }
 
 /**
@@ -309,22 +317,16 @@ export async function startBrokerServer(
     });
   }
 
-  await new Promise<void>((resolveListen, rejectListen) => {
-    const onError = (err: Error) => {
-      httpServer.removeListener('listening', onListening);
-      rejectListen(err);
-    };
-    const onListening = () => {
-      httpServer.removeListener('error', onError);
-      resolveListen();
-    };
-    httpServer.once('error', onError);
-    httpServer.once('listening', onListening);
-    httpServer.listen(port, host);
+  // 自适应端口:preferred 被占且非 strict 时自动尝试下一个;
+  // strictPort=true(--strict-port) 才在第一次撞车就退出。worker 早就这么做了,
+  // broker 之前直接 httpServer.listen(port) 撞 EADDRINUSE 就退出 —— 0.7.1 起拉齐。
+  const bound = await bindAvailablePort({
+    preferred: port,
+    host,
+    server: httpServer,
+    strict: opts.strictPort ?? false,
   });
-
-  const addr = httpServer.address();
-  const actualPort = typeof addr === 'object' && addr ? addr.port : port;
+  const actualPort = bound.port;
 
   writeBrokerState(
     {

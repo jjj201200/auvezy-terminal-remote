@@ -282,16 +282,24 @@ async function runBrokerStart(cli: ParsedCliArgs): Promise<number> {
       registry,
       frontendDist,
       brokerApi,
+      strictPort: cli.strictPort ?? false,
     });
   } catch (err) {
     process.stderr.write(
-      `[atr] startup failed: ${err instanceof Error ? err.message : String(err)}\n`,
+      `${c.red('[atr]')} startup failed: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     return 1;
   }
 
+  // 提示用户实际端口;如果与 preferred 不同,顺手说一句"3000 被占"
+  if (handle.port !== port) {
+    process.stderr.write(
+      `${c.yellow('[atr]')} preferred port ${port} was busy; bound to ${handle.port} instead\n` +
+        c.dim(`  pass --strict-port if you want atr to refuse to start when ${port} is taken\n`),
+    );
+  }
   process.stderr.write(
-    `[atr] listening on http://${host}:${handle.port}\n`,
+    `${c.cyan('[atr]')} listening on http://${host}:${handle.port}\n`,
   );
 
   let stopping = false;

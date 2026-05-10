@@ -133,8 +133,9 @@ export async function ensureBroker(opts: EnsureBrokerOptions): Promise<EnsureBro
         ) {
           throw new AppError(
             ErrorCode.INTERNAL_ERROR,
-            `broker is already running on port ${existing.port}; cannot honor requested port ${opts.brokerPort}. ` +
-              `Run 'atr stop' first if you want to switch to ${opts.brokerPort}.`,
+            `broker is already running on port ${existing.port}; cannot honor requested port ${opts.brokerPort}.\n` +
+              `  - to use the running broker: drop -p ${opts.brokerPort}\n` +
+              `  - to switch broker: 'atr stop' then 'atr -p ${opts.brokerPort} ...' again`,
           );
         }
         return { state: existing, forked: false };

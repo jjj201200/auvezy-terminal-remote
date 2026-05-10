@@ -181,4 +181,57 @@ describe('startBrokerServer', () => {
       await h2.shutdown();
     }
   });
+
+  it('preferred 端口被占且非 strict → 自动跳到下一个可用端口', async () => {
+    // 先抢占一个端口
+    const blocker = await startBrokerServer({
+      port: 0,
+      host: '127.0.0.1',
+      brokerVersion: '0.7.0',
+      statePath: resolve(baseDir, 'blocker.json'),
+    });
+    const blockedPort = blocker.port;
+
+    try {
+      // 让第二个 broker 也想要 blockedPort:strictPort 默认 false → 应该跳过
+      const h2 = await startBrokerServer({
+        port: blockedPort,
+        host: '127.0.0.1',
+        brokerVersion: '0.7.0',
+        statePath,
+      });
+      try {
+        expect(h2.port).not.toBe(blockedPort);
+        expect(h2.port).toBeGreaterThan(0);
+      } finally {
+        await h2.shutdown();
+      }
+    } finally {
+      await blocker.shutdown();
+    }
+  });
+
+  it('preferred 端口被占 + strictPort=true → 抛错', async () => {
+    const blocker = await startBrokerServer({
+      port: 0,
+      host: '127.0.0.1',
+      brokerVersion: '0.7.0',
+      statePath: resolve(baseDir, 'blocker.json'),
+    });
+    const blockedPort = blocker.port;
+
+    try {
+      await expect(
+        startBrokerServer({
+          port: blockedPort,
+          host: '127.0.0.1',
+          brokerVersion: '0.7.0',
+          statePath,
+          strictPort: true,
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await blocker.shutdown();
+    }
+  });
 });
