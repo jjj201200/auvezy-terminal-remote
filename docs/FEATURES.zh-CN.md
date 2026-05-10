@@ -16,7 +16,7 @@
 
 - 一个终端跑一个 `atr` —— 每个实例自动占下一个空闲端口（3000、3001、3002…），同一个浏览器顶栏 tab 全部展示，点击切换
 - `instances/<port>.json` 注册表，文件锁 + 原子写、僵尸 PID 清理、本机所有实例共享 token
-- `atr list` / `atr stop [pattern]` / `atr attach <url>` 子命令
+- `atr list` / `atr kill <pattern|all>` / `atr attach <url>` / `atr completion <shell>` 子命令
 
 ## 多客户端（master / slave 主从仲裁）
 

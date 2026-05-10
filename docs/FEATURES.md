@@ -23,7 +23,7 @@ For planned-but-not-built items see [ROADMAP](./ROADMAP.md).
   switch
 - `instances/<port>.json` registry with file-locked atomic writes, stale-PID
   cleanup, shared token across instances on the same machine
-- `atr list` / `atr stop [pattern]` / `atr attach <url>` subcommands
+- `atr list` / `atr kill <pattern|all>` / `atr attach <url>` / `atr completion <shell>` subcommands
 
 ## Multi-client (master / slave arbitration)
 

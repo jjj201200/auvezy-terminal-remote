@@ -15,22 +15,36 @@ Remote-control any terminal program on your PC from a phone or tablet
 browser over LAN. Start a broker once at boot — open the browser any
 time to log in, create instances, and run Claude / your shell / any TUI.
 
-<img src="./frontend/public/screenshots/desktop.png" alt="Webapp running Claude Code in a browser tab" width="720">
+<img src="./frontend/public/screenshots/desktop.png" alt="Webapp running Claude Code in a browser tab" width="960">
+
+<img src="./frontend/public/screenshots/mobile.png" alt="Webapp on a phone screen" width="400">
 
 </div>
 
-## ✨ Features
+## ✨ Highlights
 
-- **PTY bridge** — node-pty + xterm.js 5, full ANSI, alt-screen TUI safe
-- **Claude Code / TUI tuned** — Ink/Yoga reflow fix on resize, alt-screen blocklist, "adapt to current device" PTY sizing
-- **Multi-instance** — every instance is its own subprocess; one tab bar shows them all, URL is the instance (`/i/<id>/`)
-- **Multi-client** — many browsers / `attach` clients on one instance, with master arbitration
-- **Mobile-first PWA** — IME guard, long-press, swipe scroll, viewport-aware fit, install to home screen
-- **Custom shortcuts & commands** — define on-screen keys and saved command snippets in the settings panel
-- **Reconnect with replay** — scrollback rehydrated on every reconnect, alt-screen TUIs protected
-- **LAN-only design** — token + shared sessions, `timingSafeEqual`, `/api/hook` is loopback-only, workers bind to 127.0.0.1
-- **WSL aware** — auto-detects mirrored vs NAT mode; prints a one-liner PowerShell port-forward snippet when needed
-- **Boot autostart** — `atr install` writes the systemd / launchd config in one shot
+- **Mobile browser as a first-class terminal client** — full-fidelity PTY
+  for any program (`claude`, `vim`, `htop`, your shell). The mobile UI ships
+  with on-screen shortcut keys, IME-safe input handling, swipe-to-scroll,
+  viewport-aware sizing, and an installable PWA manifest.
+- **TUI / Claude Code adaptation** — handles Ink/Yoga reflow on resize so
+  Claude does not blank on device rotation; an alt-screen blocklist keeps
+  full-screen TUIs (`claude`, `tmux`, `lazygit`, …) clean across reconnects.
+- **Reconnect with replay** — scrollback is rehydrated on every reconnect,
+  so transient network drops, lock-screen, or sleeping the device do not
+  lose context.
+- **Multi-instance with unified tab bar** — each `atr <program>` runs as an
+  independent subprocess at its own URL (`/i/<id>/`); the webapp surfaces
+  every active instance in a single tab strip.
+- **Configurable from the settings panel** — on-screen shortcut keys,
+  saved command snippets, per-device font size, terminal theme, scrollback
+  size, and hook integrations are user-configurable. All preferences are
+  persisted to `~/.atrrc`.
+- **LAN-only architecture** — a single shared token (timing-safe comparison),
+  workers bound to `127.0.0.1`, and the broker as the sole outward-facing
+  process. No public server, no third-party relay.
+- **One-step boot autostart** — `atr install` generates the systemd /
+  launchd unit; the service comes up automatically on reboot.
 
 Full list: [`docs/FEATURES.md`](./docs/FEATURES.md).
 
@@ -40,23 +54,23 @@ Full list: [`docs/FEATURES.md`](./docs/FEATURES.md).
 **worker** is a single PTY instance.
 
 ```
-        Browser / phone                  Your PC
-        ┌──────────────┐                ┌──────────────────────────────────┐
-        │              │   ws://host    │  broker (LAN: 0.0.0.0:3000)      │
-        │  webapp PWA  │ ──────────────►│  ├─ /api/*  (auth / instances /  │
-        │              │                │  │           push / config / …)  │
-        │              │                │  ├─ /i/<id>/  → SPA + base href  │
-        │              │                │  ├─ /i/<id>/api/* → proxy worker │
-        │              │                │  └─ /i/<id>/ws    → proxy worker │
-        └──────────────┘                │            │                     │
-                                        │            ▼                     │
-                                        │  worker A   worker B   …         │
-                                        │  127.0.0.1: 127.0.0.1:           │
-                                        │  3001       3002       …         │
-                                        │  ├─ PTY (claude / shell / TUI)   │
-                                        │  ├─ /api/health  /api/hook       │
-                                        │  └─ /ws (PTY IO)                 │
-                                        └──────────────────────────────────┘
+Browser / phone                  Your PC
+┌──────────────┐                ┌──────────────────────────────────┐
+│              │   ws://host    │  broker (LAN: 0.0.0.0:3000)      │
+│  webapp PWA  │ ──────────────►│  ├─ /api/*  (auth / instances /  │
+│              │                │  │           push / config / …)  │
+│              │                │  ├─ /i/<id>/  → SPA + base href  │
+│              │                │  ├─ /i/<id>/api/* → proxy worker │
+│              │                │  └─ /i/<id>/ws    → proxy worker │
+└──────────────┘                │            │                     │
+                                │            ▼                     │
+                                │  worker A   worker B   …         │
+                                │  127.0.0.1: 127.0.0.1:           │
+                                │  3001       3002       …         │
+                                │  ├─ PTY (claude / shell / TUI)   │
+                                │  ├─ /api/health  /api/hook       │
+                                │  └─ /ws (PTY IO)                 │
+                                └──────────────────────────────────┘
 ```
 
 - **broker** (LAN entry point): the only outward-facing process, listens on

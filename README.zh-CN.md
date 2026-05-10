@@ -14,22 +14,30 @@
 局域网内通过手机 / 平板浏览器远程控制 PC 上的任意终端程序。
 开机起一次 broker，浏览器打开就能登录、创建实例、跑 Claude / shell / 任何 TUI。
 
-<img src="./frontend/public/screenshots/desktop.png" alt="webapp 在浏览器里跑 Claude Code 的截图" width="720">
+<img src="./frontend/public/screenshots/desktop.png" alt="webapp 在浏览器里跑 Claude Code 的截图" width="960">
+
+<img src="./frontend/public/screenshots/mobile.png" alt="webapp 在手机屏幕上的截图" width="400">
 
 </div>
 
-## ✨ 特性
+## ✨ 核心特性
 
-- **PTY 桥接** —— node-pty + xterm.js 5，完整 ANSI、alt-screen TUI 安全
-- **Claude Code / TUI 适配** —— Ink/Yoga resize 不 reflow 修复、alt-screen 黑名单、"适配当前设备"PTY 尺寸接管
-- **多实例** —— 每个实例独立子进程；一个浏览器 tab 栏全部展示，URL 即实例（`/i/<id>/`）
-- **多客户端** —— 多浏览器 / `attach` 客户端共享同一实例，主从仲裁
-- **移动端 PWA** —— IME guard、长按、滑动滚动、视口感知 fit，可"添加到主屏幕"
-- **自定义快捷键 + 命令按钮** —— 设置面板里直接配屏幕按键、保存常用命令片段
-- **重连回放** —— 每次重连自动回灌 scrollback，alt-screen TUI 不会一片空白
-- **LAN-only 设计** —— token + 共享 session、`timingSafeEqual`、`/api/hook` 仅 loopback、worker 仅监听 127.0.0.1
-- **WSL 感知** —— mirrored / NAT 自动检测，PowerShell 端口转发脚本即时生成
-- **开机自启** —— `atr install` 一键写 systemd / launchd 配置
+- **移动浏览器作为一等终端客户端** —— 任意手机浏览器即可获得完整 PTY 体验，
+  支持 `claude` / `vim` / `htop` / shell 等任意程序。移动端 UI 内置屏幕快捷键、
+  IME 安全输入、滑动滚屏、视口自适应排版，并支持以 PWA 形式添加到主屏。
+- **TUI / Claude Code 适配** —— 处理 Ink/Yoga 在 resize 时不 reflow 的问题，
+  避免设备转屏后 Claude 出现空白；alt-screen 黑名单确保
+  `claude` / `tmux` / `lazygit` 等全屏 TUI 重连后界面完整。
+- **重连回放** —— 每次重连自动回灌 scrollback，瞬时网络抖动、锁屏或设备
+  休眠不会丢失上下文。
+- **多实例与统一 tab 栏** —— 每次 `atr <program>` 派生独立子进程并对应独立
+  URL（`/i/<id>/`），webapp 在单一 tab 栏中聚合展示所有活实例。
+- **可配置的设置面板** —— 屏幕快捷键、命令片段、按设备字号、终端主题、
+  scrollback 行数、hook 集成等均可由用户配置；偏好持久化至 `~/.atrrc`。
+- **LAN-only 架构** —— 单一共享 token（timing-safe 比较）、worker 仅监听
+  `127.0.0.1`、broker 作为唯一对外入口；无公网服务器、无第三方中继。
+- **一键开机自启** —— `atr install` 生成 systemd / launchd 配置，重启后服务
+  自动启动。
 
 完整清单见 [`docs/FEATURES.zh-CN.md`](./docs/FEATURES.zh-CN.md)。
 
