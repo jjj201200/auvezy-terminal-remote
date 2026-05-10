@@ -48,8 +48,10 @@
 
 .item {
   @include m.btn-reset;
-  @include m.row-flex(var(--sp-3));
-  justify-content: space-between;
+  // 主体一行 + 右侧切换按钮一列;主体内部再两行(header / cwd)
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
   padding: var(--sp-4);
   border: 1px solid var(--color-border);
   background: var(--color-bg-input);
@@ -72,12 +74,23 @@
 
 .itemBody {
   @include m.col-flex(2px);
+  flex: 1;
+  min-width: 0;
+}
+
+// name + port 同行容器:基线对齐让小字 port 贴 name 视觉底线,不"飘"
+.itemHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
   min-width: 0;
 }
 
 .itemName {
   color: var(--color-fg);
   @include m.truncate;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .itemCwd {
@@ -91,11 +104,16 @@
   line-height: var(--lh-base);
 }
 
+// 端口紧跟实例名,样式对齐 InstanceTabs 的 .tabPort
 .itemPort {
-  margin-left: var(--sp-3);
+  flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-2xs);
   color: var(--color-fg-low);
+
+  .itemActive & {
+    color: var(--color-accent);
+  }
 }
 
 .create {

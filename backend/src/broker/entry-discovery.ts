@@ -22,6 +22,7 @@ import {
   isShareableIpv6,
   isTailscaleIp,
 } from '../utils/network.js';
+import { isWsl } from '../utils/wsl-detect.js';
 
 /** 单个候选入口 */
 export interface EntryCandidate {
@@ -60,7 +61,15 @@ export interface DiscoverEntriesOptions {
 /**
  * 列出当前所有可用入口
  *
- * 排序优先级：tailscale → lan → ipv6 → other → loopback
+ * 排序优先级（普通 Linux/macOS）：tailscale → lan → ipv6 → other → loopback
+ *
+ * **WSL2 例外**：mirrored 模式下宿主 Windows 的所有网卡(含 Tailscale)会"漏"进
+ * WSL 的 networkInterfaces；但这些 IP 上的监听器实际跑在 Windows 端,WSL 里的
+ * broker 不一定能被这条链路连到。实测:WSL Tailscale IP 多数情况手机连不通,
+ * LAN IP(物理网卡 mirrored 过来的)反而能连。所以 WSL 下把 Tailscale 降到 lan
+ * 之后,避免"默认入口扫了连不上"的体验差。
+ *
+ *   WSL 排序: lan → ipv6 → tailscale → other → loopback
  *
  * 同 kind 内：preferredHost 命中的排第一。
  */
@@ -102,13 +111,11 @@ export function discoverEntries(opts: DiscoverEntriesOptions): EntryCandidate[] 
     });
   }
 
-  const order: Record<EntryCandidate['kind'], number> = {
-    tailscale: 0,
-    lan: 1,
-    ipv6: 2,
-    other: 3,
-    loopback: 4,
-  };
+  // WSL 下 Tailscale 不可信(往往是宿主 Windows 的 IP),降到 lan 之后
+  const wsl = isWsl();
+  const order: Record<EntryCandidate['kind'], number> = wsl
+    ? { lan: 0, ipv6: 1, tailscale: 2, other: 3, loopback: 4 }
+    : { tailscale: 0, lan: 1, ipv6: 2, other: 3, loopback: 4 };
   out.sort((a, b) => {
     if (a.kind !== b.kind) return order[a.kind] - order[b.kind];
     if (preferredHost) {

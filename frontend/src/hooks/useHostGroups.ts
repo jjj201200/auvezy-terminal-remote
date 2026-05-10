@@ -50,11 +50,17 @@ export function useHostGroups(
     const aliases = loadHostAliases();
     const map = new Map<string, HostGroup>();
 
-    // 推断"当前 backend"的 host：用第一条 instance 的 host（数组按 startedAt 排序，
-    // 第一条不一定是当前 backend，但 pending 项落到错的 group 比落到 unknown 好）。
-    // 真正的"当前 backend host"由 instance.isCurrent 标记，但 pending 的 host 字段
-    // 不是 isCurrent 概念 —— 这里只是 fallback 启发式
-    const fallbackHost = instances[0]?.host ?? 'unknown';
+    // 分组键策略(0.7.x):
+    //  - 优先用 instance.brokerHost(broker 注册时填的对外可达 host,真正区分"哪台机")
+    //  - 没有则 fallback 到 instance.host(0.6.x 老数据兼容)
+    //  - 仍没有 → 'unknown'
+    // 注:0.7.0 ADR-009 起 instance.host 永远是 "127.0.0.1"(worker loopback),
+    // 单纯按 host 分组会让所有机器实例顶到同一组 —— brokerHost 是修复方案
+    const groupKey = (i: { brokerHost?: string; host: string }): string =>
+      i.brokerHost ?? i.host ?? 'unknown';
+
+    // 推断"当前 backend"的 host:用第一条 instance 的 groupKey
+    const fallbackHost = instances[0] ? groupKey(instances[0]) : 'unknown';
 
     const ensureGroup = (host: string): HostGroup => {
       const existing = map.get(host);
@@ -72,7 +78,7 @@ export function useHostGroups(
     };
 
     for (const i of instances) {
-      ensureGroup(i.host).instances.push(i);
+      ensureGroup(groupKey(i)).instances.push(i);
     }
 
     for (const p of pending) {

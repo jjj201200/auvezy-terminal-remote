@@ -16,10 +16,16 @@ export interface InstanceInfo {
   /** 实例展示名（默认取 cwd basename，可通过 --name 覆盖） */
   name: string;
 
-  /** 服务监听的对外可达地址（LAN IP） */
+  /**
+   * worker 监听地址。
+   *
+   * 0.7.0 ADR-009 起 worker 强制 listen 127.0.0.1,该字段固定为 "127.0.0.1"。
+   * broker 反代时用 `host:port` 直接连 worker 进程,**这是 broker 内部反代细节,
+   * 前端不应用作"实例属于哪台机"的分组键**(应该用 brokerHost)。
+   */
   host: string;
 
-  /** 服务监听端口（findAvailablePort 选定的实际端口，不一定是 preferred） */
+  /** worker 监听端口(loopback 高位,OS 自动分配) */
   port: number;
 
   /** 进程 PID，用于注册表清理时探测存活 */
@@ -33,6 +39,16 @@ export interface InstanceInfo {
 
   /** 是否为无终端模式（通过 --no-terminal 或 Web 创建实例启动） */
   headless?: boolean;
+
+  /**
+   * 注册该实例的 broker 对外可达 host(LAN IP / hostname)。
+   *
+   * 用途:多 broker / 多机场景下,前端按 brokerHost 把实例分组到不同主机标签;
+   * `host` 字段是 worker 反代细节(永远 127.0.0.1),不能拿来当分组键。
+   *
+   * 0.7.x 起新增,旧实例可能不带此字段(向前兼容,前端 fallback 用 host)。
+   */
+  brokerHost?: string;
 }
 
 /**

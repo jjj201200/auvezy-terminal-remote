@@ -5,6 +5,40 @@
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-05-11
+
+### Fixed
+
+- **iOS / 屏拍二维码识别失败**:webapp 的"拍照扫码"路径之前用的是 jsQR(底层
+  在 `qr-scanner` 包里),对屏拍样本(摩尔纹 + 反光 + 透视)鲁棒性极差,实测
+  iOS 系统相机能识别的二维码 jsQR 完全解不出来。改用 `zxing-wasm`(ZXing-C++
+  emscripten 产物,reader-only ~400KB gzipped,精度接近 iOS 原生 VisionKit)。
+  - `tryHarder + tryRotate + tryInvert` 三档全开,精度优先(用户拍一张照解
+    一次,慢一点没关系)。
+  - WASM 二进制走 vite `?url` 资源导入,同源服务,LAN 部署也能跑(替代默认
+    jsDelivr CDN 在内网失效的问题)。
+- **多 broker 场景实例分组错乱**:registry 里 worker 的 `host` 永远是
+  `127.0.0.1`(worker 监听 loopback),前端按 `host` 分组会把不同 broker
+  的实例堆到一起。`InstanceInfo` 加 `brokerHost` 字段(broker 注册 worker 时
+  写入自己外部可达地址),前端 `useHostGroups` 优先以 `brokerHost` 分组。
+- **WSL2 mirrored 模式下 Tailscale IP 误选为入口地址**:WSL 镜像了 Windows
+  宿主网卡(包括 Tailscale 100.x.x.x),但 WSL 进程实际访问不通。
+  `entry-discovery` 在 WSL 下把 Tailscale 排序降到 LAN 之后,banner / share
+  endpoints 优先返回真正可达的 192.x。
+
+### Changed
+
+- **移动端实例列表布局重排**:旧版 `justify-content: space-between` 让 port
+  孤零零飘在中间。新版 `name + :port` 同行(port 字号 / 色阶对齐 PC 端
+  `InstanceTabs` 的 `.tabPort`),`cwd` 整段折行不省略,右侧切换按钮贴底
+  对齐;active 实例 port 染 accent 绿。
+
+### Internal
+
+- `broker/cli.ts` 的 `getCliPath()` 改为多候选探查(bundle / tsc dist /
+  dev tsx),修复 dev 模式下 worker spawn 解析到错误入口导致"创建新实例
+  超时"的问题。
+
 ## [0.7.2] - 2026-05-10
 
 ### Fixed

@@ -123,7 +123,7 @@ function LivePane(props: QrScanPaneProps): JSX.Element {
 type CaptureState =
   | { kind: 'idle' }
   | { kind: 'decoding' }
-  | { kind: 'no-code' /* 用户拍的照片识别失败，提示重拍 */ };
+  | { kind: 'no-code' /* 用户拍的照片识别失败,提示重拍 */ };
 
 function CapturePane(props: QrScanPaneProps): JSX.Element {
   const t = useT();
@@ -135,7 +135,7 @@ function CapturePane(props: QrScanPaneProps): JSX.Element {
 
   const handleFile = async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
-    // 清空 input value，让用户能重选同一张照片（File 名字相同时 onChange 不会再触发）
+    // 清空 input value,让用户能重选同一张照片(File 名字相同时 onChange 不会再触发)
     e.target.value = '';
     if (!file) return;
 
@@ -148,11 +148,10 @@ function CapturePane(props: QrScanPaneProps): JSX.Element {
 
     const handled = onResult(decoded);
     if (handled === false) {
-      // 调用方说"内容不合法"——让用户重拍（invalidNotice 由调用方设置后由父组件传下来）
       setState({ kind: 'no-code' });
       return;
     }
-    // handled = true / undefined：默认调用方会 location.assign 跳走 —— 不需要再处理状态
+    // handled = true / undefined:默认调用方会 location.assign 跳走 —— 不需要再处理状态
   };
 
   return (

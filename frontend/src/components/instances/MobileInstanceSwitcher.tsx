@@ -134,12 +134,16 @@ export function MobileInstanceSwitcher({
         className={clsx(s.item, highlight && s.itemActive)}
       >
         <div className={s.itemBody}>
-          <span className={s.itemName}>{i.name}</span>
+          {/* name + port 同行:port 紧跟在 name 之后,色阶/字号与 tab 栏 .tabPort
+              一致(fs-2xs + fg-low,active 时 accent) */}
+          <div className={s.itemHeader}>
+            <span className={s.itemName}>{i.name}</span>
+            <span className={s.itemPort}>:{i.port}</span>
+          </div>
           {/* cwd 完整显示，长路径折行而不省略；详情 modal 也会再看一次但这里
               用户先看到全文，避免"还要点开才知道工作在哪" */}
           <span className={s.itemCwd}>{i.cwd}</span>
         </div>
-        <span className={s.itemPort}>:{i.port}</span>
         <button
           type="button"
           onClick={(e) => {

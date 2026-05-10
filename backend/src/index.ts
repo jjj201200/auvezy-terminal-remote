@@ -691,18 +691,26 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }
 
     // 注册到 instances.json（headless 派生的子进程也走这一步）
+    //
+    // 字段语义:
+    //  - host = worker 监听地址(永远 127.0.0.1,broker 反代连 worker 用)
+    //  - brokerHost = 注册该实例的 broker 对外可达 host,前端按这个分组"哪台机";
+    //    broker listen 0.0.0.0 时 displayIp 是首选 LAN IP;监听具体 IP 时就是它
+    const brokerHost =
+      brokerState.host === '0.0.0.0' || brokerState.host === '::'
+        ? displayIp
+        : brokerState.host;
     void registry
       .register({
         instanceId,
         name: cfg.instanceName,
-        // 0.7.0：host 改为 worker 实际监听地址（loopback）。broker 阶段 3 反代时
-        // 直接用这个 host:port 连 worker。displayIp 已不参与 worker 注册
         host: '127.0.0.1',
         port: cfg.port,
         pid: process.pid,
         cwd: cfg.claudeCwd,
         startedAt: new Date().toISOString(),
         headless: cfg.noTerminal,
+        ...(brokerHost ? { brokerHost } : {}),
       })
       .catch((err) => logger.warn({ err }, '注册实例失败'));
 

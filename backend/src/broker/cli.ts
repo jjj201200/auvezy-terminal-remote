@@ -124,21 +124,42 @@ function getBrokerVersion(): string {
  * 取首个真实存在的 .js 文件返回。两条都不在则兜底返同目录 `cli.js`，让
  * 上层（systemd / launchd 启动时）自然报 ENOENT，比这里默默猜更直接。
  */
+/**
+ * 解析主 cli.js 路径(给 service install 写 ExecStart + Spawner 派生 worker 用)。
+ *
+ * 三种部署形态都要兼容:
+ *   - bundle 发布:    backend/dist/cli.js (broker/cli.ts 与主入口被合并)
+ *                      broker/cli.ts 模块此时位于 backend/dist/cli.js 内,
+ *                      __dirname = backend/dist/  → 同目录 cli.js ✓
+ *   - tsc 分散输出:    backend/dist/cli.js + backend/dist/broker/cli.js
+ *                      __dirname = backend/dist/broker/ → 上一级 cli.js ✓
+ *   - dev tsx:         backend/src/cli.ts (主入口) + backend/src/broker/cli.ts
+ *                      __dirname = backend/src/broker/ → 上一级 cli.ts ✓
+ *                      返回 ../cli.js (即使不存在),spawner 的 resolveEntry 会
+ *                      自动把 .js 替换 .ts 找到 src/cli.ts → 用 tsx 跑
+ *
+ * 关键:dev 模式下 spawner 期望传 .js 路径(它内部 .replace(/\.js$/, '.ts')),
+ * 所以即便 .js 不真实存在,也要返回 .js 字面路径让 spawner 自己 fallback 到 .ts。
+ */
 function getCliPath(): string {
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    resolve(__dirname, 'cli.js'),
-    resolve(__dirname, '..', 'cli.js'),
-  ];
-  for (const p of candidates) {
-    try {
-      readFileSync(p);
-      return p;
-    } catch {
-      /* 试下一层 */
-    }
+  // 优先返真实存在的 .js(发布 / tsc);否则返"上一级 cli.js"字面路径,
+  // spawner 找不到 .js 会自动尝试同名 .ts(走 tsx),而 src/cli.ts 是真实存在的。
+  const sameDir = resolve(__dirname, 'cli.js');
+  const parentDir = resolve(__dirname, '..', 'cli.js');
+  try {
+    readFileSync(sameDir);
+    return sameDir;
+  } catch {
+    /* 不存在,继续 */
   }
-  return candidates[0]!;
+  try {
+    readFileSync(parentDir);
+    return parentDir;
+  } catch {
+    /* 不存在,但 dev 模式下 ../cli.ts 一般存在,返字面路径让 spawner 自己 .ts fallback */
+  }
+  return parentDir;
 }
 
 /**
@@ -247,8 +268,13 @@ async function runBrokerStart(cli: ParsedCliArgs): Promise<number> {
   // 启动 instances.json watcher：SSE /api/instances/stream 用
   startInstanceWatcher(registry.filePath);
 
-  // Spawner：bundle 后 cli.js 就是 __dirname/cli.js（即本进程入口本身）
-  const cliJsPath = resolve(__dirname, 'cli.js');
+  // Spawner cli 入口路径解析:
+  //  - bundle 后:`backend/dist/cli.js`(broker/cli.ts 被合到主入口),__dirname/cli.js
+  //  - tsc 分散输出 / dev tsx:broker/cli.ts 在 broker/ 子目录,主入口在上一级
+  // getCliPath() 已经做了"同目录 / 上一级"两候选,直接复用。
+  // 注:spawner.resolveEntry 还会把 .js 自动 fallback 到 .ts(dev tsx 路径),
+  // 所以这里返回 .js 路径不存在也没事,只要目标目录里有同名 .ts。
+  const cliJsPath = getCliPath();
   // workdir 策略：broker 端不接 CLI flag，从 userConfig 读
   const workdirAllow = currentUserConfig.workdirAllow as readonly string[] | undefined;
   const workdirDeny = currentUserConfig.workdirDeny as readonly string[] | undefined;

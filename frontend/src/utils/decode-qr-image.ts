@@ -1,75 +1,53 @@
 /**
- * 解码静态图片中的二维码（用于 iOS LAN HTTP 下的"拍照扫码"路径）
+ * 解码静态图片中的二维码（"上传 / 拍照扫码"路径）
  *
- * 流程：
- *   File → ImageBitmap（或 <img> + load）→ canvas.drawImage → getImageData
- *   → jsQR(data, w, h) → string | null
+ * 实现:zxing-wasm（reader-only 子路径,~400KB gzipped）
  *
- * 设计：
- *   - 优先 createImageBitmap（更快，主流浏览器都支持包括 iOS Safari 15+）
- *   - 兜底用 <img>.decode() + canvas（老 iOS / 兼容性场景）
- *   - 如果第一次解码失败，可以通过反色再试一次（白底黑码 vs 黑底白码）
- *   - 失败返回 null，调用方提示用户重拍
+ * 选 zxing-wasm 而非 jsQR / qr-scanner / @zxing/library 的原因:
+ *   - jsQR / qr-scanner(底层 jsQR)对屏幕拍照场景识别率低(用户实测 iOS 原生
+ *     相机能识别但 jsQR 不能)
+ *   - @zxing/library 是 TS 实现,已 maintenance mode(2024 起停滞),识别率
+ *     落后 ZXing-C++
+ *   - zxing-wasm 是 ZXing-C++ 的 emscripten 编译产物,2026-05 仍在活跃维护;
+ *     屏幕拍照 / 倾斜 / 反光鲁棒性显著优于 jsQR
+ *
+ * iOS 注意:
+ *   - iOS WebKit(Safari / Chrome / Edge 在 iOS 上同 WebKit 内核)原生没有
+ *     BarcodeDetector,zxing-wasm 是当下最好选择
+ *   - WASM 在 iOS Safari 16+ 一律可跑,无需 SharedArrayBuffer / COOP/COEP
+ *
+ * 默认参数(tryHarder/tryRotate/tryInvert 全开)精度优先,仅限 QRCode 格式
+ * 加快解码,不浪费时间在 1D / DataMatrix 上。
+ *
+ * 失败返回 null,调用方提示用户重试。
  */
 
-import jsQR from 'jsqr';
+import { prepareZXingModule, readBarcodes } from 'zxing-wasm/reader';
+// 走包 exports 字段里声明的 './reader/zxing_reader.wasm' 子路径(包内部约定),
+// vite ?url 把它当作 asset 处理 → dev 直接服务,build 产 hash 文件到 dist/assets/
+import zxingWasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
+
+// 模块加载时一次性配置 wasm URL,改 jsDelivr CDN 默认 → 同源资源,LAN 部署也能跑
+prepareZXingModule({
+  overrides: {
+    locateFile: (path: string): string => (path.endsWith('.wasm') ? zxingWasmUrl : path),
+  },
+});
 
 export async function decodeQrFromFile(file: File): Promise<string | null> {
-  const bitmap = await loadImageBitmap(file);
-  if (!bitmap) return null;
-
-  const w = bitmap.width;
-  const h = bitmap.height;
-  if (w === 0 || h === 0) return null;
-
-  // 大图缩放：jsQR 解码 O(像素数)，4000x3000 拍照图会卡 200-500ms。
-  // 缩到长边 1024 已经足够保留二维码细节
-  const MAX_SIDE = 1024;
-  const scale = Math.min(1, MAX_SIDE / Math.max(w, h));
-  const tw = Math.round(w * scale);
-  const th = Math.round(h * scale);
-
-  const canvas = document.createElement('canvas');
-  canvas.width = tw;
-  canvas.height = th;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return null;
-  ctx.drawImage(bitmap, 0, 0, tw, th);
-  const imageData = ctx.getImageData(0, 0, tw, th);
-
-  // 先按原色解一次；失败再尝试反色（处理黑底白码或低对比度照片）
-  let result = jsQR(imageData.data, imageData.width, imageData.height, {
-    inversionAttempts: 'attemptBoth',
-  });
-
-  return result?.data ?? null;
-}
-
-/** 把 File 加载成可绘制对象；优先 createImageBitmap，回退 <img>.decode() */
-async function loadImageBitmap(
-  file: File,
-): Promise<ImageBitmap | HTMLImageElement | null> {
-  // ImageBitmap 路径（快）
-  if (typeof createImageBitmap === 'function') {
-    try {
-      return await createImageBitmap(file);
-    } catch {
-      /* fall through to <img> */
+  try {
+    const results = await readBarcodes(file, {
+      formats: ['QRCode'],
+      tryHarder: true,
+      tryRotate: true,
+      tryInvert: true,
+    });
+    for (const r of results) {
+      if (r.text) return r.text;
     }
+    return null;
+  } catch {
+    // wasm 加载失败 / 解码异常,返 null 让调用方走"识别失败"路径
+    return null;
   }
-
-  // <img> 路径（兼容性兜底）
-  return await new Promise<HTMLImageElement | null>((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-    img.src = url;
-  });
 }
