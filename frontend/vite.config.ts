@@ -79,22 +79,25 @@ export default defineConfig({
       usePolling: true,
       interval: 300,
     },
-    // 0.7.0 v2 dev 流程：先 `atr broker start`（detached on :3000），再 vite。
-    // vite 只反代到 broker；broker 自己再反代到 worker。生产/开发 origin 一致。
+    // 0.7.0 v2 dev 流程：先 `atr start`（daemonized broker on :3737, 0.7.3 默认),
+    // 再 vite。vite 只反代到 broker；broker 自己再反代到 worker。生产/开发 origin 一致。
+    // 0.7.3 起默认端口从 3000 改为 3737,见 shared/src/constants.ts 注释。
+    // 老 dev broker 还在 3000:`atr stop` 后 `atr start` 自动用新默认 3737;若要保持
+    // 3000,显式 `atr start --port 3000`,但这里 vite 反代要同步改回 3000。
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3737',
         changeOrigin: true,
       },
       // `/i/<id>/ws` 与 `/i/<id>/api/...`：实例特定路径，broker 接管反代
       '/i/': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3737',
         ws: true,
         changeOrigin: true,
       },
       // 兼容老路径 /ws（attach 客户端 / 旧 webapp）；新前端不再使用
       '/ws': {
-        target: 'ws://localhost:3000',
+        target: 'ws://localhost:3737',
         ws: true,
         changeOrigin: true,
       },

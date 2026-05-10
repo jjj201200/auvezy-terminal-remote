@@ -39,6 +39,7 @@ const KNOWN_FLAGS_BOOL = new Set([
   '--no-open',
   '--wait-confirm',
   '--strict-port',
+  '--foreground',
 ]);
 
 const KNOWN_FLAGS_VALUE = new Set([
@@ -204,6 +205,11 @@ export interface ParsedCliArgs {
    * 适合 CI / 反向代理后端这种"必须固定端口"的部署。
    */
   strictPort?: boolean;
+  /**
+   * `atr start` 前台运行 broker（默认 daemonize 后台 fork 后立即返回）。
+   * 给 systemd ExecStart / launchd / Docker ENTRYPOINT 这类需要进程 attach 的场景用。
+   */
+  foreground?: boolean;
   /**
    * PTY spawn 兜底超时（秒）。0 表示无超时（永远等浏览器/Enter）。
    * 默认 30s。`--wait-confirm` 模式下被忽略（必须 Enter）。
@@ -446,6 +452,9 @@ function assignFlag(out: ParsedCliArgs, key: string, value: string | boolean): v
     case '--strict-port':
       out.strictPort = value === true || value === 'true';
       return;
+    case '--foreground':
+      out.foreground = value === true || value === 'true';
+      return;
     case '--help':
       out.help = true;
       return;
@@ -570,8 +579,9 @@ Usage:
   atr <subcommand> [...]           manage the broker / instances (see below)
 
 Subcommands:
-  start [--port n] [--host ip]     start the background service (broker) in the foreground
-                                   (Ctrl+C to quit). --port / --host override 3000 / 0.0.0.0.
+  start [--port n] [--host ip]     start the background service (broker); the command
+                                   returns immediately once the broker is healthy.
+                                   add --foreground to keep it attached (systemd / Docker).
   stop                             stop the background service
   status                           one-shot view: process, token, entry URLs, instances
   list                             list all live instances
@@ -600,7 +610,7 @@ Strict argument order:
     atr -- --weird                   '--' forces split; default shell with '--weird'
 
 Run options (for atr [program]):
-  -p, --port <n>        Background service (broker) port (default 3000). If broker is
+  -p, --port <n>        Background service (broker) port (default 3737). If broker is
                         already running and on a different port, atr will refuse to
                         start — run 'atr stop' first if you want to switch.
                         Worker ports are internal and auto-assigned; you don't set them.
@@ -638,7 +648,7 @@ Run options (for atr [program]):
                         passes through automatically)
 
 Multi-instance:
-  The background service (broker) runs once on port 3000 and is shared by all
+  The background service (broker) runs once on port 3737 and is shared by all
   instances. Running atr [program] in different terminals all connect to the
   same service; PTY children are independent. Click the tab bar in the browser
   to switch between them. If the service isn't running, the first atr will

@@ -60,7 +60,7 @@ export const en: Messages = {
     scanFallbackHint: 'Use your system camera app to scan the QR code printed at launch — it will redirect you automatically.',
     urlCta: 'Paste access URL',
     urlLabel: 'Full URL',
-    urlPlaceholder: 'http://192.168.x.x:3000/?token=…',
+    urlPlaceholder: 'http://192.168.x.x:3737/?token=…',
     urlSubmit: 'Go',
     urlInvalid: 'Not a valid http(s) URL',
   },

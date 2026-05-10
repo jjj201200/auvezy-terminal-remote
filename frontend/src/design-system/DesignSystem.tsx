@@ -466,7 +466,7 @@ function TopBarDemo(): JSX.Element {
   return (
     <div className={s.topBar}>
       <button type="button" className={`${s.topBarTab} ${s.topBarTabActive}`}>
-        default<span className={s.topBarPort}>:3000</span>
+        default<span className={s.topBarPort}>:3737</span>
       </button>
       <button type="button" className={s.topBarTab}>
         build<span className={s.topBarPort}>:3001</span>

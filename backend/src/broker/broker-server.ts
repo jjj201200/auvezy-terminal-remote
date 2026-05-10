@@ -45,8 +45,16 @@ import type { InstanceSpawner } from '../registry/instance-spawner.js';
 import type { PushService } from '../push/push-service.js';
 import type { IntegrationManager } from '../integrations/manager.js';
 
-/** broker 默认监听端口 */
-export const DEFAULT_BROKER_PORT = 3000;
+/**
+ * broker 默认监听端口
+ *
+ * 选 3737 而非常见的 3000 的原因:3000 被太多 dev server 默认占用
+ * (Next.js / CRA / Express / Rails / Phoenix...),`atr start` 撞端口概率高;
+ * 虽然 0.7.2 起 broker 会自适应递增,但每次都要打印"3000 被占,改用 3001"对
+ * 用户不友好。3737 在常见 dev tool 默认列表上没有出现,IANA 也未注册,撞端口
+ * 概率显著低于 3000。用户仍可显式 `atr start --port 3000` 保持旧端口。
+ */
+export const DEFAULT_BROKER_PORT = 3737;
 
 /** broker 默认监听 host（broker 是 LAN 入口，与 worker 的 loopback 相反） */
 export const DEFAULT_BROKER_HOST = '0.0.0.0';

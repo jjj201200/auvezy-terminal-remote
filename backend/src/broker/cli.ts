@@ -19,8 +19,8 @@
  * 无参 = 停 broker。文件名 broker/cli.ts 是历史原因；管的是"服务级"操作。
  */
 
-import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execSync, spawn } from 'node:child_process';
+import { existsSync, openSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -125,39 +125,46 @@ function getBrokerVersion(): string {
  * 上层（systemd / launchd 启动时）自然报 ENOENT，比这里默默猜更直接。
  */
 /**
- * 解析主 cli.js 路径(给 service install 写 ExecStart + Spawner 派生 worker 用)。
+ * 解析"主 cli.js"路径(给 service install 写 ExecStart、daemonize fork 子进程、
+ * Spawner 派生 worker 用)。
  *
- * 三种部署形态都要兼容:
- *   - bundle 发布:    backend/dist/cli.js (broker/cli.ts 与主入口被合并)
- *                      broker/cli.ts 模块此时位于 backend/dist/cli.js 内,
- *                      __dirname = backend/dist/  → 同目录 cli.js ✓
+ * 三种部署形态:
+ *   - bundle 发布:    backend/dist/cli.js (broker/cli.ts 与主入口合并到一个文件)
+ *                      本模块此时位于 backend/dist/cli.js 内,
+ *                      import.meta.url 解出 __dirname = backend/dist/
+ *                      → 主入口 = __dirname/cli.js ✓
  *   - tsc 分散输出:    backend/dist/cli.js + backend/dist/broker/cli.js
- *                      __dirname = backend/dist/broker/ → 上一级 cli.js ✓
+ *                      __dirname = backend/dist/broker/ (broker 模块自己的目录)
+ *                      → 主入口 = __dirname/../cli.js ✓
+ *                      ⚠ 同目录的 cli.js 是 broker 模块本身,**不是**主入口,绝
+ *                      不能选它,否则 daemonize 起来的子进程会进入 broker 模块的
+ *                      模块加载副作用而非 cli.ts 的入口 IIFE,直接 exit 0。
  *   - dev tsx:         backend/src/cli.ts (主入口) + backend/src/broker/cli.ts
  *                      __dirname = backend/src/broker/ → 上一级 cli.ts ✓
- *                      返回 ../cli.js (即使不存在),spawner 的 resolveEntry 会
- *                      自动把 .js 替换 .ts 找到 src/cli.ts → 用 tsx 跑
+ *                      返回 ../cli.js 字面路径(.js 不真实存在),调用方的
+ *                      resolveEntry 会把 .js 替换 .ts 走 tsx 子进程。
  *
- * 关键:dev 模式下 spawner 期望传 .js 路径(它内部 .replace(/\.js$/, '.ts')),
- * 所以即便 .js 不真实存在,也要返回 .js 字面路径让 spawner 自己 fallback 到 .ts。
+ * 选择策略:**优先 parentDir**(分散输出 / dev 都对),只有 parentDir 不存在时
+ * 才退回 sameDir(覆盖 bundle 形态—— bundle 时 broker 与主入口被合到 dist/cli.js,
+ * __dirname 就是 dist/,parentDir = dist/../cli.js 不存在,sameDir = dist/cli.js 才对)。
  */
 function getCliPath(): string {
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  // 优先返真实存在的 .js(发布 / tsc);否则返"上一级 cli.js"字面路径,
-  // spawner 找不到 .js 会自动尝试同名 .ts(走 tsx),而 src/cli.ts 是真实存在的。
-  const sameDir = resolve(__dirname, 'cli.js');
   const parentDir = resolve(__dirname, '..', 'cli.js');
-  try {
-    readFileSync(sameDir);
-    return sameDir;
-  } catch {
-    /* 不存在,继续 */
-  }
+  const sameDir = resolve(__dirname, 'cli.js');
+  // dist 分散输出 / dev tsx:parentDir 是主入口
   try {
     readFileSync(parentDir);
     return parentDir;
   } catch {
-    /* 不存在,但 dev 模式下 ../cli.ts 一般存在,返字面路径让 spawner 自己 .ts fallback */
+    /* 继续试 sameDir(bundle 形态) */
+  }
+  // bundle:broker 与主入口合并,__dirname 就是 dist/,sameDir 就是主入口
+  try {
+    readFileSync(sameDir);
+    return sameDir;
+  } catch {
+    /* 都不在(罕见):返字面 parentDir,让上层 resolveEntry 自己 .ts fallback */
   }
   return parentDir;
 }
@@ -195,11 +202,25 @@ export async function runServiceCli(
  * 端口解析优先级（高 → 低）：
  *   1. CLI flag `--port <n>`（atr start --port 3010）
  *   2. env `ATR_BROKER_PORT`（service install 写到 systemd unit 的 Environment）
- *   3. 默认 3000
+ *   3. DEFAULT_BROKER_PORT(3737)——见 broker-server.ts 选 3737 而非 3000 的注释
  *
  * host 同理，env 是 `ATR_BROKER_HOST`，默认 0.0.0.0。
+ *
+ * 前台 / 后台:
+ *   - 默认 daemonize:fork detached 子进程,父进程等 broker.json + health probe
+ *     通过后立即返回(systemctl-like 体验)。
+ *   - `--foreground` 或 env `ATR_BROKER_FOREGROUND=1`:走前台分支(进程 attach,
+ *     Ctrl+C 退出)。systemd ExecStart / launchd ProgramArguments 需要这个。
+ *   - 子进程被 fork 时父进程会注入 `ATR_BROKER_FOREGROUND=1`,所以子进程
+ *     一定走前台分支,不会再次 daemonize。
  */
 async function runBrokerStart(cli: ParsedCliArgs): Promise<number> {
+  const wantForeground =
+    cli.foreground === true || process.env['ATR_BROKER_FOREGROUND'] === '1';
+  if (!wantForeground) {
+    return runBrokerStartDaemonize(cli);
+  }
+
   const port =
     cli.port ??
     parseEnvPort(process.env['ATR_BROKER_PORT']) ??
@@ -317,7 +338,7 @@ async function runBrokerStart(cli: ParsedCliArgs): Promise<number> {
     return 1;
   }
 
-  // 提示用户实际端口;如果与 preferred 不同,顺手说一句"3000 被占"
+  // 提示用户实际端口;如果与 preferred 不同,顺手说一句"被占,递增到 X"
   if (handle.port !== port) {
     process.stderr.write(
       `${c.yellow('[atr]')} preferred port ${port} was busy; bound to ${handle.port} instead\n` +
@@ -382,6 +403,137 @@ function installBrokerLogRotator(): BrokerLogRotator {
     return originalWrite(chunk as never, ...(rest as []));
   }) as typeof process.stderr.write;
   return rotator;
+}
+
+// ──────────────── start (daemonize) ────────────────
+
+const DAEMONIZE_TIMEOUT_MS = 8_000;
+const DAEMONIZE_POLL_INTERVAL_MS = 100;
+
+/**
+ * 默认的 `atr start` 行为:fork 一个 detached broker 子进程,父进程等
+ * `~/.atr/broker.json` 出现且 PID 匹配后立即返回,子进程在后台继续跑。
+ *
+ * 行为对齐 systemctl/launchctl:命令立即返回,服务真的起没起由用户用
+ * `atr status` 复核。但失败必须显式报错(非零退出 + stderr 一行),不让
+ * 用户面对沉默成功。
+ *
+ * 子进程通过 env `ATR_BROKER_FOREGROUND=1` 强制走前台分支,避免
+ * "fork → 子进程再次 daemonize" 的递归。
+ */
+async function runBrokerStartDaemonize(cli: ParsedCliArgs): Promise<number> {
+  const tag = c.cyan('[atr]');
+  const port =
+    cli.port ??
+    parseEnvPort(process.env['ATR_BROKER_PORT']) ??
+    DEFAULT_BROKER_PORT;
+
+  // 已经有活的 broker → 不重复起,直接告诉用户哪个在跑
+  const existing = readBrokerState();
+  if (existing && isBrokerAlive(existing)) {
+    process.stderr.write(
+      `${tag} broker already running on ${existing.host}:${existing.port} (pid=${existing.pid})\n`,
+    );
+    return 0;
+  }
+
+  // 解析子进程入口(.js / .ts / fallback)
+  const cliJsPath = getCliPath();
+  const entry = resolveDaemonEntry(cliJsPath);
+
+  // 子进程 stderr/stdout 默认 ignore;ATR_DEBUG_SPAWN=1 时落 /tmp 便于排查
+  const logFd = process.env['ATR_DEBUG_SPAWN']
+    ? openSync(`/tmp/atr-broker-${Date.now()}.log`, 'a')
+    : 'ignore';
+
+  // 透传 --port / --host(子进程会再次解析,优先级高于 env)
+  // 用 env ATR_BROKER_PORT/HOST 透传更稳——子进程的 cli 解析不到 --port
+  // 也能从 env 读到。
+  const childEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    ATR_BROKER_FOREGROUND: '1',
+  };
+  if (cli.port !== undefined) childEnv['ATR_BROKER_PORT'] = String(cli.port);
+  if (cli.host !== undefined) childEnv['ATR_BROKER_HOST'] = cli.host;
+  if (cli.strictPort) childEnv['ATR_BROKER_STRICT_PORT'] = '1';
+
+  const child = spawn(
+    entry.execPath,
+    [...entry.args, 'start', '--foreground'],
+    {
+      env: childEnv,
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+    },
+  );
+  if (typeof child.pid !== 'number') {
+    process.stderr.write(`${tag} failed to spawn broker subprocess (no pid)\n`);
+    return 1;
+  }
+
+  // child.error / early-exit 抓:detached + unref 后默认不会触发,但 spawn 失败
+  // 或子进程立刻退(如 entry path 错)能抓到。pid 是真存在但 execve 后 ENOENT
+  // 这种情况 node 会立刻 emit 'error'。
+  const earlyExit: { code: number | null; signal: NodeJS.Signals | null }[] = [];
+  const earlyError: Error[] = [];
+  child.once('error', (e) => {
+    earlyError.push(e);
+  });
+  child.once('exit', (code, signal) => {
+    earlyExit.push({ code, signal });
+  });
+  child.unref();
+
+  // 等 broker.json 出现且 PID 匹配
+  const t0 = Date.now();
+  const statePath = defaultBrokerStatePath();
+  while (Date.now() - t0 < DAEMONIZE_TIMEOUT_MS) {
+    const st = readBrokerState(statePath);
+    if (st && isBrokerAlive(st) && st.pid === child.pid) {
+      process.stdout.write(
+        `${tag} broker started on ${c.green(`${st.host}:${st.port}`)} (pid=${st.pid})\n`,
+      );
+      return 0;
+    }
+    await sleep(DAEMONIZE_POLL_INTERVAL_MS);
+  }
+
+  // 超时:子进程可能 crash 或 listen 失败
+  let detail = '';
+  if (earlyError[0]) {
+    detail = `\n  - spawn error: ${earlyError[0].message}`;
+  } else if (earlyExit[0]) {
+    detail = `\n  - child exited early (code=${earlyExit[0].code}, signal=${earlyExit[0].signal})`;
+  }
+  process.stderr.write(
+    `${tag} broker did not become ready within ${DAEMONIZE_TIMEOUT_MS}ms.${detail}\n` +
+      `  - check ~/.auvezy/terminal-remote/broker-*.log for errors\n` +
+      `  - or set ATR_DEBUG_SPAWN=1 and retry to capture /tmp/atr-broker-*.log\n` +
+      `  - port ${port} may be busy; try '--port <other>' or '--strict-port' to fail fast\n`,
+  );
+  return 1;
+}
+
+/**
+ * 解析 daemonize 子进程入口(.js / .ts / fallback)。
+ *
+ * 与 ensure-broker.resolveBrokerEntry 同思路:
+ *  - 真实 .js 存在 → node <cli.js>
+ *  - 仅 .ts 存在(dev tsx 模式)→ node --import tsx <cli.ts>
+ *  - 都没有 → fallback 让 spawn 报 ENOENT
+ */
+function resolveDaemonEntry(cliJsPath: string): {
+  execPath: string;
+  args: string[];
+} {
+  if (existsSync(cliJsPath)) {
+    return { execPath: process.execPath, args: [cliJsPath] };
+  }
+  const tsPath = cliJsPath.replace(/\.js$/, '.ts');
+  if (existsSync(tsPath)) {
+    return { execPath: process.execPath, args: ['--import', 'tsx', tsPath] };
+  }
+  return { execPath: process.execPath, args: [cliJsPath] };
 }
 
 // ──────────────── stop ────────────────

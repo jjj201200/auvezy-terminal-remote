@@ -47,7 +47,7 @@ describe('renderSystemdUnit', () => {
       cliPath: '/opt/atr/cli.js',
     });
     expect(u).toContain('Description=Auvezy Terminal Remote broker');
-    expect(u).toContain('ExecStart=/usr/bin/node /opt/atr/cli.js start');
+    expect(u).toContain('ExecStart=/usr/bin/node /opt/atr/cli.js start --foreground');
     expect(u).toContain('Restart=on-failure');
     expect(u).toContain('WantedBy=default.target');
     expect(u).not.toContain('ATR_BROKER_PORT');
@@ -75,6 +75,7 @@ describe('renderLaunchdPlist', () => {
     expect(p).toContain('<string>/usr/local/bin/node</string>');
     expect(p).toContain('<string>/opt/atr/cli.js</string>');
     expect(p).toContain('<string>start</string>');
+    expect(p).toContain('<string>--foreground</string>');
     expect(p).not.toContain('<string>broker</string>');
     expect(p).toContain('<key>RunAtLoad</key><true/>');
     expect(p).toContain('<key>KeepAlive</key><true/>');

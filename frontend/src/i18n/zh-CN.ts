@@ -55,7 +55,7 @@ export const zhCN: Messages = {
     scanFallbackHint: '请用系统相机 app 直接扫描启动时打印的二维码 —— 系统会自动跳转到登录页面。',
     urlCta: '粘贴访问链接',
     urlLabel: '完整 URL',
-    urlPlaceholder: 'http://192.168.x.x:3000/?token=…',
+    urlPlaceholder: 'http://192.168.x.x:3737/?token=…',
     urlSubmit: '前往',
     urlInvalid: '不是合法的 http(s) 链接',
   },

@@ -7,6 +7,26 @@
 
 ## [0.7.3] - 2026-05-11
 
+### Breaking changes
+
+- **默认 broker 端口 3000 → 3737**:3000 被太多 dev server 默认占用
+  (Next.js / CRA / Express / Rails / Phoenix...),`atr start` 高概率撞端口。
+  3737 在常见 dev tool 默认列表上没出现,IANA 也未注册,撞端口概率显著低。
+  - 旧用户继续在 3000 跑 broker:`atr stop` 后下次 `atr start` 会用新默认
+    3737;若要保留 3000,显式 `atr start --port 3000`。
+  - 配合的 vite dev proxy / i18n placeholder 同步更新到 :3737。
+
+### Added
+
+- **`atr start` 默认 daemonize**:命令现在 fork detached broker 后**立即返回**
+  (像 `systemctl start`),再不会卡在前台等 Ctrl+C。父进程等 `~/.atr/broker.json`
+  出现 + PID 匹配后退出 0;失败显式报错 + 非零退出。
+  - 新 `--foreground` flag(或 env `ATR_BROKER_FOREGROUND=1`)走前台模式,
+    给 systemd `ExecStart` / launchd `ProgramArguments` / Docker `ENTRYPOINT`
+    这种需要进程 attach 的场景用。
+  - `atr install` 写出的 systemd unit / launchd plist 已自动加
+    `--foreground`,旧用户重跑一次 `atr install` 即可。
+
 ### Fixed
 
 - **iOS / 屏拍二维码识别失败**:webapp 的"拍照扫码"路径之前用的是 jsQR(底层
@@ -25,6 +45,12 @@
   宿主网卡(包括 Tailscale 100.x.x.x),但 WSL 进程实际访问不通。
   `entry-discovery` 在 WSL 下把 Tailscale 排序降到 LAN 之后,banner / share
   endpoints 优先返回真正可达的 192.x。
+- **`getCliPath()` 解析错误入口导致 dev 模式 worker spawn timeout**:tsc 分散
+  输出形态下,`backend/dist/broker/cli.js`(broker 模块自身)与
+  `backend/dist/cli.js`(主入口)并存。旧逻辑"先试同目录"会把子进程定向到
+  broker 模块,**不**经过主入口的 IIFE → 子进程立即 exit 0。0.7.3 改"优先
+  parentDir(主入口),fallback sameDir(bundle 形态)",同时修了 daemonize 与
+  worker spawn 两条路径。
 
 ### Changed
 
@@ -32,12 +58,6 @@
   孤零零飘在中间。新版 `name + :port` 同行(port 字号 / 色阶对齐 PC 端
   `InstanceTabs` 的 `.tabPort`),`cwd` 整段折行不省略,右侧切换按钮贴底
   对齐;active 实例 port 染 accent 绿。
-
-### Internal
-
-- `broker/cli.ts` 的 `getCliPath()` 改为多候选探查(bundle / tsc dist /
-  dev tsx),修复 dev 模式下 worker spawn 解析到错误入口导致"创建新实例
-  超时"的问题。
 
 ## [0.7.2] - 2026-05-10
 

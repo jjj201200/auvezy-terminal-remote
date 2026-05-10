@@ -11,8 +11,15 @@
 // 服务默认值
 // ============================================================
 
-/** 默认服务端口（被占用时自动递增） */
-export const DEFAULT_PORT = 3000;
+/**
+ * 默认服务端口(被占用时自动递增)
+ *
+ * 0.7.3 起从 3000 改为 3737:3000 被太多 dev server(Next.js / CRA / Express
+ * /Rails)默认占用,撞端口频繁。3737 在常见 dev tool 默认列表上没出现,且未被
+ * IANA 注册。worker 进程实际走 OS 自动分配高位端口(`bindAvailablePort
+ * preferred=0`),此默认值仅当 CLI 与 env 都未指定时作为 fallback。
+ */
+export const DEFAULT_PORT = 3737;
 
 /** 默认 Session TTL：24 小时（毫秒） */
 export const DEFAULT_SESSION_TTL_MS = 24 * 60 * 60 * 1000;

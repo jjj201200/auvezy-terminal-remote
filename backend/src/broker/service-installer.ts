@@ -122,7 +122,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=${opts.nodeBin} ${opts.cliPath} start
+ExecStart=${opts.nodeBin} ${opts.cliPath} start --foreground
 Restart=on-failure
 RestartSec=5s
 ${portEnv}[Install]
@@ -156,6 +156,7 @@ export function renderLaunchdPlist(opts: {
     <string>${opts.nodeBin}</string>
     <string>${opts.cliPath}</string>
     <string>start</string>
+    <string>--foreground</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
