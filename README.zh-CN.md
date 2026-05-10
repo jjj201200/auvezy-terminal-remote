@@ -29,7 +29,7 @@
 - **重连回放** —— 每次重连自动回灌 scrollback，alt-screen TUI 不会一片空白
 - **LAN-only 设计** —— token + 共享 session、`timingSafeEqual`、`/api/hook` 仅 loopback、worker 仅监听 127.0.0.1
 - **WSL 感知** —— mirrored / NAT 自动检测，PowerShell 端口转发脚本即时生成
-- **开机自启** —— `atr broker service install` 一键写 systemd / launchd 配置
+- **开机自启** —— `atr install` 一键写 systemd / launchd 配置
 
 完整清单见 [`docs/FEATURES.zh-CN.md`](./docs/FEATURES.zh-CN.md)。
 
@@ -84,20 +84,20 @@ npm install -g auvezy-terminal-remote   # 必须 -g（这是 CLI 工具）
 ### 一次性启动后台服务（推荐：开机自启）
 
 ```bash
-atr --install            # 写 systemd（Linux/WSL2） / launchd（macOS）配置
+atr install              # 写 systemd（Linux/WSL2） / launchd（macOS）配置
 # 之后按提示 enable + start，开机自动起后台服务
 ```
 
 或手动启动一次（测试 / 不需要开机自启时）：
 
 ```bash
-atr --start              # 前台跑，Ctrl+C 退；服务化请走上面那条
+atr start                # 前台跑，Ctrl+C 退；服务化请走上面那条
 ```
 
 ### 浏览器打开
 
 ```bash
-atr --status             # 一屏看清：进程 / token / 入口 URL / 实例
+atr status               # 一屏看清：进程 / token / 入口 URL / 实例
 ```
 
 输出里"可访问入口"那段每条 URL 都带 `?token=<token>`，复制任一条到浏览器即自动登录。
@@ -118,22 +118,30 @@ CLI 启动会自动确保后台服务在线（不在则 fork 一个），然后�
 ## 🔧 用法
 
 ```
-atr <服务级 flag>                       管理后台服务（紧跟 atr，不能与下面共用）
-atr [启动 flag...] [program] [args...]  启动一个 PTY 实例
-atr <子命令> [参数]                      实例级操作
+atr [启动 flag...] [program] [args...]  启动一个 PTY 实例（默认）
+atr <子命令> [参数]                      管理 broker / 实例
 ```
 
-### 服务级 flag（紧跟 atr 之后；互斥）
+严格参数顺序：atr 自己的 flag 必须放在 `[program]` **之前**。一旦遇到 program
+名，之后所有 token 原样透传给子进程。
 
-| Flag | 用途 |
+### 子命令
+
+| 命令 | 用途 |
 |---|---|
-| `atr --start` | 启动后台服务（前台进程，Ctrl+C 退） |
-| `atr --stop` | 关闭后台服务（SIGTERM → 5s 宽限 → SIGKILL） |
-| `atr --status` | 一屏看清服务详情：进程、token、入口 URL、实例 |
-| `atr --list` | 列当前所有活实例 |
-| `atr --logs` | tail 当天后台日志（`~/.atr/broker-YYYY-MM-DD.log`） |
-| `atr --install` | 注册开机自启（systemd / launchd） |
-| `atr --uninstall` | 卸载开机自启 |
+| `atr start [--port n] [--host ip]` | 启动 broker（前台，Ctrl+C 退） |
+| `atr stop` | 停 broker（SIGTERM → 5s 宽限 → SIGKILL） |
+| `atr status` | 一屏看清服务详情：进程、token、入口 URL、实例 |
+| `atr list` | 列当前所有活实例 |
+| `atr logs` | tail 当天 broker 日志（`~/.atr/broker-YYYY-MM-DD.log`） |
+| `atr install` | 注册开机自启（systemd / launchd） |
+| `atr uninstall` | 卸载开机自启（带二次确认） |
+| `atr attach <url>` | 命令行客户端连入某实例（第二个终端共享同一 PTY） |
+| `atr kill <pattern \| all>` | 杀实例（子串匹配 name/cwd/host:port）；`all` 杀全部（带确认） |
+| `atr completion <zsh\|bash\|fish>` | 输出对应 shell 补全脚本到 stdout |
+
+保留词（上面这些子命令）在位置 0 一律识别为 subcommand。要跑同名 PATH 二进制：
+`atr ./<name>` 或 `atr -- <name>`。在交互终端下，atr 会 prompt 让你选。
 
 ### 启动 flag（用于 `atr [program]`）
 
@@ -144,13 +152,6 @@ atr <子命令> [参数]                      实例级操作
 | `--no-terminal` | 不打印二维码（CI / 守护进程友好） |
 | `--workdir <path>` | 子进程工作目录 |
 | `--token <s>` | 指定固定 token（默认从 `~/.atrrc` 读 / 自动生成） |
-
-### 实例级子命令
-
-| 命令 | 说明 |
-|---|---|
-| `atr stop [pattern]` | 停指定实例（按 name / cwd / host:port 子串匹配；不传 pattern = 全停） |
-| `atr attach <url>` | 命令行客户端连入某实例（第二个本地终端共享同一 PTY） |
 
 完整参考（所有 flag、env、配置文件）见 [`docs/CLI.zh-CN.md`](./docs/CLI.zh-CN.md)。
 跑 `atr -h` 查看内置帮助。
@@ -197,7 +198,7 @@ dev 启动顺序（broker 先于 vite）：
 
 ```bash
 # 终端 1：起 broker（dev 模式，tsx 直跑 src）
-pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts broker start
+pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts start
 
 # 终端 2：vite dev server，反代 /api 与 /i/ 到 broker (3000)
 pnpm --filter auvezy-terminal-remote-frontend dev

@@ -30,7 +30,7 @@ time to log in, create instances, and run Claude / your shell / any TUI.
 - **Reconnect with replay** — scrollback rehydrated on every reconnect, alt-screen TUIs protected
 - **LAN-only design** — token + shared sessions, `timingSafeEqual`, `/api/hook` is loopback-only, workers bind to 127.0.0.1
 - **WSL aware** — auto-detects mirrored vs NAT mode; prints a one-liner PowerShell port-forward snippet when needed
-- **Boot autostart** — `atr broker service install` writes the systemd / launchd config in one shot
+- **Boot autostart** — `atr install` writes the systemd / launchd config in one shot
 
 Full list: [`docs/FEATURES.md`](./docs/FEATURES.md).
 
@@ -93,20 +93,20 @@ npm install -g auvezy-terminal-remote   # -g is required (it's a CLI)
 ### Run the background service once at boot (recommended)
 
 ```bash
-atr --install            # writes systemd (Linux/WSL2) / launchd (macOS) config
+atr install              # writes systemd (Linux/WSL2) / launchd (macOS) config
 # Follow the printed steps to enable + start; auto-starts at boot.
 ```
 
 Or run it manually (for testing / no autostart):
 
 ```bash
-atr --start              # foreground, Ctrl+C to quit
+atr start                # foreground, Ctrl+C to quit
 ```
 
 ### Open in a browser
 
 ```bash
-atr --status             # one-shot view: process / token / entry URLs / instances
+atr status               # one-shot view: process / token / entry URLs / instances
 ```
 
 The "entry URLs" section lists every reachable URL with `?token=<token>`
@@ -131,22 +131,32 @@ spawns the instance, and prints the URL.
 ## 🔧 Usage
 
 ```
-atr <service-flag>                          # manage background service (must follow atr)
-atr [run-flags...] [program] [args...]      # spawn a PTY instance
-atr <subcommand> [args]                     # instance-level operations
+atr [run-flags...] [program] [args...]      # spawn a PTY instance (default)
+atr <subcommand> [args]                     # manage broker / instances
 ```
 
-### Service-level flags (must follow `atr`; mutually exclusive)
+Strict argument order: atr's own flags must come **before** `[program]`.
+Once a program name is seen, every remaining token passes through to the child.
 
-| Flag | Purpose |
+### Subcommands
+
+| Command | Purpose |
 |---|---|
-| `atr --start` | Start the background service (foreground, Ctrl+C to quit) |
-| `atr --stop` | Stop the background service (SIGTERM → 5s grace → SIGKILL) |
-| `atr --status` | One-shot view: process, token, entry URLs, instances |
-| `atr --list` | List all live instances |
-| `atr --logs` | Tail today's service log (`~/.atr/broker-YYYY-MM-DD.log`) |
-| `atr --install` | Register autostart (systemd / launchd) |
-| `atr --uninstall` | Remove autostart |
+| `atr start [--port n] [--host ip]` | Start the broker (foreground, Ctrl+C to quit) |
+| `atr stop` | Stop the broker (SIGTERM → 5s grace → SIGKILL) |
+| `atr status` | One-shot view: process, token, entry URLs, instances |
+| `atr list` | List all live instances |
+| `atr logs` | Tail today's broker log (`~/.atr/broker-YYYY-MM-DD.log`) |
+| `atr install` | Register autostart (systemd / launchd) |
+| `atr uninstall` | Remove autostart (asks for confirmation) |
+| `atr attach <url>` | CLI client to share a PTY with a running instance |
+| `atr kill <pattern \| all>` | Kill instances by substring match; `all` kills every one (with confirm) |
+| `atr completion <zsh\|bash\|fish>` | Print shell completion script to stdout |
+
+Reserved words (the subcommands above) take precedence at position 0. To run
+a PATH binary with the same name: `atr ./<name>` or `atr -- <name>`. In an
+interactive terminal, atr will prompt you to choose if a PATH binary
+collides with a subcommand.
 
 ### Run flags (used with `atr [program]`)
 
@@ -157,13 +167,6 @@ atr <subcommand> [args]                     # instance-level operations
 | `--no-terminal` | Don't print the QR / banner (CI / daemon-friendly) |
 | `--workdir <path>` | Child process cwd |
 | `--token <s>` | Use a fixed token instead of reading `~/.atrrc` |
-
-### Instance-level subcommands
-
-| Command | Purpose |
-|---|---|
-| `atr stop [pattern]` | Stop an instance (substring match on name / cwd / host:port; no pattern = stop all) |
-| `atr attach <url>` | CLI client to share a PTY with a running instance |
 
 Full reference (all flags, env vars, config file):
 [`docs/CLI.md`](./docs/CLI.md). Run `atr -h` for the inline help.
