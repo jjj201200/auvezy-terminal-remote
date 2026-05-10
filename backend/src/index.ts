@@ -1,37 +1,35 @@
 /**
- * Backend 服务入口（阶段 6a）
+ * Backend worker 服务入口（0.7.0 起 worker only，broker 在 broker/cli.ts）
  *
  * 启动流程：
  *  1. loadConfig（CLI > env > config.json > 默认）→ AppConfig
  *  1.4 共享 Token：cli/env 都没指定时，走 acquireSharedToken（withFileLock）
  *  1.5 解析用户 --settings + 合并 atr hooks → 写 settings 文件
- *  1.6 detectDisplayIp 选 LAN IP，构造扫码 URL
- *  1.7 多实例：findAvailablePort（preferred 起递增）+ 生成 instanceId
- *  2. 创建 AuthModule(cookie 名按"实际端口"绑) + IntegrationManager
- *  3. Express + CORS（含 displayIp）+ /api 路由（含 /auth + /config + /hook + /instances）
+ *  1.6 detectDisplayIp（仅给 brokerEntryUrl 兜底 + share-routes 兼容）
+ *  1.7 ensureBroker：broker 不在则 fork（ADR-001/002）；拿到 broker.json
+ *  1.8 多实例：bindAvailablePort 强制 127.0.0.1（ADR-009）+ 生成 instanceId
+ *  2. AuthModule（共享 SessionsStore，cookie 名 session_id 不再带端口后缀）
+ *  3. Express + CORS + /api 路由（含 /auth + /config + /hook + /instances + /push + /share）
  *  4. 静态前端 + SPA fallback
  *  5. HttpServer + WsServer
- *  6. PtyManager + SessionController + 条件 TerminalRelay
+ *  6. PtyManager + SessionController（push payload fallback url=brokerEntryUrl）
+ *     + 条件 TerminalRelay
  *  7. spawn → setStatus(running)
- *  7.5 注册到 instances.json
+ *  7.5 注册到 instances.json（host=127.0.0.1，broker 反代时直读）
  *  8. SIGINT/SIGTERM/双 Ctrl+C/PTY exit/EADDRINUSE → shutdown（同步注销实例）
- *  9. listen 后打印 banner（扫码 URL + ASCII QR）
- *
- * 阶段 6a 不做：IP 监控 / Push
+ *  9. listen 后打印 banner（broker 入口 URL + ASCII QR）
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
-import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { networkInterfaces } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
-import { type UserConfig, ErrorCode } from 'auvezy-terminal-remote-shared';
+import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import { logger } from './logger/logger.js';
-import { createApiRouter } from './api/router.js';
-import type { ConfigStore } from './api/config-routes.js';
+import { createWorkerApiRouter } from './api/router.js';
 import { PtyManager } from './pty/pty-manager.js';
 import { WsServer } from './ws/ws-server.js';
 import { SessionController } from './session/session-controller.js';
@@ -47,7 +45,6 @@ import { createWsAuthenticate } from './auth/ws-authenticate.js';
 import {
   extractSettingsFromArgs,
   loadConfig,
-  saveUserConfig,
   type AppConfig,
 } from './config.js';
 import { IntegrationManager, DEFAULT_INTEGRATION_PREFS } from './integrations/manager.js';
@@ -57,18 +54,10 @@ import { acquireSharedToken } from './registry/shared-token.js';
 import { bindAvailablePort } from './registry/port-finder.js';
 import { InstanceError } from './errors.js';
 import { InstanceRegistryManager } from './registry/instance-registry.js';
-import { DefaultInstanceSpawner } from './registry/instance-spawner.js';
-import { startInstanceWatcher, stopInstanceWatcher } from './registry/instance-events.js';
-import {
-  detectDisplayIp,
-  buildPublicUrl,
-  isPrivateIp,
-  isTailscaleIp,
-} from './utils/network.js';
+import { detectDisplayIp } from './utils/network.js';
 import { renderQrCode } from './utils/qrcode-banner.js';
-import { isWsl } from './utils/wsl-detect.js';
-import { isWslNatIp, buildPortForwardHint } from './utils/wsl-port-hint.js';
-import { IpMonitor } from './utils/ip-monitor.js';
+// IpMonitor 在 0.7.0 worker 路径下移除（ADR-009：worker 只听 loopback，本机 IP
+// 变化与 worker 无关；对外入口由 broker 决定，IP 监控应在 broker 端做——阶段 3）
 import { PushService } from './push/push-service.js';
 import { createDevProxy, type DevProxyHandle } from './dev/dev-proxy.js';
 import { randomUUID } from 'node:crypto';
@@ -115,18 +104,22 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }
   }
 
-  // 1.6 displayIp（仍保留供 LAN URL banner 与 share endpoint 列表用；
-  //      0.7.0 worker 不再 listen LAN，但 banner 仍打印 broker URL —— 二维码以
-  //      broker URL 为准，displayIp 仅作为 share-routes 兼容字段）
+  // 1.6 displayIp（0.7.0 仅 2 个用途）：
+  //   - broker 监 0.0.0.0 时给 brokerEntryUrl 拼一个 hostname（不能写 0.0.0.0）
+  //   - share-routes 兼容字段（阶段 3 share endpoints 迁移到 broker 后会删）
+  //   worker 自己不再用它生成任何对外 URL
   const displayIp = detectDisplayIp(cfg.host);
-  const instanceId = randomUUID();
+  // 0.7.0：broker spawn worker 时通过 env `ATR_INSTANCE_ID` 透传 instanceId，
+  // 让 webapp 提前拿到 id 订阅 SSE / 拼 /i/<id>/ws。env 没有才本地 randomUUID
+  // （用户手动 `atr claude` 启的场景）。
+  const instanceId = process.env['ATR_INSTANCE_ID'] ?? randomUUID();
 
   // 1.7 ensureBroker（0.7.0 ADR-001/002）：worker 启动前先保证 broker 存在；
   //     fork 失败 → 整个 worker 启动失败（不降级，broker 不在 = 没人能访问 webapp）
   const __dirnameForBroker = dirname(fileURLToPath(import.meta.url));
   const cliJsPathForBroker = resolve(__dirnameForBroker, 'cli.js');
   const { ensureBroker } = await import('./broker/index.js');
-  let brokerState;
+  let brokerState: import('./broker/index.js').BrokerState;
   try {
     const r = await ensureBroker({ cliJsPath: cliJsPathForBroker });
     brokerState = r.state;
@@ -136,17 +129,24 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     );
   } catch (err) {
     process.stderr.write(
-      `[atr] broker 启动失败：${err instanceof Error ? err.message : String(err)}\n`
-        + `提示：检查 ~/.atr/broker.json 是否被旧进程占用；ATR_DEBUG_SPAWN=1 重启可看 /tmp/atr-broker-*.log\n`,
+      `[atr] failed to start the background service: ${err instanceof Error ? err.message : String(err)}\n`
+        + `hint: check whether ~/.atr/broker.json is held by a stale process; set ATR_DEBUG_SPAWN=1 and retry to capture /tmp/atr-broker-*.log\n`,
     );
     process.exit(1);
+    throw err; // 让 TS 把 brokerState 之后的 use 视为 reachable 时已赋值
   }
 
-  // 1.8 IP 监控（保留：用户切 Wi-Fi 时仍要广播 ip_changed 给前端做容错；
-  //      broker URL 由用户访问的 hostname 决定，不依赖 worker IP）
-  const ipMonitor = new IpMonitor({ initialIp: displayIp, hostHint: cfg.host });
+  // 1.8 IP 监控（0.7.0 阶段 2D 移除）
+  //   worker 只听 loopback（ADR-009），本机 IP 变化与 worker 无关；对外入口由
+  //   broker 决定，IP 监控应在 broker 端做（阶段 3 落地）。0.6.x 时这里会广播
+  //   ip_changed 让前端重算二维码——0.7.0 二维码 URL 由 broker 决定，不再有此需求
 
-  // 1.9 PushService
+  // 1.9 PushService（worker 端只做 reader + sendNotification）
+  //
+  // 0.7.0 v2 起订阅 CRUD 由 broker 端的 /api/push/subscriptions 处理；worker
+  // 仅在 SessionController 检测到 hook 事件时调 PushService.notifyAll 推送。
+  // 但订阅文件由 broker 写入 → worker 内存缓存可能 stale，notifyAll 前
+  // SessionController 会让 PushService.reloadSubscriptions() 一次（轻成本）。
   const pushService = new PushService();
   await pushService.init();
 
@@ -177,19 +177,17 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   } catch (err) {
     if (err instanceof InstanceError && err.code === ErrorCode.PORT_UNAVAILABLE) {
       const hint = cfg.strictPort
-        ? '提示：换用 --port <n> 或去掉 --strict-port 启用自适应'
-        : '提示：换用 --port <n> 指定其他起始端口';
+        ? 'hint: try a different --port <n>, or drop --strict-port to allow auto-bump'
+        : 'hint: pick a different starting --port <n>';
       process.stderr.write(`atr: ${err.message}\n${hint}\n`);
       process.exit(1);
     }
     throw err;
   }
   cfg.port = bindResult.port;
-  // 0.7.0：entryUrl 仍按 displayIp 拼一份给 push payload 兜底（直连 broker 时
-  // X-ATR-Forwarded-* 头会覆盖；通过 broker 反代访问时 broker 会注入正确 host）。
-  // 阶段 2D 会改成 req-aware 的 getEntryUrl。
-  const entryUrl = buildPublicUrl(displayIp, cfg.port, cfg.token);
-  // broker 入口 URL（banner 展示用；外部用户实际访问的入口）
+  // broker 入口 URL（banner 展示 / push payload fallback 用；外部用户实际访问
+  // 的入口由 broker 在反代时通过 X-ATR-Forwarded-* 头告诉每个订阅者，故 fallback
+  // 才是这个值——绝大多数路径都已经被 entry-url-aware 替换掉）
   const brokerEntryUrl = `http://${brokerState.host === '0.0.0.0' ? displayIp : brokerState.host}:${brokerState.port}/i/${instanceId}/`;
 
   logger.info(
@@ -270,28 +268,13 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     sessions: sessionsStore,
   });
 
-  // 2.6 ConfigStore：把内存中的 userConfig 与 config.json 写盘连接起来
-  //   - get() 返回当前内存值
-  //   - set() 写盘 + 更新内存（让 GET /api/config 立即反映新值）
-  let currentUserConfig: UserConfig = cfg.userConfig;
-  const configStore: ConfigStore = {
-    get: () => currentUserConfig,
-    set: (value) => {
-      saveUserConfig(value, cfg.userConfigPath);
-      currentUserConfig = value;
-    },
-  };
-
-  // 2.7 注册表 + Spawner（用于 /api/instances）
+  // 2.6 注册表（worker 仅用于 self-register / unregister）
+  //
+  // ConfigStore / spawner / instances watcher / selfShutdown 都已迁到 broker
+  // 端（API 归属重划分，见 docs/plans/path-routing/design-v2-api-ownership.md）。
+  // worker 收窄：用户配置读写、实例派生、SSE 推送都不再经 worker。
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const registry = new InstanceRegistryManager();
-  const spawner = new DefaultInstanceSpawner({
-    cliJsPath: resolve(__dirname, 'cli.js'),
-    workdirAllow: cfg.workdirAllow,
-    workdirDeny: cfg.workdirDeny,
-  });
-  // 启动 instances.json 文件 watcher → 给 SSE /instances/stream 推 change 事件
-  startInstanceWatcher(registry.filePath);
 
   // 3. Express 路由（app + httpServer 已在 1.10 创建并 listen，这里只往同一个 app 上挂中间件/路由）
   // CORS：同源 + localhost/127.0.0.1 + 本机所有网卡 IP（含 Tailscale / VPN / 多网卡）
@@ -323,28 +306,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     }),
   );
 
-  // /api 路由（含 /auth + /config + /hook + /instances + /push + /share）
-  // shutdown 函数在下面声明（需要 relay/pty/ws 等都创建好），用闭包延迟绑定
-  let triggerShutdown: () => void = () => {
-    logger.warn('shutdown 还未就绪却被调用，忽略');
-  };
-  app.use(
-    '/api',
-    createApiRouter({
-      authModule,
-      integrations,
-      configStore,
-      registry,
-      currentInstanceId: instanceId,
-      spawner,
-      pushService,
-      port: cfg.port,
-      displayIp,
-      selfShutdown: () => triggerShutdown(),
-      sharedToken: cfg.token,
-      workdirPolicy: () => ({ allow: cfg.workdirAllow ?? [] }),
-    }),
-  );
+  // /api 路由（worker 端：仅 health + hook，其余迁到 broker）
+  app.use('/api', createWorkerApiRouter({ integrations }));
 
   // dev 反代：当 --dev-proxy <port> / ATR_DEV_PROXY 设置时，把非 /api、/ws 的
   // HTTP/WS 请求转到 vite dev server。让手机访问真后端端口也能拿到 HMR 实时前端。
@@ -360,29 +323,9 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     app.use(devProxy.middleware);
   }
 
-  // 静态前端 + SPA fallback
-  const frontendDist = resolve(__dirname, '..', 'frontend-dist');
-  if (existsSync(frontendDist)) {
-    // 显式声明 .webmanifest 的 MIME，避免 Chrome PWA 安装提示因 MIME 错误而拒绝
-    app.use(
-      express.static(frontendDist, {
-        setHeaders: (res, filePath) => {
-          if (filePath.endsWith('.webmanifest')) {
-            res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
-          }
-        },
-      }),
-    );
-    app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
-        return next();
-      }
-      res.sendFile(resolve(frontendDist, 'index.html'));
-    });
-    logger.info({ path: frontendDist }, '前端静态文件已挂载');
-  } else {
-    logger.warn({ expected: frontendDist }, '前端 dist 不存在，跳过静态服务');
-  }
+  // 0.7.0 v2：worker 不再服务 SPA / 静态资源——所有静态资源由 broker 提供。
+  // worker 仅响应反代过来的 /api/health, /api/hook, /ws。访问 worker 根路径
+  // 直接 404。
 
   // 4. WsServer（带认证）—— httpServer 已在 1.10 创建并 listen
   const ws = new WsServer(httpServer, { authenticate: createWsAuthenticate(authModule) });
@@ -401,9 +344,13 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     ansiFilter,
   });
   ctrl.setIntegrationManager(integrations);
+  // setPushService 的 url 是 fallback：仅当订阅记录里没存 entryUrl 时用。
+  // 0.7.0 起 push-routes subscribe handler 会从 X-ATR-Forwarded-* 头算出每个
+  // 订阅自己的 entryUrl 持久化；这里 fallback 用 brokerEntryUrl —— 至少比
+  // 0.6.x 时 worker 自己拼的 LAN URL（带 worker port + token）更接近真实入口
   ctrl.setPushService(pushService, {
     instanceName: cfg.instanceName,
-    url: entryUrl,
+    url: brokerEntryUrl,
   });
 
   // 6. TerminalRelay（条件）
@@ -411,7 +358,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   if (!cfg.noTerminal && process.stdin.isTTY) {
     relay = new TerminalRelay(pty, {
       onExitRequest: () => {
-        process.stderr.write('\n[atr] 检测到双 Ctrl+C，正在退出代理…\n');
+        process.stderr.write('\n[atr] double Ctrl+C detected; shutting down\n');
         shutdown(0);
       },
     });
@@ -454,13 +401,13 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
         }
       }
     }
-    ipMonitor.stop();
+    // ipMonitor.stop() 不再需要：IpMonitor 已在阶段 2D 移除
+    // instances.json watcher 在 broker 端，worker 不需要 stop
     ctrl.destroy();
     integrations.shutdown();
     ws.destroy();
     authModule.destroy();
     devProxy?.dispose();
-    stopInstanceWatcher();
     // 注销实例（best-effort，不阻塞关闭）
     void registry.unregister(instanceId).catch((err) => {
       logger.warn({ err }, '关闭时注销实例失败');
@@ -489,9 +436,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     ctrl.setStatus('idle', err.message);
   });
 
-  // 暴露给 /api/instances/self/shutdown
-  triggerShutdown = () => shutdown(0);
-
+  // 0.7.0 v2：worker 端不再有 /api/instances/self/shutdown，跨实例 stop 由
+  // broker 直接 SIGTERM，下面的 SIGTERM/SIGINT handler 接走 graceful shutdown
   process.on('SIGINT', () => shutdown(0));
   process.on('SIGTERM', () => shutdown(0));
 
@@ -515,114 +461,80 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
     process.stderr.write('\n');
     process.stderr.write('╔══════════════════════════════════════════════════╗\n');
-    process.stderr.write('║          Auvezy Terminal Remote · 启动           ║\n');
+    process.stderr.write('║         Auvezy Terminal Remote · started         ║\n');
     process.stderr.write('╠══════════════════════════════════════════════════╣\n');
-    process.stderr.write(`║  实例:    ${cfg.instanceName.padEnd(38)}║\n`);
-    process.stderr.write(`║  worker:  http://127.0.0.1:${cfg.port}（loopback only）`.padEnd(53) + '║\n');
-    process.stderr.write(`║  入口:    ${brokerEntryUrl}`.padEnd(53) + '║\n');
-    process.stderr.write(`║  Token:   ${tokenPreview.padEnd(38)}║\n`);
-    process.stderr.write(`║  来源:    ${cfg.tokenSource.padEnd(38)}║\n`);
+    process.stderr.write(`║  instance: ${cfg.instanceName.padEnd(37)}║\n`);
+    process.stderr.write(`║  worker:   http://127.0.0.1:${cfg.port} (loopback only)`.padEnd(53) + '║\n');
+    process.stderr.write(`║  broker:   http://${brokerState.host}:${brokerState.port}`.padEnd(53) + '║\n');
+    process.stderr.write(`║  token:    ${tokenPreview.padEnd(37)}║\n`);
+    process.stderr.write(`║  source:   ${cfg.tokenSource.padEnd(37)}║\n`);
 
-    // 仅在新生成（generated）token 时把完整 token 印出来一次让用户保存
+    // Show the full token only on first generation, so the user can save it once.
     if (cfg.tokenSource === 'generated') {
       process.stderr.write('╠══════════════════════════════════════════════════╣\n');
-      process.stderr.write('║  完整 Token（首次显示，请保存）:                 ║\n');
+      process.stderr.write('║  Full token (shown once — save it now):          ║\n');
       process.stderr.write(`║  ${cfg.token.slice(0, 48).padEnd(48)}║\n`);
       process.stderr.write(`║  ${cfg.token.slice(48).padEnd(48)}║\n`);
     }
 
     process.stderr.write('╚══════════════════════════════════════════════════╝\n');
 
-    // 双二维码：LAN（默认 displayIp）+ Tailscale（如果检测到 100.64/10）。
-    // 其余 IP 仅文字列出，避免屏幕被太多二维码占满。
-    const allIps = Array.from(localHostnames).filter(
-      (h) => h !== 'localhost' && h !== '127.0.0.1' && h !== '::1',
+    // 0.7.0：从 networkInterfaces 推算所有可达 broker 入口（Tailscale / LAN /
+    // IPv6 / loopback），按推荐度排序后让用户在 TTY 下选一个看二维码；非 TTY
+    // 直接用默认项。详见 broker/entry-discovery.ts、entry-prompt.ts
+    const { discoverEntries } = await import('./broker/entry-discovery.js');
+    const { promptEntrySelection } = await import('./broker/entry-prompt.js');
+    const candidates = discoverEntries({
+      brokerPort: brokerState.port,
+      instanceId,
+      ...(displayIp ? { preferredHost: displayIp } : {}),
+      // 0.7.0：URL 带 ?token= 让用户扫码 / 链接粘贴即登录；前端 useAuth 拿到
+      // 后自动 fetch /api/auth 换 cookie 并从 URL 删除（与 0.6.x 同行为）
+      token: cfg.token,
+    });
+
+    const promptResult = await promptEntrySelection({ candidates });
+    const chosen = promptResult.selected;
+
+    const qr = await renderQrCode(chosen.url);
+    if (qr) {
+      process.stderr.write(
+        `\n  -- ${chosen.isDefault ? 'recommended' : 'selected'} entry (${chosen.host}) --\n`,
+      );
+      process.stderr.write(qr);
+      process.stderr.write(`  ${chosen.url}\n`);
+    }
+    // Other candidates (no QR to avoid clutter)
+    const others = candidates.filter((c) => c !== chosen);
+    if (others.length > 0) {
+      process.stderr.write('\n  Other entries (paste any URL):\n');
+      for (const c of others) {
+        process.stderr.write(`    ${c.url}\n`);
+      }
+    }
+    process.stderr.write(
+      '\n  Double Ctrl+C (within 500ms) detaches; single Ctrl+C passes through to the child\n',
     );
-    const lanIp = isPrivateIp(displayIp)
-      ? displayIp
-      : allIps.find(isPrivateIp);
-    const tailscaleIp = allIps.find(isTailscaleIp);
-
-    if (lanIp) {
-      const lanUrl = buildPublicUrl(lanIp, cfg.port, cfg.token);
-      const qr = await renderQrCode(lanUrl);
-      if (qr) {
-        process.stderr.write(`\n  ── 局域网 LAN（${lanIp}） ──\n`);
-        process.stderr.write(qr);
-        process.stderr.write(`  ${lanUrl}\n`);
-      }
-    }
-
-    if (tailscaleIp && tailscaleIp !== lanIp) {
-      const tsUrl = buildPublicUrl(tailscaleIp, cfg.port, cfg.token);
-      const qr = await renderQrCode(tsUrl);
-      if (qr) {
-        process.stderr.write(`\n  ── Tailscale（${tailscaleIp}） ──\n`);
-        process.stderr.write(qr);
-        process.stderr.write(`  ${tsUrl}\n`);
-      }
-    }
-
-    // 兜底：既没 LAN 也没 Tailscale 时，至少给 displayIp 一个二维码
-    if (!lanIp && !tailscaleIp) {
-      const qr = await renderQrCode(entryUrl);
-      if (qr) {
-        process.stderr.write(`\n  ── 入口（${displayIp}） ──\n`);
-        process.stderr.write(qr);
-        process.stderr.write(`  ${entryUrl}\n`);
-      }
-    }
-
-    // 其余 IP 仅文字列出（VPN / 多网卡 / IPv6 / link-local）
-    const otherIps = allIps.filter(
-      (ip) => ip !== lanIp && ip !== tailscaleIp,
-    );
-    if (otherIps.length > 0) {
-      process.stderr.write('\n  其它可用入口（VPN / 多网卡 / IPv6）：\n');
-      for (const ip of otherIps) {
-        const host = ip.includes(':') ? `[${ip}]` : ip;
-        process.stderr.write(
-          `    http://${host}:${cfg.port}/?token=${encodeURIComponent(cfg.token)}\n`,
-        );
-      }
-    }
-    process.stderr.write('  双 Ctrl+C（500ms 内）退出代理；单次 Ctrl+C 透传给 Claude\n');
-
-    // WSL2 NAT 模式下 Windows 浏览器无法用 localhost 直连，给出 PowerShell 提示
-    if (isWsl() && isWslNatIp(displayIp)) {
-      const hint = buildPortForwardHint([cfg.port], displayIp);
-      process.stderr.write('\n');
-      process.stderr.write('  ┌── Windows 宿主访问提示 ──────────────────────────\n');
-      process.stderr.write(`  │ ${hint.title}\n`);
-      process.stderr.write('  │\n');
-      for (const line of hint.setupCommands) {
-        process.stderr.write(`  │   ${line}\n`);
-      }
-      process.stderr.write('  │\n');
-      process.stderr.write(`  │ ${hint.footer}\n`);
-      process.stderr.write('  └──────────────────────────────────────────────────\n');
-    }
     // 视觉分隔：banner 之后是 PTY 子进程的输出（如果 TerminalRelay 启用）
     // 这条很重要：当 OCR_COMMAND 也是 zsh / bash 时，PTY 子进程的 prompt
     // 长得跟外层一模一样，很容易被误以为"backend 退出回到 shell"。
     if (relay) {
       process.stderr.write('\n');
       process.stderr.write(
-        `  ─── 准备启动 PTY 子进程（${cfg.claudeCommand}） ─────────────\n`,
+        `  --- preparing to spawn PTY child (${cfg.claudeCommand}) ---\n`,
       );
-      // 根据 spawn 模式给出对应等待提示
       const isHeadlessHint = cfg.noTerminal || !process.stdin.isTTY;
       const mustWaitEnterHint = cli.waitConfirm === true && !isHeadlessHint;
       if (isHeadlessHint) {
-        process.stderr.write('  （headless 模式：立即启动）\n');
+        process.stderr.write('  (headless mode: spawning immediately)\n');
       } else if (mustWaitEnterHint) {
-        process.stderr.write('  按 Enter 立即启动 PTY 子进程（--wait-confirm 模式）\n');
+        process.stderr.write('  Press Enter to spawn the PTY child (--wait-confirm)\n');
       } else {
         const timeoutHint =
           cfg.spawnTimeoutSec > 0
-            ? `（${cfg.spawnTimeoutSec}s 内任一触发：浏览器连入 / 按 Enter / 自动启动）`
-            : '（无超时：浏览器连入或按 Enter 触发）';
-        process.stderr.write(`  扫码登录浏览器后自动启动 ${timeoutHint}\n`);
+            ? ` (${cfg.spawnTimeoutSec}s timeout, or browser connect / Enter triggers)`
+            : ' (no timeout; browser connect or Enter triggers)';
+        process.stderr.write(`  Spawning after browser login${timeoutHint}\n`);
       }
       process.stderr.write('\n');
     } else {
@@ -706,7 +618,9 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       .register({
         instanceId,
         name: cfg.instanceName,
-        host: displayIp,
+        // 0.7.0：host 改为 worker 实际监听地址（loopback）。broker 阶段 3 反代时
+        // 直接用这个 host:port 连 worker。displayIp 已不参与 worker 注册
+        host: '127.0.0.1',
         port: cfg.port,
         pid: process.pid,
         cwd: cfg.claudeCwd,
@@ -715,12 +629,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       })
       .catch((err) => logger.warn({ err }, '注册实例失败'));
 
-    // 启动 IP 监控；变化时广播 ip_changed
-    ipMonitor.onChange(({ oldIp, newIp }) => {
-      const newUrl = buildPublicUrl(newIp, cfg.port, cfg.token);
-      ws.broadcast({ type: 'ip_changed', oldIp, newIp, newUrl });
-    });
-    ipMonitor.start();
+    // IP 监控已在阶段 2D 移除（worker 只听 loopback；ip_changed 广播由 broker 端
+    // 在阶段 3 重新设计——可能改成 ws 推一个"broker 反代 host 列表更新"事件）
 
     logger.info(
       {
@@ -905,7 +815,7 @@ function waitForUserConfirm(opts: { silent?: boolean } = {}): WaitConfirmHandle 
     };
   }
   if (!opts.silent) {
-    process.stderr.write('  按 Enter 启动子进程（或 Ctrl+C 退出 backend）...');
+    process.stderr.write('  Press Enter to spawn the child (or Ctrl+C to exit)...');
   }
   let cancelled = false;
   let onData: ((chunk: Buffer) => void) | null = null;

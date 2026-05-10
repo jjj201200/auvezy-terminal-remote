@@ -1,18 +1,20 @@
 # Path-routing 0.7.0 进度总览
 
-> 最后更新：2026-05-09（阶段 1 完成）
+> 最后更新：2026-05-10（**0.7.0 阶段 1-7 已完成**；阶段 8 v2 / API 归属重划分
+> 完成；发布动作待用户触发）
 
 ## 阶段速查
 
 | # | 阶段 | 状态 | 关键产物 | 阻塞 / 风险 |
 |---|---|---|---|---|
 | 1 | 基础设施 | ✅ 已完成 | broker 模块骨架、共享 sessions store、broker.json 状态文件 | 无 |
-| 2 | worker 改造 | 未开始 | worker loopback only、ensure broker、cookie 统一 | 阶段 1 完成 |
-| 3 | broker HTTP 反代 | 未开始 | http-proxy 接入、`/i/<id>/*` 路由、WS upgrade 反代 | 阶段 1 完成 |
-| 4 | HTML / asset 改造 | 未开始 | `<base href>` 注入、vite base 相对路径、删除 withBase | 阶段 3 完成 |
-| 5 | SPA 内部路由切实例 | 未开始 | history.pushState、popstate listener、删跨 origin 流转 | 阶段 4 完成 |
-| 6 | service install | 未开始 | systemd / launchd 模板、CLI 子命令 | 阶段 2 完成（broker 能启） |
-| 7 | 迁移文档 + release | 未开始 | CHANGELOG / README / 0.7.0 npm publish | 全部完成 |
+| 2 | worker 改造 | ✅ 已完成（2D/2E 待 commit） | worker loopback only、ensure broker、cookie 统一、entry URL 切换、清死代码 | 阶段 1 完成 |
+| 3 | broker HTTP 反代 | ✅ 已完成（待 commit） | http-proxy 接入、`/i/<id>/*` 路由、WS upgrade 反代、broker 静态资源 | 阶段 1 完成 |
+| 4 | HTML / asset 改造 | ✅ 已完成（待 commit） | `<base href>` 注入、vite base 相对路径、fetch/WS/SW 改相对 | 阶段 3 完成 |
+| 5 | SPA 内部路由切实例 | ✅ 已完成（待 commit） | history.pushState、popstate listener、删跨 port 跳转、buildWsUrl 简化 | 阶段 4 完成 |
+| 6 | service install | ✅ 已完成（待 commit） | systemd / launchd 模板、CLI 子命令（broker stop/status + service install/uninstall/status） | 阶段 2 完成（broker 能启） |
+| 7 | 迁移文档 + release | ✅ 文档完成（待 commit + publish） | CHANGELOG 0.7.0 entry / progress 07 | 全部完成 |
+| 8 | API 归属重划分（v2） | ✅ 实施完成（待 commit） | broker 持系统级 API；worker 收窄到 PTY/hook；POST /api/instances 异步语义 + SSE 等 ready；broker daily-rotate log；前端 fetch 绝对路径；ADR-011 落档 | 阶段 7 实测发现根本问题 |
 
 ## 时间线（粗估）
 
@@ -43,6 +45,7 @@
 | [008](../adrs/008-forwarded-headers.md) | X-ATR-Forwarded-* 协议 |
 | [009](../adrs/009-worker-loopback-only.md) | worker 只听 127.0.0.1 |
 | [010](../adrs/010-service-install.md) | service install 一键自启 |
+| [011](../adrs/011-api-ownership.md) | API 归属重划分：broker = 系统级 / worker = 实例级 |
 
 ## 关键约束 checklist
 

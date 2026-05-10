@@ -5,6 +5,96 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-10
+
+### Breaking changes
+
+- **路径反代取代多端口**：所有外部访问从 `http://lan-ip:port/?token=` 迁移到
+  `http://broker:3000/?token=...`（broker 根）或 `http://broker:3000/i/<id>/`
+  （进入特定实例）。0.6.x 用户分享的 `?token=` URL 失效，需要重新分享 broker
+  入口 URL（用 `atr --status` 获取完整清单）。
+- **worker 只听 `127.0.0.1`**：worker 不再向 LAN 暴露端口，只接受 broker 反代
+  的 loopback 连接（ADR-009）。`--host 0.0.0.0` / `--host <lan-ip>` 会被
+  强制覆盖为 `127.0.0.1` + 一行 warn。
+- **API 归属重划分**：所有"系统级"API（auth / config / instances / push /
+  share / workdir-policy / SSE）由 broker 持有；worker 仅保留 `/api/health`
+  与 `/api/hook`（claude hook，loopback only）+ `/ws`（PTY IO）。前端 fetch
+  全部改绝对路径 `/api/*` 直命 broker；零 worker 状态下 webapp 也能完整使用
+  （ADR-011）。
+- **POST /api/instances 改异步**：返回 202 Accepted + `{ instanceId, status: 'pending' }`，
+  worker 自注册后通过 SSE `/api/instances/stream` 推 ready；30s 超时 broker
+  主动 SIGTERM 兜底。
+- **CLI flag 化**：旧 `atr broker {start,stop,status}` / `atr broker service {install,uninstall,status}`
+  / `atr list` 子命令全部删除，改为顶层 flag（必须紧跟 atr，互斥）：
+  - `atr --start` / `--stop` / `--status` / `--list` / `--logs` / `--install` / `--uninstall`
+- **CLI 输出全英文**：`--help` / `--status` / 错误信息 / banner 全部从中文
+  改为简单英文，便于国际化（源码注释保持中文）。
+- **cookie 名统一**：从 `session_id_p<port>` 改为 `session_id`（ADR-006）。
+  0.7.0 同时识别旧 cookie 名一段时间避免升级即强制重登；0.8.0 删旧识别。
+- **session 共享存储**：从进程内 Map 换成 `~/.atr/sessions.json` 文件锁共享；
+  多实例共享同一份 session，跨 worker 切换不再要求重新登录。
+
+### Added
+
+- **broker 进程**：所有 worker 启动前自动 fork 一个 broker（ADR-001/002）
+  - 监听 `0.0.0.0:3000`（默认；`ATR_BROKER_PORT` 可覆盖）
+  - 反代 `/i/<id>/api/*` 与 `/i/<id>/ws` 到对应 worker；`/i/<id>/` 与静态
+    资源由 broker 自己服务并注入 `<base href="/i/<id>/">`（ADR-007）
+  - 注入 `X-ATR-Forwarded-*` 头 + 标准 `X-Forwarded-Host/Proto/For`（ADR-008）
+  - 持有所有"系统级"状态：AuthModule / SessionsStore / InstanceSpawner /
+    PushService / ConfigStore（ADR-011）
+  - 进程日志按天 rotate，保留 7 天：`~/.atr/broker-YYYY-MM-DD.log`
+- **顶层服务 flag**（取代 broker 子命令）：
+  - `atr --start`：启动后台服务（前台进程，Ctrl+C 退）
+  - `atr --stop`：SIGTERM → 5s 优雅期 → SIGKILL 兜底
+  - `atr --status`：一屏看清 5 段 — Service（pid/port/health）/ Autostart
+    （systemd/launchd 激活状态）/ Token（含完整值与文件 mode）/ Entry URLs
+    （所有可达 URL，默认入口标 ★，每条带 `?token=`）/ Instances（count + 简表）
+  - `atr --list`：列实例（取代 `atr list`）
+  - `atr --logs`：tail 当天 broker log
+  - `atr --install` / `--uninstall`：注册 / 卸载开机自启（ADR-010）
+    - Linux/WSL2：`~/.config/systemd/user/atr-broker.service`
+    - macOS：`~/Library/LaunchAgents/ke.kkjb.atr-broker.plist`
+    - Windows：本版本不支持，0.7.x 跟进
+- **Web Push entryUrl**：订阅时记录用户访问入口（broker 端从 X-ATR-Forwarded-*
+  反推），推送通知点击跳回正确 host；多设备 / 多反代域名各持各的 url。worker
+  端 PushService 在 notifyAll 前 reload 订阅文件，避免 broker 写后内存 stale。
+- **SPA 内部路由切实例**：切 tab = `history.pushState('/i/<id>/')`；浏览器
+  back/forward 同步 active 实例；F5 刷新 `/i/<id>/` 不丢实例。
+- **broker spawn 实例**：POST `/api/instances` 时 broker 预生成 instanceId
+  通过 env `ATR_INSTANCE_ID` 透传给 worker，让 webapp 立即可订阅 SSE 等就绪。
+
+### Removed
+
+- `atr broker` 子命令家族（已迁移到顶层 flag）
+- `atr list` 子命令（迁移到 `atr --list`）
+- worker 端 `/api/auth` / `/api/config` / `/api/instances` / `/api/push` /
+  `/api/share` / `/api/workdir-policy`（迁移到 broker）
+- worker 端静态资源服务（broker 接管）
+- worker `/api/instances/self/shutdown` HTTP 中转（broker DELETE 直接 SIGTERM）
+- worker 启动流的 IpMonitor（worker 只听 loopback，IP 变化与 worker 无关）
+- 跨 port 实例切换（`location.assign(buildInstanceUrl(host, port))` +
+  `?killAfterSwitch=` URL 参数）—— 0.7.0 全 SPA 内同源完成
+
+### Migration
+
+升级 0.6.x → 0.7.0：
+
+1. `npm i -g auvezy-terminal-remote@0.7.0`
+2. 之前的 `http://lan-ip:port/?token=` 形式 URL 失效；启动后用 `atr --status`
+   查看新的 broker 入口 URL（每条带 token，复制即用）
+3. 想让 broker 开机自启：`atr --install`，按提示跑后续命令
+4. 旧 `atr broker xxx` / `atr list` 命令报错；改用对应顶层 flag
+   （`atr --start` / `atr --status` / `atr --list` 等）
+5. 旧 cookie 自动识别一段时间，无需立即重登
+6. 自动化脚本：把 `atr broker start` 改成 `atr --start`，`atr broker stop`
+   改成 `atr --stop`；如果之前装过 systemd / launchd 服务，建议
+   `atr --uninstall && atr --install` 重装（旧 service 文件的 ExecStart
+   仍指向 `atr broker start`，0.7.0 起无效）
+
+详细架构与决策请见 `docs/plans/path-routing/`：design.md + design-v2-api-ownership.md
++ 11 个 ADR。
+
 ## [0.6.0] - 2026-05-09
 
 ### Breaking changes

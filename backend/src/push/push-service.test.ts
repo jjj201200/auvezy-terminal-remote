@@ -160,6 +160,35 @@ describe('PushService', () => {
     expect(svc.getSubscriptionCount()).toBe(2);
   });
 
+  it('notifyAll：每条订阅的 entryUrl 覆盖 payload.url；无字段时用 payload.url', async () => {
+    const mock = makeMockPush();
+    const svc = new PushService({ baseDir, env: {}, pushImpl: mock as never });
+    await svc.init();
+    svc.subscribe({ ...fakeSub('with-url'), entryUrl: 'https://h1.example/i/aaa' });
+    svc.subscribe(fakeSub('no-url')); // 无 entryUrl，走 fallback
+
+    await svc.notifyAll({ title: 't', body: 'b', url: 'https://fallback.example/' });
+
+    const payloads = mock.sent.map((s) => JSON.parse(s.payload) as { url?: string });
+    const byEndpoint = new Map(mock.sent.map((s, i) => [s.sub.endpoint, payloads[i]!]));
+    expect(byEndpoint.get('with-url')?.url).toBe('https://h1.example/i/aaa');
+    expect(byEndpoint.get('no-url')?.url).toBe('https://fallback.example/');
+  });
+
+  it('订阅记录中的 entryUrl 持久化往返一致', async () => {
+    const mock = makeMockPush();
+    const svc = new PushService({ baseDir, env: {}, pushImpl: mock as never });
+    await svc.init();
+    svc.subscribe({ ...fakeSub('persist'), entryUrl: 'https://x.example/i/yyy' });
+
+    // 重建 service 模拟进程重启
+    const svc2 = new PushService({ baseDir, env: {}, pushImpl: mock as never });
+    await svc2.init();
+    await svc2.notifyAll({ title: 't', body: 'b' });
+    const payload = JSON.parse(mock.sent[0]!.payload) as { url?: string };
+    expect(payload.url).toBe('https://x.example/i/yyy');
+  });
+
   it('notifyAll：未 init → sent=0 不抛', async () => {
     const mock = makeMockPush();
     const svc = new PushService({ baseDir, env: {}, pushImpl: mock as never });
@@ -178,6 +207,6 @@ describe('PushService', () => {
 
   it('getPublicKey 未 init → PushError(PUSH_VAPID_NOT_READY)', () => {
     const svc = new PushService({ baseDir });
-    expect(() => svc.getPublicKey()).toThrow(/PushService 未初始化/);
+    expect(() => svc.getPublicKey()).toThrow(/PushService not initialized/);
   });
 });

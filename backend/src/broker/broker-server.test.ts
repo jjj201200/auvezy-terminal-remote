@@ -12,12 +12,13 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
+import type { Express } from 'express';
 import { createBrokerApp, startBrokerServer } from './broker-server.js';
 import { readBrokerState } from './broker-state.js';
 
-/** 临时 listen createBrokerApp 在随机端口，返回 url + 关闭函数 */
+/** 临时 listen 一个 Express app 在随机端口，返回 url + 关闭函数 */
 async function listenApp(
-  app: ReturnType<typeof createBrokerApp>,
+  app: Express,
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const httpServer = createServer(app);
   await new Promise<void>((res, rej) => {
@@ -35,9 +36,63 @@ async function listenApp(
   };
 }
 
+describe('createBrokerApp 静态资源（3C）', () => {
+  it('frontendDist 指向有 index.html 的目录 → 根 / 返回 index.html', async () => {
+    const dir = mkdtempSync(resolve(tmpdir(), 'atr-broker-fe-'));
+    try {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(`${dir}/index.html`, '<!doctype html><title>atr</title>');
+      writeFileSync(`${dir}/asset.txt`, 'hello');
+      const { app } = createBrokerApp({
+        brokerVersion: '0.7.0',
+        startedAt: 1000,
+        frontendDist: dir,
+      });
+      const { url, close } = await listenApp(app);
+      try {
+        const root = await fetch(`${url}/`);
+        expect(root.status).toBe(200);
+        expect((await root.text()).includes('atr')).toBe(true);
+
+        const asset = await fetch(`${url}/asset.txt`);
+        expect(asset.status).toBe(200);
+        expect((await asset.text())).toBe('hello');
+
+        // SPA fallback：未知路径走 index.html
+        const spa = await fetch(`${url}/some/spa/path`);
+        expect(spa.status).toBe(200);
+        expect((await spa.text()).includes('atr')).toBe(true);
+
+        // /api 路径不走 fallback：health 仍然命中 broker 自己的 /api/health
+        const health = await fetch(`${url}/api/health`);
+        expect(health.status).toBe(200);
+      } finally {
+        await close();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('frontendDist 不存在 → 不挂静态服务但 broker 仍可启', async () => {
+    const { app } = createBrokerApp({
+      brokerVersion: '0.7.0',
+      startedAt: 1000,
+      frontendDist: '/nonexistent/atr-frontend',
+    });
+    const { url, close } = await listenApp(app);
+    try {
+      const health = await fetch(`${url}/api/health`);
+      expect(health.status).toBe(200);
+    } finally {
+      await close();
+    }
+  });
+});
+
 describe('createBrokerApp', () => {
   it('/api/health 返回 ok + 必要字段', async () => {
-    const app = createBrokerApp({ brokerVersion: '0.7.0', startedAt: 1000 });
+    const { app } = createBrokerApp({ brokerVersion: '0.7.0', startedAt: 1000 });
     const { url, close } = await listenApp(app);
     try {
       const res = await fetch(`${url}/api/health`);

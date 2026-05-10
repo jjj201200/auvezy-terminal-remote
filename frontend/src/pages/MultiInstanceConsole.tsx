@@ -36,9 +36,11 @@ import {
   useSharePresenter,
 } from '../components/ui/modal-stack/presenters.js';
 import { useConfirm } from '../components/ui/ConfirmProvider.js';
-import { loadToken } from '../services/token-storage.js';
-import { buildInstanceUrl } from '../services/instance-url.js';
 import { hardReload } from '../utils/hard-reload.js';
+import {
+  getInstanceIdFromPath,
+  pushInstancePath,
+} from '../utils/instance-path.js';
 import s from './ConsolePage.module.scss';
 
 interface InstanceStatus {
@@ -107,8 +109,12 @@ export function MultiInstanceConsole(): JSX.Element {
   const presentManageHosts = useManageHostsPresenter();
   const confirm = useConfirm();
 
-  // 当前 active 实例 id；首次默认 = 当前服务进程标记 isCurrent 的那个
-  const [activeId, setActiveId] = useState<string | null>(null);
+  // 当前 active 实例 id：
+  //  - 0.7.0 优先从 URL 解析（broker 反代场景下 URL = `/i/<id>/`，刷新不丢实例）
+  //  - 解析不到时为 null，等 instances 加载后用 isCurrent / 第一个回填
+  const [activeId, setActiveId] = useState<string | null>(() =>
+    getInstanceIdFromPath(),
+  );
 
   // 各实例状态映射：activeId 对应的状态会显示在顶栏 StatusBar
   const [statusMap, setStatusMap] = useState<Record<string, InstanceStatus>>({});
@@ -138,11 +144,21 @@ export function MultiInstanceConsole(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // 拦截 InstanceTabs 的切换：直接改 active state，不再 location.assign
-  // 这里不能改原 InstanceTabs 的 handleSwitch（它跳转 URL）——传 onSwitch 让它优先用
-  // ……但 InstanceTabs 现在是 location.assign。我们改它支持可选 onSwitch
+  // 切实例：history.pushState 改 URL（broker 反代下 URL 反映当前实例）+ setState
+  // 同时进行；不再走 location.assign 跨 port 跳转
   const handleSwitch = useCallback((instanceId: string) => {
+    pushInstancePath(instanceId);
     setActiveId(instanceId);
+  }, []);
+
+  // popstate：浏览器 back/forward 改了 URL → 同步 activeId
+  useEffect(() => {
+    const onPopState = (): void => {
+      const idFromUrl = getInstanceIdFromPath();
+      if (idFromUrl !== null) setActiveId(idFromUrl);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   // ───── modal triggers（用 ModalStack push） ─────
@@ -184,10 +200,17 @@ export function MultiInstanceConsole(): JSX.Element {
           extraLabel: t('instance.disconnect'),
         });
         if (result === true) {
-          // 跳转到 target 实例，URL 带 killAfterSwitch 让新前端 mount 后 DELETE 老进程
-          const url = new URL(buildInstanceUrl(target.host, target.port), window.location.href);
-          url.searchParams.set('killAfterSwitch', i.instanceId);
-          window.location.assign(url.toString());
+          // 0.7.0：所有实例同 origin 同 broker，先切 tab（pushState + setActiveId）
+          // 再 DELETE 老实例。无需跨 port 跳转，无需 killAfterSwitch URL 中转
+          handleSwitch(target.instanceId);
+          const err = await removeInstance(i.instanceId);
+          if (err !== null) {
+            await confirm({
+              title: t('instance.closeFailedTitle'),
+              message: err,
+              singleButton: true,
+            });
+          }
         } else if (result === 'extra') {
           disconnect(i.instanceId);
         }
@@ -215,26 +238,15 @@ export function MultiInstanceConsole(): JSX.Element {
         disconnect(i.instanceId);
       }
     },
-    [instances, confirm, t, removeInstance, disconnect],
+    [instances, confirm, t, removeInstance, disconnect, handleSwitch],
   );
 
-  // 给每个实例算 wsUrl
-  // 关键：用"端口相同 = 同 backend = 同源"判断，而不是 hostname === host。
-  // 一台机器可能同时挂 LAN/Tailscale/虚拟网卡多个 IP，backend 写进 registry 的 host
-  // 只是其中一个；用户从任意 IP 访问页面都应走同源 cookie。跨 port（多实例）才用
-  // 当前页面 hostname 拼跨实例 URL（用户能 reach 当前 host，姊妹实例也大概率 bind
-  // 在 0.0.0.0，从同一 host 能连上）。
-  const buildWsUrl = useCallback((_host: string, port: number): string | undefined => {
-    const currentPort = String(
-      window.location.port || (window.location.protocol === 'https:' ? 443 : 80),
-    );
-    if (currentPort === String(port)) return undefined; // 同 port → 同源默认
-    const token = loadToken();
+  // 0.7.0：所有实例同 origin（broker 反代），WS URL 形如 ws://host/i/<id>/ws。
+  // 不再需要按 host/port 跨 origin 拼 token；buildWsUrl 仅根据 instanceId
+  // 拼出对应的 broker path，让 useWebSocket 直接连
+  const buildWsUrl = useCallback((instanceId: string): string => {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const currentHost = window.location.hostname;
-    const hostPart =
-      currentHost.includes(':') && !currentHost.startsWith('[') ? `[${currentHost}]` : currentHost;
-    return `${proto}//${hostPart}:${port}/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    return `${proto}//${window.location.host}/i/${instanceId}/ws`;
   }, []);
 
   // 给 InstanceView 的回调：必须用稳定引用（每次新建会触发其内部 effect 链 →
@@ -423,7 +435,7 @@ export function MultiInstanceConsole(): JSX.Element {
         <InstanceView
           key={i.instanceId}
           instanceId={i.instanceId}
-          wsUrl={buildWsUrl(i.host, i.port)}
+          wsUrl={buildWsUrl(i.instanceId)}
           config={config}
           active={i.instanceId === activeId}
           onStatusChange={onInstanceStatusChange}

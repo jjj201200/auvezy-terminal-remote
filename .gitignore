@@ -53,3 +53,4 @@ pnpm-lock.yaml.*
 
 # 上游参考材料（已删除；保留 ignore 防止再次导入）
 analysis/
+nohup.out

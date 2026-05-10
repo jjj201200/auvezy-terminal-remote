@@ -22,6 +22,22 @@ export interface ApiResult<T> {
 }
 
 /**
+ * 把 path 规范成"绝对路径"形式（强制带前导斜杠）
+ *
+ * 0.7.0 v2（API 归属重划分）起：所有 /api/* 端点（auth / config / instances /
+ * push / share / workdir-policy）都由 broker 根处理，**不**走 `/i/<id>/api/...`
+ * 反代。前端因此一律用绝对路径 `/api/...` 命中 broker 根。
+ *
+ * 历史：阶段 4 曾让前端用相对 URL 让 base href 把它解析到 `/i/<id>/api/...`，
+ * 但 v2 API 归属修正后 worker 不再实现这些端点，绝对路径才是正解。
+ *
+ * 调用方传 `/api/foo` 或 `api/foo` 都接受——内部统一加头。
+ */
+function toRelative(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
+/**
  * 用 token 调用 /api/auth 申请 session cookie
  *
  * @param token 用户输入或缓存中的 token
@@ -41,7 +57,7 @@ export async function apiPost<T>(
   body: unknown,
 ): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(path, {
+    const res = await fetch(toRelative(path), {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -63,7 +79,7 @@ export async function apiPost<T>(
 /** 通用 GET 包装 */
 export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(path, {
+    const res = await fetch(toRelative(path), {
       method: 'GET',
       credentials: 'include',
     });
@@ -83,7 +99,7 @@ export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
 /** 通用 DELETE 包装 */
 export async function apiDelete<T>(path: string): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(path, {
+    const res = await fetch(toRelative(path), {
       method: 'DELETE',
       credentials: 'include',
     });
@@ -103,7 +119,7 @@ export async function apiDelete<T>(path: string): Promise<ApiResult<T>> {
 /** 通用 PUT 包装：与 POST 同结构，区别只是方法 */
 export async function apiPut<T>(path: string, body: unknown): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(path, {
+    const res = await fetch(toRelative(path), {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

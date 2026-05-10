@@ -14,19 +14,19 @@ export async function stopInstancesCli(pattern?: string): Promise<number> {
   try {
     const results = await stopInstances(pattern);
     if (results.length === 0) {
-      const hint = pattern ? `（pattern="${pattern}"）` : '';
-      process.stdout.write(`未匹配到任何实例 ${hint}\n`);
+      const hint = pattern ? ` (pattern="${pattern}")` : '';
+      process.stdout.write(`no matching instances${hint}\n`);
       return 1;
     }
     for (const r of results) {
       const tag =
         r.outcome === 'sigterm'
-          ? '✓'
+          ? 'OK '
           : r.outcome === 'sigkill'
-            ? '✗ 强杀'
+            ? 'KILL'
             : r.outcome === 'gone'
-              ? '· 已离线'
-              : '✗ 失败';
+              ? 'GONE'
+              : 'FAIL';
       process.stdout.write(
         `${tag}  port=${r.instance.port}  pid=${r.instance.pid}  name=${r.instance.name}` +
           (r.error ? `  err=${r.error}` : '') +
@@ -36,7 +36,7 @@ export async function stopInstancesCli(pattern?: string): Promise<number> {
     return 0;
   } catch (err) {
     process.stderr.write(
-      `[atr] stop 失败：${err instanceof Error ? err.message : String(err)}\n`,
+      `[atr] stop failed: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     return 2;
   }

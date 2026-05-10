@@ -131,6 +131,7 @@ export function useInstances(): UseInstancesResult {
 
     const startSse = (): void => {
       try {
+        // 0.7.0 v2：所有 /api/* 命中 broker 根，不再走 /i/<id>/api/...
         es = new EventSource('/api/instances/stream', { withCredentials: true });
       } catch {
         // 不支持 EventSource → 仅靠轮询

@@ -1,14 +1,18 @@
 /**
- * API 路由聚合器
+ * API 路由聚合器（0.7.0 v2 / API 归属重划分）
  *
- * 把各个领域路由（health / auth / config / hook / instance / push / status）
- * 挂到统一的 /api 前缀下。
+ * 拆成两组工厂：
+ *  - `createBrokerApiRouter`：broker 进程持有的"系统级"API
+ *      auth / config / instances / push / share / workdir / health / SSE
+ *  - `createWorkerApiRouter`：worker 进程持有的"实例级"API
+ *      health（探活）/ hook（loopback only）
  *
- * 阶段 2：挂 health（公开）+ auth（公开）。后续阶段按需扩展。
+ * 设计原因（见 docs/plans/path-routing/design-v2-api-ownership.md）：
+ *  - broker-only 状态（没起任何 worker）下 webapp 必须能登录、列实例、创建实例
+ *  - worker 只负责一个 PTY 实例的生命周期（终端 IO + claude hook）
  *
- * 设计：用工厂函数 + options 对象注入依赖，便于：
- * - 单测（直接 new Router 不需要起整个 server）
- * - 多实例（同一进程内可以挂多套路由，未来扩展）
+ * 老的 `createApiRouter`（同时混挂全部）已废弃。worker 端 self-shutdown
+ * HTTP 中转也一并取消——broker DELETE 直接 process.kill 即可。
  */
 
 import { Router } from 'express';
@@ -16,7 +20,7 @@ import { createHealthRoutes } from './health-routes.js';
 import { createAuthRoutes } from './auth-routes.js';
 import { createHookRoutes } from './hook-routes.js';
 import { createConfigRoutes, type ConfigStore } from './config-routes.js';
-import { createInstanceRoutes } from './instance-routes.js';
+import { createBrokerInstanceRoutes } from './instance-routes.js';
 import { createPushRoutes } from './push-routes.js';
 import { createShareRoutes } from './share-routes.js';
 import {
@@ -29,91 +33,88 @@ import type { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner } from '../registry/instance-spawner.js';
 import type { PushService } from '../push/push-service.js';
 
-export interface ApiRouterOptions {
-  /** 认证模块；不传则不挂 /auth 路由 */
-  authModule?: AuthModule;
-  /** Integration 管理器;不传则不挂 /hook 路由(仅 localhost 可访问) */
-  integrations?: IntegrationManager;
-  /** 配置存储；与 authModule 同时存在时挂 /config 路由 */
-  configStore?: ConfigStore;
-  /** 实例注册表；与 authModule + currentInstanceId 同时存在时挂 /instances */
-  registry?: InstanceRegistryManager;
-  /** 当前进程 instanceId（用于 isCurrent 标记） */
-  currentInstanceId?: string;
-  /** 派生新实例（可选，不传则 POST /instances 返回 501） */
-  spawner?: InstanceSpawner;
-  /** Web Push 服务；与 authModule 同时存在时挂 /push 路由 */
-  pushService?: PushService;
-  /** 当前实例端口；与 authModule 同时存在时挂 /share/endpoints */
-  port?: number;
-  /** 当前实例 displayIp；用于 /share 标记默认入口 */
-  displayIp?: string;
-  /** 触发本进程优雅关闭（暴露 POST /instances/self/shutdown，跨实例 stop 用） */
-  selfShutdown?: () => void;
-  /** 共享 token：跨实例 HTTP 调 self-shutdown 用；无则跳过 HTTP 路径 */
-  sharedToken?: string;
-  /** workdir 策略快照器；与 authModule 同时存在时挂 /workdir-policy */
-  workdirPolicy?: () => WorkdirPolicySnapshot;
+// ──────────────── broker 端 ────────────────
+
+export interface BrokerApiRouterOptions {
+  authModule: AuthModule;
+  configStore: ConfigStore;
+  registry: InstanceRegistryManager;
+  spawner: InstanceSpawner;
+  pushService: PushService;
+  /** 当前实例 / displayIp 已不再相关：broker 是入口，不属于任何 instance */
+  brokerPort: number;
+  /** broker 监听 host（detectDisplayIp 等过算法的结果），用于 share endpoints */
+  displayIp: string;
+  workdirPolicy: () => WorkdirPolicySnapshot;
 }
 
 /**
- * 创建 /api 路由聚合
+ * 创建 broker 进程的 /api 路由
+ *
+ * 全部路径在"broker 根"下，与某个具体 instanceId 无关。前端 fetch 这些
+ * 端点时使用绝对路径 `/api/...`（不走 `/i/<id>/api/...`）。
  */
-export function createApiRouter(opts: ApiRouterOptions = {}): Router {
+export function createBrokerApiRouter(opts: BrokerApiRouterOptions): Router {
   const router = Router();
 
-  // 健康检查（公开）
+  // 健康检查（公开）—— broker 自己的 health；worker 反代时另有一份 worker /api/health
   router.use(createHealthRoutes());
 
-  // 认证（公开端点本身，但成功后才能拿到 cookie）
-  if (opts.authModule) {
-    router.use(createAuthRoutes(opts.authModule));
-  }
+  // 认证：cookie 由 broker 写，session 落 SessionsStore（共享文件）
+  router.use(createAuthRoutes(opts.authModule));
 
-  // 配置（需鉴权）
-  if (opts.authModule && opts.configStore) {
-    router.use(createConfigRoutes(opts.authModule, opts.configStore));
-  }
+  // 用户配置（鉴权）
+  router.use(createConfigRoutes(opts.authModule, opts.configStore));
 
-  // Hook 接收(路由内部做 loopback 限制,无需鉴权)
-  if (opts.integrations) {
-    router.use(createHookRoutes(opts.integrations));
-  }
-
-  // 实例列表 + 派生（需鉴权）
-  if (opts.authModule && opts.registry && opts.currentInstanceId) {
-    router.use(
-      createInstanceRoutes({
-        authModule: opts.authModule,
-        registry: opts.registry,
-        currentInstanceId: opts.currentInstanceId,
-        spawner: opts.spawner,
-        selfShutdown: opts.selfShutdown,
-        sharedToken: opts.sharedToken,
-      }),
-    );
-  }
+  // 实例列表 + 派生（鉴权）—— 异步语义：POST 立即返回 202 + instanceId，
+  // worker 注册 instances.json 时由 file watcher → SSE 推 ready
+  router.use(
+    createBrokerInstanceRoutes({
+      authModule: opts.authModule,
+      registry: opts.registry,
+      spawner: opts.spawner,
+    }),
+  );
 
   // Web Push（GET /vapid 公开；订阅 CRUD 鉴权）
-  if (opts.authModule && opts.pushService) {
-    router.use(createPushRoutes(opts.authModule, opts.pushService));
-  }
+  router.use(createPushRoutes(opts.authModule, opts.pushService));
 
-  // 分享入口列表（鉴权）
-  if (opts.authModule && typeof opts.port === 'number' && opts.displayIp) {
-    router.use(
-      createShareRoutes({
-        authModule: opts.authModule,
-        port: opts.port,
-        displayIp: opts.displayIp,
-      }),
-    );
-  }
+  // 分享入口列表（鉴权）—— broker 才知道自己监听 host 集合
+  router.use(
+    createShareRoutes({
+      authModule: opts.authModule,
+      port: opts.brokerPort,
+      displayIp: opts.displayIp,
+    }),
+  );
 
-  // workdir 策略只读快照（鉴权）—— 给前端 cwd base 选择器用
-  if (opts.authModule && opts.workdirPolicy) {
-    router.use(createWorkdirPolicyRoutes(opts.authModule, opts.workdirPolicy));
-  }
+  // workdir 策略只读快照（鉴权）
+  router.use(createWorkdirPolicyRoutes(opts.authModule, opts.workdirPolicy));
 
+  return router;
+}
+
+// ──────────────── worker 端 ────────────────
+
+export interface WorkerApiRouterOptions {
+  /** Integration 管理器（claude hook 翻译） */
+  integrations: IntegrationManager;
+}
+
+/**
+ * 创建 worker 进程的 /api 路由
+ *
+ * 仅保留两条路径：
+ *  - `/api/health`：broker 反代时给 worker 探活用
+ *  - `/api/hook`：claude hook 仅 loopback 可达
+ *
+ * **不**挂 auth / config / instances / push / share / workdir：这些是
+ * broker 的事；worker 完全不需要 AuthModule 来做 HTTP 路由鉴权（WS 鉴权另
+ * 走 ws-authenticate，不经此处）。
+ */
+export function createWorkerApiRouter(opts: WorkerApiRouterOptions): Router {
+  const router = Router();
+  router.use(createHealthRoutes());
+  router.use(createHookRoutes(opts.integrations));
   return router;
 }

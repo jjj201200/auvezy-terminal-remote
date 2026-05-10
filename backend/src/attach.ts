@@ -23,7 +23,7 @@ import { DOUBLE_CTRL_C_WINDOW_MS } from './constants.js';
 export async function runAttachCli(url: string): Promise<number> {
   // 终端必须是 TTY，否则原始 stdin/stdout 没法 raw mode
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    process.stderr.write('[atr] attach 需要交互式终端\n');
+    process.stderr.write('[atr] attach requires an interactive terminal\n');
     return 2;
   }
 
@@ -46,9 +46,9 @@ export async function runAttachCli(url: string): Promise<number> {
 
   client.on('connectionStatus', (s: AttachConnectionStatus) => {
     if (s === 'disconnected') {
-      process.stderr.write('\x1b[2K\r[attach 已断开，自动重连中…]\n');
+      process.stderr.write('\x1b[2K\r[attach disconnected; reconnecting...]\n');
     } else if (s === 'connected') {
-      process.stderr.write('\x1b[2K\r[attach 已连接]\n');
+      process.stderr.write('\x1b[2K\r[attach connected]\n');
     }
   });
 
@@ -58,11 +58,11 @@ export async function runAttachCli(url: string): Promise<number> {
     cleanup();
   };
   client.on('sessionEnded', (code, reason) => {
-    process.stderr.write(`\x1b[2K\r[远端会话结束 · exit ${code} · ${reason}]\n`);
+    process.stderr.write(`\x1b[2K\r[remote session ended · exit ${code} · ${reason}]\n`);
     finish(code);
   });
   client.on('fatal', (msg) => {
-    process.stderr.write(`\x1b[31m[attach 致命错误] ${msg}\x1b[0m\n`);
+    process.stderr.write(`\x1b[31m[attach fatal] ${msg}\x1b[0m\n`);
     finish(1);
   });
 
@@ -78,7 +78,7 @@ export async function runAttachCli(url: string): Promise<number> {
     if (chunk === '\x03') {
       const now = Date.now();
       if (now - lastCtrlC <= DOUBLE_CTRL_C_WINDOW_MS) {
-        process.stderr.write('\n[atr] 双 Ctrl+C：断开 attach\n');
+        process.stderr.write('\n[atr] double Ctrl+C: detaching\n');
         finish(0);
         return;
       }
@@ -123,7 +123,7 @@ export async function runAttachCli(url: string): Promise<number> {
 
   // 启动连接
   client.connect();
-  process.stderr.write(`[attach] 连接 ${url}\n`);
+  process.stderr.write(`[attach] connecting to ${url}\n`);
 
   // 等到 cleanup 触发后退出
   return new Promise<number>((resolve) => {

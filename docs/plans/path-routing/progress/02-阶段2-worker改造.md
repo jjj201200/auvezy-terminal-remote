@@ -1,6 +1,6 @@
 # 阶段 2 — worker 改造
 
-> 状态：进行中（开工：2026-05-09）
+> 状态：✅ 已完成（2026-05-09 开工 / 2026-05-10 收尾）；阶段 2D / 2E 暂未 commit
 > Breaking：是。0.6.x 用户分享出去的 `http://lan-ip:port/?token=` URL 会失效。
 
 ## 目标
@@ -60,19 +60,30 @@
 
 ### 2D — entry URL 切换
 
-- [ ] SessionController.setPushService 接受 req-aware url 工厂（或在 push subscribe
-      handler 里根据 req 算）
-- [ ] api/share-routes.ts 用 getEntryUrl(req) 代替 buildPublicUrl(displayIp,...)
-- [ ] api/push-routes.ts 同上
+- [x] PushSubscriptionInfo 加可选 `entryUrl` 字段；push-routes subscribe handler
+      用 `getEntryUrl(req)` 算并存到订阅记录；notifyAll 优先用每条订阅自己的
+      url，fallback 用 payload.url
+- [x] index.ts ctrl.setPushService fallback URL 从 worker entryUrl（错的：
+      loopback port + token）改成 brokerEntryUrl
+- [ ] api/share-routes.ts —— **推迟到阶段 3**：worker 不该列"所有 LAN IP × worker
+      port"（worker 只听 loopback，列出来全是死链）。share endpoints 的正确归属
+      是 broker（监听对外 port 的进程）；阶段 3 落地 broker 反代时一并迁移
 - [ ] IpMonitor：worker 不再需要监控 LAN IP（broker 那一层才需要）—— 移除 worker 启动时的 IpMonitor
-- [ ] 单测覆盖 share / push 的 url 生成
+- [ ] 单测覆盖 push subscribe 写入 entryUrl + notifyAll 用每条订阅 url
 
 ### 2E — 清理
 
-- [ ] 删 worker 路径中所有 `buildPublicUrl(displayIp, ...)` 调用
-- [ ] 删 `detectDisplayIp` 在 worker 启动流的引用（network.ts 函数本身保留给 broker 阶段 3 用）
-- [ ] 删 LAN 二维码 / Tailscale 二维码渲染逻辑（broker 才有展示场景）
-- [ ] 删 buildPublicUrl 函数本体？—— 暂留，broker 还可能复用它的 token 拼接逻辑；阶段 3 决定
+- [x] 删 worker 启动流的 `buildPublicUrl(displayIp, ...)` 调用（entryUrl 局部变量）
+- [x] 删 LAN / Tailscale / 兜底三组二维码渲染 + "其它可用入口"列表 + WSL 端口转发提示
+      （worker 只听 loopback，这些 URL 全是死链）
+- [x] banner 改为只渲染 brokerEntryUrl 一个二维码；顶框保留实例 / worker / 入口 / Token
+- [x] worker 路径 import 清理：删 buildPublicUrl / isPrivateIp / isTailscaleIp /
+      isWsl / isWslNatIp / buildPortForwardHint
+- [x] InstanceRegistry register 的 host 字段从 displayIp 改为 `127.0.0.1`（broker
+      阶段 3 反代时直读，与 worker 实际监听一致）
+- [x] displayIp 仅保留 2 处用途：brokerEntryUrl 兜底 + share-routes 透传（阶段 3 删）
+- [x] `utils/network.ts` / `utils/wsl-port-hint.ts` 函数本体保留——broker 阶段 3
+      大概率复用
 
 ## 不做（推迟到后续阶段）
 
@@ -113,6 +124,35 @@ ensureBroker + forwarded-headers 落地（21 个新单测）；commit `d4152fe`�
 
 切片重组：原 2A 包含的 AuthModule 改造拆分到独立 2B（async API breaking
 改动量大），原 2B/2C/2D 顺延为 2C/2D/2E。
+
+### 2026-05-10 — 2E 完成（未 commit，等用户确认）
+
+- index.ts 启动注释整体改写为 0.7.0 worker 形态
+- banner 542-610 行删除：LAN/Tailscale/兜底三组二维码、其它可用入口列表、
+  WSL 端口转发提示。改为单一 brokerEntryUrl 二维码 + 操作提示
+- `entryUrl` 局部变量删除（已由 brokerEntryUrl + 每订阅 entryUrl 替代）
+- 死 import 清理：buildPublicUrl / isPrivateIp / isTailscaleIp / isWsl /
+  isWslNatIp / buildPortForwardHint 都从 worker 启动流移除（函数本体保留）
+- registry.register host: displayIp → `127.0.0.1`，与 worker 实际监听一致
+- 全量 456/456 全绿；build 零错
+
+### 2026-05-10 — 2D 完成（未 commit，等用户确认）
+
+- **PushSubscriptionInfo 加 `entryUrl?` 字段**：push-routes subscribe handler
+  通过 `getEntryUrl(req)` 从 X-ATR-Forwarded-* 头反推后存到订阅记录。每个
+  设备/反代域名各持有自己的 entryUrl，跨设备推送跳转不再串
+- **PushService.notifyAll 优先用每条订阅自己的 entryUrl**，回退到 payload.url。
+  isLikelySubscription 兼容旧记录（无 entryUrl 字段）+ 拦截脏数据
+- **index.ts ctrl.setPushService fallback url** 从 worker entryUrl
+  （`buildPublicUrl(displayIp, workerPort, token)` —— 错的：loopback port +
+  带 token）改成 brokerEntryUrl
+- **IpMonitor 从 worker 启动流移除**：worker 只听 loopback，本机 IP 变化与
+  worker 无关；ip_changed 广播由 broker 端在阶段 3 重新设计。涉及 import /
+  setPushService / shutdown / onChange + start 4 处删除，零 TS 错
+- **share-routes 推迟到阶段 3**：worker 不该列"所有 LAN IP × worker port"
+  （worker 只听 loopback，列出来都是死链）。share endpoints 的归属是 broker
+- 4 个新单测：push-routes 反代头/直连兜底、push-service notifyAll url 优先级、
+  entryUrl 持久化往返一致；全量 456/456 绿，build 零错
 
 ### 2026-05-10 — 命名澄清
 

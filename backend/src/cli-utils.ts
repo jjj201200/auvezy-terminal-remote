@@ -77,19 +77,51 @@ const SHORT_TO_LONG: Record<string, string> = {
   '-S': '--strict-port',
 };
 
-/** broker 子命令的二级动作；阶段 2 仅 `start`，阶段 6 加 `stop` / `status` / `service install` 等 */
-export type BrokerAction = 'start';
+/**
+ * 服务级动作（管 broker / 列实例 / 装卸自启）。
+ *
+ * 这些动作由顶层 flag 触发——`atr --start` / `atr --status` / `atr --list` 等。
+ * flag 必须紧跟 `atr` 之后（位置 0），不允许与 program / 其他服务 flag 共存。
+ *
+ * 命名约定：
+ *  - `start` / `stop` / `status`：管 broker 进程（前台启 / 关 / 看健康）
+ *  - `list`：列当前活实例
+ *  - `install` / `uninstall`：装 / 卸开机自启服务（systemd / launchd）
+ *  - `logs`：tail broker 当天 log
+ *
+ * 旧的 `atr broker <action>` / `atr broker service <action>` / `atr list` 子命令
+ * 已删除，service-installer 写出的 systemd unit 也用新形式（`atr --start`）。
+ */
+export type ServiceAction =
+  | 'start'
+  | 'stop'
+  | 'status'
+  | 'list'
+  | 'install'
+  | 'uninstall'
+  | 'logs';
+
+/** 服务级 flag → ServiceAction 映射（解析时校验只能出现一个） */
+const SERVICE_FLAGS: Record<string, ServiceAction> = {
+  '--start': 'start',
+  '--stop': 'stop',
+  '--status': 'status',
+  '--list': 'list',
+  '--install': 'install',
+  '--uninstall': 'uninstall',
+  '--logs': 'logs',
+};
 
 /** CLI 解析结果 */
 export interface ParsedCliArgs {
   /** 子命令；默认 'start' */
-  subcommand: 'start' | 'attach' | 'stop' | 'list' | 'broker';
+  subcommand: 'start' | 'attach' | 'stop' | 'service';
   /** attach 子命令的 URL（仅 subcommand='attach' 时） */
   attachUrl?: string;
   /** stop 子命令的过滤模式（可选；不传 = 全部） */
   stopPattern?: string;
-  /** broker 子命令的二级动作（仅 subcommand='broker' 时） */
-  brokerAction?: BrokerAction;
+  /** 服务级动作（仅 subcommand='service' 时；由 atr 顶层 flag 触发） */
+  serviceAction?: ServiceAction;
   /** 用户显式指定的 PTY 子进程命令名（来自首位置参数；优先于 env OCR_COMMAND） */
   command?: string;
   /** 监听端口 */
@@ -176,25 +208,47 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     claudeArgs: [],
   };
 
-  // 1. 首位置参数识别：保留子命令优先；其余视为 PTY 子进程 program
+  // 1. 首位置识别。优先级（从高到低）：
+  //   a. 服务级 flag（紧跟 atr）：atr --start / --stop / --status / --list /
+  //      --install / --uninstall / --logs。互斥 + 不能与 program / 子命令共存
+  //   b. 子命令：atr stop [pattern] / atr attach <url>
+  //   c. PTY program：atr [zsh|claude|...] [args...]
+  //   d. 无任何位置参数：start，跑默认 $SHELL
   //
-  //   atr               → start (program=undefined，由 env/默认 shell 决定)
-  //   atr attach <url>  → attach
-  //   atr stop [pat]    → stop
-  //   atr list          → list
-  //   atr zsh           → start, command='zsh'
-  //   atr claude --resume foo → start, command='claude', claudeArgs=['--resume','foo']
+  // 服务级 flag 必须**严格位置 0**，让 `atr <program> --xxx` 永远是 program 透传——
+  // 用户心智简单：要管服务一定 flag 紧跟 atr，要跑 program 一定 program 在前。
   let cursor = 0;
+  if (argv[0] && argv[0].startsWith('--') && SERVICE_FLAGS[argv[0]]) {
+    result.subcommand = 'service';
+    result.serviceAction = SERVICE_FLAGS[argv[0]]!;
+    cursor = 1;
+    // 互斥：后面只能是 '--' 之后的透传（无意义但允许），其它任何 token 都报错
+    if (argv[1] && argv[1] !== '--') {
+      const next = argv[1];
+      // 第二个服务 flag 同时出现 → 明确报错（用户大概率拼错或误解）
+      if (SERVICE_FLAGS[next]) {
+        throw new ConfigError(
+          ErrorCode.CONFIG_VALIDATION_FAIL,
+          `${argv[0]} cannot be combined with ${next} (service-level flags are mutually exclusive)`,
+        );
+      }
+      throw new ConfigError(
+        ErrorCode.CONFIG_VALIDATION_FAIL,
+        `${argv[0]} takes no extra arguments (service-level flags cannot be combined with a program or other args)`,
+      );
+    }
+    return result;
+  }
   if (argv[0] && !argv[0].startsWith('-')) {
     const sub = argv[0];
-    if (sub === 'attach' || sub === 'stop' || sub === 'list') {
+    if (sub === 'attach' || sub === 'stop') {
       result.subcommand = sub;
       cursor = 1;
       if (sub === 'attach') {
         if (!argv[1] || argv[1].startsWith('-')) {
           throw new ConfigError(
             ErrorCode.CONFIG_VALIDATION_FAIL,
-            'attach 子命令需要 URL 参数：atr attach <url>',
+            'attach requires a URL: atr attach <url>',
           );
         }
         result.attachUrl = argv[1];
@@ -206,26 +260,6 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
           cursor = 2;
         }
       }
-    } else if (sub === 'broker') {
-      result.subcommand = 'broker';
-      cursor = 1;
-      // 阶段 2：仅支持 `broker start`；其它动作（stop / status / service install）
-      // 留给阶段 6
-      const action = argv[1];
-      if (!action || action.startsWith('-')) {
-        throw new ConfigError(
-          ErrorCode.CONFIG_VALIDATION_FAIL,
-          'broker 子命令需要动作参数：atr broker start',
-        );
-      }
-      if (action !== 'start') {
-        throw new ConfigError(
-          ErrorCode.CONFIG_VALIDATION_FAIL,
-          `broker 动作 "${action}" 暂不支持（阶段 2 仅实现 start；stop / status / service install 见阶段 6）`,
-        );
-      }
-      result.brokerAction = 'start';
-      cursor = 2;
     } else {
       // 任意其它非 flag 字符串：当 PTY program 用
       result.command = sub;
@@ -272,7 +306,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         result.claudeArgs.push(arg);
         continue;
       }
-      throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `未知参数：${arg}`);
+      throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `unknown argument: ${arg}`);
     }
 
     // --flag 形式
@@ -287,7 +321,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       if (val === undefined) {
         throw new ConfigError(
           ErrorCode.CONFIG_VALIDATION_FAIL,
-          `参数 ${arg} 缺少值`,
+          `flag ${arg} requires a value`,
         );
       }
       assignFlag(result, arg, val);
@@ -313,8 +347,16 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       continue;
     }
 
+    // 服务级 flag 不在位置 0 出现 → 给清晰提示，避免用户困惑
+    if (SERVICE_FLAGS[arg]) {
+      throw new ConfigError(
+        ErrorCode.CONFIG_VALIDATION_FAIL,
+        `${arg} must come right after atr (position 0); cannot mix with other args. Example: atr ${arg}`,
+      );
+    }
+
     // 走到这里说明不认识
-    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `未知参数：${arg}`);
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `unknown argument: ${arg}`);
   }
 
   return result;
@@ -395,7 +437,7 @@ function assignFlag(out: ParsedCliArgs, key: string, value: string | boolean): v
       out.workdirDeny = parsePatternList(value);
       return;
     default:
-      throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `未知参数：${key}`);
+      throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `unknown argument: ${key}`);
   }
 }
 
@@ -419,33 +461,33 @@ function parsePatternList(value: string | boolean): string[] {
 
 function parsePort(value: string | boolean): number {
   if (typeof value !== 'string') {
-    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, '--port 需要数值');
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, '--port requires a number');
   }
   const n = Number(value);
   if (!Number.isInteger(n) || n <= 0 || n > 65535) {
-    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `--port 非法：${value}`);
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `invalid --port: ${value}`);
   }
   return n;
 }
 
 function parsePositiveInt(name: string, value: string | boolean): number {
   if (typeof value !== 'string') {
-    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `${name} 需要数值`);
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `${name} requires a number`);
   }
   const n = Number(value);
   if (!Number.isInteger(n) || n <= 0) {
-    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `${name} 非法：${value}`);
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `invalid ${name}: ${value}`);
   }
   return n;
 }
 
 function parseNonNegativeInt(name: string, value: string | boolean): number {
   if (typeof value !== 'string') {
-    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `${name} 需要数值`);
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `${name} requires a number`);
   }
   const n = Number(value);
   if (!Number.isInteger(n) || n < 0) {
-    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `${name} 非法：${value}`);
+    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `invalid ${name}: ${value}`);
   }
   return n;
 }
@@ -454,49 +496,63 @@ function parseNonNegativeInt(name: string, value: string | boolean): number {
  * 帮助文本（--help 时输出）
  */
 export const HELP_TEXT = `\
-atr — auvezy/terminal-remote · 局域网内远程访问 PC 终端的代理
+atr — auvezy/terminal-remote · LAN-only browser access to your terminal
 
-用法：
-  atr                              启动，PTY 跑当前 $SHELL
-  atr <program> [args...]          启动，PTY 跑 program（args 透传）
-                                   例：atr zsh / atr claude / atr claude --resume
-  atr attach <url>                 接管已有实例
-  atr list                         列出本机所有实例
-  atr stop [pattern]               停止匹配的实例
+Usage (PTY / instances):
+  atr                              start a PTY running your $SHELL
+  atr <program> [args...]          start a PTY running <program> (args pass through)
+                                   e.g. atr zsh / atr claude / atr claude --resume
+  atr attach <url>                 attach a CLI client to an existing instance
+  atr stop [pattern]               stop instances matching pattern (name/cwd/host:port)
 
-启动选项：
-  -p, --port <n>        监听端口（默认 3000，被占用自动 +1，除非启用 -S）
-  --host <ip>           监听 host（默认自动检测 LAN IP）
-  -S, --strict-port     严格端口模式：preferred 端口被占即报错，不自适应
-  --spawn-timeout <s>   PTY 兜底超时秒数（默认 30；0 = 无超时）。
-                        与 --wait-confirm 互斥（后者强制 Enter，忽略本项与浏览器触发）
-  --token <hex>         指定 Token（默认从共享文件读或生成）
-  --workdir <path>      子进程工作目录（默认当前目录）
-  --instance-name <s>   实例显示名（默认工作目录最后一段）
-  --config <path>       config.json 路径（默认 ~/.atrrc）
-  --max-buffer-lines    输出缓冲行数（默认 10000）
-  --session-ttl <ms>    Session 有效期，毫秒（默认 24h）
-  --auth-rate-limit <n> 每分钟每 IP 认证次数上限（默认 20）
-  --log-dir <path>      日志目录覆盖
+Service-level flags (must come right after atr, mutually exclusive):
+  atr --start                      start the background service (foreground, Ctrl+C to quit)
+  atr --stop                       stop the background service
+  atr --status                     one-shot view: process, token, entry URLs, instances
+  atr --list                       list all live instances
+  atr --logs                       tail today's service log (~/.atr/broker-YYYY-MM-DD.log)
+  atr --install                    register autostart (systemd / launchd)
+  atr --uninstall                  remove autostart
+
+Run options (for atr [program]):
+  -p, --port <n>        Service (broker) port (default 3000). You don't need to change
+                        this for multiple instances — worker ports are auto-assigned
+                        (3001, 3002, ...).
+  --host <ip>           Service listen host (default 0.0.0.0; workers always bind 127.0.0.1)
+  -S, --strict-port     Strict-port mode: error out if preferred port is taken (no auto-bump)
+  --spawn-timeout <s>   PTY spawn fallback timeout in seconds (default 30; 0 = no timeout).
+                        Mutually exclusive with --wait-confirm.
+  --token <hex>         Use a fixed token (default reads / generates one in ~/.atrrc)
+  --workdir <path>      Child process cwd (default: current directory)
+  --instance-name <s>   Instance display name (default: last segment of cwd)
+  --config <path>       config.json path (default: ~/.atrrc)
+  --max-buffer-lines    Output buffer line cap (default 10000)
+  --session-ttl <ms>    Session TTL in ms (default 24h)
+  --auth-rate-limit <n> Auth attempts per minute per IP (default 20)
+  --log-dir <path>      Override log directory
   --workdir-allow <patterns>
-                        cwd 白名单（picomatch glob，逗号分隔）。
-                        非空时创建实例的 cwd 必须命中至少一个 pattern。
-                        例：--workdir-allow "/home/me/projects/**,/mnt/d/**"
+                        cwd allow-list (picomatch glob, comma-separated). When set,
+                        new instance cwd must match at least one pattern.
+                        e.g. --workdir-allow "/home/me/projects/**,/mnt/d/**"
   --workdir-deny <patterns>
-                        cwd 黑名单（picomatch glob，逗号分隔）。
-                        命中即拒绝。默认含敏感系统路径（/etc/** /root/** ...），
-                        显式传 "" 可清空。CLI 优先级高于 ~/.atrrc。
-  --no-terminal         不在本进程 stdout 显示 PTY 输出
-  --no-color            禁用彩色输出
-  --no-open             不自动打开浏览器
-  --wait-confirm        启动 backend 后等用户按 Enter 才 spawn 子进程
-                        （默认立即 spawn；适合不希望全屏 TUI 立刻覆盖 banner 的场景）
-  -h, --help            显示本帮助
-  -v, --version         显示版本号
+                        cwd deny-list (picomatch glob, comma-separated).
+                        Match means reject. Default includes sensitive system paths
+                        (/etc/**, /root/**, ...); pass "" to clear. CLI overrides ~/.atrrc.
+  --no-terminal         Don't echo PTY output on this process's stdout
+  --no-color            Disable colored output
+  --no-open             Don't auto-open the browser
+  --wait-confirm        Wait for Enter before spawning the PTY child
+                        (default: spawn immediately; use this if a full-screen TUI
+                        would otherwise hide the banner)
+  -h, --help            Show this help
+  -v, --version         Show version
 
-  -- <args>             之后的参数也会透传给 program（与 program 后位置参数等价）
+  -- <args>             Args after -- also pass through to program
 
-多实例：
-  在不同终端多次执行 atr，会自动占用 3000、3001、3002…，
-  每个实例独立 PTY；浏览器顶栏的实例 tab 可一键切换。
+Multi-instance:
+  The background service (broker) runs once on port 3000 and is shared by all
+  instances. Running atr [program] in different terminals all connect to the
+  same service; PTY children are independent. Click the tab bar in the browser
+  to switch between them. If the service isn't running, the first atr will
+  auto-fork one.
 `;

@@ -14,7 +14,7 @@ export async function listInstancesCli(): Promise<number> {
   const registry = new InstanceRegistryManager();
   const list = await registry.list();
   if (list.length === 0) {
-    process.stdout.write('未发现运行中的实例\n');
+    process.stdout.write('no running instances\n');
     return 0;
   }
 

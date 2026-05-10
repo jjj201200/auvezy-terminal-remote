@@ -28,7 +28,7 @@ void (async () => {
     cli = parseCliArgs(process.argv.slice(2));
   } catch (err) {
     process.stderr.write(
-      `[atr] 参数解析失败：${err instanceof Error ? err.message : String(err)}\n`,
+      `[atr] argument error: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     process.exit(2);
   }
@@ -50,12 +50,7 @@ void (async () => {
     process.exit(0);
   }
 
-  // 子命令分发：list / stop（阶段 6a 开放）；attach 阶段 7 开放
-  if (cli.subcommand === 'list') {
-    const { listInstancesCli } = await import('./registry/cli-list.js');
-    const code = await listInstancesCli();
-    process.exit(code);
-  }
+  // 子命令分发
   if (cli.subcommand === 'stop') {
     const { stopInstancesCli } = await import('./registry/cli-stop.js');
     const code = await stopInstancesCli(cli.stopPattern);
@@ -63,16 +58,21 @@ void (async () => {
   }
   if (cli.subcommand === 'attach') {
     if (!cli.attachUrl) {
-      process.stderr.write('[atr] attach 需要 URL 参数\n');
+      process.stderr.write('[atr] attach requires a URL\n');
       process.exit(2);
     }
     const { runAttachCli } = await import('./attach.js');
     const code = await runAttachCli(cli.attachUrl);
     process.exit(code);
   }
-  if (cli.subcommand === 'broker') {
-    const { runBrokerCli } = await import('./broker/cli.js');
-    const code = await runBrokerCli();
+  // 服务级动作（顶层 flag 触发）：管 broker、列实例、装卸自启
+  if (cli.subcommand === 'service') {
+    if (!cli.serviceAction) {
+      process.stderr.write('[atr] missing service action\n');
+      process.exit(2);
+    }
+    const { runServiceCli } = await import('./broker/cli.js');
+    const code = await runServiceCli(cli.serviceAction);
     process.exit(code);
   }
 
@@ -80,13 +80,9 @@ void (async () => {
 })().catch((err: unknown) => {
   // 顶层兜底：任何启动错误都打印到 stderr 并 exit 1
   // 这里不能用 logger（它可能就是出错的源头）
-  process.stderr.write(`[atr] 启动失败：${String(err)}\n`);
+  process.stderr.write(`[atr] startup failed: ${String(err)}\n`);
   if (err instanceof Error && err.stack) {
     process.stderr.write(`${err.stack}\n`);
   }
   process.exit(1);
 });
-// dev-restart trigger
-// dev-proxy auto-discovery
-// tui-scroll default-on
-// kick

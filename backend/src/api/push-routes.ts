@@ -17,6 +17,7 @@ import type { AuthModule } from '../auth/auth-middleware.js';
 import { PushService, type PushSubscriptionInfo } from '../push/push-service.js';
 import { PushError } from '../errors.js';
 import { logger } from '../logger/logger.js';
+import { getEntryUrl } from '../broker/forwarded-headers.js';
 
 export function createPushRoutes(authModule: AuthModule, push: PushService): Router {
   const router = Router();
@@ -48,7 +49,14 @@ export function createPushRoutes(authModule: AuthModule, push: PushService): Rou
         return;
       }
       try {
-        push.subscribe(body as PushSubscriptionInfo);
+        // 0.7.0：订阅那一刻确定 entry URL（从 X-ATR-Forwarded-* 头反推）。
+        // 用户从哪个 host 订阅就跳回哪个 host；多设备 / 多反代域名各走各的
+        const incoming = body as PushSubscriptionInfo;
+        const subscription: PushSubscriptionInfo = {
+          ...incoming,
+          entryUrl: getEntryUrl(req),
+        };
+        push.subscribe(subscription);
         res.json({ ok: true });
       } catch (err) {
         const e =

@@ -45,6 +45,17 @@ export interface PushSubscriptionInfo {
     /** 鉴权 secret（base64url） */
     auth: string;
   };
+  /**
+   * 用户访问该 worker 时的 entry URL（含 `/i/<id>/`）；用于推送通知点击跳转。
+   *
+   * 0.7.0 起由 push-routes subscribe handler 通过 `getEntryUrl(req)` 在订阅
+   * 那一刻确定——浏览器在哪个 host 上发的订阅，就跳回哪个 host。worker 启动
+   * 时拼不出来（不知道用户从哪个 hostname 访问）。
+   *
+   * 兼容：0.6.x 持久化文件里没有此字段，读出来 undefined；推送时若 undefined
+   * 用 notifyAll 的 fallbackUrl。
+   */
+  entryUrl?: string;
 }
 
 /** 推送 payload（前端 service-worker 解析） */
@@ -121,7 +132,7 @@ export class PushService {
   /** 当前 VAPID 公钥（前端订阅用） */
   getPublicKey(): string {
     if (!this.vapid) {
-      throw new PushError(ErrorCode.PUSH_VAPID_NOT_READY, 'PushService 未初始化', 503);
+      throw new PushError(ErrorCode.PUSH_VAPID_NOT_READY, 'PushService not initialized', 503);
     }
     return this.vapid.publicKey;
   }
@@ -129,6 +140,20 @@ export class PushService {
   /** 当前订阅数（管理用） */
   getSubscriptionCount(): number {
     return this.subscriptions.length;
+  }
+
+  /**
+   * 从订阅文件 reload（worker 在 notifyAll 前调用，避免 broker 写后内存 stale）
+   *
+   * 失败仅 warn——保留旧内存值；写入并发不至于让 broker 的 subscribe 写覆盖
+   * worker 同时调 reload 拿到的旧版（broker 是唯一 writer，worker 仅 reader）。
+   */
+  reloadSubscriptions(): void {
+    try {
+      this.subscriptions = this.readSubscriptions();
+    } catch (err) {
+      logger.warn({ err }, '订阅文件 reload 失败（保留旧内存值）');
+    }
   }
 
   /**
@@ -158,7 +183,12 @@ export class PushService {
   /**
    * 推送给所有订阅者
    *
-   * 失败 410 Gone → 自动剔除该订阅；其它错误仅 log 不抛
+   * 失败 410 Gone → 自动剔除该订阅；其它错误仅 log 不抛。
+   *
+   * **payload.url 计算优先级**：
+   *  1. 订阅记录里的 `entryUrl`（订阅那一刻 broker 注入的 host）
+   *  2. payload.url（调用方提供的 fallback；0.7.0 一般是 broker entry URL）
+   *  3. 不带 url（前端 SW 不导航，仅显示通知）
    */
   async notifyAll(payload: PushPayload): Promise<{
     sent: number;
@@ -166,14 +196,21 @@ export class PushService {
     failed: number;
   }> {
     if (!this.vapid) return { sent: 0, pruned: 0, failed: 0 };
+    // 0.7.0 v2：worker 端 PushService 仅 reader——subscribe / unsubscribe 由
+    // broker 写文件，worker 内存可能 stale。每次 notifyAll 前 reload 一次
+    // 文件（成本低：JSON 几条记录），让最新订阅立即生效。
+    this.reloadSubscriptions();
     let sent = 0;
     let pruned = 0;
     let failed = 0;
     const stale: string[] = [];
 
     for (const sub of this.subscriptions) {
+      const subPayload: PushPayload = sub.entryUrl
+        ? { ...payload, url: sub.entryUrl }
+        : payload;
       try {
-        await this.pushImpl.sendNotification(sub, JSON.stringify(payload));
+        await this.pushImpl.sendNotification(sub, JSON.stringify(subPayload));
         sent++;
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
@@ -305,12 +342,21 @@ export class PushService {
 
 function isLikelySubscription(s: unknown): s is PushSubscriptionInfo {
   if (!s || typeof s !== 'object') return false;
-  const obj = s as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
-  return (
-    typeof obj.endpoint === 'string' &&
-    !!obj.keys &&
-    typeof obj.keys === 'object' &&
-    typeof obj.keys.p256dh === 'string' &&
-    typeof obj.keys.auth === 'string'
-  );
+  const obj = s as {
+    endpoint?: unknown;
+    keys?: { p256dh?: unknown; auth?: unknown };
+    entryUrl?: unknown;
+  };
+  if (
+    typeof obj.endpoint !== 'string' ||
+    !obj.keys ||
+    typeof obj.keys !== 'object' ||
+    typeof obj.keys.p256dh !== 'string' ||
+    typeof obj.keys.auth !== 'string'
+  ) {
+    return false;
+  }
+  // entryUrl 可选；若出现则必须是字符串（兜住"既不是 string 也不是 undefined"的脏数据）
+  if (obj.entryUrl !== undefined && typeof obj.entryUrl !== 'string') return false;
+  return true;
 }

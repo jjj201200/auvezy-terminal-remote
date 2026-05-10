@@ -108,6 +108,21 @@ export class InstanceRegistryManager {
     return this.path;
   }
 
+  /**
+   * 同步只读：直接读盘 + parse 一遍，不进锁、不剔除僵尸。
+   *
+   * **仅供 broker 反代 hot path 使用**：每个请求都进锁会把 file-lock 当 mutex
+   * 用，正常并发会撞死。broker 反代查找的语义是"瞬时一致性优先于强一致性"——
+   * 即便读到一条 stale 实例（worker 刚崩），proxy.web() 反代失败也会 502，
+   * 影响仅是单次请求。
+   *
+   * 不剔除 stale：剔除写盘需要锁，违背"不进锁"前提；调用方自己用 isPidAlive
+   * 过滤。
+   */
+  readSync(): InstanceInfo[] {
+    return this.readUnlocked().instances;
+  }
+
   // ───────── 私有：未加锁的读写（仅在 withFileLock 回调内调用） ─────────
 
   private readUnlocked(): InstanceRegistry {

@@ -112,10 +112,7 @@ export function useWebSocket(
   const doConnect = useCallback((): void => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
 
-    const url = wsUrl ?? (() => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${protocol}//${window.location.host}/ws`;
-    })();
+    const url = wsUrl ?? defaultWsUrl();
 
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
@@ -273,4 +270,23 @@ export function useWebSocket(
   }, [wsUrl, disabled]);
 
   return { connect, disconnect, send, connectionStatus };
+}
+
+/**
+ * 计算同源 WS URL
+ *
+ * 0.7.0：浏览器拿到的 HTML 含 `<base href="/i/<id>/">`，document.baseURI 就是
+ * `${origin}/i/<id>/`（broker 反代场景）或 `${origin}/`（直连 / 开发场景）。
+ * 把 base 的 path 拼上 `ws` 即得正确 WS URL。
+ *
+ * 不能直接 `new WebSocket('ws')` —— WebSocket 构造器要求绝对 URL。
+ */
+function defaultWsUrl(): string {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const baseUrl = new URL(document.baseURI || '/', window.location.href);
+  // 保证 base.pathname 末尾为 `/`，再拼 `ws`
+  const base = baseUrl.pathname.endsWith('/')
+    ? baseUrl.pathname
+    : `${baseUrl.pathname}/`;
+  return `${proto}//${window.location.host}${base}ws`;
 }

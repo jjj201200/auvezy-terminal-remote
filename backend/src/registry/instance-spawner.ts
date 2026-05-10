@@ -29,6 +29,12 @@ export interface SpawnInstanceInput {
   cwd: string;
   /** 实例显示名（默认 cwd 末段） */
   name?: string;
+  /**
+   * 调用方预生成的 instanceId（0.7.0 起 broker 在 POST /api/instances 时
+   * 生成 UUID 通过 env `ATR_INSTANCE_ID` 透传，让 webapp 立刻拿到 id 能
+   * 订阅 SSE 等就绪）。不传时由子进程自己 randomUUID。
+   */
+  instanceId?: string;
 }
 
 export interface SpawnInstanceResult {
@@ -38,6 +44,8 @@ export interface SpawnInstanceResult {
   cwd: string;
   /** 实例显示名 */
   name: string;
+  /** 透传给子进程的 instanceId（即输入 instanceId；未传则 undefined） */
+  instanceId?: string;
 }
 
 /** Spawner 接口（路由层依赖此接口而非具体实现，便于单测） */
@@ -73,19 +81,19 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
     const cwd = isAbsolute(input.cwd) ? input.cwd : resolve(input.cwd);
 
     if (!existsSync(cwd)) {
-      throw new InstanceError(ErrorCode.CWD_NOT_EXIST, `工作目录不存在：${cwd}`, 400);
+      throw new InstanceError(ErrorCode.CWD_NOT_EXIST, `cwd does not exist: ${cwd}`, 400);
     }
     if (!statSync(cwd).isDirectory()) {
-      throw new InstanceError(ErrorCode.CWD_NOT_EXIST, `cwd 不是目录：${cwd}`, 400);
+      throw new InstanceError(ErrorCode.CWD_NOT_EXIST, `cwd is not a directory: ${cwd}`, 400);
     }
 
     // 白/黑名单校验：先黑后白，命中则拒绝
     const verdict = checkWorkdir(cwd, this.opts.workdirAllow, this.opts.workdirDeny);
     if (verdict !== null) {
-      logger.warn({ cwd, verdict }, 'workdir 策略拒绝 spawn');
+      logger.warn({ cwd, verdict }, 'workdir policy rejected spawn');
       throw new InstanceError(
         ErrorCode.CWD_NOT_EXIST,
-        `工作目录不在允许范围内：${verdict.reason}`,
+        `cwd not allowed by workdir policy: ${verdict.reason}`,
         403,
       );
     }
@@ -113,6 +121,10 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
           ...process.env,
           ...this.opts.env,
           INSTANCE_NAME: name,
+          // 0.7.0：broker 预生成 instanceId 透传给 worker，让 webapp 立刻能
+          // 用同一个 id 订阅 SSE / 拼 /i/<id>/ws；worker 启动时优先读这个
+          // env，没有才 randomUUID()
+          ...(input.instanceId ? { ATR_INSTANCE_ID: input.instanceId } : {}),
           // 不重置 HOME，让子进程读同一个 ~/.atrrc（共享 token）
         },
         detached: true,
@@ -125,7 +137,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
     if (typeof child.pid !== 'number') {
       throw new InstanceError(
         ErrorCode.INTERNAL_ERROR,
-        '子进程 spawn 失败：无 pid',
+        'spawn failed: no pid',
         500,
       );
     }
@@ -136,16 +148,30 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
     if (earlyExit !== null) {
       throw new InstanceError(
         ErrorCode.INTERNAL_ERROR,
-        `子进程瞬间退出（exit=${earlyExit.code} signal=${earlyExit.signal}），常见原因：cli 入口缺失 / 端口冲突 / node_modules 不全。开 OTR_DEBUG_SPAWN=1 重启服务器看 /tmp/atr-spawn-*.log`,
+        `child exited immediately (exit=${earlyExit.code} signal=${earlyExit.signal}). ` +
+          'Common causes: missing cli entry, port conflict, incomplete node_modules. ' +
+          'Set ATR_DEBUG_SPAWN=1 and restart to capture /tmp/atr-spawn-*.log.',
         500,
       );
     }
 
     logger.info(
-      { pid: child.pid, cwd, name, exec: execPath, args: entryArgs },
-      '已派生 headless 实例',
+      {
+        pid: child.pid,
+        cwd,
+        name,
+        instanceId: input.instanceId,
+        exec: execPath,
+        args: entryArgs,
+      },
+      'spawned headless instance',
     );
-    return { pid: child.pid, cwd, name };
+    return {
+      pid: child.pid,
+      cwd,
+      name,
+      ...(input.instanceId ? { instanceId: input.instanceId } : {}),
+    };
   }
 }
 
@@ -202,7 +228,7 @@ function resolveEntry(cliJsPath: string): { execPath: string; args: string[] } {
   }
   throw new InstanceError(
     ErrorCode.INTERNAL_ERROR,
-    `找不到子进程入口：${cliJsPath} 或 ${tsPath}`,
+    `child entry not found: ${cliJsPath} or ${tsPath}`,
     500,
   );
 }

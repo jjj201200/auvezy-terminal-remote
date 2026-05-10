@@ -130,6 +130,71 @@ describe('push-routes', () => {
     expect(r.status).toBe(400);
   });
 
+  it('POST /push/subscriptions 经 broker 反代头 → 订阅记录写入 entryUrl', async () => {
+    const cookie = await login();
+    const r = await fetch(`http://127.0.0.1:${port}/api/push/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookie,
+        'X-ATR-Forwarded-Instance': 'inst-abc',
+        'X-Forwarded-Host': 'wsl.tail3e456b.ts.net',
+        'X-Forwarded-Proto': 'https',
+      },
+      body: JSON.stringify({
+        endpoint: 'https://e/with-fwd',
+        keys: { p256dh: VALID_P256DH, auth: VALID_AUTH },
+      }),
+    });
+    expect(r.status).toBe(200);
+    // 用 push.notifyAll 间接验证：mock sendNotification 收到的 payload 应含
+    // 反代来源的 url
+    let captured: string | null = null;
+    const origSend = push['pushImpl'].sendNotification;
+    push['pushImpl'].sendNotification = (async (
+      _sub: unknown,
+      payloadStr: string,
+    ) => {
+      const p = JSON.parse(payloadStr) as { url?: string };
+      captured = p.url ?? null;
+    }) as never;
+    try {
+      await push.notifyAll({ title: 't', body: 'b' });
+    } finally {
+      push['pushImpl'].sendNotification = origSend;
+    }
+    expect(captured).toBe('https://wsl.tail3e456b.ts.net/i/inst-abc');
+  });
+
+  it('POST /push/subscriptions 直连无反代头 → entryUrl 兜底为 req.host', async () => {
+    const cookie = await login();
+    const r = await fetch(`http://127.0.0.1:${port}/api/push/subscriptions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        endpoint: 'https://e/direct',
+        keys: { p256dh: VALID_P256DH, auth: VALID_AUTH },
+      }),
+    });
+    expect(r.status).toBe(200);
+    let captured: string | null = null;
+    const origSend = push['pushImpl'].sendNotification;
+    push['pushImpl'].sendNotification = (async (
+      _sub: unknown,
+      payloadStr: string,
+    ) => {
+      const p = JSON.parse(payloadStr) as { url?: string };
+      captured = p.url ?? null;
+    }) as never;
+    try {
+      await push.notifyAll({ title: 't', body: 'b' });
+    } finally {
+      push['pushImpl'].sendNotification = origSend;
+    }
+    // 直连时 entryUrl 用 req.host —— 测试 server 监听 127.0.0.1:<port>
+    expect(captured).toBe(`http://127.0.0.1:${port}`);
+  });
+
   it('DELETE 已存在订阅 → removed=true', async () => {
     const cookie = await login();
     push.subscribe({

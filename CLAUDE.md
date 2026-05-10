@@ -91,6 +91,13 @@ docs/plans/<计划名>/
 
 **触发场景：** 改了 `shared/src/*`（特别是 schema / 默认值 / `ensureDefaultUserConfig`）必须重启 backend，否则旧的 ESM 模块缓存会让新字段被 strip。**前端 vite HMR 不需要重启**。
 
+> **0.7.0 v2 起 dev 流程变化（API 归属重划分）**：所有 `/api/*` 系统级路由由 broker 进程持有，worker 只剩 `/api/health` + `/api/hook` + WS。
+> 因此 dev 启动顺序变成 **先 `atr broker start` →  vite**：
+> - `pnpm --filter auvezy-terminal-remote dev` 单独跑 worker 进程已经无法独立工作（webapp /api/auth 会 404）
+> - 正确顺序：① 启 broker（`node backend/dist/cli.js broker start` 或 `pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts broker start`） ② 起 vite（`pnpm --filter auvezy-terminal-remote-frontend dev`） ③ 浏览器访问 `http://localhost:5173/`
+> - vite proxy 反代 `/api`、`/i/<id>/ws`、`/i/<id>/api/...` 全部到 :3000（broker），broker 内部再反代到 worker
+> - worker 由 broker 通过 `POST /api/instances` 派生（带 `ATR_INSTANCE_ID` env），用户不直接启 worker
+
 **重要前提：**
 - WSL 下 `tsx watch` 检测文件变化非常不可靠，**不能依赖它自动 fork**——多次实测改 src 文件后父进程沉默，需要主动 kill child
 - 沙箱默认禁止 kill 不是当前会话直接 fork 的进程（包括之前会话留下的 dev server / tsx watch 父进程）
@@ -98,13 +105,13 @@ docs/plans/<计划名>/
 
 **标准重启流程：**
 
-1. `pgrep -af "node.*src/cli\.ts"` 找到 tsx watch 父 + child 两个 PID
+1. `pgrep -af "node.*cli\.js broker\|tsx.*cli\.ts broker"` 找到 broker 进程 PID（v2 起核心是 broker，不是 worker）
 2. 用 **AskUserQuestion** 让用户授权 kill（"Kill <PID>" 选项），不要直接 `kill` 等沙箱拒了再问
-3. 用户授权后 `kill <parent-pid>`（kill 父进程比 kill child 更可靠——避免 tsx watch 不重新 fork）
-4. `nohup pnpm --filter auvezy-terminal-remote dev > /tmp/atr-backend-restart.log 2>&1 &` 启动新 backend（**只起 backend，不要 `pnpm dev`**——后者会同时拉起 vite，跟现有 vite 端口冲突）
-5. `sleep 10-12` 后 `curl /api/health` 确认就绪
-6. 拿 token：`grep -oE "token=[a-f0-9]{16,}" /tmp/atr-backend-restart.log | tail -1`
-7. **每次重启 token 会变**（除非 `config.json` 里有 `token` 字段），主动告诉用户新 token 与新 URL
+3. 用户授权后 `kill <broker-pid>`（broker SIGTERM 自己有 graceful handler）
+4. 重启 broker：`nohup node /mnt/d/github/open-terminal-remote/backend/dist/cli.js broker start > /tmp/atr-broker-restart.log 2>&1 &`（生产路径）；或开发路径 `nohup pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts broker start > /tmp/atr-broker-restart.log 2>&1 &`
+5. `sleep 5-8` 后 `curl --noproxy '*' http://127.0.0.1:3000/api/health` 确认就绪（broker 自己的 health，含 `role: 'broker'`）
+6. 拿 token：从 `~/.atrrc` 读 `.token` 字段（broker 与 worker 共享 token 来源），或 `node -e "console.log(JSON.parse(require('fs').readFileSync(require('os').homedir()+'/.atrrc','utf-8')).token)"`
+7. broker log 在 `~/.auvezy/terminal-remote/broker-YYYY-MM-DD.log`（按天 rotate，保留 7 天）
 
 **验证 schema 是否生效：** 走完整 auth 链路而不是直接 GET：
 

@@ -29,8 +29,11 @@ cleanupOutdatedCaches();
 registerRoute(
   ({ url, request }) => {
     if (url.origin !== self.location.origin) return false;
-    if (url.pathname.startsWith('/api/')) return false;
-    if (url.pathname.startsWith('/ws')) return false;
+    // 0.7.0：broker 反代场景下路径形如 /i/<id>/api/...、/i/<id>/ws，
+    // 直连或开发场景下是 /api/...、/ws。统一用 includes / endsWith 匹配，
+    // 不绑死 path 起头位置
+    if (url.pathname.includes('/api/')) return false;
+    if (url.pathname.endsWith('/ws') || url.pathname.includes('/ws?')) return false;
     return request.method === 'GET';
   },
   new StaleWhileRevalidate({ cacheName: 'atr-runtime' }),

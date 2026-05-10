@@ -16,12 +16,23 @@ interface ListEnvelope {
 
 interface CreateEnvelope {
   ok: boolean;
-  instance: { pid: number; cwd: string; name: string };
+  /**
+   * 0.7.0 v2 起 broker 异步 spawn —— 返回 202 + status:'pending'。
+   * 真正"实例就绪"由 SSE /api/instances/stream 推送（list 里出现 instanceId）。
+   * 旧字段 pid/cwd/name 仍返回，让前端可以拿 expectedPid 做 pending 命中判定。
+   */
+  status?: 'pending';
+  instance: {
+    instanceId: string;
+    pid: number;
+    cwd: string;
+    name: string;
+  };
 }
 
 interface DeleteEnvelope {
   ok: boolean;
-  outcome: 'sigterm' | 'sigkill' | 'gone' | 'failed';
+  outcome: 'sigterm' | 'sigkill' | 'gone' | 'failed' | 'already-dead';
 }
 
 export async function fetchInstances(): Promise<ApiResult<ListEnvelope>> {

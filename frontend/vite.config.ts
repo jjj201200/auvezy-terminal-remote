@@ -24,6 +24,11 @@ const backendVersion = JSON.parse(
 ).version as string;
 
 export default defineConfig({
+  // 0.7.0：相对 base，让编译产物的 asset URL 全部相对（如 ./assets/index-abc.js）。
+  // broker 反代回 HTML 时会注入 `<base href="/i/<id>/">`，浏览器把所有相对 URL
+  // 解析到 broker scope（详见 ADR-007）。dev 模式 base 也是 './'，但 vite serve
+  // 默认在根 / 提供 SPA，相对路径解析到 / 一样工作
+  base: './',
   define: {
     __APP_VERSION__: JSON.stringify(backendVersion),
   },
@@ -74,11 +79,20 @@ export default defineConfig({
       usePolling: true,
       interval: 300,
     },
+    // 0.7.0 v2 dev 流程：先 `atr broker start`（detached on :3000），再 vite。
+    // vite 只反代到 broker；broker 自己再反代到 worker。生产/开发 origin 一致。
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // `/i/<id>/ws` 与 `/i/<id>/api/...`：实例特定路径，broker 接管反代
+      '/i/': {
+        target: 'http://localhost:3000',
+        ws: true,
+        changeOrigin: true,
+      },
+      // 兼容老路径 /ws（attach 客户端 / 旧 webapp）；新前端不再使用
       '/ws': {
         target: 'ws://localhost:3000',
         ws: true,

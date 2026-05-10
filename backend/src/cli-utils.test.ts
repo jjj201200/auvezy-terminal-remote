@@ -49,8 +49,51 @@ describe('parseCliArgs', () => {
     expect(() => parseCliArgs(['attach'])).toThrow(ConfigError);
   });
 
-  it('list 子命令', () => {
-    expect(parseCliArgs(['list']).subcommand).toBe('list');
+  it('--list 服务级 flag → service / list', () => {
+    const r = parseCliArgs(['--list']);
+    expect(r.subcommand).toBe('service');
+    expect(r.serviceAction).toBe('list');
+  });
+
+  it('--start / --stop / --status / --install / --uninstall / --logs 都映射到 service', () => {
+    const cases: Array<[string, string]> = [
+      ['--start', 'start'],
+      ['--stop', 'stop'],
+      ['--status', 'status'],
+      ['--install', 'install'],
+      ['--uninstall', 'uninstall'],
+      ['--logs', 'logs'],
+    ];
+    for (const [flag, action] of cases) {
+      const r = parseCliArgs([flag]);
+      expect(r.subcommand).toBe('service');
+      expect(r.serviceAction).toBe(action);
+    }
+  });
+
+  it('服务级 flag 互斥：--start --stop 同时 → ConfigError', () => {
+    expect(() => parseCliArgs(['--start', '--stop'])).toThrow(ConfigError);
+  });
+
+  it('服务级 flag 不能与 program 共存：--start claude → ConfigError', () => {
+    expect(() => parseCliArgs(['--start', 'claude'])).toThrow(ConfigError);
+  });
+
+  it('服务级 flag 必须紧跟 atr：claude --start → 透传给 program（视作 program 的参数）', () => {
+    const r = parseCliArgs(['claude', '--start']);
+    expect(r.subcommand).toBe('start');
+    expect(r.command).toBe('claude');
+    expect(r.claudeArgs).toEqual(['--start']);
+  });
+
+  it('服务级 flag 不在位置 0 且无 program → ConfigError 提示放第一位', () => {
+    expect(() => parseCliArgs(['--port', '3001', '--start'])).toThrow(/must come right after atr/);
+  });
+
+  it('atr list 不再是子命令 → 视为 PTY program 名 list', () => {
+    const r = parseCliArgs(['list']);
+    expect(r.subcommand).toBe('start');
+    expect(r.command).toBe('list');
   });
 
   it('首位置参数非保留子命令 → 视为 PTY program', () => {
@@ -81,19 +124,19 @@ describe('parseCliArgs', () => {
 
   it('未指定 program 时位置参数仍报错', () => {
     // 没首位置参数 program，中间冒出来一个非 flag 字符串 → 报错防误触
-    expect(() => parseCliArgs(['--port', '3001', 'oops'])).toThrow(/未知参数/);
+    expect(() => parseCliArgs(['--port', '3001', 'oops'])).toThrow(/unknown argument/);
   });
 
   it('未知 flag → ConfigError', () => {
-    expect(() => parseCliArgs(['--what'])).toThrow(/未知参数/);
+    expect(() => parseCliArgs(['--what'])).toThrow(/unknown argument/);
   });
 
   it('--port 缺值 → ConfigError', () => {
-    expect(() => parseCliArgs(['--port'])).toThrow(/缺少值/);
+    expect(() => parseCliArgs(['--port'])).toThrow(/requires a value/);
   });
 
   it('--port 非法 → ConfigError', () => {
-    expect(() => parseCliArgs(['--port', 'abc'])).toThrow(/--port 非法/);
+    expect(() => parseCliArgs(['--port', 'abc'])).toThrow(/invalid --port/);
     expect(() => parseCliArgs(['--port', '0'])).toThrow();
     expect(() => parseCliArgs(['--port', '99999'])).toThrow();
   });
