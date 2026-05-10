@@ -49,7 +49,9 @@ log.txt
 pnpm-lock.yaml.*
 
 # Claude Code 工程元数据
-.claude/
+# .claude/skills/ 与团队共享配置进 git;本机私有配置(权限白名单/runtime 锁)不进
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # 上游参考材料（已删除；保留 ignore 防止再次导入）
 analysis/
