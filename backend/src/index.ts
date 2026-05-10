@@ -76,7 +76,7 @@ export interface StartServerOverrides {
 
 export async function startServer(overrides: StartServerOverrides = {}): Promise<void> {
   // 1. 配置加载（CLI > env > config.json > 默认）
-  const cli: ParsedCliArgs = overrides.cli ?? { subcommand: 'start', claudeArgs: [] };
+  const cli: ParsedCliArgs = overrides.cli ?? { subcommand: 'pty', claudeArgs: [] };
   // 老用法的便捷覆盖：保持阶段 1/2 测试不需要重写
   if (overrides.port !== undefined) cli.port = overrides.port;
   if (overrides.token !== undefined) cli.token = overrides.token;
@@ -114,14 +114,70 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   // （用户手动 `atr claude` 启的场景）。
   const instanceId = process.env['ATR_INSTANCE_ID'] ?? randomUUID();
 
+  // 1.65 校验 PTY program 在 PATH 上可找到。**必须在 ensureBroker 之前**——
+  // 否则 broker 已经被拉起 / instances.json 写入 / PTY spawn 才报 ENOENT，留下
+  // 脏状态。`atr foo-not-exists` 应当立即失败、什么都不动。
+  //
+  // 仅当用户**显式指定** program（cli.command 非 undefined）时校验；走默认 $SHELL
+  // 时不校验（resolveDefaultShell 已挑了实际存在的 shell）。
+  if (cli.command !== undefined) {
+    const { resolveExecutable, listPathExecutables } = await import('./utils/resolve-executable.js');
+    const resolved = resolveExecutable(cfg.claudeCommand);
+    if (!resolved) {
+      const { c } = await import('./utils/colors.js');
+      const lines: string[] = [
+        `${c.red('[atr]')} command not found: ${cfg.claudeCommand}`,
+      ];
+      // 含 / 时是路径错,didyoumean 没意义(不在 PATH 上找);只给路径 hint
+      if (cfg.claudeCommand.includes('/')) {
+        lines.push(c.dim('hint: file does not exist or is not executable; check the path and permissions'));
+      } else {
+        // 先在 atr 保留 subcommand 里找(优先级高于 PATH 二进制) ——
+        // 用户拼错 `atr stp` 想的多半是 `atr stop`,而不是 PATH 上的 sftp
+        try {
+          const { suggest } = await import('./utils/did-you-mean.js');
+          const { RESERVED_SUBCOMMANDS } = await import('./cli-utils.js');
+          const subGuess = suggest(cfg.claudeCommand, {
+            candidates: Array.from(RESERVED_SUBCOMMANDS),
+            threshold: 0.6,
+          });
+          if (subGuess) {
+            lines.push(`  did you mean: ${c.cyan(`atr ${subGuess}`)}?`);
+          } else {
+            // 没像 subcommand → 在 PATH 上找最相似的二进制名
+            const candidates = listPathExecutables();
+            const guess = suggest(cfg.claudeCommand, { candidates, threshold: 0.6 });
+            if (guess) {
+              lines.push(`  did you mean: ${c.cyan(guess)}?`);
+            }
+          }
+        } catch {
+          /* 建议失败不影响 127 */
+        }
+        lines.push(
+          c.dim(`hint: check spelling, or use an absolute path (e.g. /usr/bin/${cfg.claudeCommand})`),
+        );
+      }
+      process.stderr.write(lines.join('\n') + '\n');
+      process.exit(127); // 127 = standard "command not found" exit code
+    }
+    logger.info({ requested: cfg.claudeCommand, resolved }, 'PTY program resolved');
+  }
+
   // 1.7 ensureBroker（0.7.0 ADR-001/002）：worker 启动前先保证 broker 存在；
   //     fork 失败 → 整个 worker 启动失败（不降级，broker 不在 = 没人能访问 webapp）
+  //
+  // `--port` 在 atr [program] 路径下语义 = "broker 期望端口"——worker 端口是
+  // 内部细节（loopback only，broker 反代查 instances.json 拿），用户不该 care。
   const __dirnameForBroker = dirname(fileURLToPath(import.meta.url));
   const cliJsPathForBroker = resolve(__dirnameForBroker, 'cli.js');
   const { ensureBroker } = await import('./broker/index.js');
   let brokerState: import('./broker/index.js').BrokerState;
   try {
-    const r = await ensureBroker({ cliJsPath: cliJsPathForBroker });
+    const r = await ensureBroker({
+      cliJsPath: cliJsPathForBroker,
+      ...(cli.port !== undefined ? { brokerPort: cli.port } : {}),
+    });
     brokerState = r.state;
     logger.info(
       { brokerPort: brokerState.port, brokerHost: brokerState.host, forked: r.forked },
@@ -158,7 +214,10 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   //
   // - cfg.host 仅作为日志提示展示，不参与 listen
   // - probe 与 listen 用 127.0.0.1：本机 worker 只接受 broker 的 loopback 连接
-  // - 端口冲突仍走自适应（多实例同时 fork 时常见）
+  // - 0.7.0 v2 起 worker 端口由 OS 自动分配（preferred=0）：worker 端口是
+  //   内部细节（broker 反代查 instances.json 拿真实 port），用户不该指定。
+  //   `cli.port` 在 atr [program] 路径下专门给 broker 用（见 ensureBroker），
+  //   worker 这里不再消费它。
   const WORKER_LISTEN_HOST = '127.0.0.1';
   if (cfg.host !== WORKER_LISTEN_HOST && cfg.host !== 'localhost') {
     logger.warn(
@@ -169,17 +228,14 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   let bindResult;
   try {
     bindResult = await bindAvailablePort({
-      preferred: cfg.port,
+      preferred: 0, // OS auto-pick a free high port
       host: WORKER_LISTEN_HOST,
       server: httpServer,
-      strict: cfg.strictPort,
+      strict: false,
     });
   } catch (err) {
     if (err instanceof InstanceError && err.code === ErrorCode.PORT_UNAVAILABLE) {
-      const hint = cfg.strictPort
-        ? 'hint: try a different --port <n>, or drop --strict-port to allow auto-bump'
-        : 'hint: pick a different starting --port <n>';
-      process.stderr.write(`atr: ${err.message}\n${hint}\n`);
+      process.stderr.write(`atr: ${err.message}\n`);
       process.exit(1);
     }
     throw err;
@@ -459,25 +515,46 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
         ? `${cfg.token.slice(0, 8)}...${cfg.token.slice(-8)}`
         : cfg.token;
 
+    // Box drawing — inner content width is fixed at BOX_INNER (50 chars).
+    // Each render uses helper functions so column alignment is uniform.
+    const BOX_INNER = 50;
+    const top = `╔${'═'.repeat(BOX_INNER)}╗`;
+    const sep = `╠${'═'.repeat(BOX_INNER)}╣`;
+    const bot = `╚${'═'.repeat(BOX_INNER)}╝`;
+    const row = (text: string): string => {
+      // Truncate if too wide; pad if too short.
+      const trimmed =
+        text.length <= BOX_INNER ? text.padEnd(BOX_INNER) : text.slice(0, BOX_INNER);
+      return `║${trimmed}║`;
+    };
+    const center = (text: string): string => {
+      const trimmed = text.length <= BOX_INNER ? text : text.slice(0, BOX_INNER);
+      const pad = BOX_INNER - trimmed.length;
+      const left = Math.floor(pad / 2);
+      const right = pad - left;
+      return `║${' '.repeat(left)}${trimmed}${' '.repeat(right)}║`;
+    };
+
     process.stderr.write('\n');
-    process.stderr.write('╔══════════════════════════════════════════════════╗\n');
-    process.stderr.write('║         Auvezy Terminal Remote · started         ║\n');
-    process.stderr.write('╠══════════════════════════════════════════════════╣\n');
-    process.stderr.write(`║  instance: ${cfg.instanceName.padEnd(37)}║\n`);
-    process.stderr.write(`║  worker:   http://127.0.0.1:${cfg.port} (loopback only)`.padEnd(53) + '║\n');
-    process.stderr.write(`║  broker:   http://${brokerState.host}:${brokerState.port}`.padEnd(53) + '║\n');
-    process.stderr.write(`║  token:    ${tokenPreview.padEnd(37)}║\n`);
-    process.stderr.write(`║  source:   ${cfg.tokenSource.padEnd(37)}║\n`);
+    process.stderr.write(top + '\n');
+    process.stderr.write(center('Auvezy Terminal Remote · started') + '\n');
+    process.stderr.write(sep + '\n');
+    process.stderr.write(row(`  instance: ${cfg.instanceName}`) + '\n');
+    process.stderr.write(
+      row(`  service:  http://${brokerState.host}:${brokerState.port}`) + '\n',
+    );
+    process.stderr.write(row(`  token:    ${tokenPreview}`) + '\n');
+    process.stderr.write(row(`  source:   ${cfg.tokenSource}`) + '\n');
 
     // Show the full token only on first generation, so the user can save it once.
     if (cfg.tokenSource === 'generated') {
-      process.stderr.write('╠══════════════════════════════════════════════════╣\n');
-      process.stderr.write('║  Full token (shown once — save it now):          ║\n');
-      process.stderr.write(`║  ${cfg.token.slice(0, 48).padEnd(48)}║\n`);
-      process.stderr.write(`║  ${cfg.token.slice(48).padEnd(48)}║\n`);
+      process.stderr.write(sep + '\n');
+      process.stderr.write(row('  Full token (shown once — save it now):') + '\n');
+      process.stderr.write(row(`  ${cfg.token.slice(0, 48)}`) + '\n');
+      process.stderr.write(row(`  ${cfg.token.slice(48)}`) + '\n');
     }
 
-    process.stderr.write('╚══════════════════════════════════════════════════╝\n');
+    process.stderr.write(bot + '\n');
 
     // 0.7.0：从 networkInterfaces 推算所有可达 broker 入口（Tailscale / LAN /
     // IPv6 / loopback），按推荐度排序后让用户在 TTY 下选一个看二维码；非 TTY

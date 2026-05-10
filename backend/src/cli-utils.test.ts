@@ -1,5 +1,9 @@
 /**
  * cli-utils 单测
+ *
+ * 0.7.x 起 service-level 命令从 `--start` / `--stop` / ... flag 改为
+ * `atr start` / `atr stop` / ... subcommand；旧 `atr stop <pattern>` 停实例
+ * 的语义迁到 `atr kill <pattern>`。本测试已对齐新模型。
  */
 
 import { describe, it, expect } from 'vitest';
@@ -7,9 +11,9 @@ import { parseCliArgs } from './cli-utils.js';
 import { ConfigError } from './errors.js';
 
 describe('parseCliArgs', () => {
-  it('空 argv → start 子命令 + 默认空 claudeArgs', () => {
+  it('空 argv → pty 子命令 + 默认空 claudeArgs', () => {
     const r = parseCliArgs([]);
-    expect(r.subcommand).toBe('start');
+    expect(r.subcommand).toBe('pty');
     expect(r.claudeArgs).toEqual([]);
   });
 
@@ -49,56 +53,100 @@ describe('parseCliArgs', () => {
     expect(() => parseCliArgs(['attach'])).toThrow(ConfigError);
   });
 
-  it('--list 服务级 flag → service / list', () => {
-    const r = parseCliArgs(['--list']);
+  it('atr list → service / list', () => {
+    const r = parseCliArgs(['list']);
     expect(r.subcommand).toBe('service');
     expect(r.serviceAction).toBe('list');
   });
 
-  it('--start / --stop / --status / --install / --uninstall / --logs 都映射到 service', () => {
+  it('start / stop / status / install / uninstall / logs 都映射到 service', () => {
     const cases: Array<[string, string]> = [
-      ['--start', 'start'],
-      ['--stop', 'stop'],
-      ['--status', 'status'],
-      ['--install', 'install'],
-      ['--uninstall', 'uninstall'],
-      ['--logs', 'logs'],
+      ['start', 'start'],
+      ['stop', 'stop'],
+      ['status', 'status'],
+      ['install', 'install'],
+      ['uninstall', 'uninstall'],
+      ['logs', 'logs'],
     ];
-    for (const [flag, action] of cases) {
-      const r = parseCliArgs([flag]);
+    for (const [word, action] of cases) {
+      const r = parseCliArgs([word]);
       expect(r.subcommand).toBe('service');
       expect(r.serviceAction).toBe(action);
     }
   });
 
-  it('服务级 flag 互斥：--start --stop 同时 → ConfigError', () => {
-    expect(() => parseCliArgs(['--start', '--stop'])).toThrow(ConfigError);
+  it('atr start 接受配置 flag --port / --host', () => {
+    const r1 = parseCliArgs(['start', '--port', '3010']);
+    expect(r1.subcommand).toBe('service');
+    expect(r1.serviceAction).toBe('start');
+    expect(r1.port).toBe(3010);
+
+    const r2 = parseCliArgs(['start', '--port=4000', '--host', '127.0.0.1']);
+    expect(r2.serviceAction).toBe('start');
+    expect(r2.port).toBe(4000);
+    expect(r2.host).toBe('127.0.0.1');
   });
 
-  it('服务级 flag 不能与 program 共存：--start claude → ConfigError', () => {
-    expect(() => parseCliArgs(['--start', 'claude'])).toThrow(ConfigError);
+  it('其它服务子命令不接受配置：atr stop --port / atr status --port → ConfigError', () => {
+    expect(() => parseCliArgs(['stop', '--port', '3010'])).toThrow(/takes no extra arguments/);
+    expect(() => parseCliArgs(['status', '--port', '3010'])).toThrow(/takes no extra arguments/);
   });
 
-  it('服务级 flag 必须紧跟 atr：claude --start → 透传给 program（视作 program 的参数）', () => {
-    const r = parseCliArgs(['claude', '--start']);
-    expect(r.subcommand).toBe('start');
+  it('保留 subcommand 必须在位置 0：atr --port 3001 start → start 视为 program 隐式分隔点', () => {
+    // --port 3001 之后的 'start' 不在位置 0，按隐式 program 处理；其后 token 全部透传
+    const r = parseCliArgs(['--port', '3001', 'start']);
+    expect(r.subcommand).toBe('pty');
+    expect(r.command).toBe('start');
+    expect(r.port).toBe(3001);
+    expect(r.claudeArgs).toEqual([]);
+  });
+
+  it('保留词在 program 之后透传给子进程：claude start → program=claude, args=[start]', () => {
+    const r = parseCliArgs(['claude', 'start']);
+    expect(r.subcommand).toBe('pty');
     expect(r.command).toBe('claude');
-    expect(r.claudeArgs).toEqual(['--start']);
+    expect(r.claudeArgs).toEqual(['start']);
   });
 
-  it('服务级 flag 不在位置 0 且无 program → ConfigError 提示放第一位', () => {
-    expect(() => parseCliArgs(['--port', '3001', '--start'])).toThrow(/must come right after atr/);
+  it('atr kill [pattern] 子命令(parser 不强制必填,落到 cli-stop 报错)', () => {
+    const r1 = parseCliArgs(['kill']);
+    expect(r1.subcommand).toBe('kill');
+    expect(r1.killPattern).toBeUndefined();
+
+    const r2 = parseCliArgs(['kill', 'foo']);
+    expect(r2.subcommand).toBe('kill');
+    expect(r2.killPattern).toBe('foo');
+
+    const r3 = parseCliArgs(['kill', 'all']);
+    expect(r3.subcommand).toBe('kill');
+    expect(r3.killPattern).toBe('all');
   });
 
-  it('atr list 不再是子命令 → 视为 PTY program 名 list', () => {
-    const r = parseCliArgs(['list']);
-    expect(r.subcommand).toBe('start');
-    expect(r.command).toBe('list');
+  it('atr kill 多余参数 → ConfigError', () => {
+    expect(() => parseCliArgs(['kill', 'foo', 'bar'])).toThrow(ConfigError);
   });
 
-  it('首位置参数非保留子命令 → 视为 PTY program', () => {
+  it('atr kill --x → ConfigError（kill 不接 flag）', () => {
+    expect(() => parseCliArgs(['kill', '--something'])).toThrow(ConfigError);
+  });
+
+  it('atr completion <shell> 子命令', () => {
+    const r = parseCliArgs(['completion', 'zsh']);
+    expect(r.subcommand).toBe('completion');
+    expect(r.completionShell).toBe('zsh');
+  });
+
+  it('atr completion 缺 shell → ConfigError', () => {
+    expect(() => parseCliArgs(['completion'])).toThrow(/requires a shell/);
+  });
+
+  it('atr completion 多余参数 → ConfigError', () => {
+    expect(() => parseCliArgs(['completion', 'zsh', 'extra'])).toThrow(ConfigError);
+  });
+
+  it('首位置参数非保留 subcommand → 视为 PTY program', () => {
     const r = parseCliArgs(['zsh']);
-    expect(r.subcommand).toBe('start');
+    expect(r.subcommand).toBe('pty');
     expect(r.command).toBe('zsh');
     expect(r.claudeArgs).toEqual([]);
   });
@@ -109,22 +157,38 @@ describe('parseCliArgs', () => {
     expect(r.claudeArgs).toEqual(['--resume', 'task1']);
   });
 
-  it('atr <prog> 与 --port 混用', () => {
+  it('严格规则：program 之后所有 token 都透传给子进程，不被 atr 解析', () => {
     const r = parseCliArgs(['claude', '--port', '3002']);
     expect(r.command).toBe('claude');
-    expect(r.port).toBe(3002);
-    expect(r.claudeArgs).toEqual([]);
+    expect(r.port).toBeUndefined();
+    expect(r.claudeArgs).toEqual(['--port', '3002']);
   });
 
-  it('atr <prog> -- 后位置参数', () => {
+  it('严格规则：atr-flag 必须在 program 前；atr -p 3001 claude 才生效', () => {
+    const r = parseCliArgs(['-p', '3001', 'claude', '--port', '3002']);
+    expect(r.command).toBe('claude');
+    expect(r.port).toBe(3001);
+    expect(r.claudeArgs).toEqual(['--port', '3002']);
+  });
+
+  it('-- 显式分隔点：atr -- 后所有 token 透传', () => {
     const r = parseCliArgs(['zsh', '--', '-l']);
     expect(r.command).toBe('zsh');
-    expect(r.claudeArgs).toEqual(['-l']);
+    expect(r.claudeArgs).toEqual(['--', '-l']);
   });
 
-  it('未指定 program 时位置参数仍报错', () => {
-    // 没首位置参数 program，中间冒出来一个非 flag 字符串 → 报错防误触
-    expect(() => parseCliArgs(['--port', '3001', 'oops'])).toThrow(/unknown argument/);
+  it('atr -p 3001 -- -x：在 atr-flag 段用 -- 强制分隔，程序为默认 shell', () => {
+    const r = parseCliArgs(['-p', '3001', '--', '-x']);
+    expect(r.command).toBeUndefined();
+    expect(r.port).toBe(3001);
+    expect(r.claudeArgs).toEqual(['-x']);
+  });
+
+  it('atr-flag 段中冒出非 flag token → 视为 program 隐式分隔点（之后透传）', () => {
+    const r = parseCliArgs(['--port', '3001', 'oops', '--foo']);
+    expect(r.command).toBe('oops');
+    expect(r.port).toBe(3001);
+    expect(r.claudeArgs).toEqual(['--foo']);
   });
 
   it('未知 flag → ConfigError', () => {
@@ -197,7 +261,6 @@ describe('parseCliArgs', () => {
   });
 
   it('program 后的未知短选项透传给子进程，不报错', () => {
-    // -x 不在 SHORT_TO_LONG 里 → 当成子进程参数透传
     const r = parseCliArgs(['claude', '-x', '--abc']);
     expect(r.command).toBe('claude');
     expect(r.claudeArgs).toEqual(['-x', '--abc']);

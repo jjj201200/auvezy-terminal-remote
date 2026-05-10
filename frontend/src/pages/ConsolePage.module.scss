@@ -90,6 +90,10 @@
 }
 
 // idle overlay
+//
+// Backdrop dims the terminal underneath so the card text is unambiguous.
+// Card itself uses --color-bg-elev-solid (full opacity) — never bg-elev which
+// is 50% alpha and intended for in-flow elevated panels, not overlays.
 .idleOverlay {
   position: absolute;
   inset: 0;
@@ -97,13 +101,17 @@
   @include m.row-flex(0);
   justify-content: center;
   pointer-events: none;
+  // Subtle dim layer; lets terminal context show through but not compete.
+  background: hsla(216, 16%, 4%, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .idleCard {
   pointer-events: auto;
   max-width: 440px;
   border: 1px solid var(--color-border);
-  background: var(--color-bg-elev);
+  background: var(--color-bg-elev-solid);
   padding: var(--sp-6) var(--sp-7);
   text-align: center;
   font-size: var(--fs-sm);

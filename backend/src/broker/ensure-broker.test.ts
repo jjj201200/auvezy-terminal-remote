@@ -164,7 +164,7 @@ describe('ensureBroker', () => {
           // 不写 broker.json，模拟 broker 一直不就绪
         }),
       }),
-    ).rejects.toThrow(/未就绪/);
+    ).rejects.toThrow(/did not become ready/);
   });
 
   it('fork 后 broker.json 出现但 health probe 失败 → 抛错', async () => {

@@ -327,7 +327,7 @@ export interface AppConfig {
 /**
  * loadConfig 入参
  *
- * cli：来自 parseCliArgs（subcommand !== 'start' 的场景调用方应当不进入此函数）
+ * cli：来自 parseCliArgs（subcommand !== 'pty' 的场景调用方应当不进入此函数）
  * env：通常是 process.env；测试时可注入；显式必填以便单测纯函数化
  * generateToken：注入式，便于单测；正常调用方传 ./auth/token-generator.ts 的 generateToken
  */

@@ -5,6 +5,67 @@
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-05-10
+
+### Breaking changes
+
+- **服务级命令从 flag 改为 subcommand**(与 git/docker 一致):
+  - `atr --start` → `atr start`
+  - `atr --stop` → `atr stop`(无参,停 broker)
+  - `atr --status` → `atr status`
+  - `atr --list` → `atr list`
+  - `atr --logs` → `atr logs`
+  - `atr --install` → `atr install`
+  - `atr --uninstall` → `atr uninstall`
+- **`atr stop <pattern>` 停实例的语义迁到 `atr kill <pattern>`**:
+  - 新 `atr stop` 无参,只停 broker(更符合"停服务"直觉)
+  - 旧 `atr stop foo` → `atr kill foo`
+  - **`atr kill` 必须显式给 pattern 或 `all`**:裸 `atr kill` 报错。`atr kill all`
+    才会杀全部,且带二次确认。
+- **保留词冲突处理**:`start`/`stop`/`status`/`list`/`logs`/`install`/`uninstall`/
+  `attach`/`kill`/`completion` 在位置 0 一律识别为 subcommand。要跑同名 PATH
+  二进制:`atr ./<name>` 或 `atr -- <name>`,或在交互环境下我们会 prompt 你选。
+
+### Added
+
+- **`atr completion <zsh|bash|fish>`** 子命令:输出对应 shell 的补全脚本到 stdout
+  (用户自己决定 source 还是 append 到 rc 文件,不侵入 shell 配置)。
+- **拼写建议(didyoumean2)**:
+  - `atr stp` → "did you mean: atr stop?"
+  - `atr --por 3000` → "did you mean: --port?"
+  - `atr cluade` → 优先建议 reserved subcommand,否则扫 PATH 给最相似二进制名
+- **彩色输出(picocolors)**:status section title 加粗、`running`/`stopped`/`OK`
+  绿、`dead`/`FAIL` 红、`KILL`/`not running` 黄、`[atr]` 青、hint 灰。
+  - `--no-color` flag、`NO_COLOR=1` env、stdout 非 TTY 一律自动禁色
+- **交互确认(prompts)**:
+  - `atr uninstall` 删 service 文件前二次确认
+  - `atr kill all` 杀全部前二次确认
+  - 保留词与 PATH 二进制冲突时 select 让用户选(非 TTY 默认走 subcommand)
+- **严格参数顺序**:atr 自身的 flag 必须在 program 名之前。一旦遇到 program,
+  之后所有 token 原样透传给子进程,atr 不再解析(没有歧义)。
+  - `atr -p 3010 claude --port 9` → `-p 3010` 给 atr,`--port 9` 透传 claude
+- **`atr [program]` 启动前 `resolveExecutable` 守卫**:`atr foo-not-exists`
+  立即 exit 127,不会 ensureBroker / 写 instances.json,避免脏状态。
+
+### Fixed
+
+- **worker port 没写入 instances.json**:`bindAvailablePort` 在 `preferred=0` 时
+  返回的是循环里的局部 `port=0`,而不是 OS 实际分配的高端口;现在用
+  `server.address()` 取真实端口写入 registry。
+- **`getBrokerVersion()` dev 模式显示 0.0.0**:原来 `__dirname/../package.json`
+  在 tsc 分散输出 / dev tsx 路径下解析错;改成向上 3 层探查带
+  `name === 'auvezy-terminal-remote'` 的 package.json,3 种入口位置都覆盖。
+- **banner `║` 列对齐**:`row()` / `center()` helper 修正 padding 计算。
+- **0.7.0 ensureBroker fork 失败**:删除旧 `atr broker xxx` 子命令后 fork 还在
+  传 `'broker', 'start'` 导致 broker 永远起不来。现在 fork 用 `start` subcommand。
+
+### Internal
+
+- 移除 `tabtab` 依赖(它的 install 写 ~/.zshrc 太侵入,改自己手写 completion 脚本)。
+- 新增 `colors` / `did-you-mean` / `confirm-prompt` / `completion-scripts` /
+  `resolve-executable` 等 helper 模块,各自带单测。
+- 全套测试 564 项(从 541 → 564),覆盖新 subcommand parser / helper / e2e bug fix。
+
 ## [0.7.0] - 2026-05-10
 
 ### Breaking changes

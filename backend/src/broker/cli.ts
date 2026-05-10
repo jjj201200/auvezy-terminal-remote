@@ -1,20 +1,22 @@
 /**
- * 服务级 CLI runner（atr 顶层 flag 触发）
+ * 服务级 CLI runner（atr subcommand 触发）
  *
- * 由 backend/src/cli.ts 在解析到 `--start` / `--stop` / `--status` /
- * `--list` / `--install` / `--uninstall` / `--logs` 时调用。
+ * 由 backend/src/cli.ts 在解析到 `atr start` / `atr stop` / `atr status` /
+ * `atr list` / `atr install` / `atr uninstall` / `atr logs` 时调用。
  *
  *  - start      → 启 broker（前台），listen + 反代 + 阻塞
- *                 （--install 后由 systemd/launchd 拉起的也是这条）
+ *                 （`atr install` 后由 systemd/launchd 拉起的也是这条）
  *  - stop       → 读 broker.json，向 PID 发 SIGTERM，超时强 SIGKILL，清 state
  *  - status     → broker.json + 探活 + HTTP probe，结构化输出 + 含实例数
- *  - list       → 列当前活实例（取代旧 `atr list` 子命令）
+ *  - list       → 列当前活实例
  *  - install    → 写 systemd / launchd 配置，开机自启
  *  - uninstall  → 删 systemd / launchd 配置
- *  - logs       → tail broker 当天 log 文件（~/.atr/broker-YYYY-MM-DD.log）
+ *  - logs       → tail broker 当天 log 文件（~/.atr/broker-YYYY-MM-DD.log)
  *
- * 旧 `atr broker xxx` 子命令已删除——所有动作通过 atr 顶层 flag 触发。
- * 文件名仍叫 broker/cli.ts 是历史原因；本质上它管的是"服务级"操作。
+ * 演化：0.6.x 用 `atr broker xxx` 二级子命令；0.7.0 改顶层 flag（`--start`...）；
+ * 0.7.x 进一步规范化为顶层 subcommand（`atr start`...，与 git/docker 一致）。
+ * 旧 `atr stop <pattern>` 停实例的语义迁到 `atr kill <pattern>`，新 `atr stop`
+ * 无参 = 停 broker。文件名 broker/cli.ts 是历史原因；管的是"服务级"操作。
  */
 
 import { execSync } from 'node:child_process';
@@ -73,39 +75,84 @@ import {
   detectPlatform,
   ServicePlatformUnsupportedError,
 } from './service-installer.js';
-import type { ServiceAction } from '../cli-utils.js';
+import type { ParsedCliArgs, ServiceAction } from '../cli-utils.js';
+import { c } from '../utils/colors.js';
 
-/** 取 backend/package.json 版本号；失败兜底 '0.0.0' */
+/**
+ * 取 backend/package.json 版本号；失败兜底 '0.0.0'。
+ *
+ * 三种入口位置都要兼容：
+ *  - 发布 bundle：backend/dist/cli.js          → __dirname/../package.json
+ *  - tsc 分散输出：backend/dist/broker/cli.js  → __dirname/../../package.json
+ *  - dev tsx：backend/src/broker/cli.ts        → __dirname/../../package.json
+ *
+ * 简单做法：从 __dirname 向上 3 层找首个 name === 'auvezy-terminal-remote'
+ * 的 package.json。三层覆盖以上所有情况，不会上探到 monorepo root。
+ */
 function getBrokerVersion(): string {
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  // bundle 后所有 .ts 被夷平到 backend/dist/cli.js，__dirname = backend/dist/，
-  // 上一级即 backend；dev 模式下 src/broker/cli.ts 的相对位置不会走这里
-  // （broker subcommand 走 dist 路径）
-  const pkgPath = resolve(__dirname, '..', 'package.json');
-  try {
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version?: string };
-    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
-  } catch (err) {
-    logger.warn({ pkgPath, err }, '读取 broker 版本失败，使用 0.0.0 占位');
-    return '0.0.0';
+  const candidates = [
+    resolve(__dirname, 'package.json'),
+    resolve(__dirname, '..', 'package.json'),
+    resolve(__dirname, '..', '..', 'package.json'),
+  ];
+  for (const pkgPath of candidates) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as {
+        name?: string;
+        version?: string;
+      };
+      if (pkg.name === 'auvezy-terminal-remote' && typeof pkg.version === 'string') {
+        return pkg.version;
+      }
+    } catch {
+      /* 该层没文件 / 不是 JSON，继续下一层 */
+    }
   }
-}
-
-/** 解析 cli.js 绝对路径（用于 service install 写 ExecStart） */
-function getCliPath(): string {
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  // bundle 后 broker/cli.ts 被合到 backend/dist/cli.js，__dirname = backend/dist/
-  // 该文件就是入口本身
-  return resolve(__dirname, 'cli.js');
+  logger.warn({ candidates }, '读取 broker 版本失败，使用 0.0.0 占位');
+  return '0.0.0';
 }
 
 /**
- * dispatch：cli.ts 进入点（顶层服务 flag → 对应 run*）
+ * 解析 cli.js 绝对路径（用于 service install 写 ExecStart）。
+ *
+ * - 发布 bundle：broker/cli.ts 与 cli.ts 都被合到 backend/dist/cli.js → __dirname/cli.js
+ * - tsc 分散输出 / dev tsx：broker 与 入口分别在 .../broker/cli.{js,ts} 和
+ *   .../cli.{js,ts}，本函数所在文件的 __dirname 上一级才是入口所在目录
+ *
+ * 这里不做强假设：先试同目录 `cli.js`（bundle）再试上一级（分散 / dev），
+ * 取首个真实存在的 .js 文件返回。两条都不在则兜底返同目录 `cli.js`，让
+ * 上层（systemd / launchd 启动时）自然报 ENOENT，比这里默默猜更直接。
  */
-export async function runServiceCli(action: ServiceAction): Promise<number> {
+function getCliPath(): string {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    resolve(__dirname, 'cli.js'),
+    resolve(__dirname, '..', 'cli.js'),
+  ];
+  for (const p of candidates) {
+    try {
+      readFileSync(p);
+      return p;
+    } catch {
+      /* 试下一层 */
+    }
+  }
+  return candidates[0]!;
+}
+
+/**
+ * dispatch：cli.ts 进入点（service subcommand → 对应 run*）
+ *
+ * @param cli 完整的 ParsedCliArgs；`atr start` 用其中的 port / host
+ */
+export async function runServiceCli(
+  action: ServiceAction,
+  cli: ParsedCliArgs,
+): Promise<number> {
   switch (action) {
     case 'start':
-      return runBrokerStart();
+      return runBrokerStart(cli);
     case 'stop':
       return runBrokerStop();
     case 'status':
@@ -123,9 +170,20 @@ export async function runServiceCli(action: ServiceAction): Promise<number> {
 
 // ──────────────── start ────────────────
 
-async function runBrokerStart(): Promise<number> {
-  const port = parseEnvPort(process.env['ATR_BROKER_PORT']) ?? DEFAULT_BROKER_PORT;
-  const host = process.env['ATR_BROKER_HOST'] ?? DEFAULT_BROKER_HOST;
+/**
+ * 端口解析优先级（高 → 低）：
+ *   1. CLI flag `--port <n>`（atr start --port 3010）
+ *   2. env `ATR_BROKER_PORT`（service install 写到 systemd unit 的 Environment）
+ *   3. 默认 3000
+ *
+ * host 同理，env 是 `ATR_BROKER_HOST`，默认 0.0.0.0。
+ */
+async function runBrokerStart(cli: ParsedCliArgs): Promise<number> {
+  const port =
+    cli.port ??
+    parseEnvPort(process.env['ATR_BROKER_PORT']) ??
+    DEFAULT_BROKER_PORT;
+  const host = cli.host ?? process.env['ATR_BROKER_HOST'] ?? DEFAULT_BROKER_HOST;
   const brokerVersion = getBrokerVersion();
 
   // 0.7.0 v2：broker 进程自己的 daily log（按天 rotate，保留 7 天）
@@ -298,25 +356,26 @@ const STOP_GRACE_MS = 5_000;
 const STOP_POLL_INTERVAL_MS = 100;
 
 async function runBrokerStop(): Promise<number> {
+  const tag = c.cyan('[atr]');
   const state = readBrokerState();
   if (!state) {
-    process.stdout.write('[atr] not running (broker.json missing)\n');
+    process.stdout.write(`${tag} not running (broker.json missing)\n`);
     return 0;
   }
   if (!isBrokerAlive(state)) {
     process.stdout.write(
-      `[atr] PID ${state.pid} is dead; cleaning up broker.json\n`,
+      `${tag} PID ${state.pid} is dead; cleaning up broker.json\n`,
     );
     clearBrokerState();
     return 0;
   }
 
-  process.stdout.write(`[atr] sending SIGTERM to PID ${state.pid}\n`);
+  process.stdout.write(`${tag} sending SIGTERM to PID ${state.pid}\n`);
   try {
     process.kill(state.pid, 'SIGTERM');
   } catch (err) {
     process.stderr.write(
-      `[atr] SIGTERM failed: ${err instanceof Error ? err.message : String(err)}\n`,
+      `${c.red('[atr]')} SIGTERM failed: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     return 1;
   }
@@ -325,7 +384,7 @@ async function runBrokerStop(): Promise<number> {
   const t0 = Date.now();
   while (Date.now() - t0 < STOP_GRACE_MS) {
     if (!isBrokerAlive(readBrokerState())) {
-      process.stdout.write('[atr] stopped\n');
+      process.stdout.write(`${tag} ${c.green('stopped')}\n`);
       clearBrokerState();
       return 0;
     }
@@ -333,7 +392,7 @@ async function runBrokerStop(): Promise<number> {
   }
 
   // 超时强杀
-  process.stdout.write(`[atr] graceful shutdown timed out; sending SIGKILL\n`);
+  process.stdout.write(`${tag} ${c.yellow('graceful shutdown timed out')}; sending SIGKILL\n`);
   try {
     process.kill(state.pid, 'SIGKILL');
   } catch {
@@ -358,10 +417,10 @@ async function runBrokerStatus(): Promise<number> {
   const state = readBrokerState();
 
   // ── section 1: service process ──
-  process.stdout.write('=== Service ===\n');
+  process.stdout.write(c.bold('=== Service ===\n'));
   if (!state) {
-    process.stdout.write('  status:  not running (broker.json missing)\n');
-    process.stdout.write('  hint:    atr --start to launch; atr --install to register autostart\n\n');
+    process.stdout.write(`  status:  ${c.yellow('not running')} (broker.json missing)\n`);
+    process.stdout.write(`  ${c.dim('hint:    atr start to launch; atr install to register autostart')}\n\n`);
     // still print "autostart" / "token" sections to give the full picture
     writeServiceInstallSection();
     await writeTokenSection();
@@ -370,7 +429,7 @@ async function runBrokerStatus(): Promise<number> {
   const alive = isBrokerAlive(state);
   process.stdout.write(
     [
-      `  status:  ${alive ? 'running' : 'dead (stale state)'}`,
+      `  status:  ${alive ? c.green('running') : c.red('dead (stale state)')}`,
       `  pid:     ${state.pid}`,
       `  port:    ${state.port}`,
       `  host:    ${state.host}`,
@@ -441,12 +500,12 @@ function formatUptime(ms: number): string {
 
 /** Section: autostart (systemd / launchd) state. */
 function writeServiceInstallSection(): void {
-  process.stdout.write('=== Autostart ===\n');
+  process.stdout.write(c.bold('=== Autostart ===\n'));
   const platformDetected = detectPlatform();
   const installed = getInstalledServicePath();
   process.stdout.write(`  platform: ${platformDetected}\n`);
   process.stdout.write(
-    `  config:   ${installed ?? '(not installed; run atr --install to register)'}\n`,
+    `  config:   ${installed ?? '(not installed; run atr install to register)'}\n`,
   );
   if (!installed) {
     process.stdout.write('\n');
@@ -483,7 +542,7 @@ function writeServiceInstallSection(): void {
 
 /** Section: token (read from ~/.atrrc; full display — local view, same risk as .atrrc itself). */
 async function writeTokenSection(): Promise<void> {
-  process.stdout.write('=== Token ===\n');
+  process.stdout.write(c.bold('=== Token ===\n'));
   try {
     const { readFileSync, statSync } = await import('node:fs');
     const { resolve: pathResolve } = await import('node:path');
@@ -514,7 +573,7 @@ async function writeTokenSection(): Promise<void> {
  * The default entry is starred (★). Paste any of these into a browser.
  */
 async function writeEntriesSection(brokerPort: number): Promise<void> {
-  process.stdout.write('=== Entry URLs (paste into a browser) ===\n');
+  process.stdout.write(c.bold('=== Entry URLs (paste into a browser) ===\n'));
   try {
     const { discoverEntries, kindLabel } = await import('./entry-discovery.js');
     // Token is only injected if readable from ~/.atrrc; otherwise URLs go without ?token=
@@ -562,7 +621,7 @@ async function writeEntriesSection(brokerPort: number): Promise<void> {
 
 /** Section: instances. */
 async function writeInstancesSection(): Promise<void> {
-  process.stdout.write('=== Instances ===\n');
+  process.stdout.write(c.bold('=== Instances ===\n'));
   try {
     const { InstanceRegistryManager } = await import('../registry/instance-registry.js');
     const registry = new InstanceRegistryManager();
@@ -578,7 +637,7 @@ async function writeInstancesSection(): Promise<void> {
           `  - ${i.name.padEnd(20).slice(0, 20)} pid=${String(i.pid).padEnd(6)} port=${i.port}  cwd=${i.cwd}\n`,
         );
       }
-      process.stdout.write('  (full table: atr --list)\n');
+      process.stdout.write('  (full table: atr list)\n');
     }
   } catch (err) {
     process.stdout.write(
@@ -617,7 +676,7 @@ async function runShowLogs(): Promise<number> {
   if (!existsSync(logPath)) {
     process.stderr.write(
       `[atr] today's log not found: ${logPath}\n` +
-        'hint: is the service running? try atr --status, or atr --start to launch.\n',
+        'hint: is the service running? try atr status, or atr start to launch.\n',
     );
     return 1;
   }
@@ -655,50 +714,68 @@ function runServiceInstall(): number {
     const r = installService({ nodeBin, cliPath });
     process.stdout.write(
       [
-        `[atr] platform: ${r.platform}`,
-        `[atr] wrote:    ${r.servicePath}`,
+        `${c.cyan('[atr]')} platform: ${r.platform}`,
+        `${c.cyan('[atr]')} ${c.green('wrote:')}    ${r.servicePath}`,
         '',
-        'Next steps (run in order):',
-        ...r.nextSteps.map((s) => `  ${s}`),
+        c.bold('Next steps (run in order):'),
+        ...r.nextSteps.map((s) => `  ${c.dim(s)}`),
         '',
       ].join('\n'),
     );
     return 0;
   } catch (err) {
     if (err instanceof ServicePlatformUnsupportedError) {
-      process.stderr.write(`[atr] ${err.message}\n`);
+      process.stderr.write(`${c.red('[atr]')} ${err.message}\n`);
       return 2;
     }
     process.stderr.write(
-      `[atr] install failed: ${err instanceof Error ? err.message : String(err)}\n`,
+      `${c.red('[atr]')} install failed: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     return 1;
   }
 }
 
-function runServiceUninstall(): number {
+async function runServiceUninstall(): Promise<number> {
+  // 二次确认 —— 这一步会删 systemd unit / launchd plist 文件,误删后用户得
+  // 重新 install + 跑 daemon-reload。给次询问值得。
+  // 非 TTY(脚本 / CI):自动放过(认为调用方知道自己在干嘛);要在 CI 拒就 NO_COLOR=1 不
+  // 影响,真要拒得加 --yes flag 才稳 —— 0.7.x 暂不引入。
+  const { getInstalledPath: getInstalledForConfirm } = await import('./service-installer.js');
+  const installedPath = getInstalledForConfirm();
+  if (installedPath) {
+    const { confirm } = await import('../utils/confirm-prompt.js');
+    const ok = await confirm({
+      message: `Remove autostart service file at ${installedPath}?`,
+      initial: false,
+      nonInteractiveDefault: true,
+    });
+    if (!ok) {
+      process.stdout.write(`${c.dim('[atr] uninstall cancelled')}\n`);
+      return 0;
+    }
+  }
   try {
     const r = uninstallService();
     process.stdout.write(
       [
-        `[atr] platform: ${r.platform}`,
+        `${c.cyan('[atr]')} platform: ${r.platform}`,
         r.removed
-          ? `[atr] removed:  ${r.servicePath}`
-          : `[atr] not found: ${r.servicePath} (nothing to remove)`,
+          ? `${c.cyan('[atr]')} ${c.green('removed:')}  ${r.servicePath}`
+          : `${c.cyan('[atr]')} ${c.yellow('not found:')} ${r.servicePath} (nothing to remove)`,
         '',
-        'Next steps:',
-        ...r.nextSteps.map((s) => `  ${s}`),
+        c.bold('Next steps:'),
+        ...r.nextSteps.map((s) => `  ${c.dim(s)}`),
         '',
       ].join('\n'),
     );
     return 0;
   } catch (err) {
     if (err instanceof ServicePlatformUnsupportedError) {
-      process.stderr.write(`[atr] ${err.message}\n`);
+      process.stderr.write(`${c.red('[atr]')} ${err.message}\n`);
       return 2;
     }
     process.stderr.write(
-      `[atr] uninstall failed: ${err instanceof Error ? err.message : String(err)}\n`,
+      `${c.red('[atr]')} uninstall failed: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     return 1;
   }

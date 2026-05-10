@@ -8,9 +8,12 @@
  *   atr                          → 启动，PTY 跑默认 $SHELL
  *   atr <program> [args...]      → 启动，PTY 跑 program（args 透传）
  *                                  例：atr zsh / atr claude / atr claude --resume
+ *   atr start [--port n]         → 前台启 broker 服务（自启服务也是这条）
+ *   atr stop                     → 停 broker 服务（无参；旧 `atr stop <pattern>` → atr kill）
+ *   atr status / list / logs / install / uninstall
+ *                                → 服务级 subcommand（详见 broker/cli.ts）
  *   atr attach <url>             → 接管已有实例
- *   atr list                     → 列出本机所有实例
- *   atr stop [pattern]           → 停止匹配的实例
+ *   atr kill <pattern | all>     → 停止匹配的实例(必填;`all` = 所有,带确认)
  *
  *   --flag                       → boolean = true
  *   --key value                  → 空格分隔
@@ -18,9 +21,10 @@
  *   -- <剩余参数...>             → 透传给子进程（与 program 后位置参数等价）
  *
  * 第一个位置参数的判定规则：
- *   - 'attach' / 'stop' / 'list'：保留子命令
+ *   - 保留 subcommand（start/stop/status/list/logs/install/uninstall/attach/kill）：
+ *     识别为子命令；想跑同名 PATH 二进制需 `atr ./<name>` 或 `atr -- <name>`
  *   - 其它非 flag 字符串：视为 PTY 子进程命令名（program）
- *   - "--" 之后的所有参数全部进 commandArgs（即使以 -- 开头）
+ *   - "--" 之后的所有参数全部进 claudeArgs（即使以 -- 开头）
  */
 
 import { ConfigError } from './errors.js';
@@ -65,6 +69,16 @@ const KNOWN_FLAGS_OPTIONAL_VALUE = new Set([
 ]);
 
 /**
+ * 全部已知长 flag 名（用于 didyoumean 拼写建议）。
+ * 不含短选项 —— 短选项太短做相似度匹配几乎全是噪声。
+ */
+export const KNOWN_LONG_FLAGS: readonly string[] = [
+  ...KNOWN_FLAGS_BOOL,
+  ...KNOWN_FLAGS_VALUE,
+  ...KNOWN_FLAGS_OPTIONAL_VALUE,
+];
+
+/**
  * 短选项 → 长选项规范化映射
  *
  * 仅在解析最外层 argv 时生效。`--` 之后的透传参数不做规范化（避免误改子进程参数）。
@@ -80,17 +94,19 @@ const SHORT_TO_LONG: Record<string, string> = {
 /**
  * 服务级动作（管 broker / 列实例 / 装卸自启）。
  *
- * 这些动作由顶层 flag 触发——`atr --start` / `atr --status` / `atr --list` 等。
- * flag 必须紧跟 `atr` 之后（位置 0），不允许与 program / 其他服务 flag 共存。
+ * 0.7.x 起以 subcommand 形式触发：`atr start` / `atr status` / `atr list` 等。
+ * 这些 subcommand 是**保留字**——用户不能用它们做 PTY program 名（被识别为
+ * subcommand 优先；想跑同名 PATH 二进制需 `atr -- <name>` 或 `atr ./name`）。
  *
- * 命名约定：
+ * 命名：
  *  - `start` / `stop` / `status`：管 broker 进程（前台启 / 关 / 看健康）
  *  - `list`：列当前活实例
  *  - `install` / `uninstall`：装 / 卸开机自启服务（systemd / launchd）
  *  - `logs`：tail broker 当天 log
  *
- * 旧的 `atr broker <action>` / `atr broker service <action>` / `atr list` 子命令
- * 已删除，service-installer 写出的 systemd unit 也用新形式（`atr --start`）。
+ * 注：旧版本的 `--start` / `--stop` / ... flag 形式已删除，改 subcommand。
+ * 旧 `atr stop <pattern>` 停实例的语义迁移到 `atr kill <pattern>`；新
+ * `atr stop`（无参）= 停 broker。
  */
 export type ServiceAction =
   | 'start'
@@ -101,26 +117,53 @@ export type ServiceAction =
   | 'uninstall'
   | 'logs';
 
-/** 服务级 flag → ServiceAction 映射（解析时校验只能出现一个） */
-const SERVICE_FLAGS: Record<string, ServiceAction> = {
-  '--start': 'start',
-  '--stop': 'stop',
-  '--status': 'status',
-  '--list': 'list',
-  '--install': 'install',
-  '--uninstall': 'uninstall',
-  '--logs': 'logs',
+/**
+ * subcommand 字符串 → ServiceAction 映射。
+ *
+ * 这些**词**在位置 0（`atr <word>`）一律识别为 subcommand，**不**作 program 名
+ * （除非用 `--` 显式分隔或带路径前缀如 `./start`）。冲突时入口可询问用户。
+ */
+const SUBCOMMAND_TO_SERVICE: Record<string, ServiceAction> = {
+  start: 'start',
+  stop: 'stop',
+  status: 'status',
+  list: 'list',
+  install: 'install',
+  uninstall: 'uninstall',
+  logs: 'logs',
 };
+
+/** 全部保留 subcommand（service + attach + kill + completion） */
+export const RESERVED_SUBCOMMANDS = new Set<string>([
+  ...Object.keys(SUBCOMMAND_TO_SERVICE),
+  'attach',
+  'kill',
+  'completion',
+]);
 
 /** CLI 解析结果 */
 export interface ParsedCliArgs {
-  /** 子命令；默认 'start' */
-  subcommand: 'start' | 'attach' | 'stop' | 'service';
+  /**
+   * 子命令分类：
+   *  - `pty`        = 派生 PTY（默认；含 atr 无参 / atr [program] / atr -p N [program]）
+   *  - `service`    = 管 broker（start/stop/status/list/logs/install/uninstall）
+   *  - `attach`     = atr attach <url>，CLI 客户端连入实例
+   *  - `kill`       = atr kill <pattern|all>，停指定实例
+   *  - `completion` = atr completion <shell>，emit shell 补全脚本
+   */
+  subcommand: 'pty' | 'attach' | 'kill' | 'service' | 'completion';
+  /** completion 子命令的目标 shell（zsh/bash/fish）；仅 subcommand='completion' 时有值 */
+  completionShell?: string;
   /** attach 子命令的 URL（仅 subcommand='attach' 时） */
   attachUrl?: string;
-  /** stop 子命令的过滤模式（可选；不传 = 全部） */
-  stopPattern?: string;
-  /** 服务级动作（仅 subcommand='service' 时；由 atr 顶层 flag 触发） */
+  /**
+   * kill 子命令的过滤模式。
+   *  - 不传:cli-stop.ts 里报错(必填)
+   *  - 'all':表示杀全部,带二次确认
+   *  - 其它:substring 匹配 instance.name / cwd / host:port
+   */
+  killPattern?: string;
+  /** 服务级动作（仅 subcommand='service' 时） */
   serviceAction?: ServiceAction;
   /** 用户显式指定的 PTY 子进程命令名（来自首位置参数；优先于 env OCR_COMMAND） */
   command?: string;
@@ -204,96 +247,120 @@ export interface ParsedCliArgs {
  */
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const result: ParsedCliArgs = {
-    subcommand: 'start',
+    subcommand: 'pty',
     claudeArgs: [],
   };
 
-  // 1. 首位置识别。优先级（从高到低）：
-  //   a. 服务级 flag（紧跟 atr）：atr --start / --stop / --status / --list /
-  //      --install / --uninstall / --logs。互斥 + 不能与 program / 子命令共存
-  //   b. 子命令：atr stop [pattern] / atr attach <url>
-  //   c. PTY program：atr [zsh|claude|...] [args...]
-  //   d. 无任何位置参数：start，跑默认 $SHELL
+  // 解析模型（0.7.x 起）：
   //
-  // 服务级 flag 必须**严格位置 0**，让 `atr <program> --xxx` 永远是 program 透传——
-  // 用户心智简单：要管服务一定 flag 紧跟 atr，要跑 program 一定 program 在前。
+  //   atr <subcommand> [args...]              # service / kill / attach
+  //   atr [atr-flags...] [program] [args...]  # PTY 派生
+  //
+  // 严格规则：atr 自己的 flag 必须在 program 之前。一旦遇到 program 名，
+  // 之后所有 token 原样透传给子进程。
+  //
+  // Reserved subcommand 优先：start / stop / status / list / logs / install /
+  // uninstall / attach / kill 在位置 0 一律识别为 subcommand，**不**视作 PTY
+  // program 名。冲突时入口可询问用户（PATH 上同名二进制存在时）。想真跑同名
+  // 二进制：用 `atr ./<name>` 或 `atr -- <name>`。
+  //
+  // 优先级（从高到低）：
+  //   a. service subcommand：start / stop / status / list / logs / install /
+  //      uninstall —— 仅 'start' 接受配置 flag（--port / --host）
+  //   b. attach <url>
+  //   c. kill [pattern]
+  //   d. atr-flags + program：atr [-p N ...] [program] [args...]
+  //   e. 无任何位置参数：跑默认 $SHELL
   let cursor = 0;
-  if (argv[0] && argv[0].startsWith('--') && SERVICE_FLAGS[argv[0]]) {
+  const first = argv[0];
+
+  // ── service subcommand ──
+  if (first && SUBCOMMAND_TO_SERVICE[first]) {
+    const action = SUBCOMMAND_TO_SERVICE[first]!;
     result.subcommand = 'service';
-    result.serviceAction = SERVICE_FLAGS[argv[0]]!;
+    result.serviceAction = action;
     cursor = 1;
-    // 互斥：后面只能是 '--' 之后的透传（无意义但允许），其它任何 token 都报错
-    if (argv[1] && argv[1] !== '--') {
-      const next = argv[1];
-      // 第二个服务 flag 同时出现 → 明确报错（用户大概率拼错或误解）
-      if (SERVICE_FLAGS[next]) {
-        throw new ConfigError(
-          ErrorCode.CONFIG_VALIDATION_FAIL,
-          `${argv[0]} cannot be combined with ${next} (service-level flags are mutually exclusive)`,
-        );
-      }
+    if (action === 'start') {
+      // 'start' 接受 --port / --host 配置 flag；落到下方 flag 解析循环。
+    } else if (argv[1] && argv[1] !== '--') {
       throw new ConfigError(
         ErrorCode.CONFIG_VALIDATION_FAIL,
-        `${argv[0]} takes no extra arguments (service-level flags cannot be combined with a program or other args)`,
+        `'atr ${first}' takes no extra arguments — it reads broker info from ~/.atr/broker.json automatically`,
+      );
+    } else {
+      return result;
+    }
+  } else if (first === 'attach') {
+    result.subcommand = 'attach';
+    if (!argv[1] || argv[1].startsWith('-')) {
+      throw new ConfigError(
+        ErrorCode.CONFIG_VALIDATION_FAIL,
+        'attach requires a URL: atr attach <url>',
+      );
+    }
+    result.attachUrl = argv[1];
+    if (argv.length > 2) {
+      throw new ConfigError(
+        ErrorCode.CONFIG_VALIDATION_FAIL,
+        'attach takes only a URL; no extra arguments',
       );
     }
     return result;
-  }
-  if (argv[0] && !argv[0].startsWith('-')) {
-    const sub = argv[0];
-    if (sub === 'attach' || sub === 'stop') {
-      result.subcommand = sub;
-      cursor = 1;
-      if (sub === 'attach') {
-        if (!argv[1] || argv[1].startsWith('-')) {
-          throw new ConfigError(
-            ErrorCode.CONFIG_VALIDATION_FAIL,
-            'attach requires a URL: atr attach <url>',
-          );
-        }
-        result.attachUrl = argv[1];
-        cursor = 2;
-      } else if (sub === 'stop') {
-        // 可选 positional pattern
-        if (argv[1] && !argv[1].startsWith('-')) {
-          result.stopPattern = argv[1];
-          cursor = 2;
-        }
+  } else if (first === 'kill') {
+    result.subcommand = 'kill';
+    if (argv[1] && !argv[1].startsWith('-')) {
+      result.killPattern = argv[1];
+      if (argv.length > 2) {
+        throw new ConfigError(
+          ErrorCode.CONFIG_VALIDATION_FAIL,
+          'kill takes only one pattern; no extra arguments',
+        );
       }
-    } else {
-      // 任意其它非 flag 字符串：当 PTY program 用
-      result.command = sub;
-      cursor = 1;
+    } else if (argv.length > 1) {
+      throw new ConfigError(
+        ErrorCode.CONFIG_VALIDATION_FAIL,
+        'kill takes only one pattern; no flags',
+      );
     }
+    // 必填检查由 cli-stop.ts 做(那里能给出更友好的多行 hint)
+    return result;
+  } else if (first === 'completion') {
+    result.subcommand = 'completion';
+    if (!argv[1] || argv[1].startsWith('-')) {
+      throw new ConfigError(
+        ErrorCode.CONFIG_VALIDATION_FAIL,
+        'completion requires a shell name: atr completion <zsh|bash|fish>',
+      );
+    }
+    result.completionShell = argv[1];
+    if (argv.length > 2) {
+      throw new ConfigError(
+        ErrorCode.CONFIG_VALIDATION_FAIL,
+        'completion takes only the shell name; no extra arguments',
+      );
+    }
+    return result;
+  } else if (first && !first.startsWith('-')) {
+    // 任意其它非 flag 字符串：当 PTY program；剩余全部透传。
+    result.command = first;
+    result.claudeArgs.push(...argv.slice(1));
+    return result;
   }
 
-  // 2. flag 解析（直到遇到 '--' 或结束）
-  //
-  // 当首位置参数已识别为 program 时，未知 flag 一律透传给子进程而非报错
-  // （让 `atr claude --resume task1` 这类调用直观可用）。
-  // 已知 flag（atr 自己的 --port / --workdir 等）仍按 atr 自身解析，不会被透传 ——
-  // 用户如果真要给子进程传 --port 这种与 atr 同名的 flag，必须用 `-- --port` 显式分隔。
-  const programGiven = (): boolean => result.command !== undefined;
-
+  // ── flag 解析循环（program 之前；atr 自己吃 flag）──
   for (; cursor < argv.length; cursor++) {
     let arg = argv[cursor]!;
 
     if (arg === '--') {
-      // 剩余全部追加到 claudeArgs
       result.claudeArgs.push(...argv.slice(cursor + 1));
       return result;
     }
 
-    // 短选项规范化：-p / -h / -v / -S → 对应长选项；不在映射内的 -x 保持原样
-    // 注意：仅整体匹配（如 '-p'），不拆解粘连写法（如 '-p3000'）—— 后者会落到下面"未知参数/透传"分支
     if (arg.length === 2 && arg.startsWith('-') && !arg.startsWith('--')) {
       const mapped = SHORT_TO_LONG[arg];
-      if (mapped !== undefined) {
-        arg = mapped;
-      }
+      if (mapped !== undefined) arg = mapped;
     }
 
-    // --key=value 形式
     if (arg.startsWith('--') && arg.includes('=')) {
       const eq = arg.indexOf('=');
       const key = arg.slice(0, eq);
@@ -302,20 +369,17 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         assignFlag(result, key, val);
         continue;
       }
-      if (programGiven()) {
-        result.claudeArgs.push(arg);
-        continue;
-      }
-      throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `unknown argument: ${arg}`);
+      throw new ConfigError(
+        ErrorCode.CONFIG_VALIDATION_FAIL,
+        `unknown argument: ${arg}. atr flags must precede the program; flags meant for the program go after the program name.`,
+      );
     }
 
-    // --flag 形式
     if (KNOWN_FLAGS_BOOL.has(arg)) {
       assignFlag(result, arg, true);
       continue;
     }
 
-    // --key value 形式
     if (KNOWN_FLAGS_VALUE.has(arg)) {
       const val = argv[cursor + 1];
       if (val === undefined) {
@@ -329,7 +393,6 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       continue;
     }
 
-    // --key [value] 可选值形式：peek 下一个 arg 不是 flag 才吃掉作为 value
     if (KNOWN_FLAGS_OPTIONAL_VALUE.has(arg)) {
       const peek = argv[cursor + 1];
       if (peek !== undefined && !peek.startsWith('-')) {
@@ -341,26 +404,29 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       continue;
     }
 
-    // 已识别 program → 任意未知参数透传
-    if (programGiven()) {
-      result.claudeArgs.push(arg);
-      continue;
+    // 不以 `-` 开头 → 视为 program（隐式分隔点）；剩余全部透传，解析终止。
+    if (!arg.startsWith('-')) {
+      if (result.subcommand === 'service') {
+        throw new ConfigError(
+          ErrorCode.CONFIG_VALIDATION_FAIL,
+          `'atr ${result.serviceAction}' does not accept a program name (got "${arg}")`,
+        );
+      }
+      result.command = arg;
+      result.claudeArgs.push(...argv.slice(cursor + 1));
+      return result;
     }
 
-    // 服务级 flag 不在位置 0 出现 → 给清晰提示，避免用户困惑
-    if (SERVICE_FLAGS[arg]) {
-      throw new ConfigError(
-        ErrorCode.CONFIG_VALIDATION_FAIL,
-        `${arg} must come right after atr (position 0); cannot mix with other args. Example: atr ${arg}`,
-      );
-    }
-
-    // 走到这里说明不认识
-    throw new ConfigError(ErrorCode.CONFIG_VALIDATION_FAIL, `unknown argument: ${arg}`);
+    throw new ConfigError(
+      ErrorCode.CONFIG_VALIDATION_FAIL,
+      `unknown argument: ${arg}. atr flags must precede the program; flags meant for the program go after the program name.`,
+    );
   }
 
   return result;
 }
+
+
 
 /** 把单个 flag 写入 result，按字段做类型转换 */
 function assignFlag(out: ParsedCliArgs, key: string, value: string | boolean): void {
@@ -498,26 +564,46 @@ function parseNonNegativeInt(name: string, value: string | boolean): number {
 export const HELP_TEXT = `\
 atr — auvezy/terminal-remote · LAN-only browser access to your terminal
 
-Usage (PTY / instances):
-  atr                              start a PTY running your $SHELL
-  atr <program> [args...]          start a PTY running <program> (args pass through)
-                                   e.g. atr zsh / atr claude / atr claude --resume
-  atr attach <url>                 attach a CLI client to an existing instance
-  atr stop [pattern]               stop instances matching pattern (name/cwd/host:port)
+Usage:
+  atr [atr-flags...] [program] [program-args...]
+                                   run a PTY child (default: $SHELL) and expose it on the LAN
+  atr <subcommand> [...]           manage the broker / instances (see below)
 
-Service-level flags (must come right after atr, mutually exclusive):
-  atr --start                      start the background service (foreground, Ctrl+C to quit)
-  atr --stop                       stop the background service
-  atr --status                     one-shot view: process, token, entry URLs, instances
-  atr --list                       list all live instances
-  atr --logs                       tail today's service log (~/.atr/broker-YYYY-MM-DD.log)
-  atr --install                    register autostart (systemd / launchd)
-  atr --uninstall                  remove autostart
+Subcommands:
+  start [--port n] [--host ip]     start the background service (broker) in the foreground
+                                   (Ctrl+C to quit). --port / --host override 3000 / 0.0.0.0.
+  stop                             stop the background service
+  status                           one-shot view: process, token, entry URLs, instances
+  list                             list all live instances
+  logs                             tail today's service log (~/.atr/broker-YYYY-MM-DD.log)
+  install                          register autostart (systemd / launchd)
+  uninstall                        remove autostart
+  attach <url>                     attach a CLI client to an existing instance
+  kill <pattern | all>             kill instances matching pattern (name/cwd/host:port);
+                                   pass 'all' to kill every running instance (with confirm)
+
+  Reserved words: the subcommands above always take precedence at position 0.
+  To run a PATH binary with the same name (e.g. an executable called "start"),
+  use a path prefix: 'atr ./start' or place it after '--': 'atr -- start'.
+
+Strict argument order:
+  atr's own flags must come BEFORE the program name. Once <program> is seen,
+  every remaining token is passed through to the child process — atr no longer
+  parses anything (no flag aliasing, no ambiguity).
+
+  Examples:
+    atr                              run default $SHELL
+    atr zsh                          run zsh
+    atr claude --resume task1        run claude with its own args
+    atr -p 3010 claude               broker port = 3010, then run claude
+    atr -p 3010 claude --port 9      -p 3010 → atr; --port 9 passed to claude
+    atr -- --weird                   '--' forces split; default shell with '--weird'
 
 Run options (for atr [program]):
-  -p, --port <n>        Service (broker) port (default 3000). You don't need to change
-                        this for multiple instances — worker ports are auto-assigned
-                        (3001, 3002, ...).
+  -p, --port <n>        Background service (broker) port (default 3000). If broker is
+                        already running and on a different port, atr will refuse to
+                        start — run 'atr stop' first if you want to switch.
+                        Worker ports are internal and auto-assigned; you don't set them.
   --host <ip>           Service listen host (default 0.0.0.0; workers always bind 127.0.0.1)
   -S, --strict-port     Strict-port mode: error out if preferred port is taken (no auto-bump)
   --spawn-timeout <s>   PTY spawn fallback timeout in seconds (default 30; 0 = no timeout).
@@ -547,7 +633,9 @@ Run options (for atr [program]):
   -h, --help            Show this help
   -v, --version         Show version
 
-  -- <args>             Args after -- also pass through to program
+  --                    Explicit separator; tokens after '--' pass through to program
+                        (only needed in atr-flag area; after a program name everything
+                        passes through automatically)
 
 Multi-instance:
   The background service (broker) runs once on port 3000 and is shared by all

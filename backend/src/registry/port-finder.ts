@@ -160,10 +160,18 @@ export async function bindAvailablePort(
       throw err; // EACCES / 其他真实错误：外抛
     }
 
-    if (port !== preferred) {
-      logger.info({ preferred, picked: port }, '首选端口被占，已选下一个可用端口');
+    // preferred=0 时 OS 自动分配高端口；从 server.address() 取真实端口。
+    // 单测注入 listen 时不会真实 listen，address() 可能为 null —— 此时 fallback
+    // 到候选 port 本身（仍能保留 preferred=0 之外路径的旧语义）。
+    const actualPort = readListenedPort(server) ?? port;
+
+    if (actualPort !== preferred && preferred !== 0) {
+      logger.info(
+        { preferred, picked: actualPort },
+        '首选端口被占，已选下一个可用端口',
+      );
     }
-    return { port };
+    return { port: actualPort };
   }
 
   // 全部失败
@@ -179,6 +187,26 @@ export async function bindAvailablePort(
     `从端口 ${preferred} 起探测 ${maxAttempts} 个均不可用（最后 EADDRINUSE 端口：${lastEaddrPort ?? preferred}）`,
     503,
   );
+}
+
+/**
+ * 从 listen 成功的 server 上读真实监听端口
+ *
+ * server.address() 返回：
+ *  - AddressInfo（{port:number, address, family}）—— TCP listen，正常路径
+ *  - string —— Unix domain socket（atr 用不到）
+ *  - null —— 还没 listen / 已关闭（注入式 listen 单测会返这个）
+ */
+function readListenedPort(server: HttpServer): number | null {
+  try {
+    const addr = server.address();
+    if (addr && typeof addr === 'object' && typeof addr.port === 'number') {
+      return addr.port;
+    }
+  } catch {
+    /* 极端情况下 address() 在某些状态会抛 */
+  }
+  return null;
 }
 
 /** 判断 unknown 错误是不是 EADDRINUSE */

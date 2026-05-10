@@ -1,6 +1,6 @@
 {
   "name": "auvezy-terminal-remote",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "type": "module",
   "description": "Auvezy Terminal Remote — 局域网内通过手机/平板浏览器远程控制 PC 终端：atr <program>，多终端多实例自动出现在浏览器 tab 切换",
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -53,11 +53,14 @@
   "dependencies": {
     "cookie": "^1.0.0",
     "cors": "^2.8.5",
+    "didyoumean2": "^7.0.4",
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
     "node-pty": "^1.0.0",
+    "picocolors": "^1.1.1",
     "picomatch": "^4.0.4",
     "pino": "^9.5.0",
+    "prompts": "^2.4.2",
     "qrcode": "^1.5.4",
     "web-push": "^3.6.7",
     "ws": "^8.18.0"
@@ -68,6 +71,7 @@
     "@types/http-proxy": "^1.17.17",
     "@types/node": "^20.17.0",
     "@types/picomatch": "^4.0.3",
+    "@types/prompts": "^2.4.9",
     "@types/qrcode": "^1.5.6",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.5.13",

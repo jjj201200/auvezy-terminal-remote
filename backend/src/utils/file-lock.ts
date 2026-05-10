@@ -78,7 +78,7 @@ export async function withFileLock<T>(
     if (attempt > retries) {
       throw new LockError(
         ErrorCode.LOCK_TIMEOUT,
-        `锁超时：${lockDir}（重试 ${retries} 次仍未获取）`,
+        `lock timeout: ${lockDir} (still held after ${retries} retries)`,
       );
     }
     await sleep(interval);

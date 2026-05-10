@@ -24,7 +24,7 @@
  *
  * 子进程入口：复用 instance-spawner 的 resolveEntry 思路（cli.js / cli.ts）。
  * 这里**不直接复用 resolveEntry 函数**——instance-spawner 的逻辑是"派生 worker"，
- * broker 派生有自己的 args（`broker start`），但解析入口路径的方式是同一份代码，
+ * broker 派生有自己的 args（subcommand `start`），但解析入口路径的方式是同一份代码，
  * 抽成本文件内部 `resolveBrokerEntry`，等阶段 6 service-installer 也要用时再上提。
  */
 
@@ -58,6 +58,17 @@ export interface EnsureBrokerOptions {
    * 生产 = `dist/cli.js`；dev = `src/cli.js`（不存在 → 落到 cli.ts + tsx）
    */
   cliJsPath: string;
+  /**
+   * 用户期望的 broker 端口（来自 atr CLI 的 `-p` / `--port`）。
+   *
+   * 行为：
+   *  - broker 已在跑且端口匹配 → OK
+   *  - broker 已在跑但端口不匹配 → 抛错（用户得 `atr stop` 后再换端口）
+   *  - broker 未跑 → fork broker 时用这个端口（通过 env `ATR_BROKER_PORT` 透传）
+   *
+   * 不传 = 默认 3000。
+   */
+  brokerPort?: number;
   /** broker.json 路径；默认 `~/.atr/broker.json` */
   statePath?: string;
   /** broker 锁目录；默认 `~/.atr/.broker.lock` */
@@ -115,6 +126,17 @@ export async function ensureBroker(opts: EnsureBrokerOptions): Promise<EnsureBro
     if (isBrokerAlive(existing)) {
       // 进一步 HTTP probe，避免"pid 还在但已僵死/在退出"——pid 有但端口不通比"明确没起"更糟
       if (existing && (await probeHealth(existing, fetchImpl, probeTimeoutMs))) {
+        // broker 已在跑：用户传的 brokerPort 必须匹配
+        if (
+          opts.brokerPort !== undefined &&
+          existing.port !== opts.brokerPort
+        ) {
+          throw new AppError(
+            ErrorCode.INTERNAL_ERROR,
+            `broker is already running on port ${existing.port}; cannot honor requested port ${opts.brokerPort}. ` +
+              `Run 'atr stop' first if you want to switch to ${opts.brokerPort}.`,
+          );
+        }
         return { state: existing, forked: false };
       }
       logger.info(
@@ -124,9 +146,16 @@ export async function ensureBroker(opts: EnsureBrokerOptions): Promise<EnsureBro
     }
 
     // —— fork 分支 ——
+    // 通过 env `ATR_BROKER_PORT` 把用户期望端口透传给子进程；broker/cli.ts 会优先读它。
+    const forkEnv = {
+      ...opts.env,
+      ...(opts.brokerPort !== undefined
+        ? { ATR_BROKER_PORT: String(opts.brokerPort) }
+        : {}),
+    };
     const child = forkBroker({
       cliJsPath: opts.cliJsPath,
-      env: opts.env,
+      env: forkEnv,
       spawnImpl,
     });
     if (typeof child.pid !== 'number') {
@@ -151,8 +180,8 @@ export async function ensureBroker(opts: EnsureBrokerOptions): Promise<EnsureBro
       tryKillChild(child.pid);
       throw new AppError(
         ErrorCode.INTERNAL_ERROR,
-        `broker fork 后 ${startupTimeoutMs}ms 未就绪（broker.json 未出现）。`
-          + `开 ATR_DEBUG_SPAWN=1 看 /tmp/atr-broker-*.log 排查`,
+        `broker did not become ready within ${startupTimeoutMs}ms after fork (broker.json never appeared). ` +
+          `Set ATR_DEBUG_SPAWN=1 and retry to capture /tmp/atr-broker-*.log.`,
       );
     }
 
@@ -161,7 +190,7 @@ export async function ensureBroker(opts: EnsureBrokerOptions): Promise<EnsureBro
       tryKillChild(child.pid);
       throw new AppError(
         ErrorCode.INTERNAL_ERROR,
-        `broker fork 后 /api/health 探针失败（${ready.host}:${ready.port}）`,
+        `broker /api/health probe failed after fork (${ready.host}:${ready.port})`,
       );
     }
 
@@ -186,9 +215,10 @@ function forkBroker(o: ForkBrokerOpts): { pid: number | undefined } {
     ? openSync(`/tmp/atr-broker-${Date.now()}.log`, 'a')
     : 'ignore';
 
+  // 0.7.x 起 broker 启动用 subcommand `start`（旧 `--start` flag / `broker start` 子命令均已删除）
   const child = o.spawnImpl(
     entry.execPath,
-    [...entry.args, 'broker', 'start'],
+    [...entry.args, 'start'],
     {
       env: { ...process.env, ...(o.env ?? {}) },
       detached: true,
