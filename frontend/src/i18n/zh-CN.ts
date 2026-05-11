@@ -97,6 +97,7 @@ export const zhCN: Messages = {
     running: 'Running',
     ptyPending: 'Pending',
     waitingInput: 'Awaiting approval',
+    cancelRequested: '已请求跳过,等待确认…',
     startingTerminal: '正在启动终端…',
 
     connectionDialogTitle: '连接状态',

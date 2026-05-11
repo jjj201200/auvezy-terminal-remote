@@ -225,9 +225,16 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
             onCompositionEnd={(e) => {
               composingRef.current = false;
               setComposingText('');
-              // hook 的 input 路径会 reconcile commit；这里同步 displayText
-              // 兜底（如果 hook 异步还没跑）
+              // IME 提交后必须三件事都做,缺一会导致"删不掉"bug:
+              //  1. 把 textarea 当前值 sync 到 hook 内部 bufferRef
+              //     (composing 期间 hook 的 input handler 直接 return,bufferRef
+              //     一直没跟上 textarea。如果不 sync,后续退格 beforeinput 路径
+              //     看到 bufferRef='' → Math.min(1, 0) = 0 → 不发 delete intent)
+              //  2. 同步 displayText
+              //  3. setBuffer 内部会 syncTextareaToBuffer → textarea 与 bufferRef
+              //     对齐,后续 LCP diff / 退格路径都正常
               const cur = elRef.current?.value ?? '';
+              setBuffer(cur);
               if (cur !== displayText) setDisplayText(cur);
               // 防止未使用警告
               void e;

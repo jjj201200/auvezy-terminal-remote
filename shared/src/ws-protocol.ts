@@ -48,6 +48,20 @@ export interface SessionStatusExtras {
   pendingApprovals?: number;
   /** 处于 pending 的审批工具名列表(用于在 StatusBar 拼 "等待审批: Bash, Edit") */
   pendingApprovalTools?: string[];
+  /**
+   * 用户已请求跳过当前审批,但稳态确认尚未到达。
+   *
+   * 触发:在 awaiting approval 状态下,用户向 PTY 发了 ESC(\x1b)字节。
+   *  - claude code 的 ESC 行为是关闭审批弹窗,但**不会发任何 hook**(审批前的
+   *    ESC 在工具实际 invoke 之前就取消了,PostToolUseFailure / Stop 都不触发)
+   *  - 我们不立即清 pendingApprovals(怕 claude 内部其实把 ESC 拦了);而是先
+   *    标记 cancel_requested,broadcast 给前端 UI 显示"已请求跳过"
+   *  - 后续任何稳态信号到达就清:用户的下一个非 ESC 输入 / approval_resolved /
+   *    turn_ended / turn_failed / user_prompt
+   *
+   * 仅当 pendingApprovals > 0 时有意义。
+   */
+  pendingCancelRequested?: boolean;
   /** 最近一次轮次失败(如 rate_limit / billing_error);用于红色 banner */
   lastError?: { kind: string; detail?: string; at: number } | null;
   /** Claude 上一轮最后一句话(可用于 lock screen 推送正文) */

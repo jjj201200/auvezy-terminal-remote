@@ -364,4 +364,159 @@ describe('SessionController + AnsiFilter（阶段 8）', () => {
       .join('');
     expect(out).toContain('inside'); // 关闭过滤后保留
   });
+
+});
+
+// ──────────────── pendingApprovals 生命周期(0.7.4 修)────────────────
+//
+// 用户按 ESC 中断审批时,claude code 不发 PostToolUseFailure(那条 hook 只在
+// 工具真正 invoke 后才会触发,审批前的 ESC 在 PreToolUse 之前就取消了),
+// 但**会**发 Stop → turn_ended。所以 turn_ended / turn_failed 必须清
+// pendingApprovals,否则 webapp 卡在 'waiting_input' 永远不释放。
+//
+// 同步覆盖 0.7.4 加的 ESC 两阶段取消机制(observeUserInputForCancel)。
+
+/** SessionController 只用 IntegrationManager 的 EventEmitter('event') 接口 */
+class FakeIntegrationManager extends EventEmitter {
+  activeId = 'claude-code';
+}
+
+interface StatusSnapshot {
+  type: 'status_update';
+  status: string;
+  pendingApprovals?: number;
+  pendingCancelRequested?: boolean;
+  pendingApprovalTools?: string[];
+}
+
+describe('SessionController pendingApprovals 生命周期', () => {
+  let ws: MockWs;
+  let ctrl: SessionController;
+  let manager: FakeIntegrationManager;
+
+  beforeEach(() => {
+    ws = new MockWs();
+    ctrl = new SessionController(
+      new MockPty() as unknown as PtyManager,
+      ws as unknown as never,
+      1000,
+      { writeToProcessStdout: false },
+    );
+    manager = new FakeIntegrationManager();
+    ctrl.setStatus('running');
+    ctrl.setIntegrationManager(manager as never);
+  });
+
+  afterEach(() => {
+    ctrl.destroy();
+  });
+
+  function lastStatus(): StatusSnapshot {
+    const updates = ws.broadcasts.filter((m) => m.type === 'status_update');
+    return updates[updates.length - 1] as StatusSnapshot;
+  }
+  /** 模拟前端发来的 user_input ws 消息 */
+  function sendInput(data: string): void {
+    ws.fireMessage({} as WebSocket, JSON.stringify({ type: 'user_input', data }));
+  }
+
+  it('approval_pending → status=waiting_input', () => {
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Bash', detail: 'ls' });
+    const last = lastStatus();
+    expect(last.status).toBe('waiting_input');
+    expect(last.pendingApprovals).toBe(1);
+  });
+
+  it('ESC 中断:approval_pending → turn_ended 必须清空 pending,status 回 running', () => {
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Bash', detail: 'rm -rf /' });
+    expect(lastStatus().status).toBe('waiting_input');
+    // 用户按 ESC → claude 取消 turn,不会发 PostToolUseFailure,只发 Stop
+    manager.emit('event', { kind: 'turn_ended' });
+    const after = lastStatus();
+    expect(after.status).toBe('running');
+    expect(after.pendingApprovals).toBe(0);
+  });
+
+  it('turn_failed 也清 pending(API 错误等场景)', () => {
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Edit' });
+    manager.emit('event', { kind: 'approval_pending', id: 'a2', tool: 'Bash' });
+    expect(lastStatus().pendingApprovals).toBe(2);
+    manager.emit('event', { kind: 'turn_failed', errorKind: 'rate_limit', detail: '429' });
+    const after = lastStatus();
+    // turn_failed 不改 base(仍 running),仅设 lastError + 清 pending
+    expect(after.pendingApprovals).toBe(0);
+    expect(after.status).toBe('running');
+  });
+
+  it('user_prompt 兜底:ESC 跳过审批 + 用户提交新 prompt → 即时清 pending', () => {
+    // 用户 ESC 后 claude 不发 PostToolUseFailure / Stop;但下一轮 prompt 提交
+    // 触发 UserPromptSubmit → user_prompt event,清掉 stuck pending。
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Bash', detail: 'rm /tmp/x' });
+    expect(lastStatus().status).toBe('waiting_input');
+    manager.emit('event', { kind: 'user_prompt', text: '换个任务做' });
+    const after = lastStatus();
+    expect(after.status).toBe('running');
+    expect(after.pendingApprovals).toBe(0);
+  });
+
+  it('正常完成路径:approval_pending → approval_resolved → 不依赖 turn_ended 也能清', () => {
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Bash' });
+    expect(lastStatus().status).toBe('waiting_input');
+    manager.emit('event', { kind: 'approval_resolved', id: 'a1', outcome: 'allow' });
+    const after = lastStatus();
+    expect(after.status).toBe('running');
+    expect(after.pendingApprovals).toBe(0);
+  });
+
+  // ──────────────── ESC 两阶段取消 ────────────────
+
+  it('ESC 阶段 1:awaiting + ESC → cancel_requested=true, 状态仍 waiting_input', () => {
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Bash' });
+    sendInput('\x1b');
+    const after = lastStatus();
+    expect(after.status).toBe('waiting_input');
+    expect(after.pendingCancelRequested).toBe(true);
+    expect(after.pendingApprovals).toBe(1);
+  });
+
+  it('ESC 阶段 2:cancel_requested + 非 ESC 输入 → 清 pending,回 running', () => {
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Bash' });
+    sendInput('\x1b');
+    expect(lastStatus().pendingCancelRequested).toBe(true);
+    sendInput('h');
+    const after = lastStatus();
+    expect(after.status).toBe('running');
+    expect(after.pendingApprovals).toBe(0);
+    expect(after.pendingCancelRequested).toBe(false);
+  });
+
+  it('连按 ESC 不重复清(保持 cancel_requested,等真正稳态信号)', () => {
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Bash' });
+    sendInput('\x1b');
+    sendInput('\x1b');
+    sendInput('\x1b');
+    const after = lastStatus();
+    expect(after.status).toBe('waiting_input');
+    expect(after.pendingCancelRequested).toBe(true);
+    expect(after.pendingApprovals).toBe(1);
+  });
+
+  it('非 awaiting 状态下 ESC 不触发(vim/htop 日常按 ESC 误判防护)', () => {
+    sendInput('\x1b');
+    const after = lastStatus();
+    expect(after.status).toBe('running');
+    expect(after.pendingCancelRequested).toBeFalsy();
+  });
+
+  it('cancel_requested 后 hook approval_resolved 到达,也是稳态确认', () => {
+    manager.emit('event', { kind: 'approval_pending', id: 'a1', tool: 'Bash' });
+    sendInput('\x1b');
+    expect(lastStatus().pendingCancelRequested).toBe(true);
+    // claude 内部其实把 ESC 当作 deny → 真 hook 来了
+    manager.emit('event', { kind: 'approval_resolved', id: 'a1', outcome: 'deny' });
+    const after = lastStatus();
+    expect(after.status).toBe('running');
+    expect(after.pendingApprovals).toBe(0);
+    expect(after.pendingCancelRequested).toBe(false);
+  });
 });

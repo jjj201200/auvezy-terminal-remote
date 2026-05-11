@@ -102,6 +102,7 @@ export const en: Messages = {
     running: 'Running',
     ptyPending: 'Pending',
     waitingInput: 'Awaiting approval',
+    cancelRequested: 'Cancel requested, awaiting confirmation…',
     startingTerminal: 'Starting terminal…',
 
     connectionDialogTitle: 'Connection status',

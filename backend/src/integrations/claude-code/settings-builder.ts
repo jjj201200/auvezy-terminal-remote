@@ -86,7 +86,12 @@ export function buildHooksConfig(
     out['PostCompact'] = allMatcher;
     out['CwdChanged'] = allMatcher;
   }
-  if (toggles.userPrompts) {
+  // UserPromptSubmit 触发条件:
+  //  - approvals 开启时也订阅(审批兜底:用户 ESC 跳过审批 + 提交新 prompt
+  //    时,SessionController 用 user_prompt 信号清掉 stuck pending,见
+  //    session-controller.ts 的 user_prompt case)
+  //  - 或者用户显式开 userPrompts(把 prompt 原文也送到 Web Push 等通道)
+  if (toggles.userPrompts || toggles.approvals) {
     out['UserPromptSubmit'] = allMatcher;
   }
   return out;

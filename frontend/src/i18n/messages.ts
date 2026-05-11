@@ -135,6 +135,7 @@ export interface Messages {
     running: string;
     ptyPending: string;
     waitingInput: string;
+    cancelRequested: string;
     startingTerminal: string;
     // 状态点击弹出说明 modal 用
     connectionDialogTitle: string;

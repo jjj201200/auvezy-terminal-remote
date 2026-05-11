@@ -189,7 +189,8 @@
   opacity: 0.75;
   cursor: default;
   font-style: italic;
-
+  display: flex;
+  align-items: center;
   &:hover {
     opacity: 0.85;
   }

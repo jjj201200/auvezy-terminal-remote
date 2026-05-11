@@ -76,6 +76,15 @@ export class SessionController {
   private lastError: { kind: string; detail?: string; at: number } | null = null;
   /** Stop 携带的 last_assistant_message,可用于推送正文 */
   private lastAssistantMessage: string | null = null;
+  /**
+   * 用户已请求跳过当前 pending(在 awaiting approval 状态下按了 ESC),
+   * 但稳态确认信号(approval_resolved / turn_ended / user_prompt / 非 ESC
+   * 输入)尚未到达。
+   *
+   * 用作两阶段取消的中间状态:前端在 status bar 显示 "已请求跳过,等待确认...";
+   * 任意稳态信号一到就转 false 并清 pending。
+   */
+  private pendingCancelRequested = false;
 
   private readonly buffer: OutputBuffer;
   private readonly writeToProcessStdout: boolean;
@@ -212,14 +221,24 @@ export class SessionController {
         break;
       }
       case 'turn_ended': {
-        // 一轮结束 = 清空 activeTool(残留 active 通常是 hook 漏发的边界情况)
+        // 一轮结束 = activeTool + pendingApprovals 必然 stale,全部清空。
+        //
+        // pendingApprovals 必须在 turn_ended 清的原因(0.7.4 修):
+        // 用户按 ESC 中断审批时,claude code **不**发 PostToolUseFailure(那条
+        // hook 只在工具真正 invoke 后才会触发,审批前的 ESC 在 PreToolUse 之前就
+        // 取消了),但**会**发 Stop → turn_ended。如果我们这里不清 pending,
+        // 状态会永远卡在 waiting_input,即便 claude 已经回到 idle prompt。
+        // 跨 turn 还在等同一个审批 = 不可能,claude 每个 turn 都是独立 cycle。
         this.activeTool = null;
+        this.pendingApprovals.clear();
         if (e.lastMessage) this.lastAssistantMessage = e.lastMessage;
         break;
       }
       case 'turn_failed': {
         this.lastError = { kind: e.errorKind, ...(e.detail ? { detail: e.detail } : {}), at: Date.now() };
         this.activeTool = null;
+        // turn 失败 → 工具调用 / 审批不会再继续,全部清空(同 turn_ended)
+        this.pendingApprovals.clear();
         // rate_limit / billing_error 等需要用户立即关注 → 推送
         pushTitle = `Claude turn 失败:${e.errorKind}`;
         pushBody = e.detail ?? e.errorKind;
@@ -230,11 +249,27 @@ export class SessionController {
         logger.info({ phase: e.phase, detail: e.detail }, 'session event');
         break;
       }
-      case 'cwd_changed':
-      case 'user_prompt': {
-        // 这些事件目前不影响状态机;留给未来 UI 用。user_prompt 显式不进推送(隐私)
+      case 'cwd_changed': {
+        // 暂不影响状态机
         break;
       }
+      case 'user_prompt': {
+        // 用户提交了新一轮 prompt(UserPromptSubmit hook)。如果仍有 pending,
+        // 说明前一轮审批被用户绕过(eg ESC 跳过审批弹窗,claude 不发
+        // PostToolUseFailure / Stop)。这一信号比"等下一轮 turn_ended"更早:
+        // 用户按 Enter 提交的瞬间就触发,且不依赖 timer。
+        // 隐私:不把 prompt 文本带去任何推送通道。
+        // 已无 pending / activeTool 时直接 return,避免空 broadcast。
+        if (this.pendingApprovals.size === 0 && !this.activeTool) return;
+        this.pendingApprovals.clear();
+        this.activeTool = null;
+        break;
+      }
+    }
+
+    // pendingApprovals 已清空 = 任何 cancel_requested 标记已 stale
+    if (this.pendingApprovals.size === 0) {
+      this.pendingCancelRequested = false;
     }
 
     this.broadcastStatus();
@@ -290,9 +325,46 @@ export class SessionController {
       activeTool: this.activeTool?.summary ?? null,
       pendingApprovals: this.pendingApprovals.size,
       pendingApprovalTools: tools,
+      // pendingCancelRequested 只在仍有 pending 时有意义,否则前端不渲染
+      pendingCancelRequested: this.pendingApprovals.size > 0 && this.pendingCancelRequested,
       lastError: this.lastError,
       lastAssistantMessage: this.lastAssistantMessage,
     };
+  }
+
+  /**
+   * 观察用户输入,推断审批是否被取消
+   *
+   * 两阶段取消:
+   *  1. 收到纯 ESC(单字节 `\x1b`)→ 标记 cancel_requested,broadcast(UI 显示
+   *     "已请求跳过,等待确认...")。不立即清 pending,以防 claude 内部把 ESC
+   *     拦住继续等审批。
+   *  2. cancel_requested 后,任何非 ESC 输入(回车 / 字母 / 方向键 `\x1b[A` 等
+   *     length>1 的 ESC 序列)= prompt 已回 idle、用户在打新内容 → 清 pending。
+   *
+   * hook 路径(approval_resolved / turn_ended / turn_failed / user_prompt)在
+   * `onIntegrationEvent` 末尾会清 cancel_requested。
+   *
+   * 误判防护:仅 `pendingApprovals.size > 0` 时触发——vim/htop 里按 ESC 是常态,
+   * 但那时 pending 为 0,不会动状态。
+   */
+  private observeUserInputForCancel(data: string): void {
+    if (this.pendingApprovals.size === 0) return;
+    if (data.length === 0) return;
+    const isEscOnly = data === '\x1b';
+    if (!this.pendingCancelRequested) {
+      if (isEscOnly) {
+        this.pendingCancelRequested = true;
+        this.broadcastStatus();
+      }
+      return;
+    }
+    // 连按 ESC = 重复请求,不动状态
+    if (isEscOnly) return;
+    this.pendingApprovals.clear();
+    this.pendingCancelRequested = false;
+    this.activeTool = null;
+    this.broadcastStatus();
   }
 
   // ──────────────── 公共 API ────────────────
@@ -364,6 +436,7 @@ export class SessionController {
       // PTY 退出 = 工具调用 / 审批全部失效;清空状态避免悬空
       this.activeTool = null;
       this.pendingApprovals.clear();
+      this.pendingCancelRequested = false;
       this.ws.broadcast({
         type: 'session_ended',
         exitCode,
@@ -469,6 +542,7 @@ export class SessionController {
         onUserInput: (data: string) => {
           // 用户输入：所有客户端类型一律透传到 PTY
           this.pty.write(data);
+          this.observeUserInputForCancel(data);
         },
         onResize: (cols: number, rows: number, source: WebSocket, master?: boolean) => {
           // 仲裁规则（按顺序）：

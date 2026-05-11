@@ -5,6 +5,45 @@
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-05-11
+
+### Fixed
+
+- **审批 ESC 跳过后状态永卡 `waiting_input`**:`SessionController` 之前只在
+  `approval_resolved`(配对 hook)到达时清 `pendingApprovals`。但用户在 claude
+  审批弹窗上按 ESC 时,claude code **不发** `PostToolUseFailure`(那条 hook 在
+  工具真正 invoke 后才触发,审批前的 ESC 在 PreToolUse 之前就取消了)。
+  - `turn_ended` / `turn_failed` 现在也清 `pendingApprovals`(turn 结束后任何
+    pending 必然 stale,跨 turn 等同一审批不可能)。
+  - `user_prompt`(UserPromptSubmit hook)兜底:用户按回车提交新一轮 prompt 即清。
+  - **`approvals: true` 隐含订阅 `UserPromptSubmit`**,确保上面兜底链路可用,
+    不增加新开关。
+- **中文 IME 输入的字符删不掉**(InputBar): `useTextareaInputGuard` 在
+  composition 期间 input 事件被 return,导致 IME 提交后 hook 内部 `bufferRef`
+  没跟上 textarea 实际内容;退格走 `beforeinput.deleteContentBackward` 时
+  `Math.min(1, 0) = 0`,delete intent 不发 → 视觉上"删不掉"。
+  - 修:`InputBar.onCompositionEnd` 在 displayText 同步**之前**调
+    `setBuffer(elRef.current.value)`,让 hook 内部 truth 跟上 IME 提交结果。
+- **退格在 buffered 模式偶发吞键**:LCP diff 防抖路径在某些 timing 下被
+  `setBuffer / syncTextareaToBuffer` 抢先把 textarea 重置回 bufferRef,
+  `actual === prev` 早退导致 delete intent 不发。
+  - 修:`useTextareaInputGuard` 的 `beforeinput` 现在同步处理
+    `deleteContentBackward / deleteContentForward`(commit delete + 微任务 sync),
+    绕开防抖 + LCP diff 时序边界。stream 模式下 delete 不受 bufferRef 长度限制
+    (textarea 永远空,但 PTY echo 在屏)。
+
+### Added
+
+- **审批 ESC 两阶段取消**:用户在 awaiting approval 状态下按 ESC,
+  `SessionController` 立即标记 `pendingCancelRequested=true` 并 broadcast。
+  status bar 显示 "已请求跳过,等待确认…"。后续任意稳态信号(用户输入非 ESC
+  字符 / approval_resolved / turn_ended / turn_failed / user_prompt)→ 即时
+  清 pending 回 running。**不依赖 timer**,网络抖动不影响状态正确性。
+  - 新增 `SessionStatusExtras.pendingCancelRequested?: boolean` 协议字段。
+  - 新增 i18n key `status.cancelRequested`(中英)。
+  - 误判防护:只在 `pendingApprovals.size > 0` 时触发,vim/htop 等 TUI 内按 ESC
+    不会动状态。
+
 ## [0.7.3] - 2026-05-11
 
 ### Breaking changes

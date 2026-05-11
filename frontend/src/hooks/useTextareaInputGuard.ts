@@ -272,12 +272,59 @@ export function useTextareaInputGuard(
     };
 
     /**
-     * beforeinput 仅处理 insertReplacementText（QuickType / 拼写修正）—— 它
-     * 自带 dataTransfer + getTargetRanges 给精确替换信息。其它 inputType 全部
-     * 由 input 事件 + 防抖 LCP diff 处理。
+     * beforeinput 同步处理:
+     *  - deleteContentBackward(退格)/ deleteContentForward(delete 键):同步
+     *    commit delete,绕开防抖 LCP diff 时序——退格场景下"用户期望 = 删 1 个
+     *    字符",和 textarea 实际宽字符 / IME 中间态无关。LCP diff 防抖路径在
+     *    某些 timing 下会被 setBuffer / syncTextareaToBuffer 抢先把 textarea
+     *    重置回 bufferRef,导致 actual === prev → 早退 → 退格丢失。
+     *  - insertReplacementText(QuickType / 拼写修正):带 dataTransfer +
+     *    getTargetRanges 给精确替换信息,值得同步走。
+     *  - 其它 inputType 全部由 input 事件 + 防抖 LCP diff 处理。
      */
     const handleBeforeInput = (e: InputEvent): void => {
       if (composingRef.current) return;
+
+      // 退格 / 删除:同步 commit,不依赖 LCP diff
+      if (
+        e.inputType === 'deleteContentBackward' ||
+        e.inputType === 'deleteContentForward'
+      ) {
+        // 不 preventDefault —— 让浏览器照常更新 textarea(光标位置 / 选区),
+        // 我们只是在事件里同步 commit。input 事件随后还会触发 flushDiff,
+        // 但那时 prev/actual 已经在 syncTextareaToBuffer 之后对齐,LCP=0,
+        // 早退(line 153)不会重复 commit。
+        if (settleTimerRef.current) {
+          clearTimeout(settleTimerRef.current);
+          settleTimerRef.current = null;
+        }
+        // 选区删除:删 selection 长度 ≥ 1;无选区:删 1
+        const sel = (el.selectionEnd ?? 0) - (el.selectionStart ?? 0);
+        const count = sel > 0 ? sel : 1;
+        // 模式差异:
+        //  - buffered:bufferRef 反映用户编辑的草稿,删除不能超过 buffer 长度
+        //    (否则会发 delete intent 但 applyIntent 已经把 buffer 削到 0,
+        //    onCommit 收到 buffer='' 是预期的)
+        //  - stream:textarea 永远是 commit 后立即 clear 的,bufferRef 也是 0。
+        //    用户感知的"已输入字符"在 PTY 那侧 echo,不在 textarea。退格应当
+        //    无条件发 delete(count) 让调用方送 \x7f 给 PTY,由 PTY/TUI 自己
+        //    处理(可能成功删 PTY 一个字符,也可能 PTY 不响应——但前端不能吞)。
+        const actualCount = mode === 'stream'
+          ? count
+          : Math.min(count, bufferRef.current.length);
+        // eslint-disable-next-line no-console
+        console.log('[GUARD] beforeinput.delete', JSON.stringify({
+          mode, inputType: e.inputType, sel, count, actualCount,
+          bufLen: bufferRef.current.length,
+        }));
+        if (actualCount > 0) {
+          commitOne({ kind: 'delete', count: actualCount });
+        }
+        // 等浏览器自己改完 textarea 后再 sync
+        Promise.resolve().then(syncTextareaToBuffer);
+        return;
+      }
+
       if (e.inputType !== 'insertReplacementText') return;
       const replaceText = (e.dataTransfer?.getData('text/plain')) ?? e.data ?? '';
       const ranges = (e as InputEvent & { getTargetRanges?: () => StaticRange[] })

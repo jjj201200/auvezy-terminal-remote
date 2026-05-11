@@ -87,17 +87,24 @@ export function StatusBar({
       : t('status.disconnectedReconnect')
     : t(CONN_KEY[connection]);
 
-  // 会话标签:派生自 extras
+  // 会话标签:派生自 session + extras
+  // - waiting_input + pendingCancelRequested → "已请求跳过,等待确认..."(2 阶段取消)
   // - waiting_input + 多个 pending → "等待审批: Bash, Edit"
   // - running + activeTool → "Bash: npm test"
   // - 否则 → 标准 i18n 文案
   const pendingTools = extras?.pendingApprovalTools ?? [];
-  const sessionLabel =
-    session === 'waiting_input' && pendingTools.length > 0
-      ? `${t(SESSION_KEY.waiting_input)}: ${pendingTools.slice(0, 3).join(', ')}${pendingTools.length > 3 ? '…' : ''}`
-      : session === 'running' && extras?.activeTool
-        ? extras.activeTool
-        : t(SESSION_KEY[session]);
+  const sessionLabel = ((): string => {
+    if (session === 'waiting_input') {
+      if (extras?.pendingCancelRequested) return t('status.cancelRequested');
+      if (pendingTools.length > 0) {
+        const head = pendingTools.slice(0, 3).join(', ');
+        const ellipsis = pendingTools.length > 3 ? '…' : '';
+        return `${t(SESSION_KEY.waiting_input)}: ${head}${ellipsis}`;
+      }
+    }
+    if (session === 'running' && extras?.activeTool) return extras.activeTool;
+    return t(SESSION_KEY[session]);
+  })();
 
   // session pill tone:lastError 存在时升级为 error 色;否则按基本派生
   const sessionTone: PillTone = extras?.lastError ? 'error' : SESSION_TONE[session];
