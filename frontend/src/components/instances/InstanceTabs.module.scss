@@ -25,7 +25,7 @@
   @include m.btn-reset;
   @include m.row-flex(var(--sp-2));
   white-space: nowrap;
-  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+  padding: var(--sp-2) var(--sp-5);
   border: 1px solid var(--color-border);
   background: var(--color-bg);
   font-size: var(--fs-xs);
@@ -71,8 +71,8 @@
   @include m.btn-reset;
   @include m.row-flex(0);
   justify-content: center;
-  height: 24px;
-  width: 24px;
+  height: 28px;
+  width: 28px;
   border: 1px solid var(--color-border);
   background: var(--color-bg);
   color: var(--color-fg-dim);
@@ -91,8 +91,8 @@
   @include m.btn-reset;
   @include m.row-flex(0);
   justify-content: center;
-  height: 24px;
-  width: 24px;
+  height: 28px;
+  width: 28px;
   border: 1px solid var(--color-border);
   background: var(--color-bg);
   color: var(--color-fg-dim);

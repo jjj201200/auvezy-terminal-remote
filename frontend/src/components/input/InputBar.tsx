@@ -268,6 +268,7 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
           variant="accent"
           disabled={disabled || isEmpty}
           aria-label={t('input.sendTooltip')}
+          className={s.formIconBtn}
         >
           <IconSend size={14} stroke={1.5} />
         </IconButton>
@@ -276,6 +277,7 @@ export const InputBar = forwardRef<InputBarHandle, InputBarProps>(function Input
             onClick={onOpenSettings}
             aria-label={t('topBar.settings')}
             title={t('topBar.settingsTooltip')}
+            className={s.formIconBtn}
           >
             <IconSettings size={14} stroke={1.5} />
           </IconButton>

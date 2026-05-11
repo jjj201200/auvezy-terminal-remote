@@ -20,7 +20,7 @@
   border-bottom: 1px solid var(--color-border);
   // 给 ScrollableTabs 用的 underline 锚定
   position: relative;
-  min-height: 24px;
+  min-height: 28px;
 }
 
 // 分类组之间的中线
@@ -48,7 +48,7 @@
 
 // 按钮区外层（HScroller 的 wrap 容器追加 className）
 .keys {
-  min-height: 28px;
+  min-height: 32px;
 }
 
 // HScroller 内部 .scroller 追加：padding 放在这里（不挡箭头），gap 在 children 之间
@@ -61,14 +61,14 @@
   @include m.btn-reset;
   flex-shrink: 0;
   white-space: nowrap;
-  padding: 3px var(--sp-3);
+  padding: var(--sp-2) var(--sp-5);
   border: 1px solid var(--color-border);
   background: var(--color-bg);
   color: var(--color-fg-dim);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  min-height: 22px;
-  min-width: 22px;
+  min-height: 26px;
+  min-width: 26px;
   letter-spacing: var(--tracking-tight);
   @include m.transition(background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast));
 

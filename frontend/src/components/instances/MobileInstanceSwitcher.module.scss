@@ -3,7 +3,7 @@
 .trigger {
   @include m.btn-reset;
   @include m.row-flex(var(--sp-2));
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
   border: 0;
   background: transparent;
   font-size: var(--fs-xs);

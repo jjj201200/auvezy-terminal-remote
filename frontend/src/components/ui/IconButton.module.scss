@@ -4,18 +4,18 @@
   @include m.btn-reset;
   @include m.row-flex(0);
   justify-content: center;
-  min-height: 22px;
-  min-width: 22px;
-  padding: var(--sp-1);
+  min-height: 26px;
+  min-width: 26px;
+  padding: var(--sp-2);
   color: var(--color-fg-dim);
   border: 1px solid transparent;
   @include m.transition(background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast));
   @include m.focus-ring;
 
   @include m.mobile {
-    min-height: 22px;
-    min-width: 22px;
-    padding: var(--sp-1);
+    min-height: 26px;
+    min-width: 26px;
+    padding: var(--sp-2);
   }
 
   &:hover:not(:disabled) {

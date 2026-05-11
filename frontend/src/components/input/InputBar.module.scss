@@ -27,7 +27,7 @@
   inset: 0;
   // 让 div 跟下面 textarea 完全对齐：同样的 padding / font / line-height
   box-sizing: border-box;
-  padding: var(--sp-0) 28px var(--sp-0) var(--sp-3);
+  padding: var(--sp-2) 36px var(--sp-2) var(--sp-5);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   line-height: 1.5;
@@ -82,7 +82,7 @@
     background: transparent;
   }
   // 右内侧留出空间给 × 按钮（即使 value 为空也留着，避免布局抖动）
-  padding: var(--sp-0) 28px var(--sp-0) var(--sp-3);
+  padding: var(--sp-2) 36px var(--sp-2) var(--sp-5);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   line-height: 1.5;
@@ -124,8 +124,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border: none;
   background: transparent;
   color: var(--color-fg-low);
@@ -137,4 +137,10 @@
     color: var(--color-fg);
     background: var(--color-bg-hover);
   }
+}
+
+// 底部 InputBar 里的 IconButton(send / settings):比顶部更宽松的左右 padding,
+// 触控目标更友好;不动 IconButton 共享默认值(顶部仍保持 sp-2 紧凑)。
+.formIconBtn {
+  padding: var(--sp-2) var(--sp-5);
 }

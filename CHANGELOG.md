@@ -5,6 +5,25 @@
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-05-11
+
+### Changed
+
+- **底部按钮与 PC tab 触控目标放大,但 bar 容器仍保持紧凑**:
+  - `$bar-pad` / `$bar-gap` 回到 `$sp-0`(0px)——容器自身贴边,完全靠按钮自身
+    padding 撑出节奏。
+  - **底部按钮**(InputBar 的 send / settings + Toolbar 的快捷键 / 命令按钮):
+    `padding: var(--sp-2) var(--sp-5)`(垂直 4px / 水平 12px),触控更友好。
+  - **顶部按钮**(IconButton 共享默认):保持 `padding: var(--sp-2)`(4px 四边)
+    紧凑工业风,与底部明确语义分层。
+  - PC 端 InstanceTabs `.tab`(实例切换按钮):`padding: var(--sp-2) var(--sp-5)`。
+  - 实例列表 `.add` / `.manage`(顶栏的"新增"/"管理"方形按钮):24×24 → 28×28。
+- **MobileInstanceSwitcher 卡片右侧切换 icon**:14px → 18px,移动端识别更容易。
+- **Pill**(StatusBar 状态胶囊)垂直 padding:2px → 4px,与新按钮高度协调。
+
+整体方向:保持工业紧凑的小边距设计,**只放大按钮自身**让触控目标够大,避免老人机
+臃肿感。
+
 ## [0.7.4] - 2026-05-11
 
 ### Fixed

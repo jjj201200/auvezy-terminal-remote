@@ -155,7 +155,7 @@ export function MobileInstanceSwitcher({
           disabled={highlight}
           className={s.itemSwitch}
         >
-          <IconArrowsExchange size={14} stroke={1.5} />
+          <IconArrowsExchange size={18} stroke={1.5} />
         </button>
       </div>
     );
