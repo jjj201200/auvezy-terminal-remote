@@ -127,6 +127,35 @@ describe('ensureDefaultUserConfig', () => {
     const r = ensureDefaultUserConfig({ shortcuts: 'invalid' });
     expect(r.shortcuts).toEqual(DEFAULT_SHORTCUTS);
   });
+
+  it('display:新 maxCols 字段透传,旧 targetCols 字段平滑迁移', () => {
+    // 旧 config 只有 targetCols
+    const r1 = ensureDefaultUserConfig({ display: { targetCols: 100 } } as never);
+    expect(r1.display?.maxCols).toBe(100);
+
+    // 新 config maxCols 优先,即便 targetCols 也存在(旧字段忽略)
+    const r2 = ensureDefaultUserConfig({
+      display: { maxCols: 120, targetCols: 80 },
+    } as never);
+    expect(r2.display?.maxCols).toBe(120);
+  });
+
+  it('display:fontSizeMin > fontSizeMax 时自动 swap', () => {
+    const r = ensureDefaultUserConfig({
+      display: { fontSizeMin: 20, fontSizeMax: 10 },
+    } as never);
+    expect(r.display?.fontSizeMin).toBe(10);
+    expect(r.display?.fontSizeMax).toBe(20);
+  });
+
+  it('display:fontSize 越界(超 FONT_SIZE_FLOOR/CEIL) → 默认值', () => {
+    const r = ensureDefaultUserConfig({
+      display: { fontSizeMin: 2, fontSizeMax: 100 },
+    } as never);
+    // 都越界 → 都回默认 6 / 18
+    expect(r.display?.fontSizeMin).toBe(6);
+    expect(r.display?.fontSizeMax).toBe(18);
+  });
 });
 
 describe('ensureDefaultUserConfig：旧版直接重置', () => {

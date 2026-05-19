@@ -9,21 +9,39 @@
 // 视口策略：终端 / 播放器风格——键盘弹起时不挤压页面布局，输入法浮在上方。
 //  - viewport meta 不加 interactive-widget=resizes-content（默认 resizes-visual）
 //    → layout viewport 始终是物理屏幕大小，不被键盘缩
-//  - html / body / #app 全部用 100lvh（large viewport = 物理屏，不缩）
-//  - position: fixed + inset:0 + overflow:hidden + overscroll-behavior:none
+//  - html / body 用 100lvh 铺满到屏幕物理边缘(含刘海下方/home indicator 下方),
+//    让背景色连续到屏幕边,符合 viewport-fit=cover 的"沉浸"语义
+//  - #app 用 inset = env(safe-area-inset-*) 钉在安全区里,所有应用内容(顶栏、
+//    输入栏、终端)自动避开刘海 / Dynamic Island / home indicator
+//  - position: fixed + overflow:hidden + overscroll-behavior:none
 //    彻底锁死根，浏览器无法 pan visualViewport 到 layout viewport 之外
 //  - 键盘弹起后底部 InputBar 会被键盘盖住，依靠 IME 自带的"输入预览条"展示当前输入
 //    （这是 Chrome Android / iOS Safari 的标准行为，无需我们额外处理）
-html, body, #app {
+html, body {
   height: 100lvh;
   width: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-}
-
-html, body {
   position: fixed;
   inset: 0;
+}
+
+// #app 钉到安全区内 —— 一次性解决顶部刘海 / 横屏 notch 遮挡。
+//
+// 底部不让出 safe-area-inset-bottom:让 InputBar 的 bg-elev 色带延伸到 home
+// indicator 下方,视觉连续;InputBar 自己内部 padding-bottom: env(...) 把内容
+// 抬到 indicator 上方。这样 indicator 区域是工具栏色,不是 body 黑色断层。
+//
+// 兜底:某些 iOS PWA 启动会让 env(safe-area-inset-*) 短时间读到 0(viewport
+// 还没稳定),用 fallback 0px 兜底,实测可工作。
+#app {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  right: env(safe-area-inset-right, 0px);
+  bottom: 0;
+  left: env(safe-area-inset-left, 0px);
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {

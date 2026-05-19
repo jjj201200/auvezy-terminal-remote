@@ -74,6 +74,80 @@ describe('createBrokerApp 静态资源（3C）', () => {
     }
   });
 
+  it('SPA 入口带 ?token= → index.html 里 manifest link href 也注入 token', async () => {
+    const dir = mkdtempSync(resolve(tmpdir(), 'atr-broker-fe-'));
+    try {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(
+        `${dir}/index.html`,
+        '<!doctype html><head><link rel="manifest" href="/manifest.webmanifest" /></head>',
+      );
+      const { app } = createBrokerApp({
+        brokerVersion: '0.7.0',
+        startedAt: 1000,
+        frontendDist: dir,
+      });
+      const { url, close } = await listenApp(app);
+      try {
+        const withToken = await fetch(`${url}/?token=abc123`);
+        const html = await withToken.text();
+        expect(html).toContain('href="/manifest.webmanifest?token=abc123"');
+
+        const noToken = await fetch(`${url}/`);
+        const plainHtml = await noToken.text();
+        expect(plainHtml).toContain('href="/manifest.webmanifest"');
+        expect(plainHtml).not.toContain('token=');
+      } finally {
+        await close();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('/manifest.webmanifest?token=xxx → start_url 注入 token,无 token 时返回原文件', async () => {
+    const dir = mkdtempSync(resolve(tmpdir(), 'atr-broker-fe-'));
+    try {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(`${dir}/index.html`, '<!doctype html><title>atr</title>');
+      writeFileSync(
+        `${dir}/manifest.webmanifest`,
+        JSON.stringify({ name: 'ATR', start_url: '/', display: 'standalone' }),
+      );
+      const { app } = createBrokerApp({
+        brokerVersion: '0.7.0',
+        startedAt: 1000,
+        frontendDist: dir,
+      });
+      const { url, close } = await listenApp(app);
+      try {
+        // 无 token query → 走 static,原文件
+        const plain = await fetch(`${url}/manifest.webmanifest`);
+        expect(plain.status).toBe(200);
+        const plainBody = await plain.json();
+        expect(plainBody.start_url).toBe('/');
+
+        // 带 token query → 动态注入
+        const withToken = await fetch(`${url}/manifest.webmanifest?token=abc123`);
+        expect(withToken.status).toBe(200);
+        expect(withToken.headers.get('content-type')).toMatch(/application\/manifest\+json/);
+        expect(withToken.headers.get('cache-control')).toBe('no-store');
+        const withTokenBody = await withToken.json();
+        expect(withTokenBody.start_url).toBe('/?token=abc123');
+        expect(withTokenBody.name).toBe('ATR');
+
+        // 特殊字符 token 走 encodeURIComponent
+        const special = await fetch(`${url}/manifest.webmanifest?token=a%2Fb%2Bc`);
+        const specialBody = await special.json();
+        expect(specialBody.start_url).toBe('/?token=a%2Fb%2Bc');
+      } finally {
+        await close();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('frontendDist 不存在 → 不挂静态服务但 broker 仍可启', async () => {
     const { app } = createBrokerApp({
       brokerVersion: '0.7.0',

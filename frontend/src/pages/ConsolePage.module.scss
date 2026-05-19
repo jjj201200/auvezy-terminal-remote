@@ -1,8 +1,10 @@
 @use '../styles/mixins' as m;
 
 .root {
-  // 钉死在物理屏幕上：iOS auto-scroll 改 documentElement.scrollTop 时不会影响这里
-  position: fixed;
+  // 钉到父级 #app 内,iOS auto-scroll 改 documentElement.scrollTop 时不会影响这里;
+  // 用 absolute 而非 fixed —— fixed 会绕过 #app 的 safe-area inset 直接贴屏幕物理边,
+  // 导致顶栏被刘海 / 动态岛压住;absolute 相对 #app 定位,自动跟着 safe-area 让位
+  position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
@@ -38,7 +40,7 @@
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-elev);
   padding: var(--bar-pad);
-  @include m.safe-top(var(--bar-pad));
+  // safe-area 让位由 #app 容器统一处理,这里不再叠加
 }
 
 .headerLeft {

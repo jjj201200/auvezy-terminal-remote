@@ -176,8 +176,14 @@ export interface Messages {
     previewTitle: string;
     previewHint: string;
     previewMeta: string; // 模板：字号 {{size}}px · 间距 {{ls}}px · 列数 {{cols}}
-    targetColsTitle: string;
-    targetColsHint: string;
+    fontSizeRangeTitle: string;
+    fontSizeRangeHint: string;
+    fontSizeMinLabel: string;
+    fontSizeMaxLabel: string;
+    fontSizeMinAriaLabel: string;
+    fontSizeMaxAriaLabel: string;
+    maxColsTitle: string;
+    maxColsHint: string;
     autoLabel: string;
     customPlaceholder: string;
     autoTooltip: string;

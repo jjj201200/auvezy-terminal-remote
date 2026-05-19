@@ -13,25 +13,11 @@
   gap: var(--sp-4);
 }
 
-// 预览 section：sticky 在 tab body 顶部，让用户调下方参数时始终能看到效果
-// Sheet 的 .body 是滚动容器（overflow: auto），sticky 在它内部生效
+// 预览 section:正常 in-flow,跟其他 section 一起滚走 —— 之前 sticky 会在键盘
+// 弹起后挡住浏览器自动 scrollIntoView 的编辑框,把光标定位到预览背面
 .previewSection {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  // 给 sticky 加底色 + 模糊背景，避免下方内容滚到这下面被透出来
-  background: var(--color-bg-elev);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  // padding 让 sticky 内容跟正常 section 视觉一致
   padding-top: var(--sp-3);
   padding-bottom: var(--sp-3);
-  // 跟 sheet body 边到边对齐：扩大到容器边缘后用 padding 还原内容
-  margin-left: -#{var(--sp-5)};
-  margin-right: -#{var(--sp-5)};
-  padding-left: var(--sp-5);
-  padding-right: var(--sp-5);
-  // 下方淡分隔线
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -139,6 +125,15 @@
     color: var(--color-accent);
     border-color: var(--color-accent);
   }
+}
+
+// "最小: [60] 最大: [18]" 这种 label+input 组合
+.numInputLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
 }
 
 .numInput {

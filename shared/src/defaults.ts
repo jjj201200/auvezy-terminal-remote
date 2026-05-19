@@ -572,16 +572,28 @@ export const RECONNECT_MAX_ATTEMPTS_MAX = 1000;
 /**
  * 显示偏好
  *
- * - targetCols：xterm 自适应字号的目标列数；0 / 缺失 = 关闭自适应（用默认字号）。
- *   常用预设 80 / 100 / 120；移动端窄屏用 80 即可填满。算法：
- *   fontSize = floor(containerWidth / targetCols / 0.6)，并夹紧到 [8, 18]
- * - letterSpacing：字间距（px）；负值压缩、正值拉宽。范围 [-2, 4]，默认 0
+ * - fontSizeMin / fontSizeMax：自适应字号的夹紧上下限(用户可调,默认 6 / 18);
+ *   maxCols 算出的字号会被 clamp 到这个范围。改小 fontSizeMin 可换更多列。
+ *   硬下限 FONT_SIZE_FLOOR(6)/上限 FONT_SIZE_CEIL(32) 限制设置面板取值范围。
+ * - maxCols(原 targetCols):xterm 自适应字号的目标列数;0 / 缺失 = 关闭自适应。
+ *   常用预设 80 / 100 / 120;移动端窄屏用 80 即可填满。算法:
+ *   fontSize = floor(containerWidth / maxCols / 0.6),clamp 到 [fontSizeMin, fontSizeMax]
+ * - letterSpacing:字间距(px);负值压缩、正值拉宽。范围 [-2, 4],默认 0
  */
 export interface DisplayPrefs {
-  targetCols?: number;
+  fontSizeMin?: number;
+  fontSizeMax?: number;
+  /** 自适应字号目标列数(原名 targetCols,0.7.x 起改名:"目标"暗示一定生效,
+   *  实际是上限,clamp 到字号范围内可能小于该值) */
+  maxCols?: number;
   letterSpacing?: number;
-  /** 调色板主题；命名跟 Claude Code 的 /theme 选项对齐，方便用户对照 */
+  /** 调色板主题;命名跟 Claude Code 的 /theme 选项对齐,方便用户对照 */
   theme?: TerminalThemeName;
+}
+
+/** 仅供 normalize 内部识别 0.7.0 之前的 config.json 用 —— 不应暴露给业务代码 */
+interface LegacyDisplayPrefs {
+  targetCols?: unknown;
 }
 
 /**
@@ -600,17 +612,19 @@ export type TerminalThemeName =
 
 /** display 字段的硬默认 */
 export const DEFAULT_DISPLAY: Required<DisplayPrefs> = {
-  targetCols: 0, // 0 = 关闭自适应
+  fontSizeMin: 6, // 0.7.x 把下限从 8 放到 6,牺牲一些清晰度换更多列
+  fontSizeMax: 18,
+  maxCols: 0, // 0 = 关闭自适应
   letterSpacing: 0,
-  theme: 'auto', // 跟随系统亮暗模式：dark → Campbell, light → Solarized Light
+  theme: 'auto', // 跟随系统亮暗模式:dark → Campbell, light → Solarized Light
 };
 
 /** 列数预设（设置面板按钮） */
 export const COLS_PRESETS = [80, 100, 120] as const;
 
-/** xterm 自适应字号的上下限（避免极小看不清 / 极大塞不下） */
-export const FONT_SIZE_MIN = 8;
-export const FONT_SIZE_MAX = 18;
+/** 字号设置 UI 允许选择的范围(超过这个范围渲染会糊或塞不下) */
+export const FONT_SIZE_FLOOR = 6;
+export const FONT_SIZE_CEIL = 32;
 
 /** letterSpacing 范围 */
 export const LETTER_SPACING_MIN = -2;
@@ -695,6 +709,60 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
       ? [...DEFAULT_WORKDIR_DENY]
       : normalizeStringArray(src.workdirDeny) ?? [];
 
+  // display 子块:normalize fontSizeMin / fontSizeMax / maxCols(兼容旧 targetCols)
+  // / letterSpacing / theme。任一字段缺失 / 越界 → 用 DEFAULT_DISPLAY 兜底。
+  const rawDisplay = src.display;
+  const fsMinRaw = rawDisplay?.fontSizeMin;
+  const fsMaxRaw = rawDisplay?.fontSizeMax;
+  let fontSizeMin =
+    typeof fsMinRaw === 'number' &&
+    Number.isFinite(fsMinRaw) &&
+    fsMinRaw >= FONT_SIZE_FLOOR &&
+    fsMinRaw <= FONT_SIZE_CEIL
+      ? Math.trunc(fsMinRaw)
+      : DEFAULT_DISPLAY.fontSizeMin;
+  let fontSizeMax =
+    typeof fsMaxRaw === 'number' &&
+    Number.isFinite(fsMaxRaw) &&
+    fsMaxRaw >= FONT_SIZE_FLOOR &&
+    fsMaxRaw <= FONT_SIZE_CEIL
+      ? Math.trunc(fsMaxRaw)
+      : DEFAULT_DISPLAY.fontSizeMax;
+  if (fontSizeMin > fontSizeMax) {
+    // 用户把 min 设得比 max 大 → 交换,保持区间合法
+    [fontSizeMin, fontSizeMax] = [fontSizeMax, fontSizeMin];
+  }
+  // maxCols 优先;旧字段 targetCols 作 fallback(老 config.json 平滑迁移)
+  const legacyTargetCols = (rawDisplay as LegacyDisplayPrefs | undefined)?.targetCols;
+  const colsRaw = rawDisplay?.maxCols ?? legacyTargetCols;
+  const maxCols =
+    typeof colsRaw === 'number' && Number.isFinite(colsRaw) && colsRaw >= 0 && colsRaw <= 500
+      ? Math.trunc(colsRaw)
+      : DEFAULT_DISPLAY.maxCols;
+  const lsRaw = rawDisplay?.letterSpacing;
+  const letterSpacing =
+    typeof lsRaw === 'number' && Number.isFinite(lsRaw) && lsRaw >= -4 && lsRaw <= 8
+      ? lsRaw
+      : DEFAULT_DISPLAY.letterSpacing;
+  const themeRaw = rawDisplay?.theme;
+  const theme: TerminalThemeName =
+    themeRaw === 'dark' ||
+    themeRaw === 'light' ||
+    themeRaw === 'dark-ansi' ||
+    themeRaw === 'light-ansi' ||
+    themeRaw === 'dark-daltonized' ||
+    themeRaw === 'light-daltonized' ||
+    themeRaw === 'auto'
+      ? themeRaw
+      : DEFAULT_DISPLAY.theme;
+  const display: DisplayPrefs = {
+    fontSizeMin,
+    fontSizeMax,
+    maxCols,
+    letterSpacing,
+    theme,
+  };
+
   // integrations:对象 deep-merge,缺失字段全用默认。
   // 总开关 / forceModule 单字段;perModule 当前只认 'claude-code' 的 events,逐个字段填默认
   const rawIntegrations = src.integrations;
@@ -742,6 +810,7 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
     ...src,
     shortcuts,
     commands,
+    display,
     input: inputPrefs as InputPrefs,
     workdirAllow,
     workdirDeny,

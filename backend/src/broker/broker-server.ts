@@ -35,6 +35,7 @@ import {
   injectBaseHref,
   type InstanceRouterHandle,
 } from './instance-router.js';
+import { injectManifestToken } from 'auvezy-terminal-remote-shared';
 import { createBrokerApiRouter } from '../api/router.js';
 import { bindAvailablePort } from '../registry/port-finder.js';
 import type { ConfigStore } from '../api/config-routes.js';
@@ -224,11 +225,50 @@ export function createBrokerApp(
   //      若挂了 __atrInstanceId 则注入对应的 `<base href="/i/<id>/">`
   if (opts.frontendDist && existsSync(opts.frontendDist)) {
     const dist = opts.frontendDist;
+    // dist 内容在 broker 运行期间不会变(每次 build → 写新文件 → 重启进程),
+    // 把 index.html / manifest.webmanifest 一次性读入内存,避免每个 SPA 请求
+    // 都 sync 读盘。读失败留 null,运行时降级到旧行为(读盘)。
+    const indexPath = resolve(dist, 'index.html');
+    let cachedIndexHtml: string | null = null;
+    try {
+      cachedIndexHtml = readFileSync(indexPath, 'utf-8');
+    } catch (err) {
+      logger.warn({ err, indexPath }, 'index.html 预读失败,SPA fallback 走 sendFile');
+    }
+    const manifestPath = resolve(dist, 'manifest.webmanifest');
+    let cachedManifest: Record<string, unknown> | null = null;
+    try {
+      cachedManifest = JSON.parse(readFileSync(manifestPath, 'utf-8')) as Record<
+        string,
+        unknown
+      >;
+    } catch (err) {
+      logger.warn({ err, manifestPath }, 'manifest.webmanifest 预读失败,带 token 路径会降级');
+    }
+
+    // 带 ?token=xxx 时把 start_url 改为 `/?token=<token>`,让 iOS Chrome / Safari
+    // 的"添加到主屏幕"快捷方式自带 token —— 解决 PWA 启动后 localStorage 与
+    // 浏览器隔离、用户每次都要重新输 token 的问题。
+    // 安全:token 是 LAN 自用场景下的 share secret,客户端已持有;此处只是镜像
+    // 写回 manifest 不做新增暴露。无 token 时直接走 static 返回原文件。
+    app.get('/manifest.webmanifest', (req, res, next) => {
+      const token =
+        typeof req.query.token === 'string' ? req.query.token : null;
+      if (!token || !cachedManifest) {
+        next();
+        return;
+      }
+      const out = { ...cachedManifest, start_url: `/?token=${encodeURIComponent(token)}` };
+      res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+      // 不缓存:token 可能变(用户重置 / 后端重启);也避免 sw 缓存带 token 给下一个用户
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(JSON.stringify(out));
+    });
+
     app.use(
       express.static(dist, {
-        // 关键：不让 static 自动响应 `/` → index.html，让 SPA fallback 处理
-        // index.html，否则 instance-router 改 req.url 为 `/` 后 static 直接返
-        // 回 index.html，跳过 base href 注入
+        // 不让 static 自动响应 `/` → index.html,留给下面的 SPA fallback,
+        // 否则 instance-router rewrite 后 static 直返 index.html,跳过 base href 注入
         index: false,
         setHeaders: (res, filePath) => {
           if (filePath.endsWith('.webmanifest')) {
@@ -238,28 +278,26 @@ export function createBrokerApp(
       }),
     );
     app.get('*', (req, res, next) => {
-      // /api、/ws 永不走 SPA fallback；/i/ 不会到这里（instance-router 已 rewrite）
       if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
         return next();
       }
-      const indexPath = resolve(dist, 'index.html');
       const instanceId = (req as { __atrInstanceId?: string }).__atrInstanceId;
-      if (!instanceId) {
-        // broker 根：直接 sendFile，不注 base href（前端默认 base ='./'）
+      const urlToken =
+        typeof req.query.token === 'string' ? req.query.token : null;
+      if (!instanceId && !urlToken) {
         res.sendFile(indexPath);
         return;
       }
-      // 实例特定路径：读 index.html → 注入 `<base href="/i/<id>/">` → 发回
-      try {
-        const html = readFileSync(indexPath, 'utf-8');
-        const injected = injectBaseHref(html, `/i/${instanceId}/`);
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.send(injected);
-      } catch (err) {
-        logger.warn({ err, indexPath }, 'index.html 读取失败');
-        res.status(500).send('Internal Server Error');
+      if (!cachedIndexHtml) {
+        res.sendFile(indexPath);
+        return;
       }
+      let html = cachedIndexHtml;
+      if (instanceId) html = injectBaseHref(html, `/i/${instanceId}/`);
+      if (urlToken) html = injectManifestToken(html, urlToken);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.send(html);
     });
     logger.info({ path: dist }, 'broker 前端静态文件已挂载');
   } else if (opts.frontendDist) {
@@ -403,3 +441,4 @@ function collectLocalHostnames(): Set<string> {
   }
   return set;
 }
+

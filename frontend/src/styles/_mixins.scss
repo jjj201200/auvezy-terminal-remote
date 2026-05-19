@@ -92,12 +92,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+// safe-area 让位由 #app 容器在 _reset.scss 里统一处理(top/left/right);
+// 底部留给贴底 bar 自己用 safe-bottom,让背景色带延伸到 home indicator 下方。
 @mixin safe-bottom($extra: 0px) {
   padding-bottom: calc(env(safe-area-inset-bottom) + #{$extra});
-}
-
-@mixin safe-top($extra: 0px) {
-  padding-top: calc(env(safe-area-inset-top) + #{$extra});
 }
 
 @mixin glass-overlay {

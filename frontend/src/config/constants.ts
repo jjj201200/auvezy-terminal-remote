@@ -36,5 +36,25 @@ export const WS_RECONNECT_MAX_ATTEMPTS = 60;
 /** xterm 滚回行数（与后端 OutputBuffer 上限保持对齐） */
 export const XTERM_SCROLLBACK_LINES = 10_000;
 
-/** xterm 字号（px） */
-export const XTERM_FONT_SIZE = 14;
+/** 移动端 / 桌面端的默认字号(px)。
+ *  移动端 8px:窄屏 390px 上 Auto ≈ 81 列,接近"塞满屏";代价是字小,看不清
+ *  的可在"显示 → 最大列数"选具体值用更大字号反推。
+ *  桌面端 14px:常见尺寸下视觉舒适,与 0.7.x 之前的行为一致。 */
+export const XTERM_FONT_SIZE_MOBILE = 8;
+export const XTERM_FONT_SIZE_DESKTOP = 14;
+
+/** 移动端断点(与 _mixins.scss 的 @mixin mobile 同源,UA 检测不可靠用宽度) */
+export const MOBILE_BREAKPOINT_PX = 768;
+
+/** 根据当前 viewport 宽度返回默认 xterm 字号。窄屏给 8,宽屏给 14。
+ *  在没 React 上下文的地方(constants 计算 / 非 hook 调用)也能用。 */
+export function getDefaultXtermFontSize(): number {
+  if (typeof window === 'undefined') return XTERM_FONT_SIZE_DESKTOP;
+  return window.innerWidth < MOBILE_BREAKPOINT_PX
+    ? XTERM_FONT_SIZE_MOBILE
+    : XTERM_FONT_SIZE_DESKTOP;
+}
+
+/** @deprecated 0.7.x:用 getDefaultXtermFontSize() 替代 —— 它会按移动端/桌面端
+ *  返回不同基准。保留是为了让旧代码 import 不立刻 break;新代码不要再用。 */
+export const XTERM_FONT_SIZE = XTERM_FONT_SIZE_DESKTOP;

@@ -7,8 +7,11 @@
   align-items: center;
   justify-content: center;
   padding: var(--sp-7) var(--sp-5);
+  // 键盘弹起时压可用高度,让 flex centering 自动避开 IME。useViewportFix 在
+  // visualViewport.resize 时更新 --vv-bottom = 键盘高度;无键盘时为 0
+  padding-bottom: calc(var(--sp-7) + var(--vv-bottom, 0px));
 
-  // 极弱的径向高光（顶部偏左，营造立体感）
+  // 极弱的径向高光(顶部偏左,营造立体感)
   background-image: radial-gradient(
     ellipse 60% 40% at 50% 0%,
     var(--color-accent-04),

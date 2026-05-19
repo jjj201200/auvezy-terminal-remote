@@ -140,9 +140,16 @@ export const en: Messages = {
     previewHint:
       'Rendered with current cols & letter-spacing. Preview width may differ from terminal — visual density only.',
     previewMeta: 'Font {{size}}px · Spacing {{ls}}px · Cols {{cols}}',
-    targetColsTitle: 'Target columns',
-    targetColsHint:
-      'Adapt font size by container width to fit target chars per row. Phones: 80 recommended.',
+    fontSizeRangeTitle: 'Font-size range',
+    fontSizeRangeHint:
+      'Adaptive font size is clamped to [min, max]. Drop min to 6 to pack more cols on narrow screens (tradeoff: harder to read).',
+    fontSizeMinLabel: 'Min',
+    fontSizeMaxLabel: 'Max',
+    fontSizeMinAriaLabel: 'Minimum font size (px)',
+    fontSizeMaxAriaLabel: 'Maximum font size (px)',
+    maxColsTitle: 'Max columns',
+    maxColsHint:
+      'Adapt font size by container width to cap chars per row; bound by font-size range. Phones: 80 recommended.',
     autoLabel: 'Auto',
     customPlaceholder: 'Custom',
     autoTooltip: 'Disable adaptive sizing, use default font size',

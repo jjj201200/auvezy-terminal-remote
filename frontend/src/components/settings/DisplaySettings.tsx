@@ -1,33 +1,39 @@
 /**
  * DisplaySettings
  *
- * 终端显示偏好：目标列数（自适应字号）+ 字间距。
+ * 终端显示偏好:字号上下限 + 最大列数(自适应字号) + 字间距 + 调色板。
  *
- * 列数：
- *  - 0 = 关闭自适应（用默认字号 13px）
+ * 字号上下限:
+ *  - fontSizeMin / fontSizeMax 都在 [FONT_SIZE_FLOOR=6, FONT_SIZE_CEIL=32]
+ *  - 任意写入后 normalize 会 swap 保证 min ≤ max
+ *
+ * 最大列数:
+ *  - 0 = 关闭自适应(用默认字号 13px)
  *  - 80/100/120 三个预设按钮一键切换
- *  - 自定义输入：[40, 240]
+ *  - 自定义输入:[40, 240]
+ *  - clamp 到当前 fontSizeMin/fontSizeMax,所以"我设了 120 列实际只渲染 80 列"
+ *    可能是字号下限太大;调小 fontSizeMin 即可
  *
- * 字间距：
- *  - 范围 [-2, 4]，0 = 默认
+ * 字间距:
+ *  - 范围 [-2, 4],0 = 默认
  *  - 滑块 + 数值同步
  *
- * 即时生效：用户调一项 → setDraft → useTerminal 收到 effect 立即重应用
+ * 即时生效:用户调一项 → setDraft → useTerminal 收到 effect 立即重应用
  */
 
 import { useState, useEffect, useMemo, useRef, type JSX } from 'react';
 import { IconChevronDown, IconCheck } from '@tabler/icons-react';
 import {
   DEFAULT_DISPLAY,
-  FONT_SIZE_MIN,
-  FONT_SIZE_MAX,
+  FONT_SIZE_FLOOR,
+  FONT_SIZE_CEIL,
   LETTER_SPACING_MIN,
   LETTER_SPACING_MAX,
   type DisplayPrefs,
   type TerminalThemeName,
 } from 'auvezy-terminal-remote-shared';
 import clsx from 'clsx';
-import { XTERM_FONT_SIZE } from '../../config/constants.js';
+import { getDefaultXtermFontSize } from '../../config/constants.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { THEME_LIST, resolveTheme } from '../../themes/terminal-themes.js';
 import s from './DisplaySettings.module.scss';
@@ -69,21 +75,25 @@ function ThemeRowContent(props: {
 }
 
 /**
- * 与 useTerminal 中 computeFontPrefs 同算法
- * targetCols=0 → 用默认字号；否则按参考宽度反推
+ * 与 useTerminal 中 computeFontPrefs 同算法。
  *
- * 这里的「参考宽度」必须是稳定值（不随预览容器抖动）。预览容器一旦因为
- * sheet body 出现滚动条而改变宽度，会反推回不同字号，造成"调列数下面就跳字号"
- * 的视觉 bug。所以我们传 window.innerWidth —— 这接近真实终端会用的宽度。
+ * 参考宽度必须是稳定值(不随预览容器抖动):sheet body 出现滚动条会让预览容器
+ * 宽度抖几像素,ResizeObserver 反推出不同字号 → "调列数下面就跳字号"的视觉 bug。
+ * 用 window.innerWidth 接近真实终端宽度,只在窗口 resize 时变。
  */
-function computePreviewFontSize(
-  referenceWidth: number,
-  targetCols: number,
-  letterSpacing: number,
-): number {
-  if (!targetCols || targetCols <= 0 || referenceWidth <= 0) return XTERM_FONT_SIZE;
-  const raw = (referenceWidth / targetCols - letterSpacing) / CHAR_WIDTH_RATIO;
-  return Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.floor(raw)));
+type PreviewPrefs = Pick<
+  DisplayPrefs,
+  'maxCols' | 'letterSpacing' | 'fontSizeMin' | 'fontSizeMax'
+>;
+
+function computePreviewFontSize(referenceWidth: number, prefs: PreviewPrefs): number {
+  const maxCols = prefs.maxCols ?? 0;
+  const ls = prefs.letterSpacing ?? 0;
+  const fsMin = prefs.fontSizeMin ?? DEFAULT_DISPLAY.fontSizeMin;
+  const fsMax = prefs.fontSizeMax ?? DEFAULT_DISPLAY.fontSizeMax;
+  if (!maxCols || maxCols <= 0 || referenceWidth <= 0) return getDefaultXtermFontSize();
+  const raw = (referenceWidth / maxCols - ls) / CHAR_WIDTH_RATIO;
+  return Math.max(fsMin, Math.min(fsMax, Math.floor(raw)));
 }
 
 export interface DisplaySettingsProps {
@@ -93,21 +103,28 @@ export interface DisplaySettingsProps {
 
 // 输入框接受的范围（可超出预设）
 const COLS_MIN = 40;
-const COLS_MAX = 150;
+const COLS_MAX = 240;
 
 /**
- * 根据当前屏幕宽度算"有意义的列数预设"
+ * 根据当前屏幕宽度 + 用户字号上下限算"有意义的列数预设"
  *
  * 同一字号下相邻 cols 视觉无差别——`fontSize = floor(W / cols / 0.6)` clamp 到
- * [8, 18]。所以对每个可能的 fontSize 反推一个 cols 即可覆盖所有视觉档位。
+ * [fontSizeMin, fontSizeMax]。所以对每个可能的 fontSize 反推一个 cols 即可覆盖
+ * 所有视觉档位。用户调小 fontSizeMin → 预设会出现更密集的大列数选项。
  *
- * 算法：fontSize 从 18 → 8 遍历，每个算 `cols = floor(W / fontSize / 0.6)`，
- * 落在 [COLS_MIN, COLS_MAX] 内的去重收集。结果按升序返回。
+ * 算法:fontSize 从 fontSizeMax → fontSizeMin 遍历,每个算
+ * `cols = floor(W / fontSize / 0.6)`,落在 [COLS_MIN, COLS_MAX] 内的去重收集。
+ * 结果按升序返回。
  */
-function computeMeaningfulPresets(width: number): number[] {
+function computeMeaningfulPresets(
+  width: number,
+  prefs: Pick<DisplayPrefs, 'fontSizeMin' | 'fontSizeMax'>,
+): number[] {
   if (width <= 0) return [80, 100, 120, 220];
+  const fsMin = prefs.fontSizeMin ?? DEFAULT_DISPLAY.fontSizeMin;
+  const fsMax = prefs.fontSizeMax ?? DEFAULT_DISPLAY.fontSizeMax;
   const set = new Set<number>();
-  for (let fs = FONT_SIZE_MAX; fs >= FONT_SIZE_MIN; fs--) {
+  for (let fs = fsMax; fs >= fsMin; fs--) {
     const cols = Math.floor(width / fs / CHAR_WIDTH_RATIO);
     if (cols >= COLS_MIN && cols <= COLS_MAX) set.add(cols);
   }
@@ -116,17 +133,19 @@ function computeMeaningfulPresets(width: number): number[] {
 
 export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.Element {
   const t = useT();
-  const targetCols = value?.targetCols ?? DEFAULT_DISPLAY.targetCols;
+  const maxCols = value?.maxCols ?? DEFAULT_DISPLAY.maxCols;
+  const fontSizeMin = value?.fontSizeMin ?? DEFAULT_DISPLAY.fontSizeMin;
+  const fontSizeMax = value?.fontSizeMax ?? DEFAULT_DISPLAY.fontSizeMax;
   const letterSpacing = value?.letterSpacing ?? DEFAULT_DISPLAY.letterSpacing;
   const theme = value?.theme ?? DEFAULT_DISPLAY.theme;
-  // 预览也用当前主题色，让用户改主题立即看到效果
+  // 预览也用当前主题色,让用户改主题立即看到效果
   const palette = useMemo(() => resolveTheme(theme), [theme]);
 
-  // 自定义列数输入框：与 targetCols 双向绑定，但允许输入中途为空
-  const [colsInput, setColsInput] = useState<string>(targetCols > 0 ? String(targetCols) : '');
+  // 自定义列数输入框:与 maxCols 双向绑定,但允许输入中途为空
+  const [colsInput, setColsInput] = useState<string>(maxCols > 0 ? String(maxCols) : '');
   useEffect(() => {
-    setColsInput(targetCols > 0 ? String(targetCols) : '');
-  }, [targetCols]);
+    setColsInput(maxCols > 0 ? String(maxCols) : '');
+  }, [maxCols]);
 
   // ──────────────── 参考宽度（用于反推字号 / 预设列数）────────────────
   // 不再用预览容器实时宽度——sheet body 一旦因为下拉展开/收起触发滚动条出现
@@ -142,15 +161,22 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const previewFontSize = computePreviewFontSize(referenceWidth, targetCols, letterSpacing);
+  const previewFontSize = computePreviewFontSize(referenceWidth, {
+    maxCols,
+    letterSpacing,
+    fontSizeMin,
+    fontSizeMax,
+  });
 
-  // 用「参考宽度」反推预设——保持稳定，不随 sheet 内滚动条抖动
-  const presets = useMemo(() => computeMeaningfulPresets(referenceWidth), [referenceWidth]);
-  // Auto 模式下使用默认字号 XTERM_FONT_SIZE，对应一个 cols
-  // 把它从预设里去掉避免重复，并用来给 Auto 按钮显示具体数值
+  // 字号上下限变化也要重算(放大下限 → 大列数选项消失)
+  const presets = useMemo(
+    () => computeMeaningfulPresets(referenceWidth, { fontSizeMin, fontSizeMax }),
+    [referenceWidth, fontSizeMin, fontSizeMax],
+  );
+  // Auto 模式下用默认字号(移动端 8 / 桌面端 14)反推 cols;从预设里去掉避免重复
   const autoCols = useMemo(() => {
     if (referenceWidth <= 0) return 0;
-    return Math.floor(referenceWidth / XTERM_FONT_SIZE / CHAR_WIDTH_RATIO);
+    return Math.floor(referenceWidth / getDefaultXtermFontSize() / CHAR_WIDTH_RATIO);
   }, [referenceWidth]);
   const presetsWithoutAuto = useMemo(
     () => presets.filter((p) => p !== autoCols),
@@ -158,7 +184,13 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
   );
 
   const setCols = (n: number): void => {
-    onChange({ ...value, targetCols: n });
+    onChange({ ...value, maxCols: n });
+  };
+
+  // 写入超出 [min, max] 时由 normalize 端 swap,这里只做边界 clamp
+  const setFontSize = (key: 'fontSizeMin' | 'fontSizeMax', n: number): void => {
+    const clamped = Math.max(FONT_SIZE_FLOOR, Math.min(FONT_SIZE_CEIL, n));
+    onChange({ ...value, [key]: clamped });
   };
 
   const handleColsInput = (v: string): void => {
@@ -178,7 +210,7 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
     }
     const n = Number(colsInput);
     if (!Number.isInteger(n)) {
-      setColsInput(targetCols > 0 ? String(targetCols) : '');
+      setColsInput(maxCols > 0 ? String(maxCols) : '');
       return;
     }
     setCols(Math.max(COLS_MIN, Math.min(COLS_MAX, n)));
@@ -267,8 +299,8 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
             {t('display.previewMeta', {
               size: previewFontSize,
               ls: letterSpacing.toFixed(1),
-              cols: targetCols > 0
-                ? t('display.colsModeTarget', { cols: targetCols })
+              cols: maxCols > 0
+                ? t('display.colsModeTarget', { cols: maxCols })
                 : t('display.colsModeAuto'),
             })}
           </div>
@@ -318,34 +350,76 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
         </div>
       </section>
 
-      {/* 列数 */}
+      {/* 字号上下限:必须在"最大列数"之前 —— 用户改下限会重算 maxCols 的预设列表 */}
       <section className={s.section}>
         <header className={s.sectionHeader}>
-          <h3 className={s.sectionTitle}>{t('display.targetColsTitle')}</h3>
-          <p className={s.sectionHint}>{t('display.targetColsHint')}</p>
+          <h3 className={s.sectionTitle}>{t('display.fontSizeRangeTitle')}</h3>
+          <p className={s.sectionHint}>{t('display.fontSizeRangeHint')}</p>
+        </header>
+        <div className={s.row}>
+          <label className={s.numInputLabel}>
+            {t('display.fontSizeMinLabel')}
+            <input
+              type="number"
+              inputMode="numeric"
+              min={FONT_SIZE_FLOOR}
+              max={FONT_SIZE_CEIL}
+              value={fontSizeMin}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isInteger(n)) setFontSize('fontSizeMin', n);
+              }}
+              className={s.numInput}
+              aria-label={t('display.fontSizeMinAriaLabel')}
+            />
+          </label>
+          <label className={s.numInputLabel}>
+            {t('display.fontSizeMaxLabel')}
+            <input
+              type="number"
+              inputMode="numeric"
+              min={FONT_SIZE_FLOOR}
+              max={FONT_SIZE_CEIL}
+              value={fontSizeMax}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isInteger(n)) setFontSize('fontSizeMax', n);
+              }}
+              className={s.numInput}
+              aria-label={t('display.fontSizeMaxAriaLabel')}
+            />
+          </label>
+        </div>
+      </section>
+
+      {/* 最大列数 */}
+      <section className={s.section}>
+        <header className={s.sectionHeader}>
+          <h3 className={s.sectionTitle}>{t('display.maxColsTitle')}</h3>
+          <p className={s.sectionHint}>{t('display.maxColsHint')}</p>
         </header>
 
         <div className={s.row}>
           <button
             type="button"
             onClick={() => setCols(0)}
-            className={clsx(s.presetBtn, targetCols === 0 && s.presetBtnActive)}
+            className={clsx(s.presetBtn, maxCols === 0 && s.presetBtnActive)}
             title={t('display.autoTooltip')}
           >
             {autoCols > 0 ? `${t('display.autoLabel')} · ${autoCols}` : t('display.autoLabel')}
           </button>
           {/*
-            预设按钮：根据当前预览宽度反推"有意义的列数"——同字号下的相邻 cols
-            视觉无差别，只列出会真实改变 fontSize 的 cols 值。
-            过滤掉与 Auto 模式相同的 cols（避免按钮重复）。
-            数字输入框接受超出预设的值（[40, 240]）。
+            预设按钮:根据当前预览宽度 + 字号上下限反推"有意义的列数"——同字号下
+            的相邻 cols 视觉无差别,只列出会真实改变 fontSize 的 cols 值。
+            过滤掉与 Auto 模式相同的 cols(避免按钮重复)。
+            数字输入框接受超出预设的值([40, 240])。
           */}
           {presetsWithoutAuto.map((p) => (
             <button
               key={p}
               type="button"
               onClick={() => setCols(p)}
-              className={clsx(s.presetBtn, targetCols === p && s.presetBtnActive)}
+              className={clsx(s.presetBtn, maxCols === p && s.presetBtnActive)}
             >
               {p}
             </button>

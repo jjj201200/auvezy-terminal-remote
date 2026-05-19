@@ -5,6 +5,57 @@
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-05-19
+
+### Added
+
+- **PWA 添加到主屏幕快捷方式自带 token**:解决 iOS WebKit 把 PWA 视作独立沙箱
+  (不与浏览器共享 localStorage)导致每次启动主屏 PWA 都要重新输 token 的问题。
+  - 后端 `broker /manifest.webmanifest?token=xxx` 动态重写 `start_url` 为
+    `/?token=<token>`
+  - SPA 入口(`/?token=xxx`)在返回 index.html 时同步把 `<link rel="manifest">`
+    href 拼上 token,确保浏览器解析 HTML 立刻拉到带 token 的 manifest——iOS 的
+    "添加到主屏幕"基于此时的 manifest 决定 start_url,JS 后改 link.href 来不及
+  - vite dev plugin 镜像同样逻辑,dev/prod 行为一致
+  - 前端 `updateManifestWithToken` JS 端兜底(认证后同步 DOM),幂等避免触发
+    manifest 重 fetch
+- **终端字号上下限可配**(显示设置新增"字号范围" section):
+  - `fontSizeMin` / `fontSizeMax` 字段,UI 范围 [6, 32],写反会自动 swap
+  - 字号下限从 8 放到 6,窄屏可塞更多列(以清晰度为代价)
+  - 旧字段 `targetCols` 自动平滑迁移到 `maxCols`(语义更准:"目标"暗示一定生效,
+    实际是 clamp 到字号范围内的上限)
+
+### Changed
+
+- **iOS PWA safe-area 全面适配**:`html/body` 铺满到屏幕物理边(背景色延伸到刘海
+  下方,符合 viewport-fit=cover 沉浸语义);`#app` 用 `env(safe-area-inset-*)`
+  钉在安全区里;`MultiInstanceConsole .root` 从 fixed 改 absolute 跟随 `#app`。
+  InputBar 单独保留 `safe-bottom` 让工具栏色带延伸到 home indicator 下方,视觉
+  连续。横屏 notch 与竖屏刘海 / Dynamic Island 都不再遮挡 InstanceTabs / 按钮。
+- **终端默认字号按设备分流**:移动端 8px(窄屏 390px Auto ≈ 81 列,接近"塞满屏"),
+  桌面端 14px(舒适视距);`getDefaultXtermFontSize()` 按 viewport 宽度 768px 断点
+  自动选择
+- **AuthPage 键盘弹起卡片自动避开 IME**:`.root` 加 `padding-bottom: var(--vv-bottom)`,
+  让 flex centering 跟随 visualViewport 收缩
+- **DisplaySettings 预览不再 sticky**:键盘唤起时浏览器 scrollIntoView 编辑框
+  会被 sticky 预览挡到背面,改回正常 in-flow
+
+### Fixed
+
+- **改"最大列数 / 字号范围"必须刷新页面才生效**:`useTerminal` 用 `displayKey`
+  字符串 diff 检测 display prefs 变化,但 key 还在用旧字段名 `targetCols`,
+  用户改 `maxCols` 时 key 不变 → effect 不 fire。补全 key 含全部影响渲染的字段
+
+### Internal
+
+- **抽 `shared/src/html-injection.ts`**:`injectManifestToken` 纯函数,backend
+  SPA fallback + vite plugin 共用,避免两端正则不一致导致 dev/prod 行为分裂
+- **broker SPA fallback 缓存 index.html / manifest.webmanifest**:模块加载时
+  一次性读入内存,避免每个带 token / 带 instanceId 的请求 sync 读盘
+- 删 dead code `safe-x` / `safe-top` mixin(改用 `#app` 容器统一吃 safe-area)
+- `DisplaySettings` 重构:`setFontSize(key, n)` 合并 setter,`computePreviewFontSize`
+  / `computeMeaningfulPresets` 改用 `Pick<DisplayPrefs, ...>` 对象参数
+
 ## [0.7.5] - 2026-05-11
 
 ### Changed

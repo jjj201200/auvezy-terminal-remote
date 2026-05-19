@@ -13,6 +13,7 @@ import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { injectManifestToken } from 'auvezy-terminal-remote-shared';
 
 const includeDesign = process.env.INCLUDE_DESIGN === '1';
 
@@ -34,6 +35,18 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    // dev 模式镜像 broker SPA fallback 的 manifest token 注入,让"添加到主屏幕"在
+    // vite dev server 上也能产出带 token 的 PWA 快捷方式。生产路径在 broker-server.ts。
+    {
+      name: 'inject-manifest-token',
+      transformIndexHtml: {
+        order: 'pre',
+        handler(html, ctx) {
+          const url = new URL(ctx.originalUrl ?? '/', 'http://placeholder');
+          return injectManifestToken(html, url.searchParams.get('token') ?? '');
+        },
+      },
+    },
     // PWA：injectManifest 模式——我们写自己的 src/sw.ts，让 vite-plugin-pwa
     // 把预缓存清单注入到 self.__WB_MANIFEST。manifest 仍走 public/manifest.webmanifest
     // （我们已有完整文件，禁用 plugin 的 manifest 生成）
@@ -99,6 +112,14 @@ export default defineConfig({
       '/ws': {
         target: 'ws://localhost:3737',
         ws: true,
+        changeOrigin: true,
+      },
+      // manifest 反代到 broker:dev 模式默认 vite 自己 serve public/manifest.webmanifest,
+      // 但我们需要 broker 的 ?token=xxx → start_url 注入逻辑生效(让"添加到主屏幕"
+      // 在 dev 也能测带 token 的 PWA 启动路径)。匹配前缀精确到这个文件,不影响
+      // public 下别的静态资源
+      '/manifest.webmanifest': {
+        target: 'http://localhost:3737',
         changeOrigin: true,
       },
     },

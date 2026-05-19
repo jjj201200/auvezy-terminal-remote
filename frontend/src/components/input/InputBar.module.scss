@@ -8,6 +8,8 @@
   border-top: 1px solid var(--color-border);
   background: var(--color-bg-elev);
   padding: var(--bar-pad);
+  // 底部 home indicator:#app 不让出 bottom inset,InputBar 自己 padding-bottom
+  // 把按钮抬到 indicator 上方,而 bg-elev 色带延展到 indicator 下方,视觉连续
   @include m.safe-bottom(var(--bar-pad));
 }
 

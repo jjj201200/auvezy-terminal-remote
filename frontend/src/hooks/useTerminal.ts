@@ -33,10 +33,10 @@ import {
   XTERM_WRITE_FLUSH_INTERVAL_MS,
   XTERM_WRITE_MAX_QUEUED_BYTES,
   XTERM_SCROLLBACK_LINES,
-  XTERM_FONT_SIZE,
+  getDefaultXtermFontSize,
   RESIZE_THROTTLE_MS,
 } from '../config/constants.js';
-import { FONT_SIZE_MIN, FONT_SIZE_MAX } from 'auvezy-terminal-remote-shared';
+import { DEFAULT_DISPLAY } from 'auvezy-terminal-remote-shared';
 import { resolveTheme } from '../themes/terminal-themes.js';
 
 /**
@@ -48,9 +48,12 @@ import { resolveTheme } from '../themes/terminal-themes.js';
  * - letterSpacing：负值压缩、正值拉宽（px）
  */
 export interface DisplayOpts {
-  targetCols?: number;
+  maxCols?: number;
+  /** 自适应字号 clamp 上下限(用户可调) */
+  fontSizeMin?: number;
+  fontSizeMax?: number;
   letterSpacing?: number;
-  /** 调色板主题名；缺省 = dark (Campbell) */
+  /** 调色板主题名;缺省 = dark (Campbell) */
   theme?: import('auvezy-terminal-remote-shared').TerminalThemeName;
 }
 
@@ -270,15 +273,18 @@ export function useTerminal(
     const computeFontPrefs = (): { fontSize: number; letterSpacing: number } => {
       const d = displayRef.current;
       const ls = d?.letterSpacing ?? 0;
-      const targetCols = d?.targetCols ?? 0;
-      if (!targetCols || targetCols <= 0) {
-        return { fontSize: XTERM_FONT_SIZE, letterSpacing: ls };
+      const maxCols = d?.maxCols ?? 0;
+      const fontMin = d?.fontSizeMin ?? DEFAULT_DISPLAY.fontSizeMin;
+      const fontMax = d?.fontSizeMax ?? DEFAULT_DISPLAY.fontSizeMax;
+      const defaultFs = getDefaultXtermFontSize();
+      if (!maxCols || maxCols <= 0) {
+        return { fontSize: defaultFs, letterSpacing: ls };
       }
       const width = container.clientWidth;
-      if (width <= 0) return { fontSize: XTERM_FONT_SIZE, letterSpacing: ls };
-      // (fontSize * CHAR_WIDTH_RATIO + ls) * targetCols ≈ width
-      const raw = (width / targetCols - ls) / CHAR_WIDTH_RATIO;
-      const clamped = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.floor(raw)));
+      if (width <= 0) return { fontSize: defaultFs, letterSpacing: ls };
+      // (fontSize * CHAR_WIDTH_RATIO + ls) * maxCols ≈ width
+      const raw = (width / maxCols - ls) / CHAR_WIDTH_RATIO;
+      const clamped = Math.max(fontMin, Math.min(fontMax, Math.floor(raw)));
       return { fontSize: clamped, letterSpacing: ls };
     };
 
@@ -820,9 +826,12 @@ export function useTerminal(
     };
   }, [containerRef, emitResize, flushWriteQueue]);
 
-  // 用户在设置里改了 display 偏好 → 立即重应用 + 上报新尺寸
-  // 用 stringify 比较避免 useUserConfig 每次返回新对象引用导致重复 fire
-  const displayKey = `${display?.targetCols ?? 0}|${display?.letterSpacing ?? 0}|${display?.theme ?? 'auto'}`;
+  // 用 stringify 比较避免 useUserConfig 每次返回新对象引用导致重复 fire。
+  // 任一字段变化都重应用 applyPrefs —— 加新字段记得加到 key 里
+  const displayKey =
+    `${display?.maxCols ?? 0}|${display?.fontSizeMin ?? 0}|` +
+    `${display?.fontSizeMax ?? 0}|${display?.letterSpacing ?? 0}|` +
+    `${display?.theme ?? 'auto'}`;
   useEffect(() => {
     applyPrefsRef.current?.();
     const term = termRef.current;

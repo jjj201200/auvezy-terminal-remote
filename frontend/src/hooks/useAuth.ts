@@ -18,6 +18,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { authenticate } from '../services/api-client.js';
 import { loadToken, saveToken, clearToken } from '../services/token-storage.js';
+import { updateManifestWithToken } from '../pwa/manifest-token.js';
 
 export type AuthStatus = 'pending' | 'authenticated' | 'unauthenticated';
 
@@ -51,6 +52,11 @@ export function useAuth(): UseAuthReturn {
         if (cancelled) return;
         if (res.ok) {
           saveToken(urlToken);
+          // 把 token 写入 <link rel=manifest> 的 href,让"添加到主屏幕"创建出
+          // 的 PWA 启动快捷方式带 token —— iOS WebKit 把 PWA 视作独立沙箱,
+          // 不与浏览器共享 localStorage,启动时只能靠 start_url 上的 token 走
+          // useAuth URL token 路径首认证
+          updateManifestWithToken(urlToken);
           // 不再 stripTokenFromUrl：手机端某些「扫码器内置浏览器」/隐私会话不持久化
           // localStorage，抹掉 URL token 后刷新就回到 AuthPage。LAN 自用场景下保留
           // URL token 的便利性 > 浏览历史隐私风险（用户主动通过二维码分享，已知会含 token）
@@ -74,6 +80,7 @@ export function useAuth(): UseAuthReturn {
     void authenticate(cached).then((res) => {
       if (cancelled) return;
       if (res.ok) {
+        updateManifestWithToken(cached);
         setStatus('authenticated');
       } else {
         // 缓存 token 已失效（被改 / 后端重启）→ 清掉显式登录
@@ -95,6 +102,7 @@ export function useAuth(): UseAuthReturn {
     const res = await authenticate(trimmed);
     if (res.ok) {
       saveToken(trimmed);
+      updateManifestWithToken(trimmed);
       setStatus('authenticated');
       return null;
     }
