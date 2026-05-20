@@ -1,15 +1,17 @@
 /**
  * useUserConfig
  *
- * 管理前端的用户偏好（shortcuts/commands/fontScale）：
- *  - 首次挂载：从 /api/config 拉
- *  - 拉到之前先用 localStorage 缓存兜底（避免 InputBar 闪烁）
+ * 管理前端的用户偏好(shortcuts/commands/fontScale 等):
+ *  - 首次挂载:从 /api/config 拉
+ *  - 拉到之前先用 localStorage 缓存兜底(避免 InputBar 闪烁)
  *  - save(value) → PUT 后用返回值刷新内存 + 缓存
- *  - 失败时不破坏已有值，只 setError
+ *  - 失败时不破坏已有值,只 setError
  *
- * 不做的事：
- *  - 字段级 patch（PUT 整体替换，避免并发冲突）
- *  - 与 WebSocket 同步（多设备实时同步留作 TODO）
+ * 不做的事:
+ *  - 字段级 patch(PUT 整体替换,避免并发冲突)
+ *  - 多设备实时同步:LAN 自用场景下用户基本一次只在一台设备改;有需要时
+ *    sheet 关闭再开会重新 fetch 拿到最新值。真要做实时 sync 需要 broker
+ *    SSE/WS broadcast `config:updated` + 各客户端 reconcile,目前不必要。
  */
 
 import { useEffect, useState, useCallback } from 'react';

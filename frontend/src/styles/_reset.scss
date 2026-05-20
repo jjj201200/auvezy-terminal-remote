@@ -26,20 +26,21 @@ html, body {
   inset: 0;
 }
 
-// #app 钉到安全区内 —— 一次性解决顶部刘海 / 横屏 notch 遮挡。
+// #app 钉到安全区内 —— 顶部 inset 让出刘海 / 动态岛高度。
 //
+// 仅竖屏使用:manifest.orientation=portrait 已锁定,所以不处理 left/right inset。
 // 底部不让出 safe-area-inset-bottom:让 InputBar 的 bg-elev 色带延伸到 home
 // indicator 下方,视觉连续;InputBar 自己内部 padding-bottom: env(...) 把内容
 // 抬到 indicator 上方。这样 indicator 区域是工具栏色,不是 body 黑色断层。
 //
-// 兜底:某些 iOS PWA 启动会让 env(safe-area-inset-*) 短时间读到 0(viewport
+// 兜底:某些 iOS PWA 启动会让 env(safe-area-inset-top) 短时间读到 0(viewport
 // 还没稳定),用 fallback 0px 兜底,实测可工作。
 #app {
   position: fixed;
   top: env(safe-area-inset-top, 0px);
-  right: env(safe-area-inset-right, 0px);
+  right: 0;
   bottom: 0;
-  left: env(safe-area-inset-left, 0px);
+  left: 0;
   overflow: hidden;
   overscroll-behavior: none;
 }

@@ -709,41 +709,41 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
       ? [...DEFAULT_WORKDIR_DENY]
       : normalizeStringArray(src.workdirDeny) ?? [];
 
-  // display 子块:normalize fontSizeMin / fontSizeMax / maxCols(兼容旧 targetCols)
-  // / letterSpacing / theme。任一字段缺失 / 越界 → 用 DEFAULT_DISPLAY 兜底。
+  // display 子块:任一字段缺失 / 越界 → 用 DEFAULT_DISPLAY 兜底
   const rawDisplay = src.display;
-  const fsMinRaw = rawDisplay?.fontSizeMin;
-  const fsMaxRaw = rawDisplay?.fontSizeMax;
-  let fontSizeMin =
-    typeof fsMinRaw === 'number' &&
-    Number.isFinite(fsMinRaw) &&
-    fsMinRaw >= FONT_SIZE_FLOOR &&
-    fsMinRaw <= FONT_SIZE_CEIL
-      ? Math.trunc(fsMinRaw)
-      : DEFAULT_DISPLAY.fontSizeMin;
-  let fontSizeMax =
-    typeof fsMaxRaw === 'number' &&
-    Number.isFinite(fsMaxRaw) &&
-    fsMaxRaw >= FONT_SIZE_FLOOR &&
-    fsMaxRaw <= FONT_SIZE_CEIL
-      ? Math.trunc(fsMaxRaw)
-      : DEFAULT_DISPLAY.fontSizeMax;
+  let fontSizeMin = normalizeBoundedNumber(
+    rawDisplay?.fontSizeMin,
+    FONT_SIZE_FLOOR,
+    FONT_SIZE_CEIL,
+    DEFAULT_DISPLAY.fontSizeMin,
+    { truncate: true },
+  );
+  let fontSizeMax = normalizeBoundedNumber(
+    rawDisplay?.fontSizeMax,
+    FONT_SIZE_FLOOR,
+    FONT_SIZE_CEIL,
+    DEFAULT_DISPLAY.fontSizeMax,
+    { truncate: true },
+  );
   if (fontSizeMin > fontSizeMax) {
     // 用户把 min 设得比 max 大 → 交换,保持区间合法
     [fontSizeMin, fontSizeMax] = [fontSizeMax, fontSizeMin];
   }
   // maxCols 优先;旧字段 targetCols 作 fallback(老 config.json 平滑迁移)
   const legacyTargetCols = (rawDisplay as LegacyDisplayPrefs | undefined)?.targetCols;
-  const colsRaw = rawDisplay?.maxCols ?? legacyTargetCols;
-  const maxCols =
-    typeof colsRaw === 'number' && Number.isFinite(colsRaw) && colsRaw >= 0 && colsRaw <= 500
-      ? Math.trunc(colsRaw)
-      : DEFAULT_DISPLAY.maxCols;
-  const lsRaw = rawDisplay?.letterSpacing;
-  const letterSpacing =
-    typeof lsRaw === 'number' && Number.isFinite(lsRaw) && lsRaw >= -4 && lsRaw <= 8
-      ? lsRaw
-      : DEFAULT_DISPLAY.letterSpacing;
+  const maxCols = normalizeBoundedNumber(
+    rawDisplay?.maxCols ?? legacyTargetCols,
+    0,
+    500,
+    DEFAULT_DISPLAY.maxCols,
+    { truncate: true },
+  );
+  const letterSpacing = normalizeBoundedNumber(
+    rawDisplay?.letterSpacing,
+    -4,
+    8,
+    DEFAULT_DISPLAY.letterSpacing,
+  );
   const themeRaw = rawDisplay?.theme;
   const theme: TerminalThemeName =
     themeRaw === 'dark' ||
@@ -845,4 +845,18 @@ function normalizeStringArray(input: unknown): string[] | undefined {
     out.push(trimmed);
   }
   return out;
+}
+
+/** 数字字段 normalize:非数 / NaN / Infinity / 越界 → fallback。truncate=true
+ *  会把小数截成整数(整型字段如端口、字号用),false 保留小数(letterSpacing 用)。 */
+function normalizeBoundedNumber(
+  input: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+  opts: { truncate?: boolean } = {},
+): number {
+  if (typeof input !== 'number' || !Number.isFinite(input)) return fallback;
+  if (input < min || input > max) return fallback;
+  return opts.truncate ? Math.trunc(input) : input;
 }

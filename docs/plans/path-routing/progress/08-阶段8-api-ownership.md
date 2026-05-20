@@ -129,14 +129,14 @@ backend 测试：522 passed (46 files)；frontend typecheck：clean。
 
 ## 还没做
 
-- smoke 脚本：`scripts/smoke-0.7.sh` 仍是"启 worker → 隐式 fork broker"
-  路径，这条对 v2 仍工作（worker ensureBroker 起 broker，broker 端依赖装配
-  会自动跑）；如需要直接 smoke broker-only webapp 流程（无 worker 时登录 +
-  创建实例 + SSE 等就绪），单独写一个 `smoke-0.7-broker-only.sh` 时再补
-- 端到端：浏览器实测 v2 的 SSE pending 流（POST /api/instances → 202 →
-  webapp 等 SSE → navigate）需要用户辅助
-- bundle-backend.js / postinstall：需要确认新增的 broker-log-rotator.ts 在
-  打包时被正确包含（应该是默认的 ESM 树打包，不需要额外配置）
+- ✅ smoke 脚本:`scripts/smoke-0.7-broker-only.sh` 已落档,跑 broker-only webapp
+  完整链路(health / auth / manifest token 注入 / index.html token 注入 /
+  POST instances 202 / worker /i/<id>/api/health 就绪)。无 PTY 依赖,可在 CI 跑
+- 端到端:浏览器实测 v2 的 SSE pending 流(POST /api/instances → 202 →
+  webapp 等 SSE → navigate)需要用户辅助
+- ✅ bundle-backend.js:已验证 broker-log-rotator.ts 默认 ESM 树打包包入
+  `backend/dist/cli.js`(0.7.6 实测含 `broker-YYYY-MM-DD` 字符串、`rotateBrokerLog`
+  函数等);不需要额外配置
 
 ## 验收
 
