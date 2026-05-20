@@ -184,6 +184,24 @@ describe('file-routes', () => {
     const body = await res.json() as { kind: string };
     expect(body.kind).toBe('dir');
   });
+
+  it('GET /api/files/list 超 120/min 返 429', async () => {
+    env = await makeEnv();
+    const cookie = await login(env.port);
+    let last = 0;
+    let lastBody: { error?: { code: string } } | undefined;
+    // 连发 130 次,期待最后被 429
+    for (let i = 0; i < 130; i++) {
+      const res = await fetch(`http://127.0.0.1:${env.port}/api/files/list?instanceId=${FAKE_INSTANCE_ID}`, { headers: { Cookie: cookie } });
+      last = res.status;
+      if (res.status === 429) {
+        lastBody = await res.json() as { error: { code: string } };
+        break;
+      }
+    }
+    expect(last).toBe(429);
+    expect(lastBody?.error?.code).toBe('AUTH_RATE_LIMITED');
+  }, 30_000);
 });
 
 /** 复用 makeEnv 逻辑但用指定 cwd 与 policy(给 deny 测试用) */

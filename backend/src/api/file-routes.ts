@@ -27,10 +27,16 @@ import type { AuthModule } from '../auth/auth-middleware.js';
 import type { WorkdirPolicySnapshot } from './workdir-policy-routes.js';
 import { FileError, AppError } from '../errors.js';
 import { logger } from '../logger/logger.js';
+import { RateLimiter } from '../auth/rate-limiter.js';
 import { resolveSafePath, type WorkdirPolicy } from '../files/path-resolver.js';
 import { listDir } from '../files/list-dir.js';
 import { detectMime, detectLang } from '../files/mime-detect.js';
 import { readTextFile } from '../files/read-file.js';
+
+/** /api/files/* 共享速率限制(per-IP 每分钟) */
+const FILE_RATE_LIMIT_PER_MIN = 120;
+/** /api/files/search 独立速率限制(per-IP 每分钟) */
+const SEARCH_RATE_LIMIT_PER_MIN = 20;
 
 export interface FileRoutesOptions {
   authModule: AuthModule;
@@ -49,7 +55,14 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
   const router = Router();
   const { authModule, registry, workdirPolicy } = opts;
 
-  router.get('/files/list', authModule.requireAuth, wrap(async (req, res) => {
+  // per-IP 限流:list/stat/read/raw 共享,search 独立(给后续阶段 4 用)
+  // RateLimiter 内部 cleanupTimer 已 unref,无需显式 destroy 即可让 process 退出
+  const fileLimiter = new RateLimiter(FILE_RATE_LIMIT_PER_MIN);
+  const searchLimiter = new RateLimiter(SEARCH_RATE_LIMIT_PER_MIN);
+  void searchLimiter; // 阶段 4 search 路由用,本阶段暂未使用,显式 void 防 TS 未使用警告
+
+  router.get('/files/list', authModule.requireAuth, requireRate(fileLimiter), wrap(async (req, res) => {
+    const tStart = Date.now();
     const ctx = await resolveContext(req, registry, workdirPolicy);
     const target = resolveSafePath(ctx.cwd, asString(req.query.path), ctx.policy);
     const entries = await listDir(target);
@@ -57,10 +70,15 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
     const payload: FileListResponse = {
       ok: true, cwd: ctx.cwd, path: target, parent, entries,
     };
+    logger.info({
+      action: 'list', instanceId: ctx.instanceId, path: target,
+      ip: req.ip, elapsedMs: Date.now() - tStart,
+    }, '/api/files audit');
     res.json(payload);
   }));
 
-  router.get('/files/stat', authModule.requireAuth, wrap(async (req, res) => {
+  router.get('/files/stat', authModule.requireAuth, requireRate(fileLimiter), wrap(async (req, res) => {
+    const tStart = Date.now();
     const ctx = await resolveContext(req, registry, workdirPolicy);
     const target = resolveSafePath(ctx.cwd, asString(req.query.path), ctx.policy);
     const st = await lstat(target);
@@ -77,10 +95,15 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
       payload.mime = m.mime;
       payload.previewable = m.previewable;
     }
+    logger.info({
+      action: 'stat', instanceId: ctx.instanceId, path: target,
+      ip: req.ip, elapsedMs: Date.now() - tStart,
+    }, '/api/files audit');
     res.json(payload);
   }));
 
-  router.get('/files/read', authModule.requireAuth, wrap(async (req, res) => {
+  router.get('/files/read', authModule.requireAuth, requireRate(fileLimiter), wrap(async (req, res) => {
+    const tStart = Date.now();
     const ctx = await resolveContext(req, registry, workdirPolicy);
     const target = resolveSafePath(ctx.cwd, asString(req.query.path), ctx.policy);
     const st = await lstat(target);
@@ -94,28 +117,44 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
       content: r.content, truncated: r.truncated, size: r.size,
       lang: detectLang(target),
     };
+    logger.info({
+      action: 'read', instanceId: ctx.instanceId, path: target,
+      ip: req.ip, elapsedMs: Date.now() - tStart,
+      size: r.size, truncated: r.truncated,
+    }, '/api/files audit');
     res.json(payload);
   }));
 
   // /raw 不走 wrap:错误时不返 JSON,用 X-ATR-Error header
-  router.get('/files/raw', authModule.requireAuth, async (req, res) => {
+  router.get('/files/raw', authModule.requireAuth, requireRate(fileLimiter), async (req, res) => {
+    const tStart = Date.now();
+    let auditCtx: RouteContext | undefined;
+    let auditPath: string | undefined;
     try {
-      const ctx = await resolveContext(req, registry, workdirPolicy);
-      const target = resolveSafePath(ctx.cwd, asString(req.query.path), ctx.policy);
-      const st = await lstat(target);
+      auditCtx = await resolveContext(req, registry, workdirPolicy);
+      auditPath = resolveSafePath(auditCtx.cwd, asString(req.query.path), auditCtx.policy);
+      const st = await lstat(auditPath);
       if (!st.isFile()) throw new FileError(ErrorCode.FILE_TYPE_FORBID, '', 409);
       if (st.size > FILE_RAW_MAX_BYTES) {
         throw new FileError(ErrorCode.FILE_TOO_LARGE, '', 413);
       }
-      const { mime } = detectMime(target);
+      const { mime } = detectMime(auditPath);
       res.setHeader('Content-Type', mime);
       res.setHeader('Cache-Control', 'private, max-age=0');
       res.setHeader('Content-Length', String(st.size));
-      createReadStream(target).pipe(res);
+      logger.info({
+        action: 'raw', instanceId: auditCtx.instanceId, path: auditPath,
+        ip: req.ip, elapsedMs: Date.now() - tStart, size: st.size,
+      }, '/api/files audit');
+      createReadStream(auditPath).pipe(res);
     } catch (err) {
       const code = err instanceof AppError ? err.code : ErrorCode.INTERNAL_ERROR;
       const status = err instanceof AppError ? err.httpStatus : 500;
       res.setHeader('X-ATR-Error', String(code));
+      logger.info({
+        action: 'raw', instanceId: auditCtx?.instanceId, path: auditPath,
+        ip: req.ip, elapsedMs: Date.now() - tStart, code, status,
+      }, '/api/files audit (error)');
       res.status(status).end();
     }
   });
@@ -148,6 +187,20 @@ function wrap(h: AsyncHandler) {
 
 function asString(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
+}
+
+/** per-IP 限流 middleware:超限 → 429 + AUTH_RATE_LIMITED */
+function requireRate(limiter: RateLimiter) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const ip = req.ip ?? 'unknown';
+    if (!limiter.attempt(ip)) {
+      res.status(429).json({
+        error: { code: ErrorCode.AUTH_RATE_LIMITED, message: 'rate limited' },
+      });
+      return;
+    }
+    next();
+  };
 }
 
 async function resolveContext(
