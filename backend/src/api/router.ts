@@ -27,6 +27,7 @@ import {
   createWorkdirPolicyRoutes,
   type WorkdirPolicySnapshot,
 } from './workdir-policy-routes.js';
+import { createFileRoutes } from './file-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { IntegrationManager } from '../integrations/manager.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
@@ -90,6 +91,15 @@ export function createBrokerApiRouter(opts: BrokerApiRouterOptions): Router {
 
   // workdir 策略只读快照（鉴权）
   router.use(createWorkdirPolicyRoutes(opts.authModule, opts.workdirPolicy));
+
+  // 文件浏览(只读 list/stat/read/raw,鉴权 + per-IP 限流)
+  router.use(
+    createFileRoutes({
+      authModule: opts.authModule,
+      registry: opts.registry,
+      workdirPolicy: opts.workdirPolicy,
+    }),
+  );
 
   return router;
 }
