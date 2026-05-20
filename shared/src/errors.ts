@@ -60,6 +60,18 @@ export enum ErrorCode {
   HOOK_INVALID_PAYLOAD = 'HOOK_INVALID_PAYLOAD',
   HOOK_NON_LOCALHOST = 'HOOK_NON_LOCALHOST',
 
+  // ──────────────── 通用类(本项目首次引入 400 通用) ────────────────
+  BAD_REQUEST = 'BAD_REQUEST',
+
+  // ──────────────── 文件浏览类 ────────────────
+  PATH_NOT_FOUND = 'PATH_NOT_FOUND',
+  PATH_FORBIDDEN = 'PATH_FORBIDDEN',
+  FILE_TOO_LARGE = 'FILE_TOO_LARGE',
+  FILE_BINARY = 'FILE_BINARY',
+  FILE_TYPE_FORBID = 'FILE_TYPE_FORBID',
+  SEARCH_INVALID_Q = 'SEARCH_INVALID_Q',
+  SEARCH_TIMEOUT = 'SEARCH_TIMEOUT',
+
   // ──────────────── 内部类 ────────────────
   INTERNAL_ERROR = 'INTERNAL_ERROR',
   NOT_IMPLEMENTED = 'NOT_IMPLEMENTED',
