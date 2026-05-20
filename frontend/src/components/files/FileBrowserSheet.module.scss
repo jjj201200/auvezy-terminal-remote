@@ -152,6 +152,93 @@
   font-size: 12px;
 }
 
+.searchBox {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border, #ddd);
+
+  input[type="text"] {
+    flex: 1;
+    min-width: 120px;
+    min-height: 36px;
+    padding: 4px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+
+  .searchToggle {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    font-size: 12px;
+    user-select: none;
+    cursor: pointer;
+  }
+
+  .scanning {
+    font-size: 12px;
+    color: var(--color-text-muted, #888);
+  }
+
+  button {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    min-width: 28px;
+    min-height: 28px;
+  }
+}
+
+.searchList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  grid-column: 1 / -1;
+
+  li {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border, #eee);
+
+    &:hover {
+      background: var(--color-hover, rgba(0, 0, 0, 0.04));
+    }
+
+    .name {
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      margin-left: 8px;
+    }
+
+    .path {
+      display: block;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      color: var(--color-text-muted, #888);
+      margin-bottom: 4px;
+    }
+
+    code {
+      display: block;
+      font-size: 12px;
+      font-family: ui-monospace, monospace;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    mark {
+      background: var(--color-mark, #ffeb3b);
+      color: inherit;
+      padding: 0 2px;
+    }
+  }
+}
+
 .error {
   padding: 12px;
   color: var(--color-error, #c33);
