@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
-import { IconArrowAutofitWidth, IconRefresh, IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
+import { IconArrowAutofitWidth, IconFolder, IconRefresh, IconSearch, IconSettings, IconShare2 } from '@tabler/icons-react';
 import type { InstanceListItem, SessionStatus } from 'auvezy-terminal-remote-shared';
 import { useUserConfig } from '../hooks/useUserConfig.js';
 import { useInstances } from '../hooks/useInstances.js';
@@ -32,6 +32,7 @@ import { IconButton } from '../components/ui/IconButton.js';
 import {
   useCreateInstancePresenter,
   useManageHostsPresenter,
+  useFileBrowserPresenter,
   useSettingsPresenter,
   useSharePresenter,
 } from '../components/ui/modal-stack/presenters.js';
@@ -105,6 +106,7 @@ export function MultiInstanceConsole(): JSX.Element {
   // Modal presenter 函数（每个调用 push 一个 stack entry）
   const presentSettings = useSettingsPresenter();
   const presentShare = useSharePresenter();
+  const presentFileBrowser = useFileBrowserPresenter();
   const presentCreate = useCreateInstancePresenter();
   const presentManageHosts = useManageHostsPresenter();
   const confirm = useConfirm();
@@ -173,6 +175,11 @@ export function MultiInstanceConsole(): JSX.Element {
   const openShare = useCallback(() => {
     presentShare({});
   }, [presentShare]);
+
+  const openFileBrowser = useCallback(() => {
+    if (!activeId) return;
+    presentFileBrowser({ instanceId: activeId });
+  }, [presentFileBrowser, activeId]);
 
   // tab 关闭按钮 → 走 useConfirm 的 Promise 流程
   // 三种形态合并到一条线性代码：lastBlocked = singleButton；其它两种是
@@ -413,6 +420,14 @@ export function MultiInstanceConsole(): JSX.Element {
           variant={searchOpen ? 'accent' : undefined}
         >
           <IconSearch size={14} stroke={1.5} />
+        </IconButton>
+        <IconButton
+          onClick={openFileBrowser}
+          aria-label={t('files.title')}
+          title={t('files.openTooltip')}
+          disabled={!activeId}
+        >
+          <IconFolder size={14} stroke={1.5} />
         </IconButton>
         <IconButton
           onClick={openShare}

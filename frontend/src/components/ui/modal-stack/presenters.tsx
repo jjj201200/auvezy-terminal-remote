@@ -30,6 +30,7 @@ import {
 } from '../../settings/CommandSettingsModal.js';
 import { ShareSheet, type ShareSheetProps } from '../../share/ShareSheet.js';
 import { MobileInstanceSwitcher, type MobileInstanceSwitcherProps } from '../../instances/MobileInstanceSwitcher.js';
+import { FileBrowserSheet } from '../../files/FileBrowserSheet.js';
 
 /** 把"xxx + open/onClose" 类组件升级成 stack-aware presenter */
 type WithoutOpen<P> = Omit<P, 'open' | 'onClose' | 'onOpenChange'>;
@@ -203,6 +204,31 @@ export function useSharePresenter(): (args: { onClosed?: () => void }) => string
         render: (ctx) => (
           <ShareSheet
             open={ctx.isOpen}
+            onOpenChange={(next) => {
+              if (!next) ctx.close();
+            }}
+          />
+        ),
+      });
+    },
+    [stack],
+  );
+}
+
+// ─────────────────────── FileBrowserSheet ───────────────────────
+
+export function useFileBrowserPresenter(): (args: { instanceId: string; onClosed?: () => void }) => string {
+  const stack = useModalStack();
+  return useCallback(
+    (args) => {
+      return stack.push({
+        kind: 'file-browser',
+        debugLabel: 'file-browser',
+        onClosed: args.onClosed,
+        render: (ctx) => (
+          <FileBrowserSheet
+            open={ctx.isOpen}
+            instanceId={args.instanceId}
             onOpenChange={(next) => {
               if (!next) ctx.close();
             }}
