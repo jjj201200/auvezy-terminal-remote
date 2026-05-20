@@ -133,6 +133,13 @@ export class PushError extends AppError {
   }
 }
 
+/** 文件浏览错误(默认 400) */
+export class FileError extends AppError {
+  constructor(code: ErrorCode, message: string, httpStatus = 400, cause?: unknown) {
+    super(code, message, httpStatus, cause);
+  }
+}
+
 // ============================================================
 // 工具函数
 // ============================================================
