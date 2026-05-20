@@ -114,12 +114,26 @@
   .textPre {
     flex: 1;
     margin: 0;
-    padding: 12px;
+    padding: 0;
     overflow: auto;
     font-family: ui-monospace, monospace;
     font-size: 13px;
     line-height: 1.5;
-    white-space: pre;
+
+    // Shiki 输出的 <pre> 自带 background + color(走 theme),padding 加在内 pre 上
+    :global(pre.shiki),
+    > pre {
+      margin: 0;
+      padding: 12px;
+      overflow: visible;
+      white-space: pre;
+      tab-size: 2;
+    }
+
+    // 降级路径(escapeHtml 包的 <pre><code>):没 .shiki class,补一份基础样式
+    > pre code {
+      font-family: inherit;
+    }
   }
 
   .image {
