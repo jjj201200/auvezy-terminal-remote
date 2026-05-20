@@ -54,7 +54,3 @@ export function getDefaultXtermFontSize(): number {
     ? XTERM_FONT_SIZE_MOBILE
     : XTERM_FONT_SIZE_DESKTOP;
 }
-
-/** @deprecated 0.7.x:用 getDefaultXtermFontSize() 替代 —— 它会按移动端/桌面端
- *  返回不同基准。保留是为了让旧代码 import 不立刻 break;新代码不要再用。 */
-export const XTERM_FONT_SIZE = XTERM_FONT_SIZE_DESKTOP;

@@ -8,10 +8,9 @@
  * 在 0.0.0.0。所以列举的"对外可达"地址，一律拼 broker 的 host:port，**不用**
  * worker 端口。
  *
- * design.md §11 中 share endpoints 的归属本应是 broker（broker 才知道自己
- * listen 在什么 IP）；阶段 3 留 TODO 把 share-routes 迁到 broker。本模块属于
- * 折衷：worker 启动 banner 阶段直接复用 networkInterfaces 推算（worker 跟
- * broker 同 host，结果一致），免得 worker 还要 fetch broker /api/share。
+ * 0.7.x:share-routes 已迁到 broker(/api/share);本模块仅给 worker 启动
+ * banner 用 —— worker 跟 broker 同 host,直接复用 networkInterfaces 推算
+ * 结果一致,免得 worker 还要 fetch broker /api/share。
  */
 
 import { networkInterfaces } from 'node:os';

@@ -72,7 +72,19 @@
 ## 审批 hook（Claude Code 集成）
 
 - `/api/hook` 接受 Claude 审批事件（仅 loopback）
+- 设置面板"集成 → Claude Code"细粒度订阅事件:审批信号 / 工具进度 /
+  轮次生命周期 / 会话生命周期 / 用户 prompt 提交,可逐项开关
+- 状态栏自动反映 `waitingInput` / `Bash: npm test` 等运行态
 - `console-bridge`：前端 `console.*` 经 WS 转发到 backend stderr，方便跨设备调试
+
+## PWA Push 通知
+
+- Web Push (VAPID):VAPID 公私钥自动生成存 `~/.auvezy/terminal-remote/vapid-keys.json`
+- 前端"设置 → 通知" tab 一键订阅 / 退订;支持降级提示(浏览器不支持 / 权限被拒)
+- iOS 16.4+(Safari / Chrome / 第三方浏览器)Web Push 工作前提:**已添加到主屏幕**
+  且通过 HTTPS(LAN HTTP 限制)
+- 审批 hook 收到事件后扇出推送给所有已订阅设备 → 手机锁屏通知
+- 通知点击带 deep-link 回 webapp 对应实例
 
 ## 速查（技术映射）
 

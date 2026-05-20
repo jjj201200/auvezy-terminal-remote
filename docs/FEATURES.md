@@ -89,8 +89,24 @@ In-webapp, all written back to `~/.auvezy/terminal-remote/config.json`.
 ## Approval hook (Claude Code integration)
 
 - `/api/hook` endpoint accepts Claude approval events (loopback only)
+- Settings panel "Integrations → Claude Code" fine-grained event subscription:
+  approvals / tool progress / turn lifecycle / session lifecycle / user prompts,
+  each individually toggleable
+- Status bar auto-reflects `waitingInput` / `Bash: npm test` running state
 - `console-bridge`: front-end `console.*` forwarded over WS to backend stderr
   for cross-device debugging
+
+## PWA Push notifications
+
+- Web Push (VAPID): keypair auto-generated and persisted to
+  `~/.auvezy/terminal-remote/vapid-keys.json`
+- Frontend "Settings → Notifications" tab for one-click subscribe/unsubscribe,
+  with graceful degradation (unsupported browsers, denied permissions)
+- iOS 16.4+ (Safari / Chrome / 3rd-party) Web Push requires: **app added to
+  home screen** AND HTTPS (LAN HTTP restriction)
+- Approval hook fans out push to every registered subscription → phone lock
+  screen notification
+- Notification click deep-links back to webapp's corresponding instance
 
 ## Quick reference (technical mapping)
 
