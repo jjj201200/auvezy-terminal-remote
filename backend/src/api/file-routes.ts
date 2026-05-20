@@ -18,6 +18,7 @@ import { lstat } from 'node:fs/promises';
 import {
   ErrorCode,
   FILE_RAW_MAX_BYTES,
+  SEARCH_MAX_Q_LENGTH,
   type FileListResponse,
   type FileReadResponse,
   type FileStatResponse,
@@ -32,6 +33,7 @@ import { resolveSafePath, type WorkdirPolicy } from '../files/path-resolver.js';
 import { listDir } from '../files/list-dir.js';
 import { detectMime, detectLang } from '../files/mime-detect.js';
 import { readTextFile } from '../files/read-file.js';
+import { runSearch } from '../files/search-engine.js';
 
 /** /api/files/* 共享速率限制(per-IP 每分钟) */
 const FILE_RATE_LIMIT_PER_MIN = 120;
@@ -59,7 +61,6 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
   // RateLimiter 内部 cleanupTimer 已 unref,无需显式 destroy 即可让 process 退出
   const fileLimiter = new RateLimiter(FILE_RATE_LIMIT_PER_MIN);
   const searchLimiter = new RateLimiter(SEARCH_RATE_LIMIT_PER_MIN);
-  void searchLimiter; // 阶段 4 search 路由用,本阶段暂未使用,显式 void 防 TS 未使用警告
 
   router.get('/files/list', authModule.requireAuth, requireRate(fileLimiter), wrap(async (req, res) => {
     const tStart = Date.now();
@@ -156,6 +157,98 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
         ip: req.ip, elapsedMs: Date.now() - tStart, code, status,
       }, '/api/files audit (error)');
       res.status(status).end();
+    }
+  });
+
+  // ──────────────── /api/files/search SSE ────────────────
+  router.get('/files/search', authModule.requireAuth, requireRate(searchLimiter), async (req, res) => {
+    const tStart = Date.now();
+
+    // 参数校验
+    const q = asString(req.query.q);
+    if (!q || q.length === 0 || q.length > SEARCH_MAX_Q_LENGTH) {
+      res.status(400).json({
+        error: { code: ErrorCode.BAD_REQUEST, message: 'q is required (1..200)' },
+      });
+      return;
+    }
+    const modeRaw = asString(req.query.mode) ?? 'name';
+    if (modeRaw !== 'name' && modeRaw !== 'content' && modeRaw !== 'both') {
+      res.status(400).json({
+        error: { code: ErrorCode.BAD_REQUEST, message: 'invalid mode' },
+      });
+      return;
+    }
+
+    // 解 ctx
+    let ctx;
+    try {
+      ctx = await resolveContext(req, registry, workdirPolicy);
+    } catch (err) {
+      if (err instanceof AppError) {
+        res.status(err.httpStatus).json({ error: { code: err.code, message: err.message } });
+      } else {
+        res.status(500).end();
+      }
+      return;
+    }
+
+    // 解 scope(默认 cwd;给的话必须是目录)
+    let scopePath: string;
+    try {
+      scopePath = resolveSafePath(ctx.cwd, asString(req.query.scope), ctx.policy);
+      const st = await lstat(scopePath);
+      if (!st.isDirectory()) {
+        throw new FileError(ErrorCode.BAD_REQUEST, 'scope must be a directory', 400);
+      }
+    } catch (err) {
+      if (err instanceof AppError) {
+        res.status(err.httpStatus).json({ error: { code: err.code, message: err.message } });
+      } else {
+        res.status(500).end();
+      }
+      return;
+    }
+
+    // SSE 头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const ac = new AbortController();
+    req.on('close', () => ac.abort());
+
+    try {
+      const summary = await runSearch({
+        scope: scopePath,
+        q,
+        mode: modeRaw,
+        caseSensitive: asString(req.query.caseSensitive) === '1',
+        regex: asString(req.query.regex) === '1',
+        policy: ctx.policy,
+        cancelSignal: ac.signal,
+        emit: (hit) => {
+          res.write(`event: match\ndata: ${JSON.stringify(hit)}\n\n`);
+        },
+      });
+      res.write(`event: done\ndata: ${JSON.stringify(summary)}\n\n`);
+      logger.info({
+        action: 'search', instanceId: ctx.instanceId, path: scopePath,
+        ip: req.ip, elapsedMs: Date.now() - tStart,
+        scanned: summary.scanned, truncated: summary.truncated,
+      }, '/api/files audit');
+    } catch (err) {
+      const code = err instanceof AppError ? err.code : ErrorCode.INTERNAL_ERROR;
+      const message = err instanceof Error ? err.message : String(err);
+      res.write(`event: error\ndata: ${JSON.stringify({ code, message })}\n\n`);
+      logger.warn({
+        action: 'search', instanceId: ctx.instanceId, path: scopePath,
+        ip: req.ip, elapsedMs: Date.now() - tStart, code,
+      }, '/api/files audit (error)');
+    } finally {
+      res.end();
     }
   });
 
