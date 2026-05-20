@@ -75,4 +75,9 @@
   only do local `.cast` export
 - ❌ **SFTP / SCP file management** (Termius / Wetty): outside the
   "remote PTY control" scope
+  > Note: the file browser shipped in 0.8.0 (read-only listing + preview +
+  > search) does **not** cross this line — it is scoped to the active
+  > instance's cwd under the workdir-policy allow list, with no write /
+  > upload / download. Goal is phone-side code & log inspection, not a
+  > full file-management product. See `docs/plans/file-browser/`.
 - ❌ **End-to-end encrypted Vault**: home LAN users don't need this

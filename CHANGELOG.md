@@ -5,6 +5,24 @@
 
 ## [Unreleased]
 
+### Added
+
+- **文件浏览只读 API + 面板**:活跃实例顶栏新增 `IconFolder` 按钮,打开后可浏览
+  实例工作目录、预览文本与图片、搜索文件名与内容。
+  - 文本预览自带语法高亮(Shiki 4.x,按需 lazy load grammar/theme,主 app
+    bundle 零增量;主题跟随 prefers-color-scheme)
+  - 文件搜索:`name` + `content` 双模式,`>= 3` 字符自动触发,SSE 流式结果;
+    单文件 100 ms 硬超时 + 全请求 5 s + 8 并发 + 跨行 regex 拒(防 ReDoS)
+  - 后端 5 个端点(`/api/files/list /stat /read /raw /search`)均挂 broker,
+    复用现有 `checkWorkdir` 做安全边界——默认 deny 含 `/etc /root /sys /proc`
+  - 速率限制:per-IP `/api/files/*` 共享 120/min、`/api/files/search` 独立
+    20/min,触发 429 `AUTH_RATE_LIMITED`
+  - 审计日志:每次请求落 broker daily-rotate log,含 `action / path / ip /
+    elapsedMs / instanceId`
+  - **不做**:写操作 / 下载 / 视频音频 / zip 内部浏览 / git 集成(ROADMAP 已说明
+    与 SFTP/SCP 完整文件管理保持边界)
+  - 详见 `docs/plans/file-browser/`(设计稿 + 6 个 ADR + 8 个阶段进度文档)
+
 ## [0.7.6] - 2026-05-19
 
 ### Added

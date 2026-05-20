@@ -61,4 +61,8 @@
 - ❌ **Sixel / iTerm 图像协议**:移动端价值低,xterm.js 不原生
 - ❌ **asciinema 公网分享**:跟 LAN-only 冲突;要做就只做本地 `.cast` 导出
 - ❌ **SFTP / SCP 文件管理**(Termius / Wetty):偏离"远程 PTY 控制"定位
+  > 注:0.8.0 新增的"文件浏览器(只读 + 预览 + 搜索)"**不**算违反此禁区——
+  > 它仅限当前活跃实例 cwd + workdir-policy 白名单范围,无写 / 上传 / 下载,
+  > 用途是手机查代码 / 看日志,与完整文件管理产品的定位不同。详见
+  > `docs/plans/file-browser/`。
 - ❌ **端到端加密 Vault**:家庭 LAN 不需要
