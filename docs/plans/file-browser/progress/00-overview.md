@@ -41,13 +41,24 @@
 
 ## 关键约束 checklist
 
-- [ ] 所有路径输入过 `resolveSafePath`(resolve + realpath + checkWorkdir)
+- [ ] 所有路径输入过 `resolveSafePath(cwd, input, policy)`(resolve + realpath + checkWorkdir)
 - [ ] socket / fifo / device 拒读
 - [ ] /read 2 MiB 截断 / /raw 8 MiB 拒
-- [ ] 搜索单文件 100 ms / 全请求 5 s / 并发 4 / 跨行 regex 拒
+- [ ] 搜索单文件 100 ms / 全请求 5 s / 并发 8 / 跨行 regex 拒
 - [ ] /raw 错误用 X-ATR-Error header,不返 JSON
 - [ ] Shiki 200 KB 降级 + 加载失败 escapeHtml 回退
 - [ ] i18n zh-CN / en-US 同步
-- [ ] AppError 子类 + ErrorCode 落 shared
+- [ ] AppError 子类 `FileError` + 新 ErrorCode(`BAD_REQUEST` / `PATH_NOT_FOUND` / `PATH_FORBIDDEN` / `FILE_TOO_LARGE` / `FILE_BINARY` / `FILE_TYPE_FORBID` / `SEARCH_INVALID_Q` / `SEARCH_TIMEOUT`)落 shared
+- [ ] 限流:per-IP /api/files/* 120/min + /api/files/search 20/min,用现有 RateLimiter
+- [ ] checkWorkdir 命中 → 抛 `FileError(PATH_FORBIDDEN, 403)`,**不复用** spawn 的 `CWD_NOT_EXIST` 包法
 - [ ] 测试用真实 tmp fixture,不 mock fs
 - [ ] smoke 后 kill broker + 确认端口已释放
+
+## 实施期"待验证"事项(design 中已用 ⚠️ 标注)
+
+| 项 | 验证时机 | 处置 |
+|---|---|---|
+| shiki 当前主线版 API 形态 | 阶段 6 第一步 `pnpm add shiki@latest` 后 | 按当时 README 调,补 ADR-006 记录 |
+| shiki 主 bundle 增量 ≤ 50 KB gz | 阶段 6 `vite build --report` | 超标改 Prism,触发 ADR-006 重新选型 |
+| vite proxy 反代 `/api/files/search` SSE 工作 | 阶段 4 末 smoke | 已实质验证(`/api/instances/stream` 同模式工作中) |
+| `realpathSync` 在 Windows 上对网络路径行为 | 阶段 2 单测覆盖 | 失败 → 抛 PATH_NOT_FOUND,与 Linux 一致 |

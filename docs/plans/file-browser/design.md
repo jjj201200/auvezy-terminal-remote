@@ -38,9 +38,10 @@
 
 ## 2. 名词
 
-- **实例 cwd**:`InstanceInfo.cwd`,worker 进程启动时的工作目录绝对路径。每个实例独立。
+- **实例 cwd**:`InstanceInfo.cwd`,worker 进程启动时的工作目录绝对路径(spawn 时由 `path.resolve` 规范化,见 `instance-spawner.ts`)。每个实例独立。
 - **path-root**:本次浏览的视图根。默认 = 实例 cwd,但允许通过"上级"按钮越界到祖先目录,只要不命中 workdir-policy 黑名单。
 - **workdir-policy**:`backend/src/utils/workdir-policy.ts` 的 `checkWorkdir(cwd, allow, deny)`,本项目里 spawn 实例时已经在用的"路径白/黑名单"判定函数。
+- **策略是"读时校验"**:本设计每次请求都跑 `checkWorkdir`,**不缓存 spawn 时的判定结果**。这意味着:用户事后收紧 `workdirAllow / workdirDeny`,即使实例不重启,该实例的文件浏览根目录也会立即变为不可访问(请求返回 `PATH_FORBIDDEN`)。**这是预期行为**——安全策略变更应立刻生效,UI 应优雅提示"管理员收紧了路径策略,请联系或重启实例"。
 
 ---
 
@@ -199,10 +200,10 @@ export interface SearchDone {
 
 ### 4.3 错误码增量
 
-新增 `ErrorCode`:
+新增 `ErrorCode`(均需落 `shared/src/errors.ts`,该枚举注释明示"只增不删"):
 
 ```ts
-BAD_REQUEST       = 'BAD_REQUEST',       // 参数缺失 / 格式错误(400 通用)
+BAD_REQUEST       = 'BAD_REQUEST',       // 参数缺失 / 格式错误(400 通用,本项目首次引入)
 PATH_NOT_FOUND    = 'PATH_NOT_FOUND',    // resolve 后 lstat ENOENT
 PATH_FORBIDDEN    = 'PATH_FORBIDDEN',    // 命中 deny / allow 未中
 FILE_TOO_LARGE    = 'FILE_TOO_LARGE',
@@ -212,7 +213,10 @@ SEARCH_INVALID_Q  = 'SEARCH_INVALID_Q',  // regex 编译失败 / 含 \n / 超长
 SEARCH_TIMEOUT    = 'SEARCH_TIMEOUT',    // SSE done 携带 truncated=true 时用作 reason
 ```
 
-`BAD_REQUEST` 是通用 400,本设计同时用于"参数格式错"(如 scope 指向文件、q 为空、mode 非枚举值)。`INSTANCE_NOT_FOUND` 沿用现有 code(已在 `shared/src/errors.ts`,语义"id 存在但实例不在"→ 404)。
+实现注意:
+- **`BAD_REQUEST` 现状不存在**(已核对 `shared/src/errors.ts` v0.7.6 — 现有最近的"通用错"是 `INTERNAL_ERROR`(500),没有通用 400)。本设计**首次引入** `BAD_REQUEST`,实施阶段 1 落 shared + 对应 `AppError` 子类(暂不绑定特定领域 → 不需要新 `XxxError` 类,复用 `FileError` 即可)。
+- `INSTANCE_NOT_FOUND` 沿用现有 code(已在 `shared/src/errors.ts`,语义"id 存在但实例不在"→ 404)。
+- **checkWorkdir 与 `PATH_FORBIDDEN` 的关系**:现有 `instance-spawner.ts` 把 checkWorkdir 拒绝包装为 `InstanceError(CWD_NOT_EXIST, 403)`(语义不准)。本设计明示:路由层调 `checkWorkdir(real, allow, deny)`,**非 null 返回 → 抛 `FileError(PATH_FORBIDDEN, 403)`**;不要复用 spawn 的 `CWD_NOT_EXIST` 包法。
 
 新增 `AppError` 子类 `FileError`,与 InstanceError/AuthError 同模式。
 
@@ -274,7 +278,13 @@ SEARCH_TIMEOUT    = 'SEARCH_TIMEOUT',    // SSE done 携带 truncated=true 时�
 
 ### 5.7 速率限制
 
-复用现有 `auth` 模块的速率限制思路:对 `/api/files/*` 整体加 **每会话每分钟 120 次**(list 切目录密集场景需要),搜索独立 **每会话每分钟 20 次**。`429 Too Many Requests`。
+**复用 `backend/src/auth/rate-limiter.ts` `RateLimiter` 类(已存在,per-IP 滑动窗口)**。注意现行 `RateLimiter` 只支持 **per-IP**(不支持 per-session),本设计据此调整:
+
+- `/api/files/list` `/read` `/stat` `/raw`:共享一个 `RateLimiter` 实例,**每 IP 每分钟 120 次**。
+- `/api/files/search`:独立 `RateLimiter`,**每 IP 每分钟 20 次**。
+- 触发 → 429 + `ErrorCode.AUTH_RATE_LIMITED`(沿用现有 code,语义"限流",不限于 auth 端点)。
+
+per-IP 在 LAN 多人共用一个 NAT 出口的极端场景下可能误伤,但与现有 auth 限流一致——若误伤,提高 `authRateLimit` 配置即可。未来若有跨用户隔离需求再扩 RateLimiter 支持 session key,本设计不做。
 
 ---
 
@@ -349,40 +359,29 @@ FileBrowserSheet
 
 ### 7.4 语法高亮:Shiki
 
-`frontend/src/utils/syntax-highlight.ts`:
+`frontend/src/utils/syntax-highlight.ts`(**伪代码,实际 API 以实施时 shiki 当前版本为准**):
 
 ```ts
-import type { Highlighter, BundledLanguage, BundledTheme } from 'shiki';
-
-let _highlighterPromise: Promise<Highlighter> | null = null;
-const _loadedLangs = new Set<BundledLanguage>();
-
-export async function highlight(
-  code: string,
-  lang: string,
-  theme: 'github-dark' | 'github-light',
-): Promise<string> {
-  if (code.length > 200 * 1024) return escapeHtml(code);  // 超大降级
-  const lng = normalizeLang(lang);  // 未识别 → 'txt'
-  try {
-    const h = await ensureHighlighter([theme]);
-    if (!_loadedLangs.has(lng) && lng !== 'txt') {
-      await h.loadLanguage(lng);
-      _loadedLangs.add(lng);
-    }
-    return h.codeToHtml(code, { lang: lng, theme });
-  } catch {
-    return escapeHtml(code);   // 加载失败/未知 → 纯文本
-  }
-}
+// 注:Shiki 0.x/1.x/2.x API 多次变更过(getHighlighter / createHighlighterCore /
+// getSingletonHighlighter / bundle/web),实施阶段 6 第一步是 pnpm add shiki@latest
+// 然后按当时的 README 调,不要照抄此处签名。
+//
+// 不变的契约:
+//  - 主 bundle 零成本(WASM + grammar 都按需 lazy load)
+//  - 提供 codeToHtml(code, { lang, theme }): string|Promise<string>
+//  - 失败/未知 lang/超大文本一律走 escapeHtml 降级,不抛
+//
+// 本模块对外暴露:
+//   highlight(code: string, lang: string, theme: 'github-dark'|'github-light'):
+//     Promise<string>  // HTML
 ```
 
-- 主 bundle 几乎零成本(shiki 1.x 把 onig WASM 与 grammar 都拆为 chunk,只在 import 时加载)。
-- 主题跟随项目 dark/light(沿用现有 `themes/` 体系)。
-- **超大文本**(>200 KB)直接 `<pre>` + `escapeHtml`,UI 角标提示"已禁用高亮"。
+约束:
+- **>200 KB 文本**直接 `<pre>` + `escapeHtml`,UI 角标提示"已禁用高亮"。
 - **lang 失败/未知** → escapeHtml,不报错。
+- 主题跟随项目 dark/light(沿用现有 `themes/` 体系)。
 
-新依赖:`shiki ^1.x`(prod dep)。
+新依赖:`shiki@latest`(prod dep,frontend 包)。实施阶段 6 安装后写 ADR-006 记录实际版本与 lazy load 调用形态(避免后人困惑"这一版用的什么 API")。
 
 ### 7.5 搜索 UI
 
