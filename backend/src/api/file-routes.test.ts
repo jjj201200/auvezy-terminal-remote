@@ -185,6 +185,25 @@ describe('file-routes', () => {
     expect(body.kind).toBe('dir');
   });
 
+  it('GET /api/files/search 鉴权后 q 缺失 → 400', async () => {
+    env = await makeEnv();
+    const cookie = await login(env.port);
+    const res = await fetch(`http://127.0.0.1:${env.port}/api/files/search?instanceId=${FAKE_INSTANCE_ID}`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(400);
+  });
+
+  it('GET /api/files/search name 模式命中流式返回', async () => {
+    env = await makeEnv();
+    const cookie = await login(env.port);
+    const res = await fetch(`http://127.0.0.1:${env.port}/api/files/search?instanceId=${FAKE_INSTANCE_ID}&q=README&mode=name`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/event-stream/);
+    const text = await res.text();
+    expect(text).toContain('"kind":"name"');
+    expect(text).toContain('README.md');
+    expect(text).toContain('event: done');
+  });
+
   it('GET /api/files/list 超 120/min 返 429', async () => {
     env = await makeEnv();
     const cookie = await login(env.port);
