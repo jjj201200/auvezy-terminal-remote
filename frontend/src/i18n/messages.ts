@@ -574,6 +574,37 @@ export interface Messages {
     error: string;
   };
 
+  // FileBrowserSheet
+  files: {
+    title: string;
+    /** 顶栏按钮 aria(挨着 IconFolder) */
+    openTooltip: string;
+    /** 面包屑工具栏 */
+    breadcrumbRoot: string;
+    toolbarUp: string;
+    toolbarCwd: string;
+    toolbarShowHidden: string;
+    /** 列表为空 */
+    empty: string;
+    /** 搜索框 */
+    searchPlaceholder: string;
+    /** 模板 {{scanned}} / {{hits}} */
+    searchScanning: string;
+    searchTruncated: string;
+    searchEmpty: string;
+    /** 预览角标 */
+    previewBinary: string;
+    previewTruncated: string;
+    previewHighlightOff: string;
+    previewImageTooLarge: string;
+    /** 错误 toast */
+    errorPathNotFound: string;
+    errorPathForbidden: string;
+    errorFileBinary: string;
+    errorInvalidQuery: string;
+    errorUnknown: string;
+  };
+
   // ShareSheet
   share: {
     title: string;
