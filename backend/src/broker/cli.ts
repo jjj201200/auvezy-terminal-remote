@@ -317,6 +317,7 @@ async function runBrokerStart(cli: ParsedCliArgs): Promise<number> {
     displayIp,
     workdirPolicy: () => ({
       allow: ((currentUserConfig.workdirAllow as string[] | undefined) ?? []),
+      deny: ((currentUserConfig.workdirDeny as string[] | undefined) ?? []),
     }),
   };
 
