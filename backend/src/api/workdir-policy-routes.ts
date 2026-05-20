@@ -16,15 +16,15 @@ import type { AuthModule } from '../auth/auth-middleware.js';
 
 export interface WorkdirPolicySnapshot {
   /** 生效白名单（picomatch glob 列表）；空数组表示用户没设白名单（无限制） */
-  allow: string[];
+  readonly allow: readonly string[];
   /**
    * 生效黑名单(picomatch glob 列表)。
    *
-   * **不通过 /api/workdir-policy 端点暴露给前端**——黑名单是安全防线,
-   * 不应让用户感知存在。本字段仅供 broker 内部其它路由(如 /api/files/*)
-   * 复用 checkWorkdir 时使用。
+   * ⚠️ **严禁通过 /api/workdir-policy 端点或任何公开响应(JSON / 日志 / 错误消息)
+   * 暴露此字段** —— 黑名单是安全防线,不应让用户感知存在。本字段仅供 broker
+   * 内部其它路由(如 /api/files/*)复用 checkWorkdir 时使用。
    */
-  deny: string[];
+  readonly deny: readonly string[];
 }
 
 export function createWorkdirPolicyRoutes(

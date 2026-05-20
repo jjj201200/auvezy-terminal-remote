@@ -91,6 +91,14 @@ export interface SearchDone {
   elapsedMs: number;
 }
 
+/** 搜索模式枚举(name=仅文件名 / content=仅内容 / both=两者并行) */
+export const SEARCH_MODES = ['name', 'content', 'both'] as const;
+export type SearchMode = (typeof SEARCH_MODES)[number];
+
+export function isSearchMode(v: unknown): v is SearchMode {
+  return typeof v === 'string' && (SEARCH_MODES as readonly string[]).includes(v);
+}
+
 // ──────────────── 常量(前后端共享) ────────────────
 
 /** /read 单文件最大读取字节数(超出截断) */

@@ -27,6 +27,8 @@ export const HEADER_FORWARDED_HOST = 'x-forwarded-host';
 export const HEADER_FORWARDED_PROTO = 'x-forwarded-proto';
 /** 标准 `X-Forwarded-For`：真实 client IP */
 export const HEADER_FORWARDED_FOR = 'x-forwarded-for';
+/** /api/files/raw 错误码携带头(不返 JSON 时 <img> 无法解析,改走 header) */
+export const HEADER_ATR_ERROR = 'X-ATR-Error';
 
 /**
  * 从一组小写化的 header map 取单值

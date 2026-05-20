@@ -2,10 +2,11 @@
  * file-routes 单测
  *
  * 真实 Express server + AuthModule + 临时实例 registry。
- * 覆盖:鉴权、参数缺失、list/stat/read/raw 各路径正反例、deny 命中、/raw header。
+ * 覆盖:鉴权、参数缺失、list/stat/read/raw/search 各路径正反例、deny 命中、
+ * /raw header、限流。
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
@@ -30,12 +31,36 @@ interface Env {
   cwdReal: string;
 }
 
-async function makeEnv(allow: string[] = [], deny: string[] = []): Promise<Env> {
-  const tmpRoot = mkdtempSync(join(tmpdir(), 'fb-routes-'));
-  const cwd = join(tmpRoot, 'work');
-  mkdirSync(cwd);
-  mkdirSync(join(cwd, 'sub'));
-  writeFileSync(join(cwd, 'README.md'), '# hi');
+interface MakeEnvOpts {
+  /** 自定义 allow patterns(默认 []) */
+  allow?: string[];
+  /** 自定义 deny patterns(默认 []) */
+  deny?: string[];
+  /**
+   * 自定义 cwd 路径。给了就直接用(不创建文件);
+   * 不给则在 tmpdir 下生成 work 目录 + README.md + sub/。
+   */
+  cwd?: string;
+}
+
+/**
+ * 启一个 express server 挂 file-routes,返回 env 句柄。
+ * 不给 cwd 时自带 README.md + sub/ 两个 fixture;给了就 caller 自己负责
+ * 准备文件。
+ */
+async function makeEnv(opts: MakeEnvOpts = {}): Promise<Env> {
+  let cleanupTmp = (): void => {};
+  let cwd: string;
+  if (opts.cwd) {
+    cwd = opts.cwd;
+  } else {
+    const tmpRoot = mkdtempSync(join(tmpdir(), 'fb-routes-'));
+    cwd = join(tmpRoot, 'work');
+    mkdirSync(cwd);
+    mkdirSync(join(cwd, 'sub'));
+    writeFileSync(join(cwd, 'README.md'), '# hi');
+    cleanupTmp = () => rmSync(tmpRoot, { recursive: true, force: true });
+  }
   const cwdReal = realpathSync(cwd);
 
   const app = express();
@@ -61,7 +86,7 @@ async function makeEnv(allow: string[] = [], deny: string[] = []): Promise<Env> 
   app.use('/api', createFileRoutes({
     authModule: auth,
     registry,
-    workdirPolicy: () => ({ allow, deny }),
+    workdirPolicy: () => ({ allow: opts.allow ?? [], deny: opts.deny ?? [] }),
   }));
   app.post('/api/auth', auth.handleAuth);
 
@@ -70,9 +95,7 @@ async function makeEnv(allow: string[] = [], deny: string[] = []): Promise<Env> 
   const port = (server.address() as AddressInfo).port;
 
   return {
-    server, port, cleanupSessions: cleanup, auth,
-    cleanupTmp: () => rmSync(tmpRoot, { recursive: true, force: true }),
-    cwd, cwdReal,
+    server, port, cleanupSessions: cleanup, auth, cleanupTmp, cwd, cwdReal,
   };
 }
 
@@ -146,16 +169,14 @@ describe('file-routes', () => {
   });
 
   it('GET /api/files/read deny 命中 → 403 PATH_FORBIDDEN', async () => {
-    env = await makeEnv([], []);
-    // 配 deny 命中 cwd 真路径
-    await teardown(env);
+    // 先创一个临时 cwd,再用同样的真路径作 deny pattern
     const tmpRoot = mkdtempSync(join(tmpdir(), 'fb-routes-deny-'));
     const cwd = join(tmpRoot, 'work');
     mkdirSync(cwd);
     writeFileSync(join(cwd, 'README.md'), '# hi');
     const cwdReal = realpathSync(cwd);
-    env = await makeEnvWithCwd(cwdReal, [], [`${cwdReal}/**`, cwdReal]);
-    // 清理 deny 用临时目录
+    env = await makeEnv({ cwd: cwdReal, deny: [`${cwdReal}/**`, cwdReal] });
+    // makeEnv 在传入 cwd 时不会清理外层 tmpRoot,这里挂上
     const tearOrig = env.cleanupTmp;
     env.cleanupTmp = () => { tearOrig(); rmSync(tmpRoot, { recursive: true, force: true }); };
 
@@ -209,7 +230,6 @@ describe('file-routes', () => {
     const cookie = await login(env.port);
     let last = 0;
     let lastBody: { error?: { code: string } } | undefined;
-    // 连发 130 次,期待最后被 429
     for (let i = 0; i < 130; i++) {
       const res = await fetch(`http://127.0.0.1:${env.port}/api/files/list?instanceId=${FAKE_INSTANCE_ID}`, { headers: { Cookie: cookie } });
       last = res.status;
@@ -222,32 +242,3 @@ describe('file-routes', () => {
     expect(lastBody?.error?.code).toBe('AUTH_RATE_LIMITED');
   }, 30_000);
 });
-
-/** 复用 makeEnv 逻辑但用指定 cwd 与 policy(给 deny 测试用) */
-async function makeEnvWithCwd(cwd: string, allow: string[], deny: string[]): Promise<Env> {
-  const cwdReal = realpathSync(cwd);
-  const app = express();
-  app.use(express.json({ strict: false }));
-  const { store: sessionsStore, cleanup } = createTmpSessionsStore(60_000);
-  const auth = new AuthModule({
-    token: 'a'.repeat(64), sessionTtlMs: 60_000,
-    rateLimitPerMinute: 100, sessions: sessionsStore,
-  });
-  const registry = {
-    async list(): Promise<InstanceInfo[]> {
-      return [{
-        instanceId: FAKE_INSTANCE_ID, name: 'fake',
-        host: '127.0.0.1', port: 0, pid: process.pid,
-        cwd: cwdReal, startedAt: new Date().toISOString(),
-      }];
-    },
-  } as unknown as InstanceRegistryManager;
-  app.use('/api', createFileRoutes({
-    authModule: auth, registry, workdirPolicy: () => ({ allow, deny }),
-  }));
-  app.post('/api/auth', auth.handleAuth);
-  const server = createServer(app);
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-  const port = (server.address() as AddressInfo).port;
-  return { server, port, cleanupSessions: cleanup, auth, cleanupTmp: () => {}, cwd, cwdReal };
-}

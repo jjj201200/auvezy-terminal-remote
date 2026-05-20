@@ -24,6 +24,7 @@ import {
   SEARCH_MAX_NAME_RESULTS,
   SEARCH_MAX_CONTENT_RESULTS,
   type SearchEvent,
+  type SearchMode,
 } from 'auvezy-terminal-remote-shared';
 import { FileError } from '../errors.js';
 import { checkWorkdir } from '../utils/workdir-policy.js';
@@ -45,7 +46,7 @@ export type SearchHit = SearchEvent;
 export interface SearchOptions {
   scope: string;
   q: string;
-  mode: 'name' | 'content' | 'both';
+  mode: SearchMode;
   caseSensitive: boolean;
   regex: boolean;
   policy: { allow: readonly string[]; deny: readonly string[] };

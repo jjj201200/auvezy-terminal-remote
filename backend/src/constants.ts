@@ -37,6 +37,14 @@ export const IP_MONITOR_INTERVAL_MS = 30_000;
 /** 稳定性阈值：连续 N 次检测到相同新 IP 才触发回调，避免抖动 */
 export const IP_MONITOR_STABILITY_THRESHOLD = 2;
 
+// ──────────────── 文件浏览速率限制 ────────────────
+
+/** /api/files/{list,stat,read,raw} 共享 per-IP 限流(每分钟) */
+export const FILE_RATE_LIMIT_PER_MIN = 120;
+
+/** /api/files/search 独立 per-IP 限流(每分钟) */
+export const SEARCH_RATE_LIMIT_PER_MIN = 20;
+
 // ──────────────── PTY ────────────────
 
 /** PTY 默认列数（PC 终端尺寸不可用时的兜底） */

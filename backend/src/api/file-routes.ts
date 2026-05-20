@@ -1,24 +1,27 @@
 /**
  * /api/files/* 路由(broker 端)
  *
- * 端点(MVP 不含 search,见阶段 4):
+ * 端点:
  *   GET /api/files/list?instanceId=&path=
  *   GET /api/files/stat?instanceId=&path=
  *   GET /api/files/read?instanceId=&path=
  *   GET /api/files/raw?instanceId=&path=
+ *   GET /api/files/search?instanceId=&q=...   (SSE)
  *
- * 鉴权:全部走 authModule.requireAuth(与现有 broker API 一致)。
+ * 鉴权:全部走 authModule.requireAuth。
  * 错误:统一 FileError → JSON;/raw 端点特殊用 X-ATR-Error header,不返 JSON
- * (因为浏览器 <img> 不会解析 JSON 错误体)。
+ * (浏览器 <img> 无法解析 JSON 错误体)。
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { createReadStream } from 'node:fs';
 import { lstat } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import {
   ErrorCode,
   FILE_RAW_MAX_BYTES,
   SEARCH_MAX_Q_LENGTH,
+  isSearchMode,
   type FileListResponse,
   type FileReadResponse,
   type FileStatResponse,
@@ -29,16 +32,18 @@ import type { WorkdirPolicySnapshot } from './workdir-policy-routes.js';
 import { FileError, AppError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 import { RateLimiter } from '../auth/rate-limiter.js';
+import { HEADER_ATR_ERROR } from '../broker/forwarded-headers.js';
+import {
+  FILE_RATE_LIMIT_PER_MIN,
+  SEARCH_RATE_LIMIT_PER_MIN,
+} from '../constants.js';
 import { resolveSafePath, type WorkdirPolicy } from '../files/path-resolver.js';
 import { listDir } from '../files/list-dir.js';
 import { detectMime, detectLang } from '../files/mime-detect.js';
 import { readTextFile } from '../files/read-file.js';
 import { runSearch } from '../files/search-engine.js';
+import { getFileKind } from '../files/file-kind.js';
 
-/** /api/files/* 共享速率限制(per-IP 每分钟) */
-const FILE_RATE_LIMIT_PER_MIN = 120;
-/** /api/files/search 独立速率限制(per-IP 每分钟) */
-const SEARCH_RATE_LIMIT_PER_MIN = 20;
 
 export interface FileRoutesOptions {
   authModule: AuthModule;
@@ -57,8 +62,8 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
   const router = Router();
   const { authModule, registry, workdirPolicy } = opts;
 
-  // per-IP 限流:list/stat/read/raw 共享,search 独立(给后续阶段 4 用)
-  // RateLimiter 内部 cleanupTimer 已 unref,无需显式 destroy 即可让 process 退出
+  // per-IP 限流:list/stat/read/raw 共享 fileLimiter,search 独立 searchLimiter。
+  // RateLimiter 内部 cleanupTimer 已 unref,无需显式 destroy 即可让 process 退出。
   const fileLimiter = new RateLimiter(FILE_RATE_LIMIT_PER_MIN);
   const searchLimiter = new RateLimiter(SEARCH_RATE_LIMIT_PER_MIN);
 
@@ -83,9 +88,7 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
     const ctx = await resolveContext(req, registry, workdirPolicy);
     const target = resolveSafePath(ctx.cwd, asString(req.query.path), ctx.policy);
     const st = await lstat(target);
-    const kind: FileStatResponse['kind'] = st.isSymbolicLink() ? 'symlink'
-      : st.isDirectory() ? 'dir'
-      : st.isFile() ? 'file' : 'other';
+    const kind = getFileKind(st);
     const payload: FileStatResponse = {
       ok: true, path: target, kind,
       size: kind === 'dir' ? 0 : st.size,
@@ -151,7 +154,7 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
     } catch (err) {
       const code = err instanceof AppError ? err.code : ErrorCode.INTERNAL_ERROR;
       const status = err instanceof AppError ? err.httpStatus : 500;
-      res.setHeader('X-ATR-Error', String(code));
+      res.setHeader(HEADER_ATR_ERROR, String(code));
       logger.info({
         action: 'raw', instanceId: auditCtx?.instanceId, path: auditPath,
         ip: req.ip, elapsedMs: Date.now() - tStart, code, status,
@@ -173,7 +176,7 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
       return;
     }
     const modeRaw = asString(req.query.mode) ?? 'name';
-    if (modeRaw !== 'name' && modeRaw !== 'content' && modeRaw !== 'both') {
+    if (!isSearchMode(modeRaw)) {
       res.status(400).json({
         error: { code: ErrorCode.BAD_REQUEST, message: 'invalid mode' },
       });
@@ -325,10 +328,7 @@ async function resolveContext(
  * 上级仍需过 policy 闸,不通过则返 null(前端禁用"上级"按钮)。
  */
 function computeParent(current: string, policy: WorkdirPolicy): string | null {
-  // Windows / Unix 通用:用 path.dirname 等价的字符串切;current 已是 realpath 后的绝对路径
-  const lastSep = Math.max(current.lastIndexOf('/'), current.lastIndexOf('\\'));
-  if (lastSep <= 0) return null;
-  const parentPath = current.slice(0, lastSep) || '/';
+  const parentPath = dirname(current);
   if (parentPath === current) return null;
   try {
     resolveSafePath(parentPath, '.', policy);
