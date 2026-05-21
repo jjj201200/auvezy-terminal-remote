@@ -5,6 +5,11 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-22
+
+主题:**文件浏览体验整轮升级**(Shiki 行号 / 虚拟滚动 / 搜索秒回 / Markdown 富文本预览),
+modal-stack presenter 抽 factory,Settings 分类合并。
+
 ### Added
 
 - **文件浏览只读 API + 面板**:活跃实例顶栏新增 `IconFolder` 按钮,打开后可浏览
@@ -17,11 +22,96 @@
     复用现有 `checkWorkdir` 做安全边界——默认 deny 含 `/etc /root /sys /proc`
   - 速率限制:per-IP `/api/files/*` 共享 120/min、`/api/files/search` 独立
     20/min,触发 429 `AUTH_RATE_LIMITED`
-  - 审计日志:每次请求落 broker daily-rotate log,含 `action / path / ip /
-    elapsedMs / instanceId`
-  - **不做**:写操作 / 下载 / 视频音频 / zip 内部浏览 / git 集成(ROADMAP 已说明
-    与 SFTP/SCP 完整文件管理保持边界)
-  - 详见 `docs/plans/file-browser/`(设计稿 + 6 个 ADR + 8 个阶段进度文档)
+  - 审计日志:每次请求落 broker daily-rotate log
+- **代码预览行号 + 跳转高亮**:Shiki transformer 注入 `.line` grid 行号 +
+  `data-line` 属性;搜索 content 命中点击 → 虚拟列表 `scrollToIndex` 到对应行
+  并整行 accent-soft 高亮。行号列宽由 JS 算"最大位数 + 1ch"统一注入,
+  虚拟滚动里不同行号位数不再抖动。
+- **ANSI 着色支持**:`.log` / `.txt` 含 ESC CSI 转义码的文件自动用 Shiki
+  `ansi` lang 渲染(`read-file` probe 阶段顺手探测,`detectMime` 返回 lang)。
+- **文本预览虚拟滚动**(react-virtuoso):大文件(几万行 minified / log)
+  只渲染可视区附近 ~30 个 `.line`,主线程不再被一次性 20 万 DOM 节点卡住。
+- **Markdown 可视化预览**(默认开启,Settings → 显示中可关):react-markdown
+  + remark-gfm + remark-math + rehype-raw + rehype-katex,代码块复用 Shiki
+  渲染保持视觉一致。
+  - 24 类元素覆盖:H1-H6 / 内联 / 引用 / 代码块(带 header + copy 按钮 + diff
+    高亮)/ 列表(无序/有序/任务/定义)/ 表格(超宽自动滚动)/ admonition /
+    GFM Alert(`> [!NOTE]`)/ 折叠 / 脚注 / 数学公式 / 图片 / hard break 等
+  - 设计风格"man page 文档化":正文比例无衬线,代码 mono;边线减到最少;
+    单代码块 1000 行截断防大块阻塞
+  - **lazy import**:整套依赖(~250KB gzipped)按需加载,关闭用户零成本
+  - LICENSE / COPYING / NOTICE 等无后缀文档文件自动识别为可预览文本
+- **预览搜索历史返回**:从搜索结果跳预览 → Esc 关预览 → 搜索结果与
+  SearchBox draft 仍在(类 IDE / 浏览器行为)。
+- **Sheet headerExtra slot**:Sheet primitive 新增 `headerExtra?: ReactNode`
+  渲在 title 与 X 之间右置,典型用例:预览的"自动换行" toggle、
+  列表的"显示隐藏文件"开关。
+
+### Changed
+
+- **Settings 分类合并**:网络 + 集成 + 开发 三个 tab 合并为「其他」,
+  保留通用 / 操作 / 显示 / 关于。降低 tab 切换噪音;UI 内部仍按原组件分段。
+- **文件预览 modal 去重**:Sheet 头部已渲染 `target.name` 与 X 关闭按钮,
+  PreviewPane 原内部的 `<strong>{name}</strong>` + 左侧"返回"按钮均移除
+  (语义与 X 完全重复)。
+- **搜索取消秒回**:walk 阻塞在 `dir.read()` 时 cancelSignal 抓不到,
+  改维护 `openDirs: Set<Dir>`,cancel / 总超时触发主动 `close()`,
+  for-await 抛 ERR_DIR_CLOSED 立即退出。慢盘 / 巨型目录取消手感秒回。
+- **search-engine 流式 worker pool**:walk 边产边推队列,worker 边取边扫,
+  首个 content 命中提前到达;`scanFile` 复用 FileHandle 起 createReadStream
+  省一次 open syscall。
+- **modal-stack presenter 抽 factory**:`makeModalPresenter` /
+  `makeSheetPresenter` 公共 factory,`presenters.tsx` 从 305 行 → 187 行,
+  10 个 presenter 不再各自重复 stack.push + ctx.close 胶水。
+- **预览自动换行 toggle 提到 Sheet 标题栏右置**:复用新 `headerExtra` slot,
+  body 内不再画 header bar。
+- **Markdown 预览开关用 BoolToggleRow** 与项目其它 settings 双 button radio
+  完全一致(actions / dev tab 都用同款)。
+
+### Fixed
+
+- **Settings 显示设置 .cPrompt 注释错位**:"accent green" 注释原本挂在
+  `.cFg`(灰白色)之上,实际应挂在 `.cPrompt`(`#b6f09c` 绿色)上。
+- **TextPreview 切文件瞬时渲染旧文件**:fetch effect 入口同步清空
+  `content / lang / html / truncated / highlightOff` state,消除中间态。
+- **mime-detect + detectLang 双查**:`detectMime` 直接返 lang 字段,
+  `/read` 端点不再对同文件跑两遍 basename + lookupSpecial + extname。
+- **行号列宽 4ch 溢出**:文件超过 9999 行时 4ch 固定列宽会撑爆 gutter;
+  改用 `--atr-gutter-w` CSS var(JS 算"最大位数 + 1ch")统一注入。
+- **代码块行高 1.65 过宽**:与项目 `--lh-base = 1.45` 不一致,统一改 1.5
+  (文档型代码块阅读舒适度,比纯终端 1.0 略松)。
+- **代码块行间额外 \n 渲染**:`.line` 之间在 HTML 源码里有 `\n` 文本节点,
+  `pre > code` 改 `white-space: normal`(字符级空白由 `.line-content` 接管),
+  消除每行额外渲染的空行高度。
+- **文件预览 user-select 被 Sheet 顶层 user-select:none 锁死无法复制**:
+  Sheet 为防 vaul 拖拽误识别强制 `user-select: none`,预览内容需要 `!important`
+  顶破;行号自身保留 `user-select: none` 不被一起选走。
+- **行号 grid 列冲突 → 行号与内容横向并排错位**:Shiki transformer 把所有
+  token spans 包进 `<span class="line-content">`,让 `.line` 永远只有
+  2 个直接子(行号 + 内容),`grid-template-columns: gutter 1fr` 才真正生效。
+- **LICENSE / COPYING / NOTICE 全名无法预览**:`mime-detect.ts` SPECIAL_NAMES
+  补全文档约定全名表,大小写匹配 + 带 `.md` / `.txt` / `.markdown` 后缀变体
+  都识别为 previewable text。
+
+### Internal
+
+- 加 `react-markdown` / `remark-gfm` / `remark-math` / `rehype-raw` /
+  `rehype-katex` / `katex` 依赖;`react-virtuoso` 已加(虚拟滚动)。
+- shared:`DisplayPrefs.markdownPreview?: boolean` 字段 + `DEFAULT_DISPLAY` +
+  `ensureDefaultUserConfig` normalize 同步;默认 `true`。
+- `MarkdownPreview` lazy import 隔离体积(关闭用户不付 ~250KB)。
+- `isMarkdownPath` 提到 `file-kind.ts` 共享 helper;`PreviewPane` 与
+  `FilePreviewSheet` 不再各写一遍。
+- search-engine cancel 路径:`abortAllDirs` 命名精确化,`openDirs.add`
+  提前到 aborted 检查之前,abort 路径不再分裂;测试加 fixture(200 文件 +
+  4 层嵌套)+ 断言 `elapsedMs < 1000`(防 hang 退化)。
+- 删 `previewBack` i18n key + `.backBtn` scss(预览模态去重后死代码);
+  删 `settings.tab.{network,integrations,dev}` i18n key(合并到 other)。
+- scss 假 fallback token (`var(--color-danger, #fff)`) 改用真 token
+  `--color-alarm` / `--color-ok`。
+- `extractLineSpans` 用 DOMParser 替代正则切行(rehype-raw token 嵌套含
+  `>` 字符时正则不稳)。
+- 测试覆盖:shared 68/68、frontend 77/77、backend 651/651 全绿。
 
 ## [0.7.6] - 2026-05-19
 
