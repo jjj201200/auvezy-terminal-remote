@@ -161,7 +161,6 @@ export const en: Messages = {
     resetTooltip: 'Reset to 0',
     markdownPreviewTitle: 'Markdown rich preview',
     markdownPreviewHint: 'Render .md / .markdown files as formatted document (headings / lists / tables / code blocks). When off, .md is shown as plain text with syntax highlighting like other source files.',
-    markdownPreviewLabel: 'Enable markdown rendering',
     colsModeAuto: 'auto',
     colsModeTarget: 'target {{cols}}',
     themeTitle: 'Palette',

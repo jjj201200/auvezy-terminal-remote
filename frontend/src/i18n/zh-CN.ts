@@ -153,7 +153,6 @@ export const zhCN: Messages = {
     resetTooltip: '重置为 0',
     markdownPreviewTitle: 'Markdown 可视化预览',
     markdownPreviewHint: '预览 .md / .markdown 文件时启用富文本渲染(标题 / 列表 / 表格 / 代码块等);关闭则同其它代码文件一样仅做语法高亮。',
-    markdownPreviewLabel: '启用 markdown 渲染',
     colsModeAuto: 'auto',
     colsModeTarget: 'target {{cols}}',
     themeTitle: '调色板',

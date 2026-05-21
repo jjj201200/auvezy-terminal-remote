@@ -195,7 +195,6 @@ export interface Messages {
     resetTooltip: string;
     markdownPreviewTitle: string;
     markdownPreviewHint: string;
-    markdownPreviewLabel: string;
     colsModeAuto: string;
     colsModeTarget: string; // 目标 {{cols}} / target {{cols}}
     themeTitle: string;
