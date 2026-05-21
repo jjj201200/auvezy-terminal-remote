@@ -1,37 +1,23 @@
 @use '../../styles/mixins' as m;
 
-// ──────────── Sheet 容器(全屏 — 桌面/移动统一) ────────────
+// ──────────── Sheet 容器(全屏 — 桌面/iPad/手机统一) ────────────
 //
-// 覆盖 Sheet primitive 默认尺寸(桌面 640×720 / 移动 88dvh 底部抽屉)。
-// 桌面用 Radix Dialog,定位 fixed + transform translate(-50%,-50%) 居中,
-// 我们覆盖 width/height/max-* 让它铺满整个 viewport。
-// 移动用 vaul Drawer,默认 bottom 抽屉,我们把 height 改 100dvh 同样全屏。
+// 覆盖 Sheet primitive 默认尺寸(桌面 Radix Dialog 640×720 居中卡片 / 移动
+// vaul Drawer 88dvh 底部抽屉)。文件浏览内容多(列表 + 搜索 + 预览全屏入口),
+// 全平台都全屏更好用,与 .previewSheet 行为一致。
 
 .sheet {
-  // 断点说明:< 1024px 视为"移动"(含 iPad mini / Air 竖屏 768 / Pro 11 横屏 1024
-  // 边界,iPad Air 横屏 1180 落桌面 — 与项目其它 modal 768 断点不同,这是文件浏览
-  // 专属判断:文件浏览内容多,iPad 上仍需要全屏才好用)。
-  // ≥ 1024px(桌面)走居中卡片;< 1024px(手机+iPad)全屏。
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
 
-  @media (max-width: 1023px) {
-    // 移动 + iPad:全屏覆盖 Sheet primitive 默认尺寸
-    width: 100vw !important;
-    height: 100dvh !important;
-    max-width: none !important;
-    max-height: none !important;
-    border-radius: 0 !important;
-
-    // Sheet primitive 在 ≥ 768px 走 Radix Dialog(transform 居中),覆盖其定位
-    top: 0 !important;
-    left: 0 !important;
-    transform: none !important;
-    inset: 0 !important;
-  }
-
-  @media (min-width: 1024px) {
-    max-width: 880px;
-    width: 90vw;
-  }
+  // Sheet primitive 桌面走 Radix Dialog(transform 居中),覆盖其定位
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  inset: 0 !important;
 }
 
 // 让 sheet body 区域吃满高度,内部三段(breadcrumb / search / body)纵向布局
