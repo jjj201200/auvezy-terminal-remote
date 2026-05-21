@@ -130,7 +130,11 @@ export default defineConfig({
     // 不生成 source map：移动端流量敏感，sourcemap 会让首屏下载量翻倍。
     // 调试时本地 dev 跑 vite 即可，无需生产 sourcemap。
     sourcemap: false,
-    rollupOptions: {
+    // 关掉 gzip 体积报告:7140 modules × 300+ chunks 计算 gzip 大小占 build
+    // 收尾 5-15 秒,且发布前 `npm pack` 输出已经显示真实包大小,这里报告冗余
+    reportCompressedSize: false,
+    // Vite 8 起 Rolldown(Rust)接替 Rollup;config 字段名改 rolldownOptions
+    rolldownOptions: {
       // 默认仅打 index.html。dev 模式 multi-page 自动启用；
       // 想 build 出 design.html 时，跑 INCLUDE_DESIGN=1 pnpm build
       input: includeDesign
