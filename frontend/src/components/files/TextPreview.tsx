@@ -5,7 +5,8 @@
  *   - dark/dark-ansi/dark-daltonized → github-dark
  *   - light/light-ansi/light-daltonized → github-light
  *   - auto → 跟随 prefers-color-scheme
- * 超大文本(>200 KB)由 syntax-highlight 内部自动降级 escapeHtml。
+ * 超大文本(> HIGHLIGHT_OFF_BYTES,本组件设 1 MiB)由 syntax-highlight 降级
+ * escapeHtml,UI 同时显示"已禁用高亮"提示。
  *
  * 安全:dangerouslySetInnerHTML 仅渲染 highlight() 输出。highlight() 内部
  * 所有非 Shiki 路径都走 escapeHtml,Shiki 自身输出是可信 HTML(无 XSS)。
@@ -51,7 +52,9 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
         if (cancelled) return;
         setTruncated(r.truncated);
         setHighlightOff(r.content.length > HIGHLIGHT_OFF_BYTES);
-        const rendered = await highlight(r.content, r.lang, theme);
+        const rendered = await highlight(r.content, r.lang, theme, {
+          maxBytes: HIGHLIGHT_OFF_BYTES,
+        });
         if (!cancelled) setHtml(rendered);
       })
       .catch((e: Error & { code?: string }) => {
