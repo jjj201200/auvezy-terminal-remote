@@ -227,7 +227,7 @@
   background: var(--color-accent-soft);
 }
 .root pre > .codeHeader .iconBtn svg { width: 12px; height: 12px; display: block; }
-.root pre > .codeHeader .iconBtn[data-copied='true'] { color: var(--color-success, #7ee787); }
+.root pre > .codeHeader .iconBtn[data-copied='true'] { color: var(--color-ok); }
 
 .root pre > code {
   display: block;
@@ -269,7 +269,7 @@
 .root pre :global(.line.diff-add) { background: rgba(126, 231, 135, 0.08); }
 .root pre :global(.line.diff-remove) { background: rgba(255, 123, 114, 0.08); }
 .root pre :global(.line.diff-add) :global(.shiki-line-number) { color: #7ee787; }
-.root pre :global(.line.diff-remove) :global(.shiki-line-number) { color: var(--color-danger, #ff7b72); }
+.root pre :global(.line.diff-remove) :global(.shiki-line-number) { color: var(--color-alarm); }
 .root pre :global(.line.diff-add) :global(.line-content)::before {
   content: '+';
   color: #7ee787;
@@ -279,7 +279,7 @@
 }
 .root pre :global(.line.diff-remove) :global(.line-content)::before {
   content: '-';
-  color: var(--color-danger, #ff7b72);
+  color: var(--color-alarm);
   position: absolute;
   left: 0;
   font-weight: 700;
@@ -605,10 +605,21 @@
 // ──── 错误 / 提示 ────
 .root .errorState {
   padding: var(--sp-4);
-  color: var(--color-danger, #ff7b72);
+  color: var(--color-alarm);
   background: var(--color-bg-elev);
 }
 .root .loading {
   padding: var(--sp-4);
   color: var(--color-fg-low);
+}
+
+// 单代码块超大被截断时的尾部提示(贴在 pre 底部)
+.root .truncatedHint {
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--color-bg-hover);
+  color: var(--color-fg-low);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.04em;
+  text-align: center;
 }

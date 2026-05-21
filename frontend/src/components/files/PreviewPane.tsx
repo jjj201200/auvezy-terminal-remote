@@ -1,11 +1,17 @@
-import { type JSX } from 'react';
+import { lazy, Suspense, type JSX } from 'react';
 import type { FilePreviewKind } from 'auvezy-terminal-remote-shared';
 import { TextPreview } from './TextPreview.js';
-import { MarkdownPreview } from './MarkdownPreview.js';
 import { ImagePreview } from './ImagePreview.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useUserConfig } from '../../hooks/useUserConfig.js';
+import { isMarkdownPath } from './file-kind.js';
 import s from './FileBrowserSheet.module.scss';
+
+// MarkdownPreview 含 react-markdown + remark/rehype 全套 + katex CSS,
+// 整体 ~250KB gzipped。未启用 markdownPreview 的用户不应付这份代价
+const MarkdownPreview = lazy(() =>
+  import('./MarkdownPreview.js').then((m) => ({ default: m.MarkdownPreview })),
+);
 
 export type PreviewTarget =
   | { kind: Extract<FilePreviewKind, 'text'>; path: string; name: string; jumpLine?: number }
@@ -16,12 +22,6 @@ export interface PreviewPaneProps {
   instanceId: string;
   target: PreviewTarget | null;
   wrapLines: boolean;
-}
-
-/** .md / .markdown 后缀(忽略大小写)— 仅在用户开启 markdownPreview 时走富文本渲染 */
-function isMarkdownPath(p: string): boolean {
-  const lower = p.toLowerCase();
-  return lower.endsWith('.md') || lower.endsWith('.markdown');
 }
 
 export function PreviewPane({ instanceId, target, wrapLines }: PreviewPaneProps): JSX.Element {
@@ -48,7 +48,9 @@ export function PreviewPane({ instanceId, target, wrapLines }: PreviewPaneProps)
       data-path={target.path}
     >
       {target.kind === 'text' && mdEnabled && isMarkdownPath(target.path) ? (
-        <MarkdownPreview instanceId={instanceId} path={target.path} />
+        <Suspense fallback={<div className={`${s.notice} fb-preview__notice`}>{t('files.previewLoading')}</div>}>
+          <MarkdownPreview instanceId={instanceId} path={target.path} />
+        </Suspense>
       ) : target.kind === 'text' && (
         <TextPreview
           instanceId={instanceId}

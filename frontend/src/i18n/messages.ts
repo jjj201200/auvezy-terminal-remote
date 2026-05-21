@@ -159,9 +159,6 @@ export interface Messages {
       actions: string;
       display: string;
       notifications: string;
-      network: string;
-      integrations: string;
-      dev: string;
       other: string;
       about: string;
     };

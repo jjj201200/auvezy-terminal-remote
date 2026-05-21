@@ -10,6 +10,7 @@ import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useUserConfig } from '../../hooks/useUserConfig.js';
 import { PreviewPane, type PreviewTarget } from './PreviewPane.js';
+import { isMarkdownPath } from './file-kind.js';
 import {
   loadFileBrowserPrefs,
   saveWrapLines,
@@ -36,8 +37,7 @@ export function FilePreviewSheet({
 
   // markdown 富文本预览自带换行,wrap toggle 在该模式下无意义 → 隐藏
   const mdEnabled = config.display?.markdownPreview === true;
-  const isMarkdown = mdEnabled && target.kind === 'text'
-    && (target.path.toLowerCase().endsWith('.md') || target.path.toLowerCase().endsWith('.markdown'));
+  const isMarkdown = mdEnabled && target.kind === 'text' && isMarkdownPath(target.path);
 
   const wrapToggle = target.kind === 'text' && !isMarkdown ? (
     <label className={`${s.toggle} fb-preview__wrap-toggle`}>

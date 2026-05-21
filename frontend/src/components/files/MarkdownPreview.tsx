@@ -16,7 +16,7 @@
  *    HTML 子集都不可执行 JS;katex 渲染产物也是静态 SVG/MathML
  */
 
-import { memo, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
+import { cloneElement, memo, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -75,15 +75,19 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
     // 这里覆盖 `code` 组件:有 className 视为代码块,无 className 视为 inline code。
     code(props) {
       const { className, children } = props;
-      const inline = !className?.startsWith('language-');
-      if (inline) {
-        return <code>{children}</code>;
+      // 仅当 className 匹配 `language-<lang>` 才升级为代码块;
+      // 包含 className 但非语言标记(如 rehype-raw 透传的旁路 class)走 inline
+      const match = /^language-([\w+-]+)$/.exec(className ?? '');
+      if (!match) {
+        return <code className={className}>{children}</code>;
       }
-      const lang = className!.slice('language-'.length);
-      const text = typeof children === 'string'
-        ? children
-        : String(children).replace(/\n$/, '');
-      return <CodeBlock code={text} lang={lang} colorScheme={colorScheme} />;
+      return (
+        <CodeBlock
+          code={toCodeText(children).replace(/\n$/, '')}
+          lang={match[1]!}
+          colorScheme={colorScheme}
+        />
+      );
     },
     pre(props) {
       // react-markdown 把 pre>code 拆开渲染。我们让 CodeBlock 自己输出 <pre>,
@@ -127,11 +131,33 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
  * Code block — 复用 syntax-highlight.highlight()
  * ─────────────────────────────────────── */
 
+/**
+ * 递归提取 React children 中的纯文本。
+ * Why:react-markdown 给 code 的 children 99% 是单字符串,但 rehype-raw 介入后
+ * 可能出现节点数组(含 emphasis 等);用 String() 会得到 "[object Object]" 喂给
+ * Shiki 渲染乱码。
+ */
+function toCodeText(node: ReactNode): string {
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(toCodeText).join('');
+  if (node && typeof node === 'object' && 'props' in node) {
+    const props = (node as JSX.Element).props as { children?: ReactNode };
+    return toCodeText(props.children);
+  }
+  return '';
+}
+
 interface CodeBlockProps {
   code: string;
   lang: string;
   colorScheme: ColorScheme;
 }
+
+/** 单代码块最多渲染的行数;超出截断并提示。
+ *  Why:markdown 文档没有按行虚拟化,单个超大代码块(几千行 dump / patch)
+ *  会一次性注入 DOM,主线程阻塞 1s+。 */
+const CODE_BLOCK_LINE_LIMIT = 1000;
 
 const CodeBlock = memo(function CodeBlock({ code, lang, colorScheme }: CodeBlockProps): JSX.Element {
   const [lines, setLines] = useState<string[]>([]);
@@ -146,7 +172,9 @@ const CodeBlock = memo(function CodeBlock({ code, lang, colorScheme }: CodeBlock
     return () => { cancelled = true; };
   }, [code, lang, colorScheme]);
 
-  const gutterCh = String(lines.length).length + 1;
+  const truncated = lines.length > CODE_BLOCK_LINE_LIMIT;
+  const renderLines = truncated ? lines.slice(0, CODE_BLOCK_LINE_LIMIT) : lines;
+  const gutterCh = String(renderLines.length).length + 1;
   const isDiff = lang === 'diff';
 
   const onCopy = async (): Promise<void> => {
@@ -159,8 +187,10 @@ const CodeBlock = memo(function CodeBlock({ code, lang, colorScheme }: CodeBlock
       // 剪贴板权限拒绝 — 静默(用户能感知 copied=false)
     }
   };
-  useEffect(() => () => {
-    if (copyTimer.current) clearTimeout(copyTimer.current);
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
   }, []);
 
   return (
@@ -194,7 +224,12 @@ const CodeBlock = memo(function CodeBlock({ code, lang, colorScheme }: CodeBlock
           </button>
         </div>
       </div>
-      <code dangerouslySetInnerHTML={{ __html: lines.join('\n') }} />
+      <code dangerouslySetInnerHTML={{ __html: renderLines.join('\n') }} />
+      {truncated && (
+        <div className={s.truncatedHint}>
+          … {lines.length - CODE_BLOCK_LINE_LIMIT} more lines truncated
+        </div>
+      )}
     </pre>
   );
 });
@@ -207,21 +242,23 @@ type AlertKind = 'note' | 'tip' | 'important' | 'warning' | 'caution';
 const ALERT_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/;
 
 function renderBlockquote(children: ReactNode): JSX.Element {
-  // 首段第一行若是 `[!NOTE]` 标记 → 提升为 alert
-  // 注意:react-markdown 把 blockquote 内容嵌成 React 节点,我们要从结构里抠
-  // 首行文本判定 — 简化处理:走 children 数组,看第 1 个 <p> 的第 1 段文本
+  // 首段第一行若是 `[!NOTE]` 标记 → 提升为 alert。
+  // children 可能是数组(多个 <p>)或单元素(blockquote 只含一个 <p>)。
+  const arr: ReactNode[] = Array.isArray(children) ? [...children] : [children];
+  const firstIdx = arr.findIndex(
+    (c): c is JSX.Element =>
+      typeof c === 'object' && c !== null && 'type' in c && (c as JSX.Element).type === 'p',
+  );
+  const first = firstIdx >= 0 ? (arr[firstIdx] as JSX.Element) : null;
+
   let kind: AlertKind | null = null;
   let rest: ReactNode = children;
-  if (Array.isArray(children)) {
-    const first = children.find((c): c is JSX.Element =>
-      typeof c === 'object' && c !== null && 'type' in c && (c as JSX.Element).type === 'p');
-    if (first) {
-      const txt = extractLeadingText(first);
-      const m = txt && ALERT_RE.exec(txt.trim());
-      if (m) {
-        kind = m[1]!.toLowerCase() as AlertKind;
-        rest = stripAlertMarker(children, first);
-      }
+  if (first) {
+    const txt = extractLeadingText(first);
+    const m = txt && ALERT_RE.exec(txt.trim());
+    if (m) {
+      kind = m[1]!.toLowerCase() as AlertKind;
+      rest = stripAlertMarker(arr, first, firstIdx);
     }
   }
   if (!kind) {
@@ -243,27 +280,28 @@ function renderBlockquote(children: ReactNode): JSX.Element {
 }
 
 function extractLeadingText(el: JSX.Element): string | null {
-  const ch = el.props?.children;
+  const props = el.props as { children?: ReactNode } | undefined;
+  const ch = props?.children;
   if (typeof ch === 'string') return ch;
   if (Array.isArray(ch) && typeof ch[0] === 'string') return ch[0];
   return null;
 }
 
-function stripAlertMarker(all: ReactNode[], firstP: JSX.Element): ReactNode {
+function stripAlertMarker(arr: ReactNode[], firstP: JSX.Element, idx: number): ReactNode {
   // 把 firstP 的内容里的 [!XXX] 标记去掉;若该 p 全是标记,去掉整个 p
-  const ch = firstP.props?.children;
-  const idx = all.indexOf(firstP);
+  const props = firstP.props as { children?: ReactNode } | undefined;
+  const ch = props?.children;
   if (typeof ch === 'string' && ALERT_RE.test(ch.trim())) {
-    return all.slice(0, idx).concat(all.slice(idx + 1));
+    return arr.slice(0, idx).concat(arr.slice(idx + 1));
   }
   if (Array.isArray(ch) && typeof ch[0] === 'string' && ALERT_RE.test(ch[0].trim())) {
     const restCh = ch.slice(1);
-    // 若剩余首元素是 <br> 或换行,跳过它
-    const cleanedFirst = { ...firstP, props: { ...firstP.props, children: restCh.length ? restCh : null } };
     if (!restCh.length) {
-      return all.slice(0, idx).concat(all.slice(idx + 1));
+      return arr.slice(0, idx).concat(arr.slice(idx + 1));
     }
-    return all.slice(0, idx).concat([cleanedFirst], all.slice(idx + 1));
+    // cloneElement 保留 key/ref 等内部字段;不要手工 spread ReactElement
+    const cleanedFirst = cloneElement(firstP, undefined, ...restCh);
+    return arr.slice(0, idx).concat([cleanedFirst], arr.slice(idx + 1));
   }
-  return all;
+  return arr;
 }
