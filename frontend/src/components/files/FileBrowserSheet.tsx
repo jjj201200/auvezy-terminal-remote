@@ -127,13 +127,14 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const inSearchMode = submittedQ.length >= SEARCH_MIN_CHARS;
 
   const onPickHit = (h: SearchEvent): void => {
+    // Why 不清搜索:用户从搜索结果跳预览,关预览后期望回到原搜索结果继续浏览
+    // (类似 IDE / 浏览器搜索 → 跳转 → 返回的体验)。保留 submittedQ + hits +
+    // SearchBox draft;若想真退出搜索由用户主动按清/Esc 触发。
     if (h.kind === 'content') {
       openPreview({ kind: 'text', path: h.path, name: `${h.path}:${h.line}`, jumpLine: h.line });
     } else {
       openPreview({ kind: 'text', path: h.path, name: h.path });
     }
-    setSubmittedQ('');
-    setSearchBoxKey((k) => k + 1);
   };
 
   const clearSearch = (): void => {

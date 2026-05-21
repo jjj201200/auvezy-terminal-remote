@@ -484,73 +484,72 @@
   .textPre {
     flex: 1;
     margin: 0;
-    padding: 0;
-    overflow: auto;
+    // Why padding 上下:阅读呼吸感;左 0:每行的 .shiki-line-number 自带左 padding
+    padding: var(--sp-4) 0;
+    // 虚拟列表自己管纵向滚动,容器不可 overflow:auto 否则会有两套滚动条
+    overflow: hidden;
+    background: var(--color-bg-canvas);
+    color: var(--color-fg);
     font-family: var(--font-mono);
     font-size: var(--fs-sm);
     line-height: var(--lh-base);
+    // Sheet primitive 顶层强制 user-select:none(防 vaul 拖拽误识别),仅
+    // input/textarea 白名单。文件预览是阅读型内容,必须能选中复制 →
+    // 用 !important 顶破 Sheet 的限制。-webkit- 前缀保 Safari/iOS。
+    user-select: text !important;
+    -webkit-user-select: text !important;
 
-    // Shiki multi-themes 输出 <pre.shiki>:用 defaultColor:false,Shiki 不写
-    // 容器 color/background 内联样式,只把每个 token 的两套颜色写成
-    // inline CSS 变量(style="--shiki-light:#xxx;--shiki-dark:#yyy")。
-    // 容器 background/color 走项目 design token,token 自身颜色按
-    // TextPreview 设的 data-color-scheme 决定用哪套 var。
-    // ──── Shiki / 降级路径共用的 <pre> 容器样式 ────
-    // 左 padding=0:每行的 .shiki-line-number gutter 自带左 padding,容器再加就缩内容列
-    :global(pre.shiki),
-    >pre {
-      margin: 0;
-      padding: var(--sp-4) var(--sp-4) var(--sp-4) 0;
-      background: var(--color-bg-canvas);
-      color: var(--color-fg);
-      font-family: var(--font-mono);
-      font-size: var(--fs-sm);
-      line-height: var(--lh-base);
-      white-space: pre;
-      tab-size: 2;
-    }
-    // Shiki defaultColor:false 不写容器底色,需要 !important 盖掉 inline
-    :global(pre.shiki) {
-      overflow: visible;
-      background: var(--color-bg-canvas) !important;
-    }
-    >pre code {
-      font-family: inherit;
-      color: inherit;
-    }
-
-    // Shiki token 默认走 dark 套(--shiki-dark);data-color-scheme=light 切 light 套
-    :global(pre.shiki) :global(span) {
-      color: var(--shiki-dark);
-    }
-    &[data-color-scheme='light'] :global(pre.shiki) :global(span) {
-      color: var(--shiki-light);
-    }
-    &[data-color-scheme='light'] :global(pre.shiki) {
-      background: var(--color-bg) !important;
-    }
-
-    // ──── 行容器 + 行号 gutter(Shiki / 降级共用)────
-    // .line grid:[gutter 4ch] + [content 1fr]
+    // ──── 行容器:grid 两列 ────
+    // .line 是 <span>(Shiki 输出),grid 子项 = .shiki-line-number 与
+    // .line-content 共 2 个;token spans 都裹在 .line-content 内部不参与 grid。
+    // Why CSS var 而非 minmax(4ch, max-content):虚拟列表里每行是独立 grid
+    // container,max-content 各自算 → 不同行号位数的行列宽不一致、滚动抖动。
+    // TextPreview 算 `--atr-gutter-w = ${maxDigits + 1}ch` 统一注入。
     :global(.line) {
       display: grid;
-      grid-template-columns: 4ch 1fr;
+      grid-template-columns: var(--atr-gutter-w, 4ch) 1fr;
       column-gap: var(--sp-3);
     }
+
     :global(.shiki-line-number) {
       color: var(--color-fg-low) !important;
-      user-select: none;
+      // .textPre 用 important 顶破 Sheet 的 user-select:none,这里必须再用
+      // important 顶回来,避免行号被一并选中复制
+      user-select: none !important;
+      -webkit-user-select: none !important;
       text-align: right;
       padding-left: var(--sp-3);
     }
-    // 搜索跳转命中行高亮(JS 端动态加 .atr-line-hl)
-    :global(.line.atr-line-hl) {
+
+    // 内容列保持 pre 行为(token 间空格 / 缩进 / tab 完整)
+    :global(.line-content) {
+      white-space: pre;
+      tab-size: 2;
+      min-width: 0; // 防止 grid 子项内容超长撑爆列宽
+    }
+
+    // ──── Shiki token 颜色 ────
+    // Shiki defaultColor:false 把 token 颜色写成 CSS 变量(inline style),容器
+    // 选哪套由 data-color-scheme 决定。仅 .line-content 内的 token span 适用。
+    :global(.line-content) :global(span) {
+      color: var(--shiki-dark);
+    }
+    &[data-color-scheme='light'] :global(.line-content) :global(span) {
+      color: var(--shiki-light);
+    }
+    &[data-color-scheme='light'] {
+      background: var(--color-bg);
+    }
+
+    // 搜索跳转命中行高亮:TextPreview 把 .atr-line-hl 加在 Virtuoso item 外层
+    // div(包裹 .line)上。Why 外层而非 .line 自己:.line 由 dangerouslySetInnerHTML
+    // 写入,React 不易在挂载后增改 class 字符串,放外层 wrapper 更声明式。
+    :global(.atr-line-hl) :global(.line) {
       background: var(--color-accent-soft);
     }
 
-    // 自动换行(data-wrap=true):pre-wrap + 强制断 token;内容列折行,行号列不动
-    &[data-wrap='true'] :global(pre.shiki),
-    &[data-wrap='true'] > pre {
+    // 自动换行(data-wrap=true):pre-wrap + 强制断 token;只影响内容列
+    &[data-wrap='true'] :global(.line-content) {
       white-space: pre-wrap;
       word-break: break-word;
       overflow-wrap: anywhere;

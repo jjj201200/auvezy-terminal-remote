@@ -81,7 +81,8 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
   // content 命中;现在 walk 与内容扫描重叠跑,首个 content 命中提前到达。
   const queue: string[] = [];
   let walkDone = false;
-  // 队列空时 worker await 这个 promise 等下一个 enqueue / walkDone
+  // 队列空时 worker await 这个 promise 等下一个 enqueue / walkDone / cancel。
+  // cancelSignal 也接到这里 → worker 取消即时唤醒,无需轮询兜底。
   let waitResolve: (() => void) | null = null;
   let waitPromise: Promise<void> = new Promise((r) => { waitResolve = r; });
   const wakeWorkers = (): void => {
@@ -92,6 +93,12 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
       waitPromise = new Promise((rr) => { waitResolve = rr; });
     }
   };
+  // cancelSignal 触发即唤醒所有 worker(下一行 await 完后,各自看 aborted 退出)
+  opts.cancelSignal?.addEventListener('abort', wakeWorkers, { once: true });
+  // 总超时也要能唤醒空转 worker 触发退出 —— 否则 walk 卡住时 worker 会永远等。
+  // unref:不阻止 Node 进程退出
+  const totalTimeoutHandle = setTimeout(wakeWorkers, SEARCH_TOTAL_TIMEOUT_MS);
+  totalTimeoutHandle.unref();
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (depth > MAX_DEPTH) return;
@@ -155,11 +162,9 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
           const f = queue.shift();
           if (!f) {
             if (walkDone) return;
-            // 等下一个 enqueue 或 walkDone;同时设个超时兜底以便定期复检退出条件
-            await Promise.race([
-              waitPromise,
-              new Promise<void>((r) => setTimeout(r, 50)),
-            ]);
+            // 等下一次 wakeWorkers(enqueue / walkDone / cancel 都会唤醒);
+            // 单一 await 无 polling,取消即时生效。
+            await waitPromise;
             continue;
           }
           await scanFile(f);
@@ -249,6 +254,8 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
     });
   }
 
+  clearTimeout(totalTimeoutHandle);
+  // abort listener 用 { once: true } 注册,触发后或未触发都不需手动移除
   return {
     truncated,
     scanned,
