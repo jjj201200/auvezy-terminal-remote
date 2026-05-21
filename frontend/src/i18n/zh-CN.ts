@@ -493,6 +493,7 @@ export const zhCN: Messages = {
     previewHighlightOff: '文件过大,已禁用高亮',
     previewImageTooLarge: '图片超过 8 MiB,无法预览',
     previewBack: '返回',
+    previewWrap: '自动换行',
     errorPathNotFound: '路径不存在',
     errorPathForbidden: '路径不在允许范围内',
     errorFileBinary: '该文件是二进制,无法以文本预览',

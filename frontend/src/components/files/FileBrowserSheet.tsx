@@ -14,6 +14,10 @@ import { useT } from '../../i18n/i18n-context.js';
 import { useFiles } from '../../hooks/useFiles.js';
 import { streamSearch, type SearchHandle } from '../../services/files-api.js';
 import { useFilePreviewPresenter } from '../ui/modal-stack/presenters.js';
+import {
+  loadFileBrowserPrefs,
+  saveShowHidden,
+} from '../../services/file-browser-prefs.js';
 import { Breadcrumb } from './Breadcrumb.js';
 import { FileList } from './FileList.js';
 import type { PreviewTarget } from './PreviewPane.js';
@@ -37,7 +41,15 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const [cwd, setCwd] = useState<string>('');
   const [parent, setParent] = useState<string | null>(null);
   const [entries, setEntries] = useState<FileEntry[]>([]);
-  const [showHidden, setShowHidden] = useState(false);
+  // showHidden 持久化:初值从 localStorage 读,切换时同步写
+  const [showHidden, setShowHiddenState] = useState<boolean>(() => loadFileBrowserPrefs().showHidden);
+  const setShowHidden = (next: boolean | ((prev: boolean) => boolean)): void => {
+    setShowHiddenState((prev) => {
+      const v = typeof next === 'function' ? next(prev) : next;
+      saveShowHidden(v);
+      return v;
+    });
+  };
   const [error, setError] = useState<string | null>(null);
 
   // ──────────── 搜索 state ────────────

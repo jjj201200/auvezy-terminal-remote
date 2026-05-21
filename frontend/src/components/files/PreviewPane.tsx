@@ -1,12 +1,19 @@
 /**
  * PreviewPane:右侧预览容器。target=null 时显示 empty placeholder。
+ *
+ * 文件名右侧带"自动换行"toggle(仅 text 模式有意义);默认不换行,
+ * 持久化到 localStorage(atr.fileBrowser.wrapLines)。
  */
 
-import { useEffect, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { TextPreview } from './TextPreview.js';
 import { ImagePreview } from './ImagePreview.js';
 import { useT } from '../../i18n/i18n-context.js';
+import {
+  loadFileBrowserPrefs,
+  saveWrapLines,
+} from '../../services/file-browser-prefs.js';
 import s from './FileBrowserSheet.module.scss';
 
 export type PreviewTarget =
@@ -22,6 +29,15 @@ export interface PreviewPaneProps {
 
 export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): JSX.Element {
   const t = useT();
+  // 自动换行持久化:与 showHidden 同模式,init 从 localStorage 读,切时同步写
+  const [wrapLines, setWrapLinesState] = useState<boolean>(() => loadFileBrowserPrefs().wrapLines);
+  const toggleWrap = (): void => {
+    setWrapLinesState((prev) => {
+      const next = !prev;
+      saveWrapLines(next);
+      return next;
+    });
+  };
 
   // Esc 键关预览(全屏模式下用户期望)
   useEffect(() => {
@@ -68,8 +84,21 @@ export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): 
           <span>{t('files.previewBack')}</span>
         </button>
         <strong className="fb-preview__name" title={target.path}>{target.name}</strong>
+        {target.kind === 'text' && (
+          <label className={`${s.toggle} fb-preview__wrap-toggle`}>
+            <input
+              type="checkbox"
+              checked={wrapLines}
+              onChange={toggleWrap}
+              data-action="files-toggle-wrap"
+            />
+            {t('files.previewWrap')}
+          </label>
+        )}
       </header>
-      {target.kind === 'text' && <TextPreview instanceId={instanceId} path={target.path} />}
+      {target.kind === 'text' && (
+        <TextPreview instanceId={instanceId} path={target.path} wrapLines={wrapLines} />
+      )}
       {target.kind === 'image' && <ImagePreview instanceId={instanceId} path={target.path} />}
       {target.kind === 'none' && (
         <div className={`${s.unsupported} fb-preview__unsupported`}>

@@ -603,6 +603,8 @@ export interface Messages {
     previewImageTooLarge: string;
     /** 预览全屏返回按钮 */
     previewBack: string;
+    /** 预览自动换行 toggle 标签 */
+    previewWrap: string;
     /** 错误 toast */
     errorPathNotFound: string;
     errorPathForbidden: string;

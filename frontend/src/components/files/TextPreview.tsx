@@ -23,11 +23,13 @@ import s from './FileBrowserSheet.module.scss';
 export interface TextPreviewProps {
   instanceId: string;
   path: string;
+  /** 长行自动换行(true: pre-wrap;false: pre 横向滚动) */
+  wrapLines?: boolean;
 }
 
 const HIGHLIGHT_OFF_BYTES = 1024 * 1024;
 
-export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element {
+export function TextPreview({ instanceId, path, wrapLines = false }: TextPreviewProps): JSX.Element {
   const t = useT();
   const files = useFiles(instanceId);
   const { config } = useUserConfig();
@@ -97,6 +99,7 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
         data-truncated={truncated ? 'true' : 'false'}
         data-highlight-off={highlightOff ? 'true' : 'false'}
         data-color-scheme={themeVariant}
+        data-wrap={wrapLines ? 'true' : 'false'}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </>

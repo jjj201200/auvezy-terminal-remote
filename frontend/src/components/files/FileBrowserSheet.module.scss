@@ -299,26 +299,17 @@
 // ──────────── 预览专用 sheet(独立 modal,modal-stack 第二层) ────────────
 
 .previewSheet {
-
-  // 预览 modal 断点策略同 .sheet:< 1024px 全屏(含 iPad);≥ 1024px 居中大卡片
-  @media (max-width: 1023px) {
-    width: 100vw !important;
-    height: 100dvh !important;
-    max-width: none !important;
-    max-height: none !important;
-    border-radius: 0 !important;
-    top: 0 !important;
-    left: 0 !important;
-    transform: none !important;
-    inset: 0 !important;
-  }
-
-  @media (min-width: 1024px) {
-    max-width: 960px;
-    width: 92vw;
-    height: 85dvh;
-    max-height: none !important;
-  }
+  // 预览统一全屏(桌面 + iPad + 手机) — 文件预览本质是沉浸式阅读,
+  // 与操作型 modal(分享/设置)不同,容器越大越好。
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  inset: 0 !important;
 }
 
 // 预览 modal 内部根容器(与 fb-root 区分)
@@ -572,6 +563,15 @@
     }
     &[data-color-scheme='light'] :global(pre.shiki) {
       background: var(--color-bg) !important;
+    }
+
+    // 自动换行模式(data-wrap=true):pre-wrap + 强制断 token,
+    // 中文/超长 URL/JSON 字符串等也能纵向收完整
+    &[data-wrap='true'] :global(pre.shiki),
+    &[data-wrap='true'] > pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     // 降级路径(escapeHtml 包的 <pre><code>):没 .shiki class,补暗色样式
