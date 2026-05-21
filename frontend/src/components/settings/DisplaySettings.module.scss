@@ -45,7 +45,7 @@
 .row {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-4);
   flex-wrap: wrap;
 }
 
@@ -70,13 +70,35 @@
 }
 
 // xterm 主题色（与 useTerminal 中的 theme 一一对应）
-.cPrompt { color: #b6f09c; } // accent green
-.cFg     { color: #e6e7ea; }
-.cMuted  { color: #6e7681; } // brightBlack
-.cBlue   { color: #58a6ff; }
-.cGreen  { color: #3fb950; }
-.cRed    { color: #ff7b72; }
-.cYellow { color: #d29922; }
+.cPrompt {
+  color: #b6f09c;
+}
+
+// accent green
+.cFg {
+  color: #e6e7ea;
+}
+
+.cMuted {
+  color: #6e7681;
+}
+
+// brightBlack
+.cBlue {
+  color: #58a6ff;
+}
+
+.cGreen {
+  color: #3fb950;
+}
+
+.cRed {
+  color: #ff7b72;
+}
+
+.cYellow {
+  color: #d29922;
+}
 
 .previewMeta {
   margin-top: var(--sp-3);
@@ -149,6 +171,7 @@
   outline: none;
   // 隐藏 number input 的上下旋钮（与紧凑视觉冲突）
   -moz-appearance: textfield;
+
   &::-webkit-inner-spin-button,
   &::-webkit-outer-spin-button {
     -webkit-appearance: none;
@@ -202,6 +225,7 @@
   &:focus-visible::-webkit-slider-thumb {
     box-shadow: 0 0 0 3px var(--color-accent-glow);
   }
+
   &:focus-visible::-moz-range-thumb {
     box-shadow: 0 0 0 3px var(--color-accent-glow);
   }
@@ -253,7 +277,7 @@
 // ──────────── 调色板主题（折叠 select 风格）────────────
 
 .themeSelect {
-  position: relative;   // 让 .themeList 用 absolute 锚定到这里
+  position: relative; // 让 .themeList 用 absolute 锚定到这里
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -325,8 +349,15 @@
 }
 
 @keyframes themeListIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .themeItemActive {
@@ -352,7 +383,7 @@
   overflow: hidden;
   border: 1px solid var(--color-border);
 
-  > span {
+  >span {
     display: inline-block;
     width: 12px;
     height: 18px;

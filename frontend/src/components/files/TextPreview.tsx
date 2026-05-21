@@ -88,6 +88,7 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
         className={`${s.textPre} fb-preview__text`}
         data-truncated={truncated ? 'true' : 'false'}
         data-highlight-off={highlightOff ? 'true' : 'false'}
+        data-color-scheme={themeVariant}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </>

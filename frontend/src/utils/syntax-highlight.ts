@@ -30,11 +30,15 @@ export interface HighlightOptions {
 
 /**
  * 高亮一段代码,返回完整 HTML。失败 / 超大 / 未知 lang 一律降级。
+ *
+ * 注:theme 参数已不再决定输出 — 现在统一走 multi-themes(light + dark) +
+ * defaultColor:false,token 颜色作为 CSS 变量;实际选哪套由容器 css class /
+ * prefers-color-scheme 决定。保留参数仅为向后兼容旧调用方,可传可不传。
  */
 export async function highlight(
   code: string,
   backendLang: string,
-  theme: SupportedTheme,
+  _theme: SupportedTheme,
   opts: HighlightOptions = {},
 ): Promise<string> {
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_HIGHLIGHT_BYTES;
@@ -47,7 +51,16 @@ export async function highlight(
   }
   try {
     const { codeToHtml } = await import('shiki');
-    return await codeToHtml(code, { lang, theme });
+    // 用 multi-themes + defaultColor:false 让 Shiki 只输出 token 着色(CSS 变量),
+    // 不写入 background/color 内联样式;容器的底色/前景由项目 scss 用 design token
+    // 接管(--color-bg-canvas / --color-fg 等),与用户显示设置一致。
+    // 同时输出 light 与 dark 两套 token 颜色变量,scss 用 prefers-color-scheme
+    // / 容器类切换。
+    return await codeToHtml(code, {
+      lang,
+      themes: { light: 'github-light', dark: 'github-dark' },
+      defaultColor: false,
+    });
   } catch {
     return wrapPre(escapeHtml(code));
   }

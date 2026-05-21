@@ -542,7 +542,11 @@
     font-size: var(--fs-sm);
     line-height: var(--lh-base);
 
-    // Shiki 输出的 <pre.shiki> 自带 background + color(走 theme),内 padding
+    // Shiki multi-themes 输出 <pre.shiki>:用 defaultColor:false,Shiki 不写
+    // 容器 color/background 内联样式,只把每个 token 的两套颜色写成
+    // inline CSS 变量(style="--shiki-light:#xxx;--shiki-dark:#yyy")。
+    // 容器 background/color 走项目 design token,token 自身颜色按
+    // TextPreview 设的 data-color-scheme 决定用哪套 var。
     :global(pre.shiki) {
       margin: 0;
       padding: var(--sp-4);
@@ -552,6 +556,22 @@
       font-family: var(--font-mono);
       font-size: var(--fs-sm);
       line-height: var(--lh-base);
+      background: var(--color-bg-canvas) !important;
+      color: var(--color-fg);
+
+      // 默认走 dark token 颜色(项目主流暗主题)
+      :global(span) {
+        color: var(--shiki-dark);
+      }
+    }
+
+    // 用户选 light variant 时 TextPreview 给容器加 data-color-scheme=light,
+    // 切到 --shiki-light token 颜色
+    &[data-color-scheme='light'] :global(pre.shiki) :global(span) {
+      color: var(--shiki-light);
+    }
+    &[data-color-scheme='light'] :global(pre.shiki) {
+      background: var(--color-bg) !important;
     }
 
     // 降级路径(escapeHtml 包的 <pre><code>):没 .shiki class,补暗色样式
