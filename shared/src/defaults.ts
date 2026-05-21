@@ -589,6 +589,9 @@ export interface DisplayPrefs {
   letterSpacing?: number;
   /** 调色板主题;命名跟 Claude Code 的 /theme 选项对齐,方便用户对照 */
   theme?: TerminalThemeName;
+  /** 文件预览启用 markdown 可视化渲染(.md / .markdown)。默认 false:
+   *  用户主动开启;关闭时 .md 走纯文本路径(同其它代码文件) */
+  markdownPreview?: boolean;
 }
 
 /** 仅供 normalize 内部识别 0.7.0 之前的 config.json 用 —— 不应暴露给业务代码 */
@@ -617,6 +620,7 @@ export const DEFAULT_DISPLAY: Required<DisplayPrefs> = {
   maxCols: 0, // 0 = 关闭自适应
   letterSpacing: 0,
   theme: 'auto', // 跟随系统亮暗模式:dark → Campbell, light → Solarized Light
+  markdownPreview: false,
 };
 
 /** 列数预设（设置面板按钮） */
@@ -755,12 +759,17 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
     themeRaw === 'auto'
       ? themeRaw
       : DEFAULT_DISPLAY.theme;
+  const markdownPreview =
+    typeof rawDisplay?.markdownPreview === 'boolean'
+      ? rawDisplay.markdownPreview
+      : DEFAULT_DISPLAY.markdownPreview;
   const display: DisplayPrefs = {
     fontSizeMin,
     fontSizeMax,
     maxCols,
     letterSpacing,
     theme,
+    markdownPreview,
   };
 
   // integrations:对象 deep-merge,缺失字段全用默认。

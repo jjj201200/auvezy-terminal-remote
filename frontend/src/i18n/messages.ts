@@ -193,6 +193,9 @@ export interface Messages {
     letterSpacingAriaLabel: string;
     letterSpacingValue: string; // {{val}} px
     resetTooltip: string;
+    markdownPreviewTitle: string;
+    markdownPreviewHint: string;
+    markdownPreviewLabel: string;
     colsModeAuto: string;
     colsModeTarget: string; // 目标 {{cols}} / target {{cols}}
     themeTitle: string;
@@ -601,6 +604,7 @@ export interface Messages {
     previewTruncated: string;
     previewHighlightOff: string;
     previewImageTooLarge: string;
+    previewLoading: string;
     /** 预览自动换行 toggle 标签 */
     previewWrap: string;
     /** 错误 toast */

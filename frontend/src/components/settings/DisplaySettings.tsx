@@ -138,6 +138,7 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
   const fontSizeMax = value?.fontSizeMax ?? DEFAULT_DISPLAY.fontSizeMax;
   const letterSpacing = value?.letterSpacing ?? DEFAULT_DISPLAY.letterSpacing;
   const theme = value?.theme ?? DEFAULT_DISPLAY.theme;
+  const markdownPreview = value?.markdownPreview ?? DEFAULT_DISPLAY.markdownPreview;
   // 预览也用当前主题色,让用户改主题立即看到效果
   const palette = useMemo(() => resolveTheme(theme), [theme]);
 
@@ -469,6 +470,24 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
           >
             {t('common.reset')}
           </button>
+        </div>
+      </section>
+
+      {/* 文件预览 — markdown 可视化 */}
+      <section className={s.section}>
+        <header className={s.sectionHeader}>
+          <h3 className={s.sectionTitle}>{t('display.markdownPreviewTitle')}</h3>
+          <p className={s.sectionHint}>{t('display.markdownPreviewHint')}</p>
+        </header>
+        <div className={s.row}>
+          <label className={s.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={markdownPreview}
+              onChange={(e) => onChange({ ...value, markdownPreview: e.target.checked })}
+            />
+            <span>{t('display.markdownPreviewLabel')}</span>
+          </label>
         </div>
       </section>
     </div>

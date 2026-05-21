@@ -8,6 +8,7 @@
 import { useEffect, useState, type JSX } from 'react';
 import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
+import { useUserConfig } from '../../hooks/useUserConfig.js';
 import { PreviewPane, type PreviewTarget } from './PreviewPane.js';
 import {
   loadFileBrowserPrefs,
@@ -29,10 +30,16 @@ export function FilePreviewSheet({
   target,
 }: FilePreviewSheetProps): JSX.Element {
   const t = useT();
+  const { config } = useUserConfig();
   const [wrapLines, setWrapLines] = useState<boolean>(() => loadFileBrowserPrefs().wrapLines);
   useEffect(() => { saveWrapLines(wrapLines); }, [wrapLines]);
 
-  const wrapToggle = target.kind === 'text' ? (
+  // markdown 富文本预览自带换行,wrap toggle 在该模式下无意义 → 隐藏
+  const mdEnabled = config.display?.markdownPreview === true;
+  const isMarkdown = mdEnabled && target.kind === 'text'
+    && (target.path.toLowerCase().endsWith('.md') || target.path.toLowerCase().endsWith('.markdown'));
+
+  const wrapToggle = target.kind === 'text' && !isMarkdown ? (
     <label className={`${s.toggle} fb-preview__wrap-toggle`}>
       <input
         type="checkbox"
