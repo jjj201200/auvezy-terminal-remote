@@ -39,7 +39,7 @@ import {
 } from '../constants.js';
 import { resolveSafePath, type WorkdirPolicy } from '../files/path-resolver.js';
 import { listDir } from '../files/list-dir.js';
-import { detectMime, detectLang } from '../files/mime-detect.js';
+import { detectMime } from '../files/mime-detect.js';
 import { readTextFile } from '../files/read-file.js';
 import { runSearch } from '../files/search-engine.js';
 import { getFileKind } from '../files/file-kind.js';
@@ -119,7 +119,7 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
     const payload: FileReadResponse = {
       ok: true, path: target, mime: m.mime,
       content: r.content, truncated: r.truncated, size: r.size,
-      lang: detectLang(target),
+      lang: pickLang(m.lang, r.hasAnsi),
     };
     logger.info({
       action: 'read', instanceId: ctx.instanceId, path: target,
@@ -321,6 +321,20 @@ async function resolveContext(
     policy: { allow: snap.allow, deny: snap.deny },
     instanceId,
   };
+}
+
+/**
+ * 文件 lang 选择:扩展名推断 + ANSI 内容启发式。
+ *
+ * Why 限制集合:.ts / .py / .md 等源码 / 标记语言里可能恰好含 ESC '['
+ * 字符串字面量,不该被强制改成 ansi。仅在"按扩展名也判不出语言"(txt)
+ * 或"本就是日志/纯文本"(log)时让 ansi 覆盖。
+ */
+function pickLang(baseLang: string, hasAnsi: boolean): string {
+  if (hasAnsi && (baseLang === 'txt' || baseLang === 'log')) {
+    return 'ansi';
+  }
+  return baseLang;
 }
 
 /**

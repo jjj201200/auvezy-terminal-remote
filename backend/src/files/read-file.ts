@@ -21,11 +21,25 @@ export interface ReadResult {
   truncated: boolean;
   /** 原始字节数(未截断前) */
   size: number;
+  /** 前 4 KiB 含 ANSI ESC CSI 序列(用于 lang 推断走 'ansi' 分支) */
+  hasAnsi: boolean;
 }
 
 const NUL_PROBE_BYTES = 4 * 1024;
 const REPLACEMENT_CHAR = '�';
 const REPLACEMENT_DENSITY_LIMIT = 0.05;
+
+/**
+ * 字节序列里查 ESC '[' 对(0x1B 0x5B):ANSI CSI 引导符。
+ * 单独 0x1B 在非 ANSI 文本里(如二进制 metadata 残留)也可能出现,要求紧接 '['
+ * 才认定为 ANSI。
+ */
+function probeHasAnsi(buf: Buffer): boolean {
+  for (let i = 0; i < buf.length - 1; i++) {
+    if (buf[i] === 0x1b && buf[i + 1] === 0x5b) return true;
+  }
+  return false;
+}
 
 /**
  * 读单个文本文件。
@@ -39,8 +53,9 @@ export async function readTextFile(absPath: string): Promise<ReadResult> {
 
   const fh = await open(absPath, 'r');
   try {
-    // Step 1: 字节级 NUL 闸(解码前)
+    // Step 1: 字节级 NUL 闸(解码前)+ 顺便 ANSI 探测
     const probeLen = Math.min(NUL_PROBE_BYTES, size);
+    let hasAnsi = false;
     if (probeLen > 0) {
       const probe = Buffer.alloc(probeLen);
       await fh.read(probe, 0, probeLen, 0);
@@ -51,6 +66,7 @@ export async function readTextFile(absPath: string): Promise<ReadResult> {
           409,
         );
       }
+      hasAnsi = probeHasAnsi(probe);
     }
 
     // Step 2: 全文读(截断)
@@ -78,7 +94,7 @@ export async function readTextFile(absPath: string): Promise<ReadResult> {
       }
     }
 
-    return { content, truncated, size };
+    return { content, truncated, size, hasAnsi };
   } finally {
     await fh.close();
   }

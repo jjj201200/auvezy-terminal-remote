@@ -38,18 +38,11 @@ export const IP_MONITOR_INTERVAL_MS = 30_000;
 export const IP_MONITOR_STABILITY_THRESHOLD = 2;
 
 // ──────────────── 文件浏览速率限制 ────────────────
-//
-// 设定原则:
-//   - 文件浏览是"鉴权后高频读"场景(切目录、预览、图片预览各 1 次/操作),
-//     日常浏览容易在 60 s 撞老阈值 120/min。
-//   - 限流是兜底反爬,不是反正常用户。**正常人不可能手快到 10 次/秒**,
-//     所以 600/min 作为新阈值远高于真实使用,但能拦自动化滥用。
-//   - 搜索成本高(深度遍历 + grep),独立用 60/min(=1/s)。
+// Why 600/60:限流是兜底反爬,不是反正常用户 —— 取远高于真实浏览速率的阈值
+// (人手不可能 10 次/秒),但能拦自动化滥用。搜索独立 60/min(=1/s)因深度
+// 遍历 + grep 成本远高于一次 stat。
 
-/** /api/files/{list,stat,read,raw} 共享 per-IP 限流(每分钟) */
 export const FILE_RATE_LIMIT_PER_MIN = 600;
-
-/** /api/files/search 独立 per-IP 限流(每分钟) */
 export const SEARCH_RATE_LIMIT_PER_MIN = 60;
 
 // ──────────────── PTY ────────────────

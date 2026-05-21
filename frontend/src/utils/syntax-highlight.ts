@@ -1,92 +1,90 @@
 /**
- * syntax-highlight:Shiki 包装 + 多重降级
+ * Shiki 包装 + 多重降级。
  *
- * 调用规则:
- *  - 超过 maxBytes 的文本 → escapeHtml 直出(防主线程阻塞)
- *  - 未知 lang → escapeHtml 直出
- *  - Shiki 动态加载 / codeToHtml 抛任何异常 → escapeHtml 不抛
- *
- * 设计选择:用 Shiki 4.x 顶级 `codeToHtml(code, { lang, theme })`,内部已含
- * singleton highlighter + 按需 lazy load grammar/theme。不自己 cache highlighter,
- * 让 Shiki 自己管。
+ * Why:
+ *  - 主线程跑 Shiki 对超大文本会卡死 → maxBytes 闸 → escapeHtml
+ *  - 未知 lang 时 codeToHtml 会抛 → 提前 escapeHtml 兜底
+ *  - 用 multi-themes + defaultColor:false 让 Shiki 输出 CSS 变量
+ *    (--shiki-light / --shiki-dark);容器选哪套由 data-color-scheme 决定,
+ *    底色由项目 design token 接管而不是 Shiki 内联色。
  */
 
+import type { ShikiTransformer } from 'shiki';
 import { toShikiLang } from './lang-map.js';
 
-/**
- * 默认最大高亮字节数(1 MiB)。
- *
- * 这是个"安全兜底",真正的阈值由调用方传 maxBytes 决定。
- * 超过后走 escapeHtml(纯文本展示,不阻塞主线程)。
- */
 export const DEFAULT_MAX_HIGHLIGHT_BYTES = 1024 * 1024;
 
-/**
- * 调用方应传入的"目标着色风格",由 TextPreview 按用户 Settings → 显示主题
- * 推导(见 resolveTheme 在 terminal-themes.ts 内 variant 判定)。
- *
- * - 'standard':普通暗 / 亮主题(one-dark-pro / one-light)
- * - 'daltonized':色弱友好(tokyo-night / solarized-light)
- */
 export type ColorScheme = 'standard' | 'daltonized';
 
-/**
- * @deprecated 保留兼容旧调用方;现在主题由 multi-themes 自动适配,此参不再使用
- */
-export type SupportedTheme = 'github-dark' | 'github-light';
-
 export interface HighlightOptions {
-  /** 字节阈值;超过 → 走 escapeHtml 降级。默认 DEFAULT_MAX_HIGHLIGHT_BYTES */
   maxBytes?: number;
-  /** 配色方案;默认 'standard'。'daltonized' 走色弱友好的主题对 */
   colorScheme?: ColorScheme;
 }
 
-/** 配色方案 → multi-themes 对 */
 const THEME_PAIRS: Record<ColorScheme, { light: string; dark: string }> = {
   standard: { light: 'one-light', dark: 'one-dark-pro' },
   daltonized: { light: 'solarized-light', dark: 'tokyo-night' },
 };
 
 /**
- * 高亮一段代码,返回完整 HTML。失败 / 超大 / 未知 lang 一律降级。
+ * 给每行 <span class="line"> 加 data-line + 行号 gutter。
  *
- * 注:theme 参数已不再决定输出 — 现在统一走 multi-themes(light + dark) +
- * defaultColor:false,token 颜色作为 CSS 变量;实际选哪套由容器 css class /
- * prefers-color-scheme 决定。保留参数仅为向后兼容旧调用方,可传可不传。
+ * Why 两件事合并:gutter 必须在行内做,顺手把 data-line 加上;否则后续行高亮
+ * 还要再写一个 transformer 重复同样的循环。
  */
+const transformerLineMeta: ShikiTransformer = {
+  name: 'atr:line-meta',
+  line(node, line) {
+    node.properties['data-line'] = String(line);
+    node.children.unshift({
+      type: 'element',
+      tagName: 'span',
+      properties: { class: 'shiki-line-number', 'aria-hidden': 'true' },
+      children: [{ type: 'text', value: String(line) }],
+    });
+  },
+};
+
 export async function highlight(
   code: string,
   backendLang: string,
-  _theme: SupportedTheme,
   opts: HighlightOptions = {},
 ): Promise<string> {
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_HIGHLIGHT_BYTES;
   if (code.length > maxBytes) {
-    return wrapPre(escapeHtml(code));
+    return wrapPreWithLineNumbers(escapeHtml(code));
   }
   const lang = toShikiLang(backendLang);
   if (lang === 'txt') {
-    return wrapPre(escapeHtml(code));
+    return wrapPreWithLineNumbers(escapeHtml(code));
   }
   try {
     const { codeToHtml } = await import('shiki');
-    // 用 multi-themes + defaultColor:false 让 Shiki 只输出 token 着色(CSS 变量),
-    // 不写入 background/color 内联样式;容器的底色/前景由项目 scss 用 design token
-    // 接管(--color-bg-canvas / --color-fg 等),与用户显示设置一致。
-    //
-    // 主题选型(2026-05-21 升级):
-    //   - standard:one-light / one-dark-pro — token 鲜明,JSON 字符串/key 区分度高
-    //   - daltonized:solarized-light / tokyo-night — 色弱友好
     const pair = THEME_PAIRS[opts.colorScheme ?? 'standard'];
     return await codeToHtml(code, {
       lang,
       themes: pair,
       defaultColor: false,
+      transformers: [transformerLineMeta],
     });
   } catch {
-    return wrapPre(escapeHtml(code));
+    return wrapPreWithLineNumbers(escapeHtml(code));
   }
+}
+
+/**
+ * 降级路径:把 escapeHtml 后的纯文本按 \n 切行,每行包成 .line + 行号 gutter,
+ * 与 Shiki 路径的 DOM 结构对齐,以便共用 scss(行号样式 / 跳转高亮)。
+ */
+function wrapPreWithLineNumbers(escaped: string): string {
+  const lines = escaped.split('\n');
+  const inner = lines
+    .map((ln, i) => {
+      const n = i + 1;
+      return `<span class="line" data-line="${n}"><span class="shiki-line-number" aria-hidden="true">${n}</span>${ln}</span>`;
+    })
+    .join('\n');
+  return `<pre><code>${inner}</code></pre>`;
 }
 
 function escapeHtml(s: string): string {
@@ -98,9 +96,4 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function wrapPre(escaped: string): string {
-  return `<pre><code>${escaped}</code></pre>`;
-}
-
-/** 测试用导出 */
 export const escapeHtmlForTest = escapeHtml;

@@ -1,16 +1,20 @@
 /**
- * Modal 呈现器（thin wrappers）
+ * Modal 呈现器(thin wrappers)
  *
- * 把 "xx Modal 组件 + open/onClose props" 的旧式调用，封装成 `present(args)` 函数式。
- * 调用方写：
+ * 把 "xx Modal 组件 + open/onClose props" 的旧式调用封装成 `present(args)` 函数式:
  *   const present = useCreateInstancePresenter();
  *   present({ onSubmit, onSuccess: () => ... });
  *
- * 内部走 stack.push，自动管 z-index / esc / 多层嵌套。组件本身（CreateInstanceModal 等）
- * 仍保持原 props 接口（open/onClose），只是被 presenter 隐藏。
+ * 内部走 stack.push,自动管 z-index / esc / 多层嵌套。
+ *
+ * Why 两个 factory(makeModalPresenter / makeSheetPresenter):
+ *   Modal 类组件接 { open, onClose },Sheet 类接 { open, onOpenChange(next) }。
+ *   抽两个公共 factory 消掉 10 个 presenter 各自重复的 stack.push + ctx.close 胶水;
+ *   两个签名差异不大但语义不同,合一个 factory 会让调用方误传 prop 名。
  */
 
-import { useCallback } from 'react';
+import { useCallback, type ComponentType, type ReactNode } from 'react';
+import type { ModalEntryInput, ModalRenderContext, ModalStackHandle } from './types.js';
 import { useModalStack } from './ModalStack.js';
 
 import { CreateInstanceModal, type CreateInstanceModalProps } from '../../instances/CreateInstanceModal.js';
@@ -30,276 +34,164 @@ import {
 } from '../../settings/CommandSettingsModal.js';
 import { ShareSheet, type ShareSheetProps } from '../../share/ShareSheet.js';
 import { MobileInstanceSwitcher, type MobileInstanceSwitcherProps } from '../../instances/MobileInstanceSwitcher.js';
-import { FileBrowserSheet } from '../../files/FileBrowserSheet.js';
-import { FilePreviewSheet } from '../../files/FilePreviewSheet.js';
-import type { PreviewTarget } from '../../files/PreviewPane.js';
+import { FileBrowserSheet, type FileBrowserSheetProps } from '../../files/FileBrowserSheet.js';
+import { FilePreviewSheet, type FilePreviewSheetProps } from '../../files/FilePreviewSheet.js';
 
-/** 把"xxx + open/onClose" 类组件升级成 stack-aware presenter */
+/** 把组件 props 中的 open/onClose/onOpenChange 拆掉,由 presenter 注入 */
 type WithoutOpen<P> = Omit<P, 'open' | 'onClose' | 'onOpenChange'>;
 
-// ─────────────────────── CreateInstance ───────────────────────
+/** 调用方一律可以传 onClosed,在退场动画完后回调(用于焦点恢复 / 触发 state 重置) */
+type PresenterArgs<Extra> = Extra & { onClosed?: () => void };
 
-export function useCreateInstancePresenter(): (
-  args: WithoutOpen<CreateInstanceModalProps> & { onClosed?: () => void },
-) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      const { onClosed, ...rest } = args;
-      return stack.push({
-        kind: 'create-instance',
-        debugLabel: 'create-instance',
-        onClosed,
-        render: (ctx) => (
-          <CreateInstanceModal
-            {...(rest as WithoutOpen<CreateInstanceModalProps>)}
+interface PresenterMeta {
+  kind: string;
+  debugLabel?: string;
+}
+
+function pushModal(
+  stack: ModalStackHandle,
+  meta: PresenterMeta,
+  onClosed: (() => void) | undefined,
+  render: (ctx: ModalRenderContext) => ReactNode,
+): string {
+  const entry: ModalEntryInput = {
+    kind: meta.kind,
+    debugLabel: meta.debugLabel ?? meta.kind,
+    onClosed,
+    render,
+  };
+  return stack.push(entry);
+}
+
+/**
+ * Modal 类组件(接 { open, onClose })的 presenter factory。
+ *
+ * 直接把组件传进来,生成 useXxxPresenter hook。
+ */
+function makeModalPresenter<P extends { open: boolean; onClose: () => void }>(
+  Component: ComponentType<P>,
+  meta: PresenterMeta,
+): () => (args: PresenterArgs<WithoutOpen<P>>) => string {
+  return function usePresenter() {
+    const stack = useModalStack();
+    return useCallback(
+      (args) => {
+        const { onClosed, ...rest } = args;
+        return pushModal(stack, meta, onClosed, (ctx) => (
+          <Component
+            {...(rest as unknown as P)}
             open={ctx.isOpen}
             onClose={ctx.close}
           />
-        ),
-      });
-    },
-    [stack],
-  );
+        ));
+      },
+      [stack],
+    );
+  };
 }
 
-// ─────────────────────── InstanceDetail ───────────────────────
-
-export function useInstanceDetailPresenter(): (
-  args: WithoutOpen<InstanceDetailModalProps> & { onClosed?: () => void },
-) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      const { onClosed, ...rest } = args;
-      return stack.push({
-        kind: 'instance-detail',
-        debugLabel: 'instance-detail',
-        onClosed,
-        render: (ctx) => (
-          <InstanceDetailModal
-            {...(rest as WithoutOpen<InstanceDetailModalProps>)}
+/**
+ * Sheet 类组件(接 { open, onOpenChange(next) })的 presenter factory。
+ *
+ * next === false 时调 ctx.close;否则忽略(Sheet 的 onOpenChange(true) 不应该来自子组件)。
+ */
+function makeSheetPresenter<P extends { open: boolean; onOpenChange: (next: boolean) => void }>(
+  Component: ComponentType<P>,
+  meta: PresenterMeta,
+): () => (args: PresenterArgs<WithoutOpen<P>>) => string {
+  return function usePresenter() {
+    const stack = useModalStack();
+    return useCallback(
+      (args) => {
+        const { onClosed, ...rest } = args;
+        return pushModal(stack, meta, onClosed, (ctx) => (
+          <Component
+            {...(rest as unknown as P)}
             open={ctx.isOpen}
-            onClose={ctx.close}
+            onOpenChange={(next: boolean) => { if (!next) ctx.close(); }}
           />
-        ),
-      });
-    },
-    [stack],
-  );
+        ));
+      },
+      [stack],
+    );
+  };
 }
 
-// ─────────────────────── Settings ───────────────────────
+// ─────────────────────── Modal 类 ───────────────────────
 
-export function useSettingsPresenter(): (
-  args: WithoutOpen<SettingsModalProps> & { onClosed?: () => void },
-) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      const { onClosed, ...rest } = args;
-      return stack.push({
-        kind: 'settings',
-        debugLabel: 'settings',
-        onClosed,
-        render: (ctx) => (
-          <SettingsModal
-            {...(rest as WithoutOpen<SettingsModalProps>)}
-            open={ctx.isOpen}
-            onClose={ctx.close}
-          />
-        ),
-      });
-    },
-    [stack],
-  );
-}
+export const useCreateInstancePresenter = makeModalPresenter<CreateInstanceModalProps>(
+  CreateInstanceModal,
+  { kind: 'create-instance' },
+);
 
-// ─────────────────────── ClaudeCode 集成详细设置 ───────────────────────
+export const useInstanceDetailPresenter = makeModalPresenter<InstanceDetailModalProps>(
+  InstanceDetailModal,
+  { kind: 'instance-detail' },
+);
 
-export function useClaudeCodeSettingsPresenter(): (
-  args: WithoutOpen<ClaudeCodeSettingsModalProps> & { onClosed?: () => void },
-) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      const { onClosed, ...rest } = args;
-      return stack.push({
-        kind: 'claude-code-settings',
-        debugLabel: 'claude-code-settings',
-        onClosed,
-        render: (ctx) => (
-          <ClaudeCodeSettingsModal
-            {...(rest as WithoutOpen<ClaudeCodeSettingsModalProps>)}
-            open={ctx.isOpen}
-            onClose={ctx.close}
-          />
-        ),
-      });
-    },
-    [stack],
-  );
-}
+export const useSettingsPresenter = makeModalPresenter<SettingsModalProps>(
+  SettingsModal,
+  { kind: 'settings' },
+);
 
-// ─────────────────────── 快捷键管理 ───────────────────────
+export const useClaudeCodeSettingsPresenter = makeModalPresenter<ClaudeCodeSettingsModalProps>(
+  ClaudeCodeSettingsModal,
+  { kind: 'claude-code-settings' },
+);
 
-export function useShortcutSettingsPresenter(): (
-  args: WithoutOpen<ShortcutSettingsModalProps> & { onClosed?: () => void },
-) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      const { onClosed, ...rest } = args;
-      return stack.push({
-        kind: 'shortcut-settings',
-        debugLabel: 'shortcut-settings',
-        onClosed,
-        render: (ctx) => (
-          <ShortcutSettingsModal
-            {...(rest as WithoutOpen<ShortcutSettingsModalProps>)}
-            open={ctx.isOpen}
-            onClose={ctx.close}
-          />
-        ),
-      });
-    },
-    [stack],
-  );
-}
+export const useShortcutSettingsPresenter = makeModalPresenter<ShortcutSettingsModalProps>(
+  ShortcutSettingsModal,
+  { kind: 'shortcut-settings' },
+);
 
-// ─────────────────────── 命令管理 ───────────────────────
+export const useCommandSettingsPresenter = makeModalPresenter<CommandSettingsModalProps>(
+  CommandSettingsModal,
+  { kind: 'command-settings' },
+);
 
-export function useCommandSettingsPresenter(): (
-  args: WithoutOpen<CommandSettingsModalProps> & { onClosed?: () => void },
-) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      const { onClosed, ...rest } = args;
-      return stack.push({
-        kind: 'command-settings',
-        debugLabel: 'command-settings',
-        onClosed,
-        render: (ctx) => (
-          <CommandSettingsModal
-            {...(rest as WithoutOpen<CommandSettingsModalProps>)}
-            open={ctx.isOpen}
-            onClose={ctx.close}
-          />
-        ),
-      });
-    },
-    [stack],
-  );
-}
+// ─────────────────────── Sheet 类 ───────────────────────
 
-// ─────────────────────── Share ───────────────────────
+export const useSharePresenter = makeSheetPresenter<ShareSheetProps>(
+  ShareSheet,
+  { kind: 'share' },
+);
 
-export function useSharePresenter(): (args: { onClosed?: () => void }) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      return stack.push({
-        kind: 'share',
-        debugLabel: 'share',
-        onClosed: args.onClosed,
-        render: (ctx) => (
-          <ShareSheet
-            open={ctx.isOpen}
-            onOpenChange={(next) => {
-              if (!next) ctx.close();
-            }}
-          />
-        ),
-      });
-    },
-    [stack],
-  );
-}
+export const useFileBrowserPresenter = makeSheetPresenter<FileBrowserSheetProps>(
+  FileBrowserSheet,
+  { kind: 'file-browser' },
+);
 
-// ─────────────────────── FileBrowserSheet ───────────────────────
+export const useFilePreviewPresenter = makeSheetPresenter<FilePreviewSheetProps>(
+  FilePreviewSheet,
+  { kind: 'file-preview' },
+);
 
-export function useFileBrowserPresenter(): (args: { instanceId: string; onClosed?: () => void }) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      return stack.push({
-        kind: 'file-browser',
-        debugLabel: 'file-browser',
-        onClosed: args.onClosed,
-        render: (ctx) => (
-          <FileBrowserSheet
-            open={ctx.isOpen}
-            instanceId={args.instanceId}
-            onOpenChange={(next) => {
-              if (!next) ctx.close();
-            }}
-          />
-        ),
-      });
-    },
-    [stack],
-  );
-}
+// ─────────────────────── 特殊接口:MobileInstanceSwitcher ───────────────────────
 
-// ─────────────────────── FilePreviewSheet(modal-stack 第二层) ───────────────────────
-
-export function useFilePreviewPresenter(): (args: {
-  instanceId: string;
-  target: PreviewTarget;
-  onClosed?: () => void;
-}) => string {
-  const stack = useModalStack();
-  return useCallback(
-    (args) => {
-      return stack.push({
-        kind: 'file-preview',
-        debugLabel: 'file-preview',
-        onClosed: args.onClosed,
-        render: (ctx) => (
-          <FilePreviewSheet
-            open={ctx.isOpen}
-            instanceId={args.instanceId}
-            target={args.target}
-            onOpenChange={(next) => {
-              if (!next) ctx.close();
-            }}
-          />
-        ),
-      });
-    },
-    [stack],
-  );
-}
-
-// ─────────────────────── MobileInstanceSwitcher / 主机管理 sheet ───────────────────────
-
-type ManageHostsArgs = Omit<
-  MobileInstanceSwitcherProps,
-  'externalOpen' | 'onExternalOpenChange' | 'hideTrigger'
-> & { onClosed?: () => void };
+/**
+ * MobileInstanceSwitcher 是受控 / 非受控双模组件,prop 名是 externalOpen /
+ * onExternalOpenChange(不是通用的 open / onOpenChange),所以走自定义 render
+ * 而不是上面的 factory。这是整个文件里唯一的特例。
+ */
+type ManageHostsArgs = PresenterArgs<
+  Omit<MobileInstanceSwitcherProps, 'externalOpen' | 'onExternalOpenChange' | 'hideTrigger'>
+>;
 
 export function useManageHostsPresenter(): (args: ManageHostsArgs) => string {
   const stack = useModalStack();
   return useCallback(
     (args) => {
       const { onClosed, ...rest } = args;
-      return stack.push({
-        kind: 'manage-hosts',
-        debugLabel: 'manage-hosts',
-        onClosed,
-        render: (ctx) => (
-          <MobileInstanceSwitcher
-            {...rest}
-            externalOpen={ctx.isOpen}
-            onExternalOpenChange={(next) => {
-              if (!next) ctx.close();
-            }}
-            hideTrigger
-          />
-        ),
-      });
+      return pushModal(stack, { kind: 'manage-hosts' }, onClosed, (ctx) => (
+        <MobileInstanceSwitcher
+          {...rest}
+          externalOpen={ctx.isOpen}
+          onExternalOpenChange={(next) => { if (!next) ctx.close(); }}
+          hideTrigger
+        />
+      ));
     },
     [stack],
   );
 }
+

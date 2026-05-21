@@ -1,12 +1,6 @@
-/**
- * PreviewPane:右侧预览容器。target=null 时显示 empty placeholder。
- *
- * 文件名右侧带"自动换行"toggle(仅 text 模式有意义);默认不换行,
- * 持久化到 localStorage(atr.fileBrowser.wrapLines)。
- */
-
 import { useEffect, useState, type JSX } from 'react';
 import { IconArrowLeft } from '@tabler/icons-react';
+import type { FilePreviewKind } from 'auvezy-terminal-remote-shared';
 import { TextPreview } from './TextPreview.js';
 import { ImagePreview } from './ImagePreview.js';
 import { useT } from '../../i18n/i18n-context.js';
@@ -17,9 +11,9 @@ import {
 import s from './FileBrowserSheet.module.scss';
 
 export type PreviewTarget =
-  | { kind: 'text'; path: string; name: string }
-  | { kind: 'image'; path: string; name: string; size: number }
-  | { kind: 'none'; path: string; name: string; size: number };
+  | { kind: Extract<FilePreviewKind, 'text'>; path: string; name: string; jumpLine?: number }
+  | { kind: Extract<FilePreviewKind, 'image'>; path: string; name: string; size: number }
+  | { kind: Extract<FilePreviewKind, 'none'>; path: string; name: string; size: number };
 
 export interface PreviewPaneProps {
   instanceId: string;
@@ -29,29 +23,8 @@ export interface PreviewPaneProps {
 
 export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): JSX.Element {
   const t = useT();
-  // 自动换行持久化:与 showHidden 同模式,init 从 localStorage 读,切时同步写
-  const [wrapLines, setWrapLinesState] = useState<boolean>(() => loadFileBrowserPrefs().wrapLines);
-  const toggleWrap = (): void => {
-    setWrapLinesState((prev) => {
-      const next = !prev;
-      saveWrapLines(next);
-      return next;
-    });
-  };
-
-  // Esc 键关预览(全屏模式下用户期望)
-  useEffect(() => {
-    if (!target) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [target, onClose]);
+  const [wrapLines, setWrapLines] = useState<boolean>(() => loadFileBrowserPrefs().wrapLines);
+  useEffect(() => { saveWrapLines(wrapLines); }, [wrapLines]);
 
   if (!target) {
     return (
@@ -89,7 +62,7 @@ export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): 
             <input
               type="checkbox"
               checked={wrapLines}
-              onChange={toggleWrap}
+              onChange={() => setWrapLines((v) => !v)}
               data-action="files-toggle-wrap"
             />
             {t('files.previewWrap')}
@@ -97,7 +70,12 @@ export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): 
         )}
       </header>
       {target.kind === 'text' && (
-        <TextPreview instanceId={instanceId} path={target.path} wrapLines={wrapLines} />
+        <TextPreview
+          instanceId={instanceId}
+          path={target.path}
+          wrapLines={wrapLines}
+          jumpLine={target.jumpLine}
+        />
       )}
       {target.kind === 'image' && <ImagePreview instanceId={instanceId} path={target.path} />}
       {target.kind === 'none' && (

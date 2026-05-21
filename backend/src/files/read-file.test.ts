@@ -27,6 +27,8 @@ describe('readTextFile', () => {
     writeFileSync(join(root, 'big.txt'), Buffer.alloc(3 * 1024 * 1024, 0x61));
     // 非法 UTF-8(全部 0xFE) → 解码后大量 �
     writeFileSync(join(root, 'badenc.txt'), Buffer.alloc(1024, 0xfe));
+    // ANSI CSI 序列(\x1b[31m red \x1b[0m)
+    writeFileSync(join(root, 'ansi.log'), '\x1b[31mERROR\x1b[0m something\n');
   });
 
   afterAll(() => {
@@ -38,6 +40,13 @@ describe('readTextFile', () => {
     expect(r.content).toBe('hello');
     expect(r.size).toBe(5);
     expect(r.truncated).toBe(false);
+    expect(r.hasAnsi).toBe(false);
+  });
+
+  it('ANSI CSI 文件 hasAnsi=true', async () => {
+    const r = await readTextFile(join(root, 'ansi.log'));
+    expect(r.hasAnsi).toBe(true);
+    expect(r.content).toContain('ERROR');
   });
 
   it('NUL 字节命中抛 FILE_BINARY', async () => {

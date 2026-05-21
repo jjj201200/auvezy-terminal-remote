@@ -425,16 +425,11 @@ export async function startBrokerServer(
 }
 
 /**
- * 判断请求路径是否指向静态资源(应由 express.static 接住),
- * 而不是 SPA 路由(应由 index.html 接住)。
+ * SPA fallback 之前的静态资源判定。
  *
- * 命中规则:
- *  - `/assets/` 前缀(vite build 默认输出位置)
- *  - 含已知静态扩展名的尾段(.js/.mjs/.css/.map/.png/.svg 等)
- *
- * 用于 SPA fallback 之前的兜底:旧 SW / 老 manifest 持有的已删除 chunk 名
- * 不该 fallback 到 index.html(浏览器会因 MIME=text/html 拒绝执行),改返 404
- * 让浏览器知道 chunk 不存在 → 触发 SW 更新或显式刷新。
+ * Why:旧 SW / 老 manifest 持有的已删除 chunk 名不该 fallback 到 index.html
+ * —— 浏览器会因 MIME=text/html 拒绝执行 JS 模块。返 404 让浏览器知道
+ * chunk 不存在,触发 SW 更新或显式刷新。
  */
 const STATIC_EXT_RE = /\.(js|mjs|cjs|css|map|json|webmanifest|png|jpg|jpeg|gif|svg|webp|ico|avif|woff|woff2|ttf|otf|wasm)$/i;
 function isStaticAssetPath(p: string): boolean {

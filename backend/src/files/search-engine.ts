@@ -13,7 +13,6 @@
  */
 
 import { opendir, open, stat } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import {
@@ -77,8 +76,22 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
   const matchers = compileMatchers(opts);
   const { nameMatch, contentMatch } = matchers;
 
-  // 收集候选文件(name 命中 + 待 content 扫描)
-  const candidates: string[] = [];
+  // 流式候选队列:walk 边产边推,worker 边取边扫。
+  // Why:之前 walk 全部跑完才启动 worker,在大库上让用户多等几秒看到第一个
+  // content 命中;现在 walk 与内容扫描重叠跑,首个 content 命中提前到达。
+  const queue: string[] = [];
+  let walkDone = false;
+  // 队列空时 worker await 这个 promise 等下一个 enqueue / walkDone
+  let waitResolve: (() => void) | null = null;
+  let waitPromise: Promise<void> = new Promise((r) => { waitResolve = r; });
+  const wakeWorkers = (): void => {
+    if (waitResolve) {
+      const r = waitResolve;
+      waitResolve = null;
+      r();
+      waitPromise = new Promise((rr) => { waitResolve = rr; });
+    }
+  };
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (depth > MAX_DEPTH) return;
@@ -111,7 +124,7 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
 
       if (!ent.isFile()) continue;
 
-      // name 模式
+      // name 模式 — 实时 emit,不需要排队
       if (opts.mode !== 'content' && nameMatch(ent.name) && nameHits < SEARCH_MAX_NAME_RESULTS) {
         try {
           const st = await stat(full);
@@ -122,30 +135,46 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
         }
       }
 
-      if (opts.mode !== 'name') candidates.push(full);
+      // content 模式 — 推入流式队列,唤醒空转的 worker
+      if (opts.mode !== 'name') {
+        queue.push(full);
+        wakeWorkers();
+      }
     }
   }
 
-  await walk(opts.scope, 0);
-
-  // content 扫描:并发处理
-  if (opts.mode !== 'name' && candidates.length > 0) {
-    const queue = candidates.slice();
-    const workers: Promise<void>[] = [];
+  // 内容 worker pool 与 walk 同时启动,边走边扫
+  const workers: Promise<void>[] = [];
+  if (opts.mode !== 'name') {
     for (let i = 0; i < SEARCH_CONCURRENCY; i++) {
       workers.push((async (): Promise<void> => {
-        while (queue.length > 0) {
+        while (true) {
           if (contentHits >= SEARCH_MAX_CONTENT_RESULTS) { truncated = true; return; }
           if (Date.now() - start > SEARCH_TOTAL_TIMEOUT_MS) { truncated = true; return; }
           if (opts.cancelSignal?.aborted) return;
           const f = queue.shift();
-          if (!f) return;
+          if (!f) {
+            if (walkDone) return;
+            // 等下一个 enqueue 或 walkDone;同时设个超时兜底以便定期复检退出条件
+            await Promise.race([
+              waitPromise,
+              new Promise<void>((r) => setTimeout(r, 50)),
+            ]);
+            continue;
+          }
           await scanFile(f);
         }
       })());
     }
-    await Promise.all(workers);
   }
+
+  try {
+    await walk(opts.scope, 0);
+  } finally {
+    walkDone = true;
+    wakeWorkers();
+  }
+  await Promise.all(workers);
 
   async function scanFile(path: string): Promise<void> {
     const fileStart = Date.now();
@@ -157,26 +186,32 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
     }
     if (st.size > FILE_MAX_SCAN_BYTES) return;
 
-    // 字节级 NUL 闸:二进制跳过
+    // 字节级 NUL 闸 + 流式按行,共用同一个 fd(省一次 open syscall)
+    let fh;
     try {
-      const fh = await open(path, 'r');
-      try {
-        const probeLen = Math.min(NUL_PROBE_BYTES, st.size);
-        if (probeLen > 0) {
-          const buf = Buffer.alloc(probeLen);
-          await fh.read(buf, 0, probeLen, 0);
-          if (buf.includes(0x00)) return;
-        }
-      } finally {
-        await fh.close();
-      }
+      fh = await open(path, 'r');
     } catch {
       return;
     }
+    let isBinary = false;
+    try {
+      const probeLen = Math.min(NUL_PROBE_BYTES, st.size);
+      if (probeLen > 0) {
+        const buf = Buffer.alloc(probeLen);
+        await fh.read(buf, 0, probeLen, 0);
+        if (buf.includes(0x00)) isBinary = true;
+      }
+    } catch {
+      isBinary = true;
+    }
+    if (isBinary) {
+      await fh.close();
+      return;
+    }
 
-    // 流式按行
+    // 复用 fh 起 createReadStream(autoClose: true,流结束 / destroy 时自动 fh.close)
     await new Promise<void>((resolveP) => {
-      const stream = createReadStream(path, { encoding: 'utf-8' });
+      const stream = fh!.createReadStream({ encoding: 'utf-8', autoClose: true, start: 0 });
       const rl = createInterface({ input: stream, crlfDelay: Infinity });
       let lineNo = 0;
       let stopped = false;

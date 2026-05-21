@@ -1,14 +1,5 @@
-/**
- * FileBrowserSheet
- *
- * 文件浏览面板。复用 Sheet primitive,桌面两栏(300px+1fr),
- * 移动单栏栈(media query 自动切)。
- *
- * 阶段 5:基础列表 + 预览,无搜索无高亮(阶段 6/7 接入)。
- */
-
 import { useEffect, useRef, useState, type JSX } from 'react';
-import type { FileEntry, SearchEvent } from 'auvezy-terminal-remote-shared';
+import { ErrorCode, type FileEntry, type SearchEvent } from 'auvezy-terminal-remote-shared';
 import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useFiles } from '../../hooks/useFiles.js';
@@ -23,6 +14,7 @@ import { FileList } from './FileList.js';
 import type { PreviewTarget } from './PreviewPane.js';
 import { SearchBox } from './SearchBox.js';
 import { SearchResults } from './SearchResults.js';
+import { translateFileErr } from './translate-err.js';
 import s from './FileBrowserSheet.module.scss';
 
 const SEARCH_MIN_CHARS = 3;
@@ -41,21 +33,13 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const [cwd, setCwd] = useState<string>('');
   const [parent, setParent] = useState<string | null>(null);
   const [entries, setEntries] = useState<FileEntry[]>([]);
-  // showHidden 持久化:初值从 localStorage 读,切换时同步写
-  const [showHidden, setShowHiddenState] = useState<boolean>(() => loadFileBrowserPrefs().showHidden);
-  const setShowHidden = (next: boolean | ((prev: boolean) => boolean)): void => {
-    setShowHiddenState((prev) => {
-      const v = typeof next === 'function' ? next(prev) : next;
-      saveShowHidden(v);
-      return v;
-    });
-  };
+  const [showHidden, setShowHidden] = useState<boolean>(() => loadFileBrowserPrefs().showHidden);
+  useEffect(() => { saveShowHidden(showHidden); }, [showHidden]);
   const [error, setError] = useState<string | null>(null);
 
-  // ──────────── 搜索 state ────────────
-  // submittedQ:已提交的查询(空字符串 = 未在搜索模式)
-  // searchBoxKey:用作 SearchBox key,父主动清搜索时换 key 让 input 草稿重置
   const [submittedQ, setSubmittedQ] = useState('');
+  // SearchBox 自己维护 input draft,用 key 强制重挂载让父在 onPick / 切实例 / 重开
+  // sheet 时把草稿一并清掉 —— 这是 React 里"用 key 重置子状态"的标准用法。
   const [searchBoxKey, setSearchBoxKey] = useState(0);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [regex, setRegex] = useState(false);
@@ -64,7 +48,6 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const [searchTruncated, setSearchTruncated] = useState(false);
   const handleRef = useRef<SearchHandle | null>(null);
 
-  // 切实例 / 重开 sheet 时重置 path + 清搜索
   useEffect(() => {
     if (!open) return;
     setPath(undefined);
@@ -72,9 +55,8 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
     setSearchBoxKey((k) => k + 1);
   }, [open, instanceId]);
 
-  // 搜索:只在 submittedQ / toggle 变化时触发(不再听 input draft)
-  // submittedQ 必须 >= SEARCH_MIN_CHARS 才发请求 — 这是用户显式按下"搜索"
-  // 才触发的服务端调用,不会因敲键无限刷
+  // 搜索必须由用户显式 submit 触发(SEARCH_MIN_CHARS 闸 + 按钮触发),
+  // 避免 keystroke 级请求穿透服务端限流。
   useEffect(() => {
     handleRef.current?.cancel();
     handleRef.current = null;
@@ -114,12 +96,11 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       setParent(r.parent);
       if (path !== r.path) setPath(r.path);
     }).catch((e: Error & { code?: string }) => {
-      if (!cancelled) setError(e.code ?? 'UNKNOWN');
+      if (!cancelled) setError(e.code ?? ErrorCode.INTERNAL_ERROR);
     });
     return () => { cancelled = true; };
-    // 注:t 不进 deps —— 错误状态只存 ErrorCode,渲染时再翻译,
-    // 避免 t 引用每次 render 微变化触发 effect 重跑;files 已通过
-    // useMemo 稳定化,不会触发死循环。
+    // t 不进 deps —— 错误状态只存 ErrorCode,渲染时再翻译,避免 t 引用每次 render
+    // 微变化触发 effect 重跑。
   }, [open, path, instanceId, files]);
 
   const openPreview = (target: PreviewTarget): void => {
@@ -146,9 +127,11 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const inSearchMode = submittedQ.length >= SEARCH_MIN_CHARS;
 
   const onPickHit = (h: SearchEvent): void => {
-    // name 与 content 命中都按 text 预览打开(精准行跳转不在 MVP 范围)
-    const name = h.kind === 'content' ? `${h.path}:${h.line}` : h.path;
-    openPreview({ kind: 'text', path: h.path, name });
+    if (h.kind === 'content') {
+      openPreview({ kind: 'text', path: h.path, name: `${h.path}:${h.line}`, jumpLine: h.line });
+    } else {
+      openPreview({ kind: 'text', path: h.path, name: h.path });
+    }
     setSubmittedQ('');
     setSearchBoxKey((k) => k + 1);
   };
@@ -205,7 +188,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
           ) : (
             <FileList
               entries={visibleEntries}
-              error={error ? translateErr(t, error) : null}
+              error={error ? translateFileErr(t, error) : null}
               onEntryClick={onEntryClick}
             />
           )}
@@ -213,14 +196,4 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       </div>
     </Sheet>
   );
-}
-
-function translateErr(t: ReturnType<typeof useT>, code: string): string {
-  switch (code) {
-    case 'PATH_NOT_FOUND': return t('files.errorPathNotFound');
-    case 'PATH_FORBIDDEN': return t('files.errorPathForbidden');
-    case 'FILE_BINARY': return t('files.errorFileBinary');
-    case 'AUTH_RATE_LIMITED': return t('files.errorRateLimited');
-    default: return t('files.errorUnknown');
-  }
 }

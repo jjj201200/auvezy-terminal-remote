@@ -298,16 +298,6 @@
   inset: 0 !important;
 }
 
-// 预览 modal 内部根容器(与 fb-root 区分)
-.previewRoot {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  font-family: var(--font-mono);
-  color: var(--color-fg);
-}
-
 // ──────────── 文件列表 ────────────
 
 .list {
@@ -489,25 +479,6 @@
       }
     }
 
-    .closeBtn {
-      @include m.btn-reset;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 28px;
-      min-height: 28px;
-      color: var(--color-fg-dim);
-      flex-shrink: 0;
-
-      &:hover {
-        color: var(--color-fg);
-      }
-
-      &:focus-visible {
-        outline: none;
-        box-shadow: var(--shadow-focus);
-      }
-    }
   }
 
   .textPre {
@@ -524,46 +495,12 @@
     // inline CSS 变量(style="--shiki-light:#xxx;--shiki-dark:#yyy")。
     // 容器 background/color 走项目 design token,token 自身颜色按
     // TextPreview 设的 data-color-scheme 决定用哪套 var。
-    :global(pre.shiki) {
-      margin: 0;
-      padding: var(--sp-4);
-      overflow: visible;
-      white-space: pre;
-      tab-size: 2;
-      font-family: var(--font-mono);
-      font-size: var(--fs-sm);
-      line-height: var(--lh-base);
-      background: var(--color-bg-canvas) !important;
-      color: var(--color-fg);
-
-      // 默认走 dark token 颜色(项目主流暗主题)
-      :global(span) {
-        color: var(--shiki-dark);
-      }
-    }
-
-    // 用户选 light variant 时 TextPreview 给容器加 data-color-scheme=light,
-    // 切到 --shiki-light token 颜色
-    &[data-color-scheme='light'] :global(pre.shiki) :global(span) {
-      color: var(--shiki-light);
-    }
-    &[data-color-scheme='light'] :global(pre.shiki) {
-      background: var(--color-bg) !important;
-    }
-
-    // 自动换行模式(data-wrap=true):pre-wrap + 强制断 token,
-    // 中文/超长 URL/JSON 字符串等也能纵向收完整
-    &[data-wrap='true'] :global(pre.shiki),
-    &[data-wrap='true'] > pre {
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-    }
-
-    // 降级路径(escapeHtml 包的 <pre><code>):没 .shiki class,补暗色样式
+    // ──── Shiki / 降级路径共用的 <pre> 容器样式 ────
+    // 左 padding=0:每行的 .shiki-line-number gutter 自带左 padding,容器再加就缩内容列
+    :global(pre.shiki),
     >pre {
       margin: 0;
-      padding: var(--sp-4);
+      padding: var(--sp-4) var(--sp-4) var(--sp-4) 0;
       background: var(--color-bg-canvas);
       color: var(--color-fg);
       font-family: var(--font-mono);
@@ -571,11 +508,52 @@
       line-height: var(--lh-base);
       white-space: pre;
       tab-size: 2;
+    }
+    // Shiki defaultColor:false 不写容器底色,需要 !important 盖掉 inline
+    :global(pre.shiki) {
+      overflow: visible;
+      background: var(--color-bg-canvas) !important;
+    }
+    >pre code {
+      font-family: inherit;
+      color: inherit;
+    }
 
-      code {
-        font-family: inherit;
-        color: inherit;
-      }
+    // Shiki token 默认走 dark 套(--shiki-dark);data-color-scheme=light 切 light 套
+    :global(pre.shiki) :global(span) {
+      color: var(--shiki-dark);
+    }
+    &[data-color-scheme='light'] :global(pre.shiki) :global(span) {
+      color: var(--shiki-light);
+    }
+    &[data-color-scheme='light'] :global(pre.shiki) {
+      background: var(--color-bg) !important;
+    }
+
+    // ──── 行容器 + 行号 gutter(Shiki / 降级共用)────
+    // .line grid:[gutter 4ch] + [content 1fr]
+    :global(.line) {
+      display: grid;
+      grid-template-columns: 4ch 1fr;
+      column-gap: var(--sp-3);
+    }
+    :global(.shiki-line-number) {
+      color: var(--color-fg-low) !important;
+      user-select: none;
+      text-align: right;
+      padding-left: var(--sp-3);
+    }
+    // 搜索跳转命中行高亮(JS 端动态加 .atr-line-hl)
+    :global(.line.atr-line-hl) {
+      background: var(--color-accent-soft);
+    }
+
+    // 自动换行(data-wrap=true):pre-wrap + 强制断 token;内容列折行,行号列不动
+    &[data-wrap='true'] :global(pre.shiki),
+    &[data-wrap='true'] > pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
   }
 

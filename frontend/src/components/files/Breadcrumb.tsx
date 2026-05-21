@@ -1,11 +1,3 @@
-/**
- * Breadcrumb:回 cwd / 上级 / 路径段分段可点 / 显示隐藏 toggle。
- *
- * 路径段:
- *  - 把 cwd 前缀拆出来,其余分段渲染,各段可点击直接跳那一级
- *  - 横向溢出时滚动条出现,不撑挤左侧两个按钮
- */
-
 import { useMemo, type JSX } from 'react';
 import { IconArrowUp, IconHome } from '@tabler/icons-react';
 import { useT } from '../../i18n/i18n-context.js';
@@ -21,11 +13,9 @@ export interface BreadcrumbProps {
 }
 
 interface Segment {
-  /** 显示文本 */
   label: string;
   /** 跳转目标绝对路径;null = 当前段(不跳) */
   jumpTo: string | null;
-  /** 是否是当前 path */
   current: boolean;
 }
 

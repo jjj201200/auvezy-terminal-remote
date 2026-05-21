@@ -1,19 +1,15 @@
 /**
- * 文件浏览面板偏好(localStorage 持久化)
+ * 文件浏览面板偏好(localStorage 持久化)。
  *
- * 与 client-prefs.ts 分开维护:那个是 dev/调试类全局偏好(eruda /
- * consoleBridge),这里是 file-browser 局部 UI 状态(showHidden / wrapLines)。
- *
- * 命名空间:`atr.fileBrowser.*`,与全局 prefs 隔离。
+ * Why 独立模块:与 client-prefs.ts 的全局 dev/调试偏好命名空间隔离,
+ * 避免文件浏览的局部 UI 状态污染全局 prefs。
  */
 
 const KEY_SHOW_HIDDEN = 'atr.fileBrowser.showHidden';
 const KEY_WRAP_LINES = 'atr.fileBrowser.wrapLines';
 
 export interface FileBrowserPrefs {
-  /** 显示 dotfile / 隐藏文件 */
   showHidden: boolean;
-  /** 预览自动换行(`white-space: pre-wrap` vs `pre`) */
   wrapLines: boolean;
 }
 

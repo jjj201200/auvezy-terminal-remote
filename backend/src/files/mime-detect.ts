@@ -1,31 +1,20 @@
 /**
- * mime-detect:扩展名 / 全名 → mime + previewable kind + lang
+ * 扩展名 / 全名 → mime + previewable kind + lang。仅基于路径,不读内容
+ * (二进制识别在 read-file.ts 做)。
  *
- * 不读文件内容,仅基于路径。二进制识别在 read-file.ts 做(NUL 字节 + 替换字符)。
+ * 决策优先级:SPECIAL_NAMES 全名命中 → IMAGE_EXT_TO_MIME → TEXT_EXT_TO_MIME
+ *           → 兜底 application/octet-stream / none。
  *
- * 决策优先级:
- *   1. SPECIAL_NAMES 全名命中(Makefile / Dockerfile / .gitignore / package.json …)
- *   2. IMAGE_EXT_TO_MIME 扩展名(SVG 也走 image,虽然其本质是 XML)
- *   3. TEXT_EXT_TO_MIME 扩展名(几百个常见文本/源码类型)
- *   4. 兜底:application/octet-stream, previewable=none
+ * Why 全名表优先:大量项目级文件无后缀或用约定 dotfile(Dockerfile / .gitignore
+ * / package.json),纯扩展名匹配在这些场景上不准。
  *
- * lang 与 mime 同源(各自表),前端把 lang 喂给 Shiki(详见 detectLang)。
+ * Why key 大小写敏感:与文件系统一致(README ≠ readme);常见变体在 lookupSpecial
+ * 里另作处理。
  */
 
 import { basename, extname } from 'node:path';
 import type { FilePreviewKind } from 'auvezy-terminal-remote-shared';
 
-// ────────────────────────────────────────────────────────────────────
-// 全名命中表(优先于扩展名)
-// 项目里大量"以无后缀 / 双扩展 / 约定式 dotfile"出现的文件,扩展名匹配不准
-// ────────────────────────────────────────────────────────────────────
-
-/**
- * 全名 → { mime, lang, previewable }
- *
- * key 大小写敏感(README ≠ readme,与文件系统一致;extname 路径走 toLowerCase
- * 仅对纯扩展名)。匹配规则在 detectMime 内显式 case-by-case 处理大小写。
- */
 interface SpecialEntry {
   mime: string;
   lang: string;
@@ -144,7 +133,6 @@ const SPECIAL_NAMES: Record<string, SpecialEntry> = {
 // 扩展名 → mime + lang(几百种,主要是 shiki 支持的)
 // ────────────────────────────────────────────────────────────────────
 
-/** 扩展名 → mime(image,优先于 text) */
 const IMAGE_EXT_TO_MIME: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jpe': 'image/jpeg', '.jfif': 'image/jpeg',
@@ -158,7 +146,6 @@ const IMAGE_EXT_TO_MIME: Record<string, string> = {
   '.tiff': 'image/tiff', '.tif': 'image/tiff',
 };
 
-/** 扩展名 → mime(text 类) */
 const TEXT_EXT_TO_MIME: Record<string, string> = {
   // 纯文本 / 文档
   '.txt': 'text/plain', '.text': 'text/plain', '.log': 'text/plain',
@@ -270,7 +257,6 @@ const TEXT_EXT_TO_MIME: Record<string, string> = {
   '.gitcommit': 'text/x-git-commit',
 };
 
-/** 扩展名 → Shiki bundled lang short id */
 const LANG_MAP: Record<string, string> = {
   // 纯文本 / 文档
   '.md': 'markdown', '.markdown': 'markdown', '.mkd': 'markdown',
@@ -376,41 +362,41 @@ const LANG_MAP: Record<string, string> = {
 export interface MimeInfo {
   mime: string;
   previewable: FilePreviewKind;
+  /** Shiki bundled lang short id;未识别 → 'txt'(前端 escapeHtml 降级) */
+  lang: string;
 }
 
 /**
- * 按文件名(或绝对路径)推断 mime + previewable。
+ * 按文件名(或绝对路径)推断 mime + previewable + lang。
  * 不接触文件内容,只看 basename + extname。
+ *
+ * Why 三者合一:之前 detectMime + detectLang 在 /read 路径上各跑一次 basename
+ * + lookupSpecial + extname,纯重复工作。
  */
 export function detectMime(filename: string): MimeInfo {
   const base = basename(filename);
   const special = lookupSpecial(base);
   if (special) {
-    return { mime: special.mime, previewable: special.previewable };
+    return { mime: special.mime, previewable: special.previewable, lang: special.lang };
   }
 
   // 双扩展名兜底:foo.d.ts / foo.test.tsx 等先用末段扩展名
   const ext = extname(base).toLowerCase();
+  const lang = LANG_MAP[ext] ?? 'txt';
 
   // 图片优先(svg 走 image 渲染)
   if (ext in IMAGE_EXT_TO_MIME) {
-    return { mime: IMAGE_EXT_TO_MIME[ext]!, previewable: 'image' };
+    return { mime: IMAGE_EXT_TO_MIME[ext]!, previewable: 'image', lang };
   }
   if (ext in TEXT_EXT_TO_MIME) {
-    return { mime: TEXT_EXT_TO_MIME[ext]!, previewable: 'text' };
+    return { mime: TEXT_EXT_TO_MIME[ext]!, previewable: 'text', lang };
   }
-  return { mime: 'application/octet-stream', previewable: 'none' };
+  return { mime: 'application/octet-stream', previewable: 'none', lang };
 }
 
-/**
- * 按文件名推断 Shiki bundled lang short id;未识别 → 'txt'(前端走 escapeHtml 降级)。
- */
+/** detectMime(filename).lang 的便捷别名(测试 / 单独想要 lang 的场景) */
 export function detectLang(filename: string): string {
-  const base = basename(filename);
-  const special = lookupSpecial(base);
-  if (special) return special.lang;
-  const ext = extname(base).toLowerCase();
-  return LANG_MAP[ext] ?? 'txt';
+  return detectMime(filename).lang;
 }
 
 /**

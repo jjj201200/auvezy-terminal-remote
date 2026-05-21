@@ -1,10 +1,3 @@
-/**
- * 前端工具:FileEntry → tabler icon node + 字节数格式化。
- *
- * 为什么从 .ts 改 .tsx:iconFor 现在返 JSX 节点(`@tabler/icons-react` 组件),
- * 比 emoji 与项目其它顶栏图标视觉一致。
- */
-
 import type { JSX } from 'react';
 import {
   IconFolder,

@@ -2,7 +2,7 @@
  * SearchResults:搜索命中列表(name + content 分组,content 高亮命中区间)。
  */
 
-import type { JSX } from 'react';
+import { useMemo, type JSX } from 'react';
 import { IconFileText, IconSearch } from '@tabler/icons-react';
 import type { SearchEvent } from 'auvezy-terminal-remote-shared';
 import { useT } from '../../i18n/i18n-context.js';
@@ -26,8 +26,17 @@ export function SearchResults({ hits, truncated, onPick }: SearchResultsProps): 
       </div>
     );
   }
-  const nameHits = hits.filter((h): h is Extract<SearchEvent, { kind: 'name' }> => h.kind === 'name');
-  const contentHits = hits.filter((h): h is Extract<SearchEvent, { kind: 'content' }> => h.kind === 'content');
+  // 流式 SSE 每次 push 都会 re-render —— 用 useMemo 单次 partition,
+  // 避免每帧跑两次 O(n) filter 退化成 O(n²)。
+  const { nameHits, contentHits } = useMemo(() => {
+    const nh: Extract<SearchEvent, { kind: 'name' }>[] = [];
+    const ch: Extract<SearchEvent, { kind: 'content' }>[] = [];
+    for (const h of hits) {
+      if (h.kind === 'name') nh.push(h);
+      else ch.push(h);
+    }
+    return { nameHits: nh, contentHits: ch };
+  }, [hits]);
   return (
     <ul
       id="file-browser-search-results"

@@ -1,11 +1,6 @@
 /**
- * FilePreviewSheet
- *
- * 文件预览独立 modal(modal-stack 第二层),从 FileBrowserSheet 推出。
- * 桌面与移动均"全屏 / 接近全屏",避免文件内容挤在小卡片里。
- *
- * 包了一层 Sheet primitive 让它走与 ShareSheet / FileBrowserSheet 同款的
- * Dialog(桌面)/ Drawer(移动)动画;PreviewPane 内部负责实际渲染。
+ * FilePreviewSheet — 预览独立 modal(modal-stack 第二层),由 FileBrowserSheet 推出。
+ * 桌面与移动均全屏,文件阅读需要尽可能大的容器。
  */
 
 import type { JSX } from 'react';
@@ -36,13 +31,11 @@ export function FilePreviewSheet({
       className={s.previewSheet}
       id="file-preview-sheet"
     >
-      <div className={`${s.previewRoot} fb-preview-sheet-root`}>
-        <PreviewPane
-          instanceId={instanceId}
-          target={target}
-          onClose={() => onOpenChange(false)}
-        />
-      </div>
+      <PreviewPane
+        instanceId={instanceId}
+        target={target}
+        onClose={() => onOpenChange(false)}
+      />
     </Sheet>
   );
 }
