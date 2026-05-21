@@ -492,6 +492,8 @@ export const en: Messages = {
     toolbarShowHidden: 'Show hidden',
     empty: 'This directory is empty',
     searchPlaceholder: 'Search file name or content…',
+    searchSubmit: 'Search',
+    searchCancel: 'Cancel search',
     searchScanning: 'Scanned {{scanned}} files · {{hits}} hits…',
     searchTruncated: 'Result limit reached — narrow your query',
     searchEmpty: 'No matches',

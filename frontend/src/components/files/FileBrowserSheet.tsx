@@ -40,7 +40,10 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const [error, setError] = useState<string | null>(null);
 
   // ──────────── 搜索 state ────────────
-  const [searchQ, setSearchQ] = useState('');
+  // submittedQ:已提交的查询(空字符串 = 未在搜索模式)
+  // searchBoxKey:用作 SearchBox key,父主动清搜索时换 key 让 input 草稿重置
+  const [submittedQ, setSubmittedQ] = useState('');
+  const [searchBoxKey, setSearchBoxKey] = useState(0);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [regex, setRegex] = useState(false);
   const [hits, setHits] = useState<SearchEvent[]>([]);
@@ -48,20 +51,23 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const [searchTruncated, setSearchTruncated] = useState(false);
   const handleRef = useRef<SearchHandle | null>(null);
 
-  // 切实例 / 重开 sheet 时重置 path
+  // 切实例 / 重开 sheet 时重置 path + 清搜索
   useEffect(() => {
     if (!open) return;
     setPath(undefined);
     setPreview(null);
-    setSearchQ('');
+    setSubmittedQ('');
+    setSearchBoxKey((k) => k + 1);
   }, [open, instanceId]);
 
-  // 搜索:>= 3 char 自动触发,关键字变 / sheet 关 → cancel 旧流
+  // 搜索:只在 submittedQ / toggle 变化时触发(不再听 input draft)
+  // submittedQ 必须 >= SEARCH_MIN_CHARS 才发请求 — 这是用户显式按下"搜索"
+  // 才触发的服务端调用,不会因敲键无限刷
   useEffect(() => {
     handleRef.current?.cancel();
     handleRef.current = null;
 
-    if (!open || searchQ.length < SEARCH_MIN_CHARS) {
+    if (!open || submittedQ.length < SEARCH_MIN_CHARS) {
       setHits([]);
       setScanning(false);
       setSearchTruncated(false);
@@ -73,7 +79,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
     setScanning(true);
     const h = streamSearch(
       instanceId,
-      { q: searchQ, mode: 'both', caseSensitive, regex },
+      { q: submittedQ, mode: 'both', caseSensitive, regex },
       (m) => setHits((prev) => [...prev, m]),
       (d) => {
         setScanning(false);
@@ -83,7 +89,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
     );
     handleRef.current = h;
     return () => h.cancel();
-  }, [open, searchQ, caseSensitive, regex, instanceId]);
+  }, [open, submittedQ, caseSensitive, regex, instanceId]);
 
   useEffect(() => {
     if (!open) return;
@@ -121,13 +127,19 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   };
 
   const visibleEntries = showHidden ? entries : entries.filter((e) => !e.hidden);
-  const inSearchMode = searchQ.length >= SEARCH_MIN_CHARS;
+  const inSearchMode = submittedQ.length >= SEARCH_MIN_CHARS;
 
   const onPickHit = (h: SearchEvent): void => {
     // name 与 content 命中都按 text 预览打开(精准行跳转不在 MVP 范围)
     const name = h.kind === 'content' ? `${h.path}:${h.line}` : h.path;
     setPreview({ kind: 'text', path: h.path, name });
-    setSearchQ('');
+    setSubmittedQ('');
+    setSearchBoxKey((k) => k + 1);
+  };
+
+  const clearSearch = (): void => {
+    setSubmittedQ('');
+    setSearchBoxKey((k) => k + 1);
   };
 
   return (
@@ -148,10 +160,12 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
           onToggleHidden={() => setShowHidden((v) => !v)}
         />
         <SearchBox
-          value={searchQ}
+          key={searchBoxKey}
+          submittedQ={submittedQ}
           caseSensitive={caseSensitive}
           regex={regex}
-          onChange={setSearchQ}
+          onSubmit={(q) => setSubmittedQ(q)}
+          onClear={clearSearch}
           onToggleCase={() => setCaseSensitive((v) => !v)}
           onToggleRegex={() => setRegex((v) => !v)}
           onCancel={() => {

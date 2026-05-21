@@ -163,6 +163,34 @@
     }
   }
 
+  // 提交按钮:与 toggle 同尺寸,但默认就用 accent 边框 + 文字,强调主动作
+  .searchSubmit {
+    @include m.btn-reset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 var(--sp-3);
+    border: 1px solid var(--color-accent);
+    color: var(--color-accent);
+    background: var(--color-accent-soft);
+    cursor: pointer;
+    @include m.transition(color var(--dur-fast), background var(--dur-fast), box-shadow var(--dur-fast));
+
+    &:hover:not(:disabled) {
+      background: var(--color-accent-18);
+    }
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--shadow-focus);
+    }
+  }
+
   .searchToggle {
     @include m.btn-reset;
     display: inline-flex;

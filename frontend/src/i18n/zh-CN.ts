@@ -483,6 +483,8 @@ export const zhCN: Messages = {
     toolbarShowHidden: '显示隐藏',
     empty: '该目录为空',
     searchPlaceholder: '搜索文件名或内容…',
+    searchSubmit: '搜索',
+    searchCancel: '取消搜索',
     searchScanning: '已扫 {{scanned}} 文件 · {{hits}} 个命中…',
     searchTruncated: '已达上限,缩窄关键字',
     searchEmpty: '无匹配',

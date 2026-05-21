@@ -588,6 +588,10 @@ export interface Messages {
     empty: string;
     /** 搜索框 */
     searchPlaceholder: string;
+    /** 搜索提交按钮 aria/title */
+    searchSubmit: string;
+    /** 搜索取消按钮 aria/title */
+    searchCancel: string;
     /** 模板 {{scanned}} / {{hits}} */
     searchScanning: string;
     searchTruncated: string;
