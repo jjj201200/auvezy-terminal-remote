@@ -23,15 +23,29 @@ export interface PreviewPaneProps {
 export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): JSX.Element {
   const t = useT();
   if (!target) {
-    return <div className={`${s.preview} ${s.empty}`}>{t('files.empty')}</div>;
+    return (
+      <div
+        id="file-browser-preview"
+        className={`${s.preview} ${s.empty} fb-preview fb-preview--empty`}
+        data-kind="empty"
+      >
+        {t('files.empty')}
+      </div>
+    );
   }
   return (
-    <div className={s.preview}>
-      <header>
-        <strong>{target.name}</strong>
+    <div
+      id="file-browser-preview"
+      className={`${s.preview} fb-preview fb-preview--${target.kind}`}
+      data-kind={target.kind}
+      data-path={target.path}
+    >
+      <header className="fb-preview__header">
+        <strong className="fb-preview__name">{target.name}</strong>
         <button
           type="button"
-          className={s.closeBtn}
+          className={`${s.closeBtn} fb-preview__close`}
+          data-action="files-preview-close"
           onClick={onClose}
           aria-label="close preview"
         >
@@ -40,7 +54,11 @@ export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): 
       </header>
       {target.kind === 'text' && <TextPreview instanceId={instanceId} path={target.path} />}
       {target.kind === 'image' && <ImagePreview instanceId={instanceId} path={target.path} />}
-      {target.kind === 'none' && <div className={s.unsupported}>{t('files.previewBinary')}</div>}
+      {target.kind === 'none' && (
+        <div className={`${s.unsupported} fb-preview__unsupported`}>
+          {t('files.previewBinary')}
+        </div>
+      )}
     </div>
   );
 }

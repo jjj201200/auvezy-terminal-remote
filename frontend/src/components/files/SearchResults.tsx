@@ -17,15 +17,34 @@ export interface SearchResultsProps {
 export function SearchResults({ hits, truncated, onPick }: SearchResultsProps): JSX.Element {
   const t = useT();
   if (hits.length === 0 && !truncated) {
-    return <div className={s.empty}>{t('files.searchEmpty')}</div>;
+    return (
+      <div
+        id="file-browser-search-results"
+        className={`${s.empty} fb-search-results fb-search-results--empty`}
+      >
+        {t('files.searchEmpty')}
+      </div>
+    );
   }
   const nameHits = hits.filter((h): h is Extract<SearchEvent, { kind: 'name' }> => h.kind === 'name');
   const contentHits = hits.filter((h): h is Extract<SearchEvent, { kind: 'content' }> => h.kind === 'content');
   return (
-    <ul className={s.searchList}>
+    <ul
+      id="file-browser-search-results"
+      className={`${s.searchList} fb-search-results`}
+      role="list"
+      data-truncated={truncated ? 'true' : 'false'}
+    >
       {nameHits.map((h, i) => (
-        <li key={`n-${i}`} onClick={() => onPick(h)}>
-          <span className={s.resultName}>
+        <li
+          key={`n-${i}`}
+          className="fb-search-results__hit fb-search-results__hit--name"
+          data-action="files-search-hit"
+          data-hit-kind="name"
+          data-path={h.path}
+          onClick={() => onPick(h)}
+        >
+          <span className={`${s.resultName} fb-search-results__name`}>
             <IconFileText size={14} stroke={1.5} />
             <span>{h.path}</span>
           </span>
@@ -36,17 +55,31 @@ export function SearchResults({ hits, truncated, onPick }: SearchResultsProps): 
         const match = h.preview.slice(h.matchStart, h.matchEnd);
         const after = h.preview.slice(h.matchEnd);
         return (
-          <li key={`c-${i}`} onClick={() => onPick(h)}>
-            <span className={s.resultPath}>
+          <li
+            key={`c-${i}`}
+            className="fb-search-results__hit fb-search-results__hit--content"
+            data-action="files-search-hit"
+            data-hit-kind="content"
+            data-path={h.path}
+            data-line={h.line}
+            onClick={() => onPick(h)}
+          >
+            <span className={`${s.resultPath} fb-search-results__path`}>
               <IconSearch size={12} stroke={1.5} style={{ verticalAlign: 'middle', marginRight: 4 }} />
               {h.path}:{h.line}
             </span>
-            <code className={s.resultLine}>{before}<mark>{match}</mark>{after}</code>
+            <code className={`${s.resultLine} fb-search-results__line`}>
+              {before}
+              <mark className="fb-search-results__mark">{match}</mark>
+              {after}
+            </code>
           </li>
         );
       })}
       {truncated && (
-        <li className={s.truncatedRow}>{t('files.searchTruncated')}</li>
+        <li className={`${s.truncatedRow} fb-search-results__truncated`}>
+          {t('files.searchTruncated')}
+        </li>
       )}
     </ul>
   );

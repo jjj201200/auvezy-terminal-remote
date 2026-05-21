@@ -150,7 +150,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       className={s.sheet}
       id="file-browser-sheet"
     >
-      <div className={s.root}>
+      <div className={`${s.root} fb-root`} data-instance-id={instanceId} data-cwd={cwd} data-path={path ?? cwd}>
         <Breadcrumb
           cwd={cwd}
           path={path ?? cwd}
@@ -176,7 +176,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
           scanned={hits.length}
           hits={hits.length}
         />
-        <div className={s.body}>
+        <div className={`${s.body} fb-body`} data-mode={inSearchMode ? 'search' : 'list'}>
           {inSearchMode ? (
             <SearchResults
               hits={hits}

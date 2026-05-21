@@ -16,10 +16,21 @@ export interface ImagePreviewProps {
 export function ImagePreview({ instanceId, path }: ImagePreviewProps): JSX.Element {
   const t = useT();
   const [failed, setFailed] = useState(false);
-  if (failed) return <div className={s.unsupported}>{t('files.previewBinary')}</div>;
+  if (failed) {
+    return (
+      <div
+        className={`${s.unsupported} fb-preview__unsupported`}
+        role="alert"
+        data-reason="image-load-failed"
+      >
+        {t('files.previewBinary')}
+      </div>
+    );
+  }
   return (
     <img
-      className={s.image}
+      className={`${s.image} fb-preview__image`}
+      data-path={path}
       src={rawUrl(instanceId, path)}
       onError={() => setFailed(true)}
       alt={path}

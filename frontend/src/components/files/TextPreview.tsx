@@ -56,12 +56,31 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
     return () => { cancelled = true; };
   }, [path, files]);
 
-  if (err) return <div className={s.error}>{translateErr(t, err)}</div>;
+  if (err) {
+    return (
+      <div className={`${s.error} fb-preview__error`} role="alert">
+        {translateErr(t, err)}
+      </div>
+    );
+  }
   return (
     <>
-      {truncated && <div className={s.notice}>{t('files.previewTruncated')}</div>}
-      {highlightOff && <div className={s.notice}>{t('files.previewHighlightOff')}</div>}
-      <div className={s.textPre} dangerouslySetInnerHTML={{ __html: html }} />
+      {truncated && (
+        <div className={`${s.notice} fb-preview__notice fb-preview__notice--truncated`}>
+          {t('files.previewTruncated')}
+        </div>
+      )}
+      {highlightOff && (
+        <div className={`${s.notice} fb-preview__notice fb-preview__notice--highlight-off`}>
+          {t('files.previewHighlightOff')}
+        </div>
+      )}
+      <div
+        className={`${s.textPre} fb-preview__text`}
+        data-truncated={truncated ? 'true' : 'false'}
+        data-highlight-off={highlightOff ? 'true' : 'false'}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </>
   );
 }

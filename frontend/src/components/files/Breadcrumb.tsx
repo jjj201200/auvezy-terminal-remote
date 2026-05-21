@@ -37,10 +37,11 @@ export function Breadcrumb(props: BreadcrumbProps): JSX.Element {
   );
 
   return (
-    <div className={s.breadcrumb}>
+    <div id="file-browser-breadcrumb" className={`${s.breadcrumb} fb-breadcrumb`}>
       <button
         type="button"
-        className={s.crumbBtn}
+        className={`${s.crumbBtn} fb-breadcrumb__cwd`}
+        data-action="files-cwd"
         onClick={() => props.onJump(props.cwd)}
         title={t('files.toolbarCwd')}
         aria-label={t('files.toolbarCwd')}
@@ -49,7 +50,8 @@ export function Breadcrumb(props: BreadcrumbProps): JSX.Element {
       </button>
       <button
         type="button"
-        className={s.crumbBtn}
+        className={`${s.crumbBtn} fb-breadcrumb__up`}
+        data-action="files-up"
         onClick={() => props.parent && props.onJump(props.parent)}
         disabled={!props.parent}
         title={t('files.toolbarUp')}
@@ -57,18 +59,27 @@ export function Breadcrumb(props: BreadcrumbProps): JSX.Element {
       >
         <IconArrowUp size={14} stroke={1.5} />
       </button>
-      <div className={s.segs} title={props.path}>
+      <div
+        className={`${s.segs} fb-breadcrumb__segs`}
+        title={props.path}
+        data-path={props.path}
+      >
         {segments.map((seg, i) => (
-          <span key={i}>
-            {i > 0 && <span className={s.sepSlash}>/</span>}
+          <span key={i} className="fb-breadcrumb__seg-wrap">
+            {i > 0 && <span className={`${s.sepSlash} fb-breadcrumb__sep`}>/</span>}
             {seg.jumpTo === null || seg.current ? (
-              <span className={`${s.seg} ${seg.current ? s.segCurrent : ''}`}>
+              <span
+                className={`${s.seg} ${seg.current ? s.segCurrent : ''} fb-breadcrumb__seg ${seg.current ? 'fb-breadcrumb__seg--current' : ''}`}
+                data-current={seg.current ? 'true' : 'false'}
+              >
                 {seg.label}
               </span>
             ) : (
               <button
                 type="button"
-                className={s.seg}
+                className={`${s.seg} fb-breadcrumb__seg fb-breadcrumb__seg--clickable`}
+                data-action="files-jump-seg"
+                data-jump-to={seg.jumpTo}
                 onClick={() => seg.jumpTo && props.onJump(seg.jumpTo)}
               >
                 {seg.label}
@@ -77,11 +88,12 @@ export function Breadcrumb(props: BreadcrumbProps): JSX.Element {
           </span>
         ))}
       </div>
-      <label className={s.toggle}>
+      <label className={`${s.toggle} fb-breadcrumb__toggle`}>
         <input
           type="checkbox"
           checked={props.showHidden}
           onChange={props.onToggleHidden}
+          data-action="files-toggle-hidden"
         />
         {t('files.toolbarShowHidden')}
       </label>
