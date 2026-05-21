@@ -108,6 +108,28 @@ describe('runSearch', () => {
     ).rejects.toThrow(/cross-line|invalid|SEARCH_INVALID_Q/i);
   });
 
+  it('cancelSignal 触发立即停止 + 主动 close dirh', async () => {
+    // 启动后立刻 abort,验证不会 hang(超时则失败)
+    const ac = new AbortController();
+    const hits: SearchHit[] = [];
+    const p = runSearch({
+      scope: root,
+      q: 'a',
+      mode: 'both',
+      caseSensitive: false,
+      regex: false,
+      policy: { allow: [], deny: [] },
+      emit: (h) => hits.push(h),
+      cancelSignal: ac.signal,
+    });
+    // 让 walk 开始,然后中断
+    await new Promise((r) => setImmediate(r));
+    ac.abort();
+    const done = await p;
+    // 取消后正常 resolve(不抛),summary 合法
+    expect(done.elapsedMs).toBeGreaterThanOrEqual(0);
+  });
+
   it('畸形 regex 抛 SEARCH_INVALID_Q', async () => {
     await expect(
       runSearch({

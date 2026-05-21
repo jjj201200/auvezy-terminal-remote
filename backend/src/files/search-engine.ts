@@ -13,6 +13,7 @@
  */
 
 import { opendir, open, stat } from 'node:fs/promises';
+import type { Dir } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import {
@@ -93,11 +94,25 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
       waitPromise = new Promise((rr) => { waitResolve = rr; });
     }
   };
-  // cancelSignal 触发即唤醒所有 worker(下一行 await 完后,各自看 aborted 退出)
-  opts.cancelSignal?.addEventListener('abort', wakeWorkers, { once: true });
-  // 总超时也要能唤醒空转 worker 触发退出 —— 否则 walk 卡住时 worker 会永远等。
-  // unref:不阻止 Node 进程退出
-  const totalTimeoutHandle = setTimeout(wakeWorkers, SEARCH_TOTAL_TIMEOUT_MS);
+  // walk 持有的全部 Dir handle:cancel / 总超时触发时主动 close,让正在
+  // for-await 阻塞的 dir.read() 抛 ERR_DIR_CLOSED 立即退出。
+  // Why:Node fs.promises.opendir / Dir 不支持 AbortSignal(Node 20.x),阻塞
+  // 在 read() 上的 walk 不会自动响应 cancelSignal;只能反向主动 close。
+  const openDirs = new Set<Dir>();
+  const closeAllDirs = (): void => {
+    for (const d of openDirs) {
+      d.close().catch(() => {/* 已 close / 错误 → 无视;反正 walk 也要退出 */});
+    }
+    openDirs.clear();
+  };
+  // cancel:唤醒空转 worker + 主动 close 所有 dirh 让阻塞中的 walk 退出
+  const onCancel = (): void => {
+    wakeWorkers();
+    closeAllDirs();
+  };
+  opts.cancelSignal?.addEventListener('abort', onCancel, { once: true });
+  // 总超时:同样唤醒 worker + close dirh。unref:不阻止 Node 进程退出
+  const totalTimeoutHandle = setTimeout(onCancel, SEARCH_TOTAL_TIMEOUT_MS);
   totalTimeoutHandle.unref();
 
   async function walk(dir: string, depth: number): Promise<void> {
@@ -112,41 +127,56 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
     } catch {
       return;
     }
+    // 如果 opendir 慢到中途已 cancel,直接 close + 退出,不进入 for-await
+    if (opts.cancelSignal?.aborted) {
+      await dirh.close().catch(() => {});
+      return;
+    }
+    openDirs.add(dirh);
 
-    for await (const ent of dirh) {
-      scanned++;
-      if (scanned >= MAX_ENTRIES_SCANNED) { truncated = true; break; }
-      if (Date.now() - start > SEARCH_TOTAL_TIMEOUT_MS) { truncated = true; break; }
-      if (opts.cancelSignal?.aborted) break;
+    try {
+      for await (const ent of dirh) {
+        scanned++;
+        if (scanned >= MAX_ENTRIES_SCANNED) { truncated = true; break; }
+        if (Date.now() - start > SEARCH_TOTAL_TIMEOUT_MS) { truncated = true; break; }
+        if (opts.cancelSignal?.aborted) break;
 
-      const full = join(dir, ent.name);
+        const full = join(dir, ent.name);
 
-      if (ent.isDirectory()) {
-        if (IGNORE_DIRS.has(ent.name)) continue;
-        // policy 闸:子目录命中 deny 整段跳
-        if (checkWorkdir(full, opts.policy.allow, opts.policy.deny) !== null) continue;
-        await walk(full, depth + 1);
-        continue;
-      }
+        if (ent.isDirectory()) {
+          if (IGNORE_DIRS.has(ent.name)) continue;
+          // policy 闸:子目录命中 deny 整段跳
+          if (checkWorkdir(full, opts.policy.allow, opts.policy.deny) !== null) continue;
+          await walk(full, depth + 1);
+          continue;
+        }
 
-      if (!ent.isFile()) continue;
+        if (!ent.isFile()) continue;
 
-      // name 模式 — 实时 emit,不需要排队
-      if (opts.mode !== 'content' && nameMatch(ent.name) && nameHits < SEARCH_MAX_NAME_RESULTS) {
-        try {
-          const st = await stat(full);
-          opts.emit({ kind: 'name', path: full, size: st.size, mtimeMs: st.mtimeMs });
-          nameHits++;
-        } catch {
-          // stat 失败 → 不计 hit
+        // name 模式 — 实时 emit,不需要排队
+        if (opts.mode !== 'content' && nameMatch(ent.name) && nameHits < SEARCH_MAX_NAME_RESULTS) {
+          try {
+            const st = await stat(full);
+            opts.emit({ kind: 'name', path: full, size: st.size, mtimeMs: st.mtimeMs });
+            nameHits++;
+          } catch {
+            // stat 失败 → 不计 hit
+          }
+        }
+
+        // content 模式 — 推入流式队列,唤醒空转的 worker
+        if (opts.mode !== 'name') {
+          queue.push(full);
+          wakeWorkers();
         }
       }
-
-      // content 模式 — 推入流式队列,唤醒空转的 worker
-      if (opts.mode !== 'name') {
-        queue.push(full);
-        wakeWorkers();
-      }
+    } catch {
+      // closeAllDirs 触发的 ERR_DIR_CLOSED 等 → 静默退出,truncated 已由其它路径标记
+    } finally {
+      openDirs.delete(dirh);
+      // 正常退出 for-await 后 Node 会自动 close,但显式 close 更稳;close 已关闭的
+      // dir 会抛 ERR_DIR_CLOSED → catch 掉
+      await dirh.close().catch(() => {});
     }
   }
 
