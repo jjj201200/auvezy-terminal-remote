@@ -97,18 +97,18 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
   // walk 持有的全部 Dir handle:cancel / 总超时触发时主动 close,让正在
   // for-await 阻塞的 dir.read() 抛 ERR_DIR_CLOSED 立即退出。
   // Why:Node fs.promises.opendir / Dir 不支持 AbortSignal(Node 20.x),阻塞
-  // 在 read() 上的 walk 不会自动响应 cancelSignal;只能反向主动 close。
+  // 在 read() 上的 walk 不会自动响应 cancelSignal;只能反向主动中断。
   const openDirs = new Set<Dir>();
-  const closeAllDirs = (): void => {
+  const abortAllDirs = (): void => {
     for (const d of openDirs) {
-      d.close().catch(() => {/* 已 close / 错误 → 无视;反正 walk 也要退出 */});
+      d.close().catch(() => {/* close 失败一律忽略:cancel/timeout 路径下日志无意义 */});
     }
     openDirs.clear();
   };
-  // cancel:唤醒空转 worker + 主动 close 所有 dirh 让阻塞中的 walk 退出
+  // cancel:唤醒空转 worker + 主动中断所有 dirh 让阻塞中的 walk 退出
   const onCancel = (): void => {
     wakeWorkers();
-    closeAllDirs();
+    abortAllDirs();
   };
   opts.cancelSignal?.addEventListener('abort', onCancel, { once: true });
   // 总超时:同样唤醒 worker + close dirh。unref:不阻止 Node 进程退出
@@ -127,12 +127,16 @@ export async function runSearch(opts: SearchOptions): Promise<SearchSummary> {
     } catch {
       return;
     }
-    // 如果 opendir 慢到中途已 cancel,直接 close + 退出,不进入 for-await
+    // 立刻注册到 openDirs:若 opendir 返回与 aborted 检查之间 cancel 触发,
+    // abortAllDirs 也能命中这个 dirh,close 走统一路径,避免分裂。
+    openDirs.add(dirh);
     if (opts.cancelSignal?.aborted) {
+      // 已 cancel:跳过 for-await,统一走 finally close
+      // (落入 try 块只为让 finally 运行;break 等价于直接进 finally)
+      openDirs.delete(dirh);
       await dirh.close().catch(() => {});
       return;
     }
-    openDirs.add(dirh);
 
     try {
       for await (const ent of dirh) {

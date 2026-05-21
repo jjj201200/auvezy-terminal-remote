@@ -26,6 +26,15 @@ describe('runSearch', () => {
     writeFileSync(join(root, 'src', 'main.ts'), 'export const checkWorkdir = 1;\n// other');
     writeFileSync(join(root, 'node_modules', 'leak.txt'), 'checkWorkdir but ignored');
     writeFileSync(join(root, 'bin.dat'), Buffer.from([0x00, 0x01, 0x02]));
+    // cancel 测试用 fixture:多层嵌套 + 大量文件,确保 walk 真的需要时间
+    // 而不是几毫秒走完(否则 cancel 路径无法被触发覆盖)
+    for (let i = 0; i < 4; i++) {
+      const sub = join(root, `bulk${i}`);
+      mkdirSync(sub);
+      for (let j = 0; j < 50; j++) {
+        writeFileSync(join(sub, `f${j}.txt`), 'lorem ipsum '.repeat(20));
+      }
+    }
   });
 
   afterAll(() => {
@@ -109,25 +118,26 @@ describe('runSearch', () => {
   });
 
   it('cancelSignal 触发立即停止 + 主动 close dirh', async () => {
-    // 启动后立刻 abort,验证不会 hang(超时则失败)
     const ac = new AbortController();
     const hits: SearchHit[] = [];
     const p = runSearch({
       scope: root,
-      q: 'a',
-      mode: 'both',
+      q: 'lorem',
+      mode: 'content',
       caseSensitive: false,
       regex: false,
       policy: { allow: [], deny: [] },
       emit: (h) => hits.push(h),
       cancelSignal: ac.signal,
     });
-    // 让 walk 开始,然后中断
+    // walk 开始后立即取消;fixture 有 200 个文件,正常需百 ms 量级
     await new Promise((r) => setImmediate(r));
     ac.abort();
     const done = await p;
-    // 取消后正常 resolve(不抛),summary 合法
-    expect(done.elapsedMs).toBeGreaterThanOrEqual(0);
+    // 取消必须快(<1s);若 cancel 路径退化为"等 walk 自然结束",timing 会显著拉长
+    expect(done.elapsedMs).toBeLessThan(1000);
+    // 取消时大概率没能扫完 200 个文件 → 命中数应远少于全量
+    expect(hits.length).toBeLessThan(200);
   });
 
   it('畸形 regex 抛 SEARCH_INVALID_Q', async () => {
