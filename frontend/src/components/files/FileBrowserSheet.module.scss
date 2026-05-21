@@ -48,7 +48,9 @@
 .breadcrumb {
   display: flex;
   gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4);
+  // 横向 0:Sheet body 已提供 --sp-6 横向 padding,这里不再叠加;
+  // 纵向保留,与下面的 searchBox / body 拉开行间距
+  padding: var(--sp-3) 0;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -159,7 +161,8 @@
 .searchBox {
   display: flex;
   gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4);
+  // 横向 0:Sheet body padding 已撑出边距,容器自己不再叠加
+  padding: var(--sp-3) 0;
   align-items: center;
   flex-wrap: wrap;
 
@@ -327,7 +330,9 @@
     display: grid;
     grid-template-columns: 20px 1fr auto;
     gap: var(--sp-3);
-    padding: var(--sp-3) var(--sp-4);
+    // 横向 0:Sheet body padding 已提供左右边距;行 hover 反色只覆盖
+    // 文字区,与 breadcrumb / searchBox 对齐
+    padding: var(--sp-3) 0;
     cursor: pointer;
     min-height: 36px;
     align-items: center;
@@ -381,7 +386,8 @@
   background: var(--color-bg);
 
   li {
-    padding: var(--sp-3) var(--sp-4);
+    // 横向 0:Sheet body padding 接管
+    padding: var(--sp-3) 0;
     cursor: pointer;
     color: var(--color-fg);
     @include m.transition(background var(--dur-fast));
@@ -446,7 +452,8 @@
   header {
     display: flex;
     align-items: center;
-    padding: var(--sp-3) var(--sp-4);
+    // 横向 0:Sheet body padding 已撑出边距
+    padding: var(--sp-3) 0;
     gap: var(--sp-3);
     background: var(--color-bg);
 
@@ -558,7 +565,9 @@
 // ──────────── 通用提示 ────────────
 
 .notice {
-  padding: var(--sp-2) var(--sp-4);
+  // 横向 0:Sheet body padding 接管;背景仍延伸到内容左右两侧
+  // (Sheet body 的 padding 在父层,notice 的背景到父 padding 内边即止)
+  padding: var(--sp-2) 0;
   background: var(--color-warn-soft);
   color: var(--color-warn);
   font-family: var(--font-mono);
@@ -566,7 +575,7 @@
 }
 
 .error {
-  padding: var(--sp-4);
+  padding: var(--sp-4) 0;
   color: var(--color-alarm);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
@@ -574,7 +583,7 @@
 
 .empty,
 .unsupported {
-  padding: var(--sp-6);
+  padding: var(--sp-6) 0;
   text-align: center;
   color: var(--color-fg-low);
   font-family: var(--font-mono);
@@ -582,7 +591,7 @@
 }
 
 .truncatedRow {
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-3) 0;
   color: var(--color-fg-low);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
