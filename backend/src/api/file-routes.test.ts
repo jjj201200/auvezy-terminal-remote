@@ -225,12 +225,14 @@ describe('file-routes', () => {
     expect(text).toContain('event: done');
   });
 
-  it('GET /api/files/list 超 120/min 返 429', async () => {
+  it('GET /api/files/list 超阈值返 429 AUTH_RATE_LIMITED', async () => {
+    // 阈值见 backend/src/constants.ts FILE_RATE_LIMIT_PER_MIN(0.8.0 起 600)
+    // 这里硬连发 650 次,无论阈值后续怎么调,只要在合理范围内都能触发
     env = await makeEnv();
     const cookie = await login(env.port);
     let last = 0;
     let lastBody: { error?: { code: string } } | undefined;
-    for (let i = 0; i < 130; i++) {
+    for (let i = 0; i < 650; i++) {
       const res = await fetch(`http://127.0.0.1:${env.port}/api/files/list?instanceId=${FAKE_INSTANCE_ID}`, { headers: { Cookie: cookie } });
       last = res.status;
       if (res.status === 429) {
@@ -240,5 +242,5 @@ describe('file-routes', () => {
     }
     expect(last).toBe(429);
     expect(lastBody?.error?.code).toBe('AUTH_RATE_LIMITED');
-  }, 30_000);
+  }, 60_000);
 });

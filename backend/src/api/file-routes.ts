@@ -72,7 +72,7 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
     const ctx = await resolveContext(req, registry, workdirPolicy);
     const target = resolveSafePath(ctx.cwd, asString(req.query.path), ctx.policy);
     const entries = await listDir(target);
-    const parent = computeParent(target, ctx.policy);
+    const parent = computeParent(ctx.cwd, target, ctx.policy);
     const payload: FileListResponse = {
       ok: true, cwd: ctx.cwd, path: target, parent, entries,
     };
@@ -325,13 +325,19 @@ async function resolveContext(
 
 /**
  * 计算上级目录(用作 list 响应的 parent 字段)。
- * 上级仍需过 policy 闸,不通过则返 null(前端禁用"上级"按钮)。
+ *
+ * 必须传实例 cwd:resolveSafePath 内部把 cwd 当"硬墙",越过 cwd 之上的
+ * 父目录会被拒,返 null 让前端禁用"上级"按钮。
+ *
+ * 当 current === cwd 时,上级就是 cwd 之上 → 必返 null(根目录不可越界)。
  */
-function computeParent(current: string, policy: WorkdirPolicy): string | null {
+function computeParent(cwd: string, current: string, policy: WorkdirPolicy): string | null {
+  if (current === cwd) return null;
   const parentPath = dirname(current);
   if (parentPath === current) return null;
   try {
-    resolveSafePath(parentPath, '.', policy);
+    // 用 cwd 做硬墙;resolveSafePath 会自动拒 cwd 之外的 parent
+    resolveSafePath(cwd, parentPath, policy);
     return parentPath;
   } catch {
     return null;

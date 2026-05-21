@@ -1,10 +1,12 @@
 /**
  * resolveSafePath:把外部输入的相对/绝对路径解析为可信的绝对路径
  *
- * 三段闸(design §5.1):
- *  1. path.resolve(cwd, input)          - 统一为绝对路径
- *  2. fs.realpathSync                    - 解 symlink 到真实路径
- *  3. checkWorkdir(real, allow, deny)    - workdir-policy 复审
+ * 四段闸(design §5.1,2026-05-21 加强为四段):
+ *  1. path.resolve(cwd, input)            - 统一为绝对路径
+ *  2. fs.realpathSync                     - 解 symlink 到真实路径
+ *  3. **cwd 子树硬墙**:real 必须 === cwd 或在 cwd 子树内
+ *     —— 严禁越过实例 cwd,哪怕 workdir-policy allow/deny 允许
+ *  4. checkWorkdir(real, allow, deny)     - workdir-policy 兜底
  *
  * 通过 → 返回 real;不通过 → 抛 FileError。
  *
@@ -13,7 +15,7 @@
  */
 
 import { realpathSync } from 'node:fs';
-import { isAbsolute, resolve as resolvePath } from 'node:path';
+import { isAbsolute, relative as relativePath, resolve as resolvePath } from 'node:path';
 import { ErrorCode } from 'auvezy-terminal-remote-shared';
 import { FileError } from '../errors.js';
 import { checkWorkdir } from '../utils/workdir-policy.js';
@@ -53,6 +55,18 @@ export function resolveSafePath(
     );
   }
 
+  // cwd 边界(硬墙):resolved real 不允许越过实例 cwd 之上。
+  // realpathSync 已把 cwd 也解到真路径,所以这里两边都是真路径可直接比较。
+  const cwdReal = realpathSync(cwd);
+  if (!isWithin(cwdReal, real)) {
+    throw new FileError(
+      ErrorCode.PATH_FORBIDDEN,
+      `path outside instance cwd: ${real}`,
+      403,
+    );
+  }
+
+  // workdir-policy 兜底(deny / allow 仍会被尊重)
   const verdict = checkWorkdir(real, policy.allow, policy.deny);
   if (verdict !== null) {
     throw new FileError(
@@ -63,4 +77,22 @@ export function resolveSafePath(
   }
 
   return real;
+}
+
+/**
+ * 判断 child 是否在 parent 子树内(或正是 parent)。
+ *
+ * 用 `path.relative` 而非字符串 startsWith,以正确处理:
+ *  - 同名前缀("/a" 不是 "/aa" 的子) — relative('/a','/aa') === '../aa'
+ *  - 平台分隔符差异
+ *  - `.` / `..` 段
+ */
+function isWithin(parent: string, child: string): boolean {
+  if (parent === child) return true;
+  const rel = relativePath(parent, child);
+  if (rel === '' || rel === '.') return true;
+  // 跨设备(Windows 不同盘符)或越界 → relative 返回绝对路径或 '..' 起首
+  if (isAbsolute(rel)) return false;
+  if (rel.startsWith('..')) return false;
+  return true;
 }

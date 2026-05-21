@@ -101,4 +101,46 @@ describe('resolveSafePath', () => {
     expect(caught).toBeInstanceOf(FileError);
     expect((caught as FileError).code).toBe(ErrorCode.PATH_FORBIDDEN);
   });
+
+  it('绝对路径指向 cwd 外被拒(cwd 硬墙)', () => {
+    let caught: unknown;
+    try {
+      // root 是 cwd 的父,policy 完全空 → 但 cwd 硬墙仍应拒
+      resolveSafePath(cwd, root, { allow: [], deny: [] });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(FileError);
+    expect((caught as FileError).code).toBe(ErrorCode.PATH_FORBIDDEN);
+  });
+
+  it('相对 ".." 越过 cwd 被拒(cwd 硬墙)', () => {
+    let caught: unknown;
+    try {
+      resolveSafePath(cwd, '..', { allow: [], deny: [] });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(FileError);
+    expect((caught as FileError).code).toBe(ErrorCode.PATH_FORBIDDEN);
+  });
+
+  it('cwd 自身允许(边界 inclusive)', () => {
+    const r = resolveSafePath(cwd, cwd, { allow: [], deny: [] });
+    expect(r).toBe(cwdReal);
+  });
+
+  it('同名前缀目录(/work-out)不视作 cwd(/work) 的子', () => {
+    // 临时建一个同名前缀目录 /<root>/work-out,resolveSafePath 应拒
+    const sibling = join(root, 'work-out');
+    mkdirSync(sibling);
+    let caught: unknown;
+    try {
+      resolveSafePath(cwd, sibling, { allow: [], deny: [] });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(FileError);
+    expect((caught as FileError).code).toBe(ErrorCode.PATH_FORBIDDEN);
+  });
 });
