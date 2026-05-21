@@ -10,8 +10,10 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "build": "pnpm prebuild && pnpm --filter auvezy-terminal-remote-shared build && pnpm --filter auvezy-terminal-remote-frontend build && pnpm --filter auvezy-terminal-remote build && pnpm copy-frontend-dist && pnpm sync-readme && pnpm bundle-backend",
+    "build": "pnpm prebuild && pnpm --filter auvezy-terminal-remote-shared build && pnpm maybe-build-frontend && pnpm --filter auvezy-terminal-remote build && pnpm copy-frontend-dist && pnpm sync-readme && pnpm bundle-backend",
+    "build:force": "FORCE_FRONTEND_BUILD=1 pnpm build",
     "prebuild": "rm -rf backend/dist backend/tsconfig.tsbuildinfo",
+    "maybe-build-frontend": "node scripts/maybe-build-frontend.js",
     "copy-frontend-dist": "node scripts/copy-frontend-dist.js",
     "sync-readme": "cp README.md backend/README.md",
     "bundle-backend": "node scripts/bundle-backend.js",
