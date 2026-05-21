@@ -158,20 +158,6 @@
   color: var(--color-fg-dim);
 }
 
-// 单纯的 checkbox + 文字 label,toggle 风
-.checkboxLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-xs);
-  color: var(--color-fg);
-  cursor: pointer;
-  user-select: none;
-}
-.checkboxLabel input[type='checkbox'] {
-  accent-color: var(--color-accent);
-}
-
 .numInput {
   width: 56px;
   padding: var(--sp-2);

@@ -36,6 +36,7 @@ import clsx from 'clsx';
 import { getDefaultXtermFontSize } from '../../config/constants.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { THEME_LIST, resolveTheme } from '../../themes/terminal-themes.js';
+import { Toggle } from '../ui/Toggle.js';
 import s from './DisplaySettings.module.scss';
 
 // 与 useTerminal 同源：mono 字符宽度 / fontSize 比例
@@ -480,14 +481,11 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
           <p className={s.sectionHint}>{t('display.markdownPreviewHint')}</p>
         </header>
         <div className={s.row}>
-          <label className={s.checkboxLabel}>
-            <input
-              type="checkbox"
-              checked={markdownPreview}
-              onChange={(e) => onChange({ ...value, markdownPreview: e.target.checked })}
-            />
-            <span>{t('display.markdownPreviewLabel')}</span>
-          </label>
+          <Toggle
+            checked={markdownPreview}
+            onCheckedChange={(next) => onChange({ ...value, markdownPreview: next })}
+            label={t('display.markdownPreviewLabel')}
+          />
         </div>
       </section>
     </div>
