@@ -453,32 +453,6 @@
       @include m.truncate;
     }
 
-    .backBtn {
-      @include m.btn-reset;
-      display: inline-flex;
-      align-items: center;
-      gap: var(--sp-2);
-      padding: var(--sp-2) var(--sp-3);
-      min-height: 32px;
-      color: var(--color-fg-dim);
-      border: 1px solid var(--color-border);
-      font-family: var(--font-mono);
-      font-size: var(--fs-sm);
-      flex-shrink: 0;
-      @include m.transition(color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast));
-
-      &:hover {
-        color: var(--color-fg);
-        border-color: var(--color-border-hi);
-        background: var(--color-bg-hover);
-      }
-
-      &:focus-visible {
-        outline: none;
-        box-shadow: var(--shadow-focus);
-      }
-    }
-
   }
 
   .textPre {

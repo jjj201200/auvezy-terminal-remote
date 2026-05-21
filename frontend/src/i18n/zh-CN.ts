@@ -492,7 +492,6 @@ export const zhCN: Messages = {
     previewTruncated: '内容已截断到 2 MiB',
     previewHighlightOff: '文件过大,已禁用高亮',
     previewImageTooLarge: '图片超过 8 MiB,无法预览',
-    previewBack: '返回',
     previewWrap: '自动换行',
     errorPathNotFound: '路径不存在',
     errorPathForbidden: '路径不在允许范围内',

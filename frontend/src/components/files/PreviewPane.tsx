@@ -1,5 +1,4 @@
 import { useEffect, useState, type JSX } from 'react';
-import { IconArrowLeft } from '@tabler/icons-react';
 import type { FilePreviewKind } from 'auvezy-terminal-remote-shared';
 import { TextPreview } from './TextPreview.js';
 import { ImagePreview } from './ImagePreview.js';
@@ -18,10 +17,9 @@ export type PreviewTarget =
 export interface PreviewPaneProps {
   instanceId: string;
   target: PreviewTarget | null;
-  onClose: () => void;
 }
 
-export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): JSX.Element {
+export function PreviewPane({ instanceId, target }: PreviewPaneProps): JSX.Element {
   const t = useT();
   const [wrapLines, setWrapLines] = useState<boolean>(() => loadFileBrowserPrefs().wrapLines);
   useEffect(() => { saveWrapLines(wrapLines); }, [wrapLines]);
@@ -44,20 +42,8 @@ export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): 
       data-kind={target.kind}
       data-path={target.path}
     >
-      <header className="fb-preview__header">
-        <button
-          type="button"
-          className={`${s.backBtn} fb-preview__back`}
-          data-action="files-preview-close"
-          onClick={onClose}
-          aria-label={t('files.previewBack')}
-          title={t('files.previewBack')}
-        >
-          <IconArrowLeft size={14} stroke={1.5} />
-          <span>{t('files.previewBack')}</span>
-        </button>
-        <strong className="fb-preview__name" title={target.path}>{target.name}</strong>
-        {target.kind === 'text' && (
+      {target.kind === 'text' && (
+        <header className="fb-preview__header">
           <label className={`${s.toggle} fb-preview__wrap-toggle`}>
             <input
               type="checkbox"
@@ -67,8 +53,8 @@ export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): 
             />
             {t('files.previewWrap')}
           </label>
-        )}
-      </header>
+        </header>
+      )}
       {target.kind === 'text' && (
         <TextPreview
           instanceId={instanceId}

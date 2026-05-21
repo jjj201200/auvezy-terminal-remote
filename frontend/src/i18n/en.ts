@@ -501,7 +501,6 @@ export const en: Messages = {
     previewTruncated: 'Content truncated to 2 MiB',
     previewHighlightOff: 'File too large — syntax highlight disabled',
     previewImageTooLarge: 'Image exceeds 8 MiB',
-    previewBack: 'Back',
     previewWrap: 'Wrap',
     errorPathNotFound: 'Path not found',
     errorPathForbidden: 'Path not in allowed range',

@@ -31,11 +31,7 @@ export function FilePreviewSheet({
       className={s.previewSheet}
       id="file-preview-sheet"
     >
-      <PreviewPane
-        instanceId={instanceId}
-        target={target}
-        onClose={() => onOpenChange(false)}
-      />
+      <PreviewPane instanceId={instanceId} target={target} />
     </Sheet>
   );
 }
