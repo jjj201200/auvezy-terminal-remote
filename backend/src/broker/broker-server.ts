@@ -281,6 +281,13 @@ export function createBrokerApp(
       if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
         return next();
       }
+      // 静态资源未命中 → 直接 404,不要 SPA fallback 到 index.html。
+      // 否则:旧 SW 缓存请求已删除的 chunk hash 时,server 返 HTML 触发浏览器
+      // "MIME 'text/html' is not a valid JavaScript MIME type" 报错。
+      if (isStaticAssetPath(req.path)) {
+        res.status(404).type('text/plain').send('not found');
+        return;
+      }
       const instanceId = (req as { __atrInstanceId?: string }).__atrInstanceId;
       const urlToken =
         typeof req.query.token === 'string' ? req.query.token : null;
@@ -415,6 +422,24 @@ export async function startBrokerServer(
       logger.info('broker 已关闭');
     },
   };
+}
+
+/**
+ * 判断请求路径是否指向静态资源(应由 express.static 接住),
+ * 而不是 SPA 路由(应由 index.html 接住)。
+ *
+ * 命中规则:
+ *  - `/assets/` 前缀(vite build 默认输出位置)
+ *  - 含已知静态扩展名的尾段(.js/.mjs/.css/.map/.png/.svg 等)
+ *
+ * 用于 SPA fallback 之前的兜底:旧 SW / 老 manifest 持有的已删除 chunk 名
+ * 不该 fallback 到 index.html(浏览器会因 MIME=text/html 拒绝执行),改返 404
+ * 让浏览器知道 chunk 不存在 → 触发 SW 更新或显式刷新。
+ */
+const STATIC_EXT_RE = /\.(js|mjs|cjs|css|map|json|webmanifest|png|jpg|jpeg|gif|svg|webp|ico|avif|woff|woff2|ttf|otf|wasm)$/i;
+function isStaticAssetPath(p: string): boolean {
+  if (p.startsWith('/assets/')) return true;
+  return STATIC_EXT_RE.test(p);
 }
 
 /**
