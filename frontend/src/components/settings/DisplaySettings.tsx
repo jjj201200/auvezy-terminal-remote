@@ -36,6 +36,7 @@ import clsx from 'clsx';
 import { getDefaultXtermFontSize } from '../../config/constants.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { THEME_LIST, resolveTheme } from '../../themes/terminal-themes.js';
+import { BoolToggleRow } from './BoolToggleRow.js';
 import s from './DisplaySettings.module.scss';
 
 // 与 useTerminal 同源：mono 字符宽度 / fontSize 比例
@@ -474,32 +475,12 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
       </section>
 
       {/* 文件预览 — markdown 可视化 */}
-      <section className={s.section}>
-        <header className={s.sectionHeader}>
-          <h3 className={s.sectionTitle}>{t('display.markdownPreviewTitle')}</h3>
-          <p className={s.sectionHint}>{t('display.markdownPreviewHint')}</p>
-        </header>
-        <div className={s.row} role="radiogroup" aria-label={t('display.markdownPreviewTitle')}>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={markdownPreview}
-            onClick={() => onChange({ ...value, markdownPreview: true })}
-            className={clsx(s.presetBtn, markdownPreview && s.presetBtnActive)}
-          >
-            {t('common.on')}
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={!markdownPreview}
-            onClick={() => onChange({ ...value, markdownPreview: false })}
-            className={clsx(s.presetBtn, !markdownPreview && s.presetBtnActive)}
-          >
-            {t('common.off')}
-          </button>
-        </div>
-      </section>
+      <BoolToggleRow
+        title={t('display.markdownPreviewTitle')}
+        hint={t('display.markdownPreviewHint')}
+        value={markdownPreview}
+        onChange={(next) => onChange({ ...value, markdownPreview: next })}
+      />
     </div>
   );
 }
