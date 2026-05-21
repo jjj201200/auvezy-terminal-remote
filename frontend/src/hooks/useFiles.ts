@@ -49,5 +49,11 @@ export function useFiles(instanceId: string | null): UseFiles {
 
   const cachedList = useCallback((path: string) => cacheRef.current.get(path), []);
 
-  return { list, read, stat, cachedList };
+  // 关键:返回稳定引用,否则每次 re-render 返回的对象都是新的,任何
+  // `useEffect([files])` 的消费者都会死循环。所有 callback 已是 useCallback
+  // 稳定的,这里只需把它们打包进一个 useMemo 即可。
+  return useMemo(
+    () => ({ list, read, stat, cachedList }),
+    [list, read, stat, cachedList],
+  );
 }

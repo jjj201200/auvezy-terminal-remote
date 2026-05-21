@@ -1,113 +1,408 @@
+@use '../../styles/mixins' as m;
+
+// ──────────── Sheet 容器(桌面限宽,移动 vaul Drawer 全宽) ────────────
+
+.sheet {
+  @media (min-width: 768px) {
+    max-width: 880px;
+    width: 90vw;
+  }
+}
+
+// 让 sheet body 区域吃满高度,内部三段(breadcrumb / search / body)纵向布局
 .root {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  font-family: var(--font-mono);
+  color: var(--color-fg);
 }
+
+// ──────────── Breadcrumb ────────────
 
 .breadcrumb {
   display: flex;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
   align-items: center;
   flex-wrap: wrap;
-  border-bottom: 1px solid var(--color-border, #ddd);
+  border-bottom: 1px solid var(--color-border);
+}
 
-  button {
-    padding: 4px 10px;
-    min-height: 32px;
+.crumbBtn {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 28px;
+  color: var(--color-fg-dim);
+  font-size: var(--fs-sm);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  @include m.transition(color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast));
+
+  &:hover:not(:disabled) {
+    color: var(--color-fg);
+    border-color: var(--color-border-hi);
+    background: var(--color-bg-hover);
   }
-
-  .segs {
-    font-family: ui-monospace, monospace;
-    color: var(--color-text-muted, #666);
-    overflow-x: auto;
-    white-space: nowrap;
-    flex: 1;
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
-
-  .toggle {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    font-size: 12px;
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
   }
 }
+
+.segs {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--color-fg-dim);
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+.seg {
+  @include m.btn-reset;
+  color: var(--color-fg-dim);
+  padding: 0 var(--sp-1);
+  white-space: nowrap;
+  @include m.transition(color var(--dur-fast));
+
+  &:hover {
+    color: var(--color-fg);
+  }
+  &.segCurrent {
+    color: var(--color-accent);
+  }
+}
+
+.sepSlash {
+  color: var(--color-fg-low);
+  user-select: none;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  cursor: pointer;
+  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+
+  input[type='checkbox'] {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--color-border-hi);
+    background: var(--color-bg-input);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    @include m.transition(border-color var(--dur-fast), background var(--dur-fast));
+
+    &:checked {
+      background: var(--color-accent-soft);
+      border-color: var(--color-accent);
+    }
+    &:checked::after {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--color-accent);
+    }
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--shadow-focus);
+    }
+  }
+}
+
+// ──────────── Search bar ────────────
+
+.searchBox {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  align-items: center;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border);
+
+  .searchInput {
+    flex: 1;
+    min-width: 160px;
+    min-height: 32px;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--color-bg-input);
+    color: var(--color-fg);
+    border: 1px solid var(--color-border);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    @include m.transition(border-color var(--dur-fast));
+
+    &::placeholder {
+      color: var(--color-fg-low);
+    }
+    &:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: var(--shadow-focus);
+    }
+  }
+
+  .searchToggle {
+    @include m.btn-reset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 var(--sp-3);
+    border: 1px solid var(--color-border);
+    color: var(--color-fg-dim);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    background: transparent;
+    cursor: pointer;
+    user-select: none;
+    @include m.transition(color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast));
+
+    &.searchToggleActive {
+      color: var(--color-accent);
+      border-color: var(--color-accent);
+      background: var(--color-accent-soft);
+    }
+    &:hover {
+      color: var(--color-fg);
+      border-color: var(--color-border-hi);
+    }
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--shadow-focus);
+    }
+  }
+
+  .scanning {
+    font-size: var(--fs-xs);
+    color: var(--color-fg-dim);
+    font-family: var(--font-mono);
+  }
+
+  .cancelBtn {
+    @include m.btn-reset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
+    color: var(--color-fg-dim);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-fg);
+    }
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--shadow-focus);
+    }
+  }
+}
+
+// ──────────── 主体两栏 ────────────
 
 .body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: minmax(220px, 320px) 1fr;
 
   @media (max-width: 767px) {
     grid-template-columns: 1fr;
   }
 }
 
+// ──────────── 文件列表 ────────────
+
 .list {
   margin: 0;
   padding: 0;
   list-style: none;
   overflow-y: auto;
-  border-right: 1px solid var(--color-border, #ddd);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg);
+
+  @media (max-width: 767px) {
+    border-right: 0;
+  }
 
   li {
     display: grid;
-    grid-template-columns: 24px 1fr auto;
-    gap: 8px;
-    padding: 8px 12px;
+    grid-template-columns: 20px 1fr auto;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
     cursor: pointer;
-    min-height: 44px;
+    min-height: 36px;
     align-items: center;
+    color: var(--color-fg);
+    border-bottom: 1px solid var(--color-border);
+    @include m.transition(background var(--dur-fast), color var(--dur-fast));
 
     &:hover {
-      background: var(--color-hover, rgba(0, 0, 0, 0.04));
+      background: var(--color-bg-hover);
+    }
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--shadow-focus);
     }
   }
 
+  .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-fg-dim);
+  }
+  li:hover .icon {
+    color: var(--color-fg);
+  }
+
   .name {
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    @include m.truncate;
+    color: inherit;
+  }
+  .hidden {
+    color: var(--color-fg-low);
   }
 
   .size {
-    color: var(--color-text-muted, #888);
-    font-size: 12px;
+    color: var(--color-fg-low);
+    font-size: var(--fs-xs);
+    font-family: var(--font-mono);
   }
 }
+
+// ──────────── 搜索结果 ────────────
+
+.searchList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  grid-column: 1 / -1;
+  background: var(--color-bg);
+
+  li {
+    padding: var(--sp-3) var(--sp-4);
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-fg);
+    @include m.transition(background var(--dur-fast));
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+
+    .resultName {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      color: var(--color-fg);
+    }
+
+    .resultPath {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: var(--fs-2xs);
+      color: var(--color-fg-low);
+      margin-bottom: var(--sp-2);
+      text-transform: lowercase;
+    }
+
+    .resultLine {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      color: var(--color-fg-dim);
+      white-space: pre;
+      overflow-x: auto;
+    }
+    mark {
+      background: var(--color-accent-soft);
+      color: var(--color-accent);
+      padding: 0 2px;
+      border-bottom: 1px solid var(--color-accent);
+    }
+  }
+}
+
+// ──────────── 预览栏 ────────────
 
 .preview {
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  background: var(--color-bg-canvas);
+
+  &.empty {
+    align-items: center;
+    justify-content: center;
+    color: var(--color-fg-low);
+    font-size: var(--fs-sm);
+    background: var(--color-bg);
+    padding: var(--sp-6);
+  }
 
   header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-border, #ddd);
-    gap: 8px;
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--color-border);
+    gap: var(--sp-3);
+    background: var(--color-bg);
 
     strong {
-      font-family: ui-monospace, monospace;
-      font-size: 13px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      color: var(--color-fg);
+      @include m.truncate;
     }
 
-    button {
-      background: none;
-      border: none;
-      font-size: 20px;
-      cursor: pointer;
-      min-width: 32px;
-      min-height: 32px;
+    .closeBtn {
+      @include m.btn-reset;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      min-height: 28px;
+      color: var(--color-fg-dim);
+
+      &:hover {
+        color: var(--color-fg);
+      }
+      &:focus-visible {
+        outline: none;
+        box-shadow: var(--shadow-focus);
+      }
     }
   }
 
@@ -116,23 +411,38 @@
     margin: 0;
     padding: 0;
     overflow: auto;
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
-    line-height: 1.5;
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
 
-    // Shiki 输出的 <pre> 自带 background + color(走 theme),padding 加在内 pre 上
-    :global(pre.shiki),
-    > pre {
+    // Shiki 输出的 <pre.shiki> 自带 background + color(走 theme),内 padding
+    :global(pre.shiki) {
       margin: 0;
-      padding: 12px;
+      padding: var(--sp-4);
       overflow: visible;
       white-space: pre;
       tab-size: 2;
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-base);
     }
 
-    // 降级路径(escapeHtml 包的 <pre><code>):没 .shiki class,补一份基础样式
-    > pre code {
-      font-family: inherit;
+    // 降级路径(escapeHtml 包的 <pre><code>):没 .shiki class,补暗色样式
+    > pre {
+      margin: 0;
+      padding: var(--sp-4);
+      background: var(--color-bg-canvas);
+      color: var(--color-fg);
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-base);
+      white-space: pre;
+      tab-size: 2;
+
+      code {
+        font-family: inherit;
+        color: inherit;
+      }
     }
   }
 
@@ -142,113 +452,42 @@
     object-fit: contain;
     align-self: center;
     margin: auto;
+    padding: var(--sp-4);
   }
 }
+
+// ──────────── 通用提示 ────────────
 
 .notice {
-  padding: 6px 12px;
-  background: var(--color-warn-bg, rgba(255, 235, 59, 0.15));
-  color: var(--color-warn-text, #876800);
-  font-size: 12px;
-}
-
-.searchBox {
-  display: flex;
-  gap: 8px;
-  padding: 8px 12px;
-  align-items: center;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--color-border, #ddd);
-
-  input[type="text"] {
-    flex: 1;
-    min-width: 120px;
-    min-height: 36px;
-    padding: 4px 8px;
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
-  }
-
-  .searchToggle {
-    display: flex;
-    gap: 2px;
-    align-items: center;
-    font-size: 12px;
-    user-select: none;
-    cursor: pointer;
-  }
-
-  .scanning {
-    font-size: 12px;
-    color: var(--color-text-muted, #888);
-  }
-
-  button {
-    background: none;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
-    min-width: 28px;
-    min-height: 28px;
-  }
-}
-
-.searchList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  overflow-y: auto;
-  grid-column: 1 / -1;
-
-  li {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--color-border, #eee);
-
-    &:hover {
-      background: var(--color-hover, rgba(0, 0, 0, 0.04));
-    }
-
-    .name {
-      font-family: ui-monospace, monospace;
-      font-size: 13px;
-      margin-left: 8px;
-    }
-
-    .path {
-      display: block;
-      font-family: ui-monospace, monospace;
-      font-size: 11px;
-      color: var(--color-text-muted, #888);
-      margin-bottom: 4px;
-    }
-
-    code {
-      display: block;
-      font-size: 12px;
-      font-family: ui-monospace, monospace;
-      white-space: pre;
-      overflow-x: auto;
-    }
-
-    mark {
-      background: var(--color-mark, #ffeb3b);
-      color: inherit;
-      padding: 0 2px;
-    }
-  }
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .error {
-  padding: 12px;
-  color: var(--color-error, #c33);
-  font-size: 13px;
+  padding: var(--sp-4);
+  color: var(--color-alarm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
 }
 
 .empty,
 .unsupported {
-  padding: 24px;
+  padding: var(--sp-6);
   text-align: center;
-  color: var(--color-text-muted, #888);
-  font-size: 13px;
+  color: var(--color-fg-low);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.truncatedRow {
+  padding: var(--sp-3) var(--sp-4);
+  color: var(--color-fg-low);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-align: center;
+  border-bottom: 1px solid var(--color-border);
 }

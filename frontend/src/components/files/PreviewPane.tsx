@@ -1,8 +1,9 @@
 /**
- * PreviewPane:右侧/二级 sheet 的预览容器,按 PreviewTarget.kind 派发到子组件。
+ * PreviewPane:右侧预览容器。target=null 时显示 empty placeholder。
  */
 
 import type { JSX } from 'react';
+import { IconX } from '@tabler/icons-react';
 import { TextPreview } from './TextPreview.js';
 import { ImagePreview } from './ImagePreview.js';
 import { useT } from '../../i18n/i18n-context.js';
@@ -21,12 +22,21 @@ export interface PreviewPaneProps {
 
 export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): JSX.Element {
   const t = useT();
-  if (!target) return <div className={s.preview} />;
+  if (!target) {
+    return <div className={`${s.preview} ${s.empty}`}>{t('files.empty')}</div>;
+  }
   return (
     <div className={s.preview}>
       <header>
         <strong>{target.name}</strong>
-        <button type="button" onClick={onClose} aria-label="close preview">×</button>
+        <button
+          type="button"
+          className={s.closeBtn}
+          onClick={onClose}
+          aria-label="close preview"
+        >
+          <IconX size={16} stroke={1.5} />
+        </button>
       </header>
       {target.kind === 'text' && <TextPreview instanceId={instanceId} path={target.path} />}
       {target.kind === 'image' && <ImagePreview instanceId={instanceId} path={target.path} />}

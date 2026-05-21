@@ -1,10 +1,11 @@
 /**
- * SearchBox:文件浏览面板顶部搜索框 + 模式 toggle + 实时进度。
+ * SearchBox:搜索框 + Aa/.* toggle + 实时进度 + 取消。
  *
- * 自动触发条件由调用方决定(典型:>= 3 char),本组件只负责呈现。
+ * 自动触发条件由调用方决定(典型:>= 3 char);本组件只呈现。
  */
 
 import type { JSX } from 'react';
+import { IconX } from '@tabler/icons-react';
 import { useT } from '../../i18n/i18n-context.js';
 import s from './FileBrowserSheet.module.scss';
 
@@ -29,26 +30,29 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
     <div className={s.searchBox}>
       <input
         type="text"
+        className={s.searchInput}
         placeholder={t('files.searchPlaceholder')}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
       />
-      <label className={s.searchToggle}>
-        <input
-          type="checkbox"
-          checked={props.caseSensitive}
-          onChange={props.onToggleCase}
-        />
+      <button
+        type="button"
+        className={`${s.searchToggle} ${props.caseSensitive ? s.searchToggleActive : ''}`}
+        onClick={props.onToggleCase}
+        title="case sensitive"
+        aria-pressed={props.caseSensitive}
+      >
         Aa
-      </label>
-      <label className={s.searchToggle}>
-        <input
-          type="checkbox"
-          checked={props.regex}
-          onChange={props.onToggleRegex}
-        />
+      </button>
+      <button
+        type="button"
+        className={`${s.searchToggle} ${props.regex ? s.searchToggleActive : ''}`}
+        onClick={props.onToggleRegex}
+        title="regex"
+        aria-pressed={props.regex}
+      >
         .*
-      </label>
+      </button>
       {props.scanning && (
         <span className={s.scanning}>
           {t('files.searchScanning', {
@@ -58,7 +62,14 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
         </span>
       )}
       {props.scanning && (
-        <button type="button" onClick={props.onCancel} aria-label="cancel search">×</button>
+        <button
+          type="button"
+          className={s.cancelBtn}
+          onClick={props.onCancel}
+          aria-label="cancel search"
+        >
+          <IconX size={16} stroke={1.5} />
+        </button>
       )}
     </div>
   );

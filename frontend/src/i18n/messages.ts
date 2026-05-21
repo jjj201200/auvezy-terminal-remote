@@ -602,6 +602,7 @@ export interface Messages {
     errorPathForbidden: string;
     errorFileBinary: string;
     errorInvalidQuery: string;
+    errorRateLimited: string;
     errorUnknown: string;
   };
 

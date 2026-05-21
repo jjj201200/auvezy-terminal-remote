@@ -96,10 +96,13 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       setParent(r.parent);
       if (path !== r.path) setPath(r.path);
     }).catch((e: Error & { code?: string }) => {
-      if (!cancelled) setError(translateErr(t, e.code ?? 'UNKNOWN'));
+      if (!cancelled) setError(e.code ?? 'UNKNOWN');
     });
     return () => { cancelled = true; };
-  }, [open, path, instanceId, files, t]);
+    // 注:t 不进 deps —— 错误状态只存 ErrorCode,渲染时再翻译,
+    // 避免 t 引用每次 render 微变化触发 effect 重跑;files 已通过
+    // useMemo 稳定化,不会触发死循环。
+  }, [open, path, instanceId, files]);
 
   const onEntryClick = (e: FileEntry): void => {
     const base = path ?? cwd;
@@ -128,7 +131,13 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={t('files.title')}>
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('files.title')}
+      className={s.sheet}
+      id="file-browser-sheet"
+    >
       <div className={s.root}>
         <Breadcrumb
           cwd={cwd}
@@ -163,7 +172,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
           ) : (
             <FileList
               entries={visibleEntries}
-              error={error}
+              error={error ? translateErr(t, error) : null}
               onEntryClick={onEntryClick}
             />
           )}
@@ -183,6 +192,7 @@ function translateErr(t: ReturnType<typeof useT>, code: string): string {
     case 'PATH_NOT_FOUND': return t('files.errorPathNotFound');
     case 'PATH_FORBIDDEN': return t('files.errorPathForbidden');
     case 'FILE_BINARY': return t('files.errorFileBinary');
+    case 'AUTH_RATE_LIMITED': return t('files.errorRateLimited');
     default: return t('files.errorUnknown');
   }
 }

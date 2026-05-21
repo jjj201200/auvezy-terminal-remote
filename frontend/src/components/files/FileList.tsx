@@ -1,5 +1,5 @@
 /**
- * FileList:简单 ul 渲染目录条目。500 条以下不上虚拟滚动(YAGNI)。
+ * FileList:目录条目 ul。500 条以下不上虚拟滚动(YAGNI)。
  */
 
 import type { JSX } from 'react';
@@ -21,9 +21,19 @@ export function FileList({ entries, error, onEntryClick }: FileListProps): JSX.E
   return (
     <ul className={s.list}>
       {entries.map((e) => (
-        <li key={e.name} onClick={() => onEntryClick(e)}>
-          <span aria-hidden>{iconFor(e)}</span>
-          <span className={s.name}>{e.name}</span>
+        <li
+          key={e.name}
+          onClick={() => onEntryClick(e)}
+          tabIndex={0}
+          onKeyDown={(ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+              ev.preventDefault();
+              onEntryClick(e);
+            }
+          }}
+        >
+          <span className={s.icon} aria-hidden>{iconFor(e)}</span>
+          <span className={`${s.name} ${e.hidden ? s.hidden : ''}`}>{e.name}</span>
           <span className={s.size}>{e.kind === 'dir' ? '' : formatBytes(e.size)}</span>
         </li>
       ))}

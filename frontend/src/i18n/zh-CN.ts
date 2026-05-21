@@ -494,6 +494,7 @@ export const zhCN: Messages = {
     errorPathForbidden: '路径不在允许范围内',
     errorFileBinary: '该文件是二进制,无法以文本预览',
     errorInvalidQuery: '搜索语法错误',
+    errorRateLimited: '请求太频繁,请稍候',
     errorUnknown: '未知错误',
   },
 

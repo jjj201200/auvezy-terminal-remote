@@ -71,6 +71,7 @@ function translateErr(t: ReturnType<typeof useT>, code: string): string {
     case 'PATH_NOT_FOUND': return t('files.errorPathNotFound');
     case 'PATH_FORBIDDEN': return t('files.errorPathForbidden');
     case 'FILE_BINARY': return t('files.errorFileBinary');
+    case 'AUTH_RATE_LIMITED': return t('files.errorRateLimited');
     default: return t('files.errorUnknown');
   }
 }

@@ -1,14 +1,9 @@
 /**
- * SearchResults:文件搜索命中列表
- *
- * 设计:把 name 命中与 content 命中分组渲染,各自有视觉区分:
- *  - name:仅一行 path(图标 📄)
- *  - content:path:line 标签 + 命中行 preview(命中区间 <mark> 高亮)
- *
- * 命中条目点击 → 调用方决定如何打开预览(关搜索回 list、或在结果区直接预览)。
+ * SearchResults:搜索命中列表(name + content 分组,content 高亮命中区间)。
  */
 
 import type { JSX } from 'react';
+import { IconFileText, IconSearch } from '@tabler/icons-react';
 import type { SearchEvent } from 'auvezy-terminal-remote-shared';
 import { useT } from '../../i18n/i18n-context.js';
 import s from './FileBrowserSheet.module.scss';
@@ -30,8 +25,10 @@ export function SearchResults({ hits, truncated, onPick }: SearchResultsProps): 
     <ul className={s.searchList}>
       {nameHits.map((h, i) => (
         <li key={`n-${i}`} onClick={() => onPick(h)}>
-          <span aria-hidden>📄</span>
-          <span className={s.name}>{h.path}</span>
+          <span className={s.resultName}>
+            <IconFileText size={14} stroke={1.5} />
+            <span>{h.path}</span>
+          </span>
         </li>
       ))}
       {contentHits.map((h, i) => {
@@ -40,13 +37,16 @@ export function SearchResults({ hits, truncated, onPick }: SearchResultsProps): 
         const after = h.preview.slice(h.matchEnd);
         return (
           <li key={`c-${i}`} onClick={() => onPick(h)}>
-            <span className={s.path}>{h.path}:{h.line}</span>
-            <code>{before}<mark>{match}</mark>{after}</code>
+            <span className={s.resultPath}>
+              <IconSearch size={12} stroke={1.5} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+              {h.path}:{h.line}
+            </span>
+            <code className={s.resultLine}>{before}<mark>{match}</mark>{after}</code>
           </li>
         );
       })}
       {truncated && (
-        <li className={s.notice}>{t('files.searchTruncated')}</li>
+        <li className={s.truncatedRow}>{t('files.searchTruncated')}</li>
       )}
     </ul>
   );

@@ -503,6 +503,7 @@ export const en: Messages = {
     errorPathForbidden: 'Path not in allowed range',
     errorFileBinary: 'This file is binary, cannot preview as text',
     errorInvalidQuery: 'Invalid search query',
+    errorRateLimited: 'Too many requests, please slow down',
     errorUnknown: 'Unknown error',
   },
 
