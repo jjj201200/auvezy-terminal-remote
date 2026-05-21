@@ -21,12 +21,32 @@ import { toShikiLang } from './lang-map.js';
  */
 export const DEFAULT_MAX_HIGHLIGHT_BYTES = 1024 * 1024;
 
+/**
+ * 调用方应传入的"目标着色风格",由 TextPreview 按用户 Settings → 显示主题
+ * 推导(见 resolveTheme 在 terminal-themes.ts 内 variant 判定)。
+ *
+ * - 'standard':普通暗 / 亮主题(one-dark-pro / one-light)
+ * - 'daltonized':色弱友好(tokyo-night / solarized-light)
+ */
+export type ColorScheme = 'standard' | 'daltonized';
+
+/**
+ * @deprecated 保留兼容旧调用方;现在主题由 multi-themes 自动适配,此参不再使用
+ */
 export type SupportedTheme = 'github-dark' | 'github-light';
 
 export interface HighlightOptions {
   /** 字节阈值;超过 → 走 escapeHtml 降级。默认 DEFAULT_MAX_HIGHLIGHT_BYTES */
   maxBytes?: number;
+  /** 配色方案;默认 'standard'。'daltonized' 走色弱友好的主题对 */
+  colorScheme?: ColorScheme;
 }
+
+/** 配色方案 → multi-themes 对 */
+const THEME_PAIRS: Record<ColorScheme, { light: string; dark: string }> = {
+  standard: { light: 'one-light', dark: 'one-dark-pro' },
+  daltonized: { light: 'solarized-light', dark: 'tokyo-night' },
+};
 
 /**
  * 高亮一段代码,返回完整 HTML。失败 / 超大 / 未知 lang 一律降级。
@@ -54,11 +74,14 @@ export async function highlight(
     // 用 multi-themes + defaultColor:false 让 Shiki 只输出 token 着色(CSS 变量),
     // 不写入 background/color 内联样式;容器的底色/前景由项目 scss 用 design token
     // 接管(--color-bg-canvas / --color-fg 等),与用户显示设置一致。
-    // 同时输出 light 与 dark 两套 token 颜色变量,scss 用 prefers-color-scheme
-    // / 容器类切换。
+    //
+    // 主题选型(2026-05-21 升级):
+    //   - standard:one-light / one-dark-pro — token 鲜明,JSON 字符串/key 区分度高
+    //   - daltonized:solarized-light / tokyo-night — 色弱友好
+    const pair = THEME_PAIRS[opts.colorScheme ?? 'standard'];
     return await codeToHtml(code, {
       lang,
-      themes: { light: 'github-light', dark: 'github-dark' },
+      themes: pair,
       defaultColor: false,
     });
   } catch {

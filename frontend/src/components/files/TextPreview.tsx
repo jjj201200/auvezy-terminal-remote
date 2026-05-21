@@ -36,9 +36,16 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
   const [highlightOff, setHighlightOff] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Shiki 主题跟随用户显示设置,而非硬编 prefers-color-scheme
-  const themeVariant = resolveThemeVariant(config.display?.theme);
+  // Shiki 主题跟随用户显示设置:
+  //   - variant: 决定容器底色与 shiki token 用 light/dark 哪套(写到 data-color-scheme)
+  //   - colorScheme: 决定走标准着色 (one-*) 还是色弱友好 (solarized/tokyo-night)
+  const themeName = config.display?.theme;
+  const themeVariant = resolveThemeVariant(themeName);
   const theme: SupportedTheme = themeVariant === 'dark' ? 'github-dark' : 'github-light';
+  const colorScheme: 'standard' | 'daltonized' =
+    themeName === 'dark-daltonized' || themeName === 'light-daltonized'
+      ? 'daltonized'
+      : 'standard';
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +61,7 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
         setHighlightOff(r.content.length > HIGHLIGHT_OFF_BYTES);
         const rendered = await highlight(r.content, r.lang, theme, {
           maxBytes: HIGHLIGHT_OFF_BYTES,
+          colorScheme,
         });
         if (!cancelled) setHtml(rendered);
       })
@@ -62,8 +70,8 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
       });
 
     return () => { cancelled = true; };
-    // 切换主题(theme 变化)也需要重新跑 highlight → 加入 deps
-  }, [path, files, theme]);
+    // 切换主题(variant / colorScheme 变化)也需要重新跑 highlight
+  }, [path, files, theme, colorScheme]);
 
   if (err) {
     return (
