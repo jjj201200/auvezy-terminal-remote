@@ -24,7 +24,7 @@ export interface TextPreviewProps {
   path: string;
 }
 
-const HIGHLIGHT_OFF_BYTES = 200 * 1024;
+const HIGHLIGHT_OFF_BYTES = 1024 * 1024;
 
 export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element {
   const t = useT();

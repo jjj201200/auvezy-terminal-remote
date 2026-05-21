@@ -27,6 +27,7 @@
     transform: none !important;
     inset: 0 !important;
   }
+
   @media (min-width: 1024px) {
     max-width: 880px;
     width: 90vw;
@@ -73,10 +74,12 @@
     border-color: var(--color-border-hi);
     background: var(--color-bg-hover);
   }
+
   &:disabled {
     opacity: 0.4;
     cursor: not-allowed;
   }
+
   &:focus-visible {
     outline: none;
     box-shadow: var(--shadow-focus);
@@ -106,6 +109,7 @@
   &:hover {
     color: var(--color-fg);
   }
+
   &.segCurrent {
     color: var(--color-accent);
   }
@@ -143,12 +147,14 @@
       background: var(--color-accent-soft);
       border-color: var(--color-accent);
     }
+
     &:checked::after {
       content: '';
       width: 6px;
       height: 6px;
       background: var(--color-accent);
     }
+
     &:focus-visible {
       outline: none;
       box-shadow: var(--shadow-focus);
@@ -181,6 +187,7 @@
     &::placeholder {
       color: var(--color-fg-low);
     }
+
     &:focus {
       outline: none;
       border-color: var(--color-accent);
@@ -206,10 +213,12 @@
     &:hover:not(:disabled) {
       background: var(--color-accent-18);
     }
+
     &:disabled {
       opacity: 0.4;
       cursor: not-allowed;
     }
+
     &:focus-visible {
       outline: none;
       box-shadow: var(--shadow-focus);
@@ -238,10 +247,12 @@
       border-color: var(--color-accent);
       background: var(--color-accent-soft);
     }
+
     &:hover {
       color: var(--color-fg);
       border-color: var(--color-border-hi);
     }
+
     &:focus-visible {
       outline: none;
       box-shadow: var(--shadow-focus);
@@ -267,6 +278,7 @@
     &:hover {
       color: var(--color-fg);
     }
+
     &:focus-visible {
       outline: none;
       box-shadow: var(--shadow-focus);
@@ -287,6 +299,7 @@
 // ──────────── 预览专用 sheet(独立 modal,modal-stack 第二层) ────────────
 
 .previewSheet {
+
   // 预览 modal 断点策略同 .sheet:< 1024px 全屏(含 iPad);≥ 1024px 居中大卡片
   @media (max-width: 1023px) {
     width: 100vw !important;
@@ -299,6 +312,7 @@
     transform: none !important;
     inset: 0 !important;
   }
+
   @media (min-width: 1024px) {
     max-width: 960px;
     width: 92vw;
@@ -332,7 +346,7 @@
     gap: var(--sp-3);
     // 横向 0:Sheet body padding 已提供左右边距;行 hover 反色只覆盖
     // 文字区,与 breadcrumb / searchBox 对齐
-    padding: var(--sp-3) 0;
+    padding: var(--sp-3) var(--sp-3) var(--sp-3) 0;
     cursor: pointer;
     min-height: 36px;
     align-items: center;
@@ -342,6 +356,7 @@
     &:hover {
       background: var(--color-bg-hover);
     }
+
     &:focus-visible {
       outline: none;
       box-shadow: var(--shadow-focus);
@@ -354,6 +369,7 @@
     justify-content: center;
     color: var(--color-fg-dim);
   }
+
   li:hover .icon {
     color: var(--color-fg);
   }
@@ -364,6 +380,7 @@
     @include m.truncate;
     color: inherit;
   }
+
   .hidden {
     color: var(--color-fg-low);
   }
@@ -422,6 +439,7 @@
       white-space: pre;
       overflow-x: auto;
     }
+
     mark {
       background: var(--color-accent-soft);
       color: var(--color-accent);
@@ -459,6 +477,7 @@
 
     strong {
       flex: 1;
+      padding-left: var(--sp-5);
       min-width: 0;
       font-family: var(--font-mono);
       font-size: var(--fs-sm);
@@ -486,6 +505,7 @@
         border-color: var(--color-border-hi);
         background: var(--color-bg-hover);
       }
+
       &:focus-visible {
         outline: none;
         box-shadow: var(--shadow-focus);
@@ -505,6 +525,7 @@
       &:hover {
         color: var(--color-fg);
       }
+
       &:focus-visible {
         outline: none;
         box-shadow: var(--shadow-focus);
@@ -534,7 +555,7 @@
     }
 
     // 降级路径(escapeHtml 包的 <pre><code>):没 .shiki class,补暗色样式
-    > pre {
+    >pre {
       margin: 0;
       padding: var(--sp-4);
       background: var(--color-bg-canvas);
@@ -565,9 +586,7 @@
 // ──────────── 通用提示 ────────────
 
 .notice {
-  // 横向 0:Sheet body padding 接管;背景仍延伸到内容左右两侧
-  // (Sheet body 的 padding 在父层,notice 的背景到父 padding 内边即止)
-  padding: var(--sp-2) 0;
+  padding: var(--sp-2) var(--sp-4);
   background: var(--color-warn-soft);
   color: var(--color-warn);
   font-family: var(--font-mono);
