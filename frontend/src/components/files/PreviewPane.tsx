@@ -1,12 +1,8 @@
-import { useEffect, useState, type JSX } from 'react';
+import { type JSX } from 'react';
 import type { FilePreviewKind } from 'auvezy-terminal-remote-shared';
 import { TextPreview } from './TextPreview.js';
 import { ImagePreview } from './ImagePreview.js';
 import { useT } from '../../i18n/i18n-context.js';
-import {
-  loadFileBrowserPrefs,
-  saveWrapLines,
-} from '../../services/file-browser-prefs.js';
 import s from './FileBrowserSheet.module.scss';
 
 export type PreviewTarget =
@@ -17,12 +13,11 @@ export type PreviewTarget =
 export interface PreviewPaneProps {
   instanceId: string;
   target: PreviewTarget | null;
+  wrapLines: boolean;
 }
 
-export function PreviewPane({ instanceId, target }: PreviewPaneProps): JSX.Element {
+export function PreviewPane({ instanceId, target, wrapLines }: PreviewPaneProps): JSX.Element {
   const t = useT();
-  const [wrapLines, setWrapLines] = useState<boolean>(() => loadFileBrowserPrefs().wrapLines);
-  useEffect(() => { saveWrapLines(wrapLines); }, [wrapLines]);
 
   if (!target) {
     return (
@@ -42,19 +37,6 @@ export function PreviewPane({ instanceId, target }: PreviewPaneProps): JSX.Eleme
       data-kind={target.kind}
       data-path={target.path}
     >
-      {target.kind === 'text' && (
-        <header className="fb-preview__header">
-          <label className={`${s.toggle} fb-preview__wrap-toggle`}>
-            <input
-              type="checkbox"
-              checked={wrapLines}
-              onChange={() => setWrapLines((v) => !v)}
-              data-action="files-toggle-wrap"
-            />
-            {t('files.previewWrap')}
-          </label>
-        </header>
-      )}
       {target.kind === 'text' && (
         <TextPreview
           instanceId={instanceId}

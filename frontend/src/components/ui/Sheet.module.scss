@@ -147,6 +147,21 @@
   // 避免与 headerExtra 抢空间导致 tabs 溢出 modal 边界
   flex-shrink: 0;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// 标题与关闭按钮之间的辅助控件 slot:margin-left:auto 推到右侧,
+// 自身不被 grow 拉伸,允许内部紧凑控件如 wrap toggle、显示隐藏 checkbox 等
+.headerExtra {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+  color: var(--color-fg-dim);
+  font-size: var(--fs-xs);
 }
 
 .close {

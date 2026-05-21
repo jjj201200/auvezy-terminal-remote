@@ -44,6 +44,12 @@ export interface SheetProps {
   className?: string;
   /** 可选 DOM id（用于唯一容器，如 settings-modal / create-instance-modal） */
   id?: string;
+  /**
+   * 标题栏右侧附加控件(在 X 关闭按钮之前)。常见用例:文件预览的"自动换行"
+   * toggle、列表的"显示隐藏文件"开关 — 把这些和 modal 绑定的辅助控件直接
+   * 嵌在 header,避免 body 内自己再画一条 header bar。
+   */
+  headerExtra?: ReactNode;
 }
 
 export function Sheet({
@@ -57,6 +63,7 @@ export function Sheet({
   onTabChange,
   className,
   id,
+  headerExtra,
 }: SheetProps): JSX.Element {
   const isMobile = useMediaQuery('(max-width: 767px)');
   // 移动端 vaul Drawer 拖动时会通过 inline opacity 动态控制 backdrop 跟手 fade。
@@ -114,6 +121,7 @@ export function Sheet({
             <Drawer.Handle className={s.drawerGrip} />
             <header className={clsx(s.header, s.headerMobile, tabs && s.headerWithTabs)}>
               {headerMain}
+              {headerExtra && <div className={s.headerExtra}>{headerExtra}</div>}
               <button
                 type="button"
                 onClick={() => onOpenChange(false)}
@@ -157,6 +165,7 @@ export function Sheet({
             {tabs && tabs.length > 0 ? headerMain : (
               <Dialog.Title className={s.title}>{title}</Dialog.Title>
             )}
+            {headerExtra && <div className={s.headerExtra}>{headerExtra}</div>}
             <Dialog.Close asChild>
               <button type="button" aria-label={t('common.close')} className={s.close}>
                 <IconX size={16} stroke={1.5} />
