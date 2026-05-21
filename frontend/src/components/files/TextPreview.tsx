@@ -1,7 +1,10 @@
 /**
  * TextPreview:文本文件预览 + Shiki 语法高亮
  *
- * 主题跟随浏览器 prefers-color-scheme。
+ * 主题跟随用户在 Settings → 显示 中选择的终端主题 variant:
+ *   - dark/dark-ansi/dark-daltonized → github-dark
+ *   - light/light-ansi/light-daltonized → github-light
+ *   - auto → 跟随 prefers-color-scheme
  * 超大文本(>200 KB)由 syntax-highlight 内部自动降级 escapeHtml。
  *
  * 安全:dangerouslySetInnerHTML 仅渲染 highlight() 输出。highlight() 内部
@@ -11,6 +14,8 @@
 import { useEffect, useState, type JSX } from 'react';
 import { useFiles } from '../../hooks/useFiles.js';
 import { useT } from '../../i18n/i18n-context.js';
+import { useUserConfig } from '../../hooks/useUserConfig.js';
+import { resolveThemeVariant } from '../../themes/terminal-themes.js';
 import { highlight, type SupportedTheme } from '../../utils/syntax-highlight.js';
 import s from './FileBrowserSheet.module.scss';
 
@@ -24,10 +29,15 @@ const HIGHLIGHT_OFF_BYTES = 200 * 1024;
 export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element {
   const t = useT();
   const files = useFiles(instanceId);
+  const { config } = useUserConfig();
   const [html, setHtml] = useState<string>('');
   const [truncated, setTruncated] = useState(false);
   const [highlightOff, setHighlightOff] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Shiki 主题跟随用户显示设置,而非硬编 prefers-color-scheme
+  const themeVariant = resolveThemeVariant(config.display?.theme);
+  const theme: SupportedTheme = themeVariant === 'dark' ? 'github-dark' : 'github-light';
 
   useEffect(() => {
     let cancelled = false;
@@ -35,11 +45,6 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
     setHtml('');
     setTruncated(false);
     setHighlightOff(false);
-
-    const theme: SupportedTheme = typeof matchMedia === 'function'
-      && matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'github-dark'
-        : 'github-light';
 
     files.read(path)
       .then(async (r) => {
@@ -54,7 +59,8 @@ export function TextPreview({ instanceId, path }: TextPreviewProps): JSX.Element
       });
 
     return () => { cancelled = true; };
-  }, [path, files]);
+    // 切换主题(theme 变化)也需要重新跑 highlight → 加入 deps
+  }, [path, files, theme]);
 
   if (err) {
     return (

@@ -165,6 +165,25 @@ export const THEME_LIST: ReadonlyArray<TerminalThemeMeta> = [
   { key: 'auto', labelKey: 'auto', variant: 'auto' },
 ] as const;
 
+/**
+ * 把 TerminalThemeName 归并为 'dark' / 'light' 两类。
+ * 用于非终端组件(如 Shiki 语法高亮)按用户主题 variant 选浅/深色调。
+ *
+ * - dark / dark-ansi / dark-daltonized → 'dark'
+ * - light / light-ansi / light-daltonized → 'light'
+ * - auto → 跟随 prefers-color-scheme(与 resolveTheme 内 auto 分支一致)
+ */
+export function resolveThemeVariant(name: TerminalThemeName | undefined): 'dark' | 'light' {
+  if (name === 'auto' || name === undefined) {
+    const prefersDark =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    return prefersDark ? 'dark' : 'light';
+  }
+  const meta = THEME_LIST.find((t) => t.key === name);
+  return meta?.variant === 'light' ? 'light' : 'dark';
+}
+
 /** 解析主题名 → 调色板。auto 走 prefers-color-scheme 选 dark/light */
 export function resolveTheme(name: TerminalThemeName | undefined): TerminalThemePalette {
   const effectiveName: TerminalThemeName = (() => {
