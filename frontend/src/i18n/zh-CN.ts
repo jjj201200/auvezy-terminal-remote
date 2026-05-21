@@ -123,6 +123,7 @@ export const zhCN: Messages = {
       network: '网络',
       integrations: '集成',
       dev: '开发',
+      other: '其他',
       about: '关于',
     },
     saving: '保存中…',

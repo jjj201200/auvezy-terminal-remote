@@ -162,6 +162,7 @@ export interface Messages {
       network: string;
       integrations: string;
       dev: string;
+      other: string;
       about: string;
     };
     saving: string;

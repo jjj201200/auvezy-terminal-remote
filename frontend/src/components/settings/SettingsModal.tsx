@@ -2,7 +2,8 @@
  * SettingsModal
  *
  * 设置面板：桌面 modal / 移动 sheet（共用 Sheet primitive）。
- * tabs：通用 / 操作 / 显示 / 网络 / 开发 / 关于（通知 tab 暂时隐藏）。
+ * tabs：通用 / 操作 / 显示 / 其他 / 关于（通知 tab 暂时隐藏）。
+ * "其他"合并原"网络 + 集成 + 开发"三段,各自原组件按 section 顺序拼接,无外壳。
  *
  * 编辑模型：本地草稿 → "保存"按钮统一应用三类 state：
  *  - 后端 UserConfig（PUT /api/config）
@@ -43,9 +44,7 @@ type TabKey =
   | 'general'
   | 'actions'
   | 'display'
-  | 'network'
-  | 'integrations'
-  | 'dev'
+  | 'other'
   | 'about'
   | 'notifications';
 
@@ -165,15 +164,13 @@ export function SettingsModal({
     else alert(t('settings.saveError'));
   };
 
-  // tabs 顺序:通用 → 操作 → 显示 → 网络 → 集成 → 开发 → 关于
+  // tabs 顺序:通用 → 操作 → 显示 → 其他(网络 + 集成 + 开发合并)→ 关于
   const tabs: SheetTab[] = useMemo(
     () => [
       { id: 'general', title: t('settings.tab.general') },
       { id: 'actions', title: t('settings.tab.actions') },
       { id: 'display', title: t('settings.tab.display') },
-      { id: 'network', title: t('settings.tab.network') },
-      { id: 'integrations', title: t('settings.tab.integrations') },
-      { id: 'dev', title: t('settings.tab.dev') },
+      { id: 'other', title: t('settings.tab.other') },
       { id: 'about', title: t('settings.tab.about') },
     ],
     [t],
@@ -227,19 +224,19 @@ export function SettingsModal({
           onChange={(display) => setDraft({ ...draft, display })}
         />
       )}
-      {tab === 'network' && (
-        <NetworkSettings
-          value={draft.network}
-          onChange={(network) => setDraft({ ...draft, network })}
-        />
+      {tab === 'other' && (
+        <div className={s.otherStack}>
+          <NetworkSettings
+            value={draft.network}
+            onChange={(network) => setDraft({ ...draft, network })}
+          />
+          <IntegrationsSettings
+            value={draft.integrations}
+            onChange={(integrations) => setDraft({ ...draft, integrations })}
+          />
+          <DevSettings value={prefsDraft} onChange={setPrefsDraft} />
+        </div>
       )}
-      {tab === 'integrations' && (
-        <IntegrationsSettings
-          value={draft.integrations}
-          onChange={(integrations) => setDraft({ ...draft, integrations })}
-        />
-      )}
-      {tab === 'dev' && <DevSettings value={prefsDraft} onChange={setPrefsDraft} />}
       {tab === 'about' && <AboutSettings />}
       {tab === 'notifications' && <PushToggle />}
     </Sheet>

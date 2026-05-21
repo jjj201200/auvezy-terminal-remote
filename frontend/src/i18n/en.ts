@@ -128,6 +128,7 @@ export const en: Messages = {
       network: 'Network',
       integrations: 'Integrations',
       dev: 'Developer',
+      other: 'Other',
       about: 'About',
     },
     saving: 'Saving…',
