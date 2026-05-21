@@ -601,6 +601,8 @@ export interface Messages {
     previewTruncated: string;
     previewHighlightOff: string;
     previewImageTooLarge: string;
+    /** 预览全屏返回按钮 */
+    previewBack: string;
     /** 错误 toast */
     errorPathNotFound: string;
     errorPathForbidden: string;

@@ -13,9 +13,10 @@ import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useFiles } from '../../hooks/useFiles.js';
 import { streamSearch, type SearchHandle } from '../../services/files-api.js';
+import { useFilePreviewPresenter } from '../ui/modal-stack/presenters.js';
 import { Breadcrumb } from './Breadcrumb.js';
 import { FileList } from './FileList.js';
-import { PreviewPane, type PreviewTarget } from './PreviewPane.js';
+import type { PreviewTarget } from './PreviewPane.js';
 import { SearchBox } from './SearchBox.js';
 import { SearchResults } from './SearchResults.js';
 import s from './FileBrowserSheet.module.scss';
@@ -31,12 +32,12 @@ export interface FileBrowserSheetProps {
 export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowserSheetProps): JSX.Element {
   const t = useT();
   const files = useFiles(instanceId);
+  const presentFilePreview = useFilePreviewPresenter();
   const [path, setPath] = useState<string | undefined>(undefined);
   const [cwd, setCwd] = useState<string>('');
   const [parent, setParent] = useState<string | null>(null);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [showHidden, setShowHidden] = useState(false);
-  const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // ──────────── 搜索 state ────────────
@@ -55,7 +56,6 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   useEffect(() => {
     if (!open) return;
     setPath(undefined);
-    setPreview(null);
     setSubmittedQ('');
     setSearchBoxKey((k) => k + 1);
   }, [open, instanceId]);
@@ -110,6 +110,10 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
     // useMemo 稳定化,不会触发死循环。
   }, [open, path, instanceId, files]);
 
+  const openPreview = (target: PreviewTarget): void => {
+    presentFilePreview({ instanceId, target });
+  };
+
   const onEntryClick = (e: FileEntry): void => {
     const base = path ?? cwd;
     const full = `${base}/${e.name}`;
@@ -118,11 +122,11 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       return;
     }
     if (e.previewable === 'text') {
-      setPreview({ kind: 'text', path: full, name: e.name });
+      openPreview({ kind: 'text', path: full, name: e.name });
     } else if (e.previewable === 'image') {
-      setPreview({ kind: 'image', path: full, name: e.name, size: e.size });
+      openPreview({ kind: 'image', path: full, name: e.name, size: e.size });
     } else {
-      setPreview({ kind: 'none', path: full, name: e.name, size: e.size });
+      openPreview({ kind: 'none', path: full, name: e.name, size: e.size });
     }
   };
 
@@ -132,7 +136,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const onPickHit = (h: SearchEvent): void => {
     // name 与 content 命中都按 text 预览打开(精准行跳转不在 MVP 范围)
     const name = h.kind === 'content' ? `${h.path}:${h.line}` : h.path;
-    setPreview({ kind: 'text', path: h.path, name });
+    openPreview({ kind: 'text', path: h.path, name });
     setSubmittedQ('');
     setSearchBoxKey((k) => k + 1);
   };
@@ -176,7 +180,10 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
           scanned={hits.length}
           hits={hits.length}
         />
-        <div className={`${s.body} fb-body`} data-mode={inSearchMode ? 'search' : 'list'}>
+        <div
+          className={`${s.body} fb-body`}
+          data-mode={inSearchMode ? 'search' : 'list'}
+        >
           {inSearchMode ? (
             <SearchResults
               hits={hits}
@@ -190,11 +197,6 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
               onEntryClick={onEntryClick}
             />
           )}
-          <PreviewPane
-            instanceId={instanceId}
-            target={preview}
-            onClose={() => setPreview(null)}
-          />
         </div>
       </div>
     </Sheet>

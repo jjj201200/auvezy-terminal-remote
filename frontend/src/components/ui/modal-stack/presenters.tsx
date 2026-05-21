@@ -31,6 +31,8 @@ import {
 import { ShareSheet, type ShareSheetProps } from '../../share/ShareSheet.js';
 import { MobileInstanceSwitcher, type MobileInstanceSwitcherProps } from '../../instances/MobileInstanceSwitcher.js';
 import { FileBrowserSheet } from '../../files/FileBrowserSheet.js';
+import { FilePreviewSheet } from '../../files/FilePreviewSheet.js';
+import type { PreviewTarget } from '../../files/PreviewPane.js';
 
 /** 把"xxx + open/onClose" 类组件升级成 stack-aware presenter */
 type WithoutOpen<P> = Omit<P, 'open' | 'onClose' | 'onOpenChange'>;
@@ -229,6 +231,36 @@ export function useFileBrowserPresenter(): (args: { instanceId: string; onClosed
           <FileBrowserSheet
             open={ctx.isOpen}
             instanceId={args.instanceId}
+            onOpenChange={(next) => {
+              if (!next) ctx.close();
+            }}
+          />
+        ),
+      });
+    },
+    [stack],
+  );
+}
+
+// ─────────────────────── FilePreviewSheet(modal-stack 第二层) ───────────────────────
+
+export function useFilePreviewPresenter(): (args: {
+  instanceId: string;
+  target: PreviewTarget;
+  onClosed?: () => void;
+}) => string {
+  const stack = useModalStack();
+  return useCallback(
+    (args) => {
+      return stack.push({
+        kind: 'file-preview',
+        debugLabel: 'file-preview',
+        onClosed: args.onClosed,
+        render: (ctx) => (
+          <FilePreviewSheet
+            open={ctx.isOpen}
+            instanceId={args.instanceId}
+            target={args.target}
             onOpenChange={(next) => {
               if (!next) ctx.close();
             }}

@@ -1,9 +1,33 @@
 @use '../../styles/mixins' as m;
 
-// ──────────── Sheet 容器(桌面限宽,移动 vaul Drawer 全宽) ────────────
+// ──────────── Sheet 容器(全屏 — 桌面/移动统一) ────────────
+//
+// 覆盖 Sheet primitive 默认尺寸(桌面 640×720 / 移动 88dvh 底部抽屉)。
+// 桌面用 Radix Dialog,定位 fixed + transform translate(-50%,-50%) 居中,
+// 我们覆盖 width/height/max-* 让它铺满整个 viewport。
+// 移动用 vaul Drawer,默认 bottom 抽屉,我们把 height 改 100dvh 同样全屏。
 
 .sheet {
-  @media (min-width: 768px) {
+  // 断点说明:< 1024px 视为"移动"(含 iPad mini / Air 竖屏 768 / Pro 11 横屏 1024
+  // 边界,iPad Air 横屏 1180 落桌面 — 与项目其它 modal 768 断点不同,这是文件浏览
+  // 专属判断:文件浏览内容多,iPad 上仍需要全屏才好用)。
+  // ≥ 1024px(桌面)走居中卡片;< 1024px(手机+iPad)全屏。
+
+  @media (max-width: 1023px) {
+    // 移动 + iPad:全屏覆盖 Sheet primitive 默认尺寸
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+
+    // Sheet primitive 在 ≥ 768px 走 Radix Dialog(transform 居中),覆盖其定位
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    inset: 0 !important;
+  }
+  @media (min-width: 1024px) {
     max-width: 880px;
     width: 90vw;
   }
@@ -247,17 +271,47 @@
   }
 }
 
-// ──────────── 主体两栏 ────────────
+// ──────────── 主体(单栏 — 列表/搜索 + 预览走独立 modal) ────────────
 
 .body {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(220px, 320px) 1fr;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-  @media (max-width: 767px) {
-    grid-template-columns: 1fr;
+// ──────────── 预览专用 sheet(独立 modal,modal-stack 第二层) ────────────
+
+.previewSheet {
+  // 预览 modal 断点策略同 .sheet:< 1024px 全屏(含 iPad);≥ 1024px 居中大卡片
+  @media (max-width: 1023px) {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    inset: 0 !important;
   }
+  @media (min-width: 1024px) {
+    max-width: 960px;
+    width: 92vw;
+    height: 85dvh;
+    max-height: none !important;
+  }
+}
+
+// 预览 modal 内部根容器(与 fb-root 区分)
+.previewRoot {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--font-mono);
+  color: var(--color-fg);
 }
 
 // ──────────── 文件列表 ────────────
@@ -375,6 +429,7 @@
 .preview {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   background: var(--color-bg-canvas);
@@ -390,18 +445,44 @@
 
   header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     padding: var(--sp-3) var(--sp-4);
     gap: var(--sp-3);
     background: var(--color-bg);
 
     strong {
+      flex: 1;
+      min-width: 0;
       font-family: var(--font-mono);
       font-size: var(--fs-sm);
       font-weight: 500;
       color: var(--color-fg);
       @include m.truncate;
+    }
+
+    .backBtn {
+      @include m.btn-reset;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      padding: var(--sp-2) var(--sp-3);
+      min-height: 32px;
+      color: var(--color-fg-dim);
+      border: 1px solid var(--color-border);
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      flex-shrink: 0;
+      @include m.transition(color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast));
+
+      &:hover {
+        color: var(--color-fg);
+        border-color: var(--color-border-hi);
+        background: var(--color-bg-hover);
+      }
+      &:focus-visible {
+        outline: none;
+        box-shadow: var(--shadow-focus);
+      }
     }
 
     .closeBtn {
@@ -412,6 +493,7 @@
       min-width: 28px;
       min-height: 28px;
       color: var(--color-fg-dim);
+      flex-shrink: 0;
 
       &:hover {
         color: var(--color-fg);

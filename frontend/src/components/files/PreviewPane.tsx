@@ -2,8 +2,8 @@
  * PreviewPane:右侧预览容器。target=null 时显示 empty placeholder。
  */
 
-import type { JSX } from 'react';
-import { IconX } from '@tabler/icons-react';
+import { useEffect, type JSX } from 'react';
+import { IconArrowLeft } from '@tabler/icons-react';
 import { TextPreview } from './TextPreview.js';
 import { ImagePreview } from './ImagePreview.js';
 import { useT } from '../../i18n/i18n-context.js';
@@ -22,6 +22,21 @@ export interface PreviewPaneProps {
 
 export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): JSX.Element {
   const t = useT();
+
+  // Esc 键关预览(全屏模式下用户期望)
+  useEffect(() => {
+    if (!target) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [target, onClose]);
+
   if (!target) {
     return (
       <div
@@ -41,16 +56,18 @@ export function PreviewPane({ instanceId, target, onClose }: PreviewPaneProps): 
       data-path={target.path}
     >
       <header className="fb-preview__header">
-        <strong className="fb-preview__name">{target.name}</strong>
         <button
           type="button"
-          className={`${s.closeBtn} fb-preview__close`}
+          className={`${s.backBtn} fb-preview__back`}
           data-action="files-preview-close"
           onClick={onClose}
-          aria-label="close preview"
+          aria-label={t('files.previewBack')}
+          title={t('files.previewBack')}
         >
-          <IconX size={16} stroke={1.5} />
+          <IconArrowLeft size={14} stroke={1.5} />
+          <span>{t('files.previewBack')}</span>
         </button>
+        <strong className="fb-preview__name" title={target.path}>{target.name}</strong>
       </header>
       {target.kind === 'text' && <TextPreview instanceId={instanceId} path={target.path} />}
       {target.kind === 'image' && <ImagePreview instanceId={instanceId} path={target.path} />}
