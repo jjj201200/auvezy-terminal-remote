@@ -5,6 +5,7 @@
  * 关闭时 .md 走 TextPreview(同其它代码文件)。
  *
  * 渲染链:react-markdown + remark-gfm + remark-math + rehype-raw + rehype-katex
+ * + 可选 obsidian 扩展(frontmatter / callout / wikilink / embed / inline 语法)。
  *
  * Why 不复用 TextPreview 的 Shiki 行号 + 虚拟滚动:markdown 是富文档(段落 /
  * 列表 / 表格 / 引用 …)不是逐行结构,虚拟列表无法按行分块;代码块仍走项目
@@ -14,20 +15,26 @@
  *  - 代码块 HTML 来自 Shiki(可信)
  *  - markdown 文本来自本地文件,经 react-markdown 转义 + rehype-raw 允许的 raw
  *    HTML 子集都不可执行 JS;katex 渲染产物也是静态 SVG/MathML
+ *
+ * Obsidian 集成动态加载(S3-3 起):仅在 `rendering.obsidian.enabled` 为 true 时
+ * 通过 dynamic import 拉 `markdown/obsidian` 模块(js-yaml + remark-frontmatter +
+ * 自写 plugin,共 ~50KB)。未开 obsidian 的用户不付这份代价。
  */
 
-import { cloneElement, memo, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
+import type { PluggableList } from 'unified';
 import 'katex/dist/katex.min.css';
 import { useFiles } from '../../hooks/useFiles.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useUserConfig } from '../../hooks/useUserConfig.js';
 import { highlight, type ColorScheme } from '../../utils/syntax-highlight.js';
 import { translateFileErr } from './translate-err.js';
+import type { ObsidianBindings, ObsidianEffective } from './markdown/obsidian/index.js';
 import s from './MarkdownPreview.module.scss';
 
 export interface MarkdownPreviewProps {
@@ -44,6 +51,35 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
   const [raw, setRaw] = useState<string>('');
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // ─── obsidian 集成 effective 状态 + 动态加载 bindings ─────────────────────
+  // markdown 已开(走到这里就保证),只需判断 obsidian.enabled。子开关传给 bindings 内部分支。
+  const obsEff = useMemo<ObsidianEffective | null>(() => {
+    const obs = config.integrations?.rendering?.obsidian;
+    if (!obs || obs.enabled === false) return null;
+    return {
+      frontmatter: obs.frontmatter !== false,
+      wikilink: obs.wikilink !== false,
+      embed: obs.embed !== false,
+      callout: obs.callout !== false,
+      inlineSyntax: obs.inlineSyntax !== false,
+    };
+  }, [config.integrations?.rendering?.obsidian]);
+
+  const [obsBindings, setObsBindings] = useState<ObsidianBindings | null>(null);
+  useEffect(() => {
+    if (!obsEff) {
+      setObsBindings(null);
+      return;
+    }
+    let cancelled = false;
+    void import('./markdown/obsidian/index.js').then((m) => {
+      if (!cancelled) setObsBindings(m.buildObsidianBindings(obsEff));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [obsEff]);
 
   const themeName = config.display?.theme;
   const colorScheme: ColorScheme =
@@ -70,7 +106,7 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
     return () => { cancelled = true; };
   }, [path, files]);
 
-  const components = useMemo<Components>(() => ({
+  const baseComponents = useMemo<Components>(() => ({
     // 代码块:fenced code 由 <pre><code class="language-xxx">...</code></pre> 表示;
     // 这里覆盖 `code` 组件:有 className 视为代码块,无 className 视为 inline code。
     code(props) {
@@ -98,11 +134,18 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
       // 给表格外加滚动包装
       return <div className={s.tableWrap}>{props.children && <table>{props.children}</table>}</div>;
     },
-    // blockquote → GFM Alert 识别
-    blockquote(props) {
-      return renderBlockquote(props.children);
-    },
+    // blockquote 默认渲染;callout 子开关启用时由 obsidian/callout plugin 接管(见 S4)
   }), [colorScheme]);
+
+  // 合并 base + obsidian 的 plugin / components
+  const remarkPlugins = useMemo<PluggableList>(
+    () => [remarkGfm, remarkMath, ...(obsBindings?.remarkPlugins ?? [])],
+    [obsBindings],
+  );
+  const components = useMemo<Components>(
+    () => ({ ...baseComponents, ...(obsBindings?.components ?? {}) }),
+    [baseComponents, obsBindings],
+  );
 
   if (err) {
     return (
@@ -117,7 +160,7 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
   return (
     <div className={`${s.root} fb-markdown`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={remarkPlugins}
         rehypePlugins={[rehypeRaw, rehypeKatex]}
         components={components}
       >
@@ -234,74 +277,3 @@ const CodeBlock = memo(function CodeBlock({ code, lang, colorScheme }: CodeBlock
   );
 });
 
-/* ─────────────────────────────────────── *
- * Blockquote → 识别 GFM Alert(`> [!NOTE]` 等)
- * ─────────────────────────────────────── */
-
-type AlertKind = 'note' | 'tip' | 'important' | 'warning' | 'caution';
-const ALERT_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/;
-
-function renderBlockquote(children: ReactNode): JSX.Element {
-  // 首段第一行若是 `[!NOTE]` 标记 → 提升为 alert。
-  // children 可能是数组(多个 <p>)或单元素(blockquote 只含一个 <p>)。
-  const arr: ReactNode[] = Array.isArray(children) ? [...children] : [children];
-  const firstIdx = arr.findIndex(
-    (c): c is JSX.Element =>
-      typeof c === 'object' && c !== null && 'type' in c && (c as JSX.Element).type === 'p',
-  );
-  const first = firstIdx >= 0 ? (arr[firstIdx] as JSX.Element) : null;
-
-  let kind: AlertKind | null = null;
-  let rest: ReactNode = children;
-  if (first) {
-    const txt = extractLeadingText(first);
-    const m = txt && ALERT_RE.exec(txt.trim());
-    if (m) {
-      kind = m[1]!.toLowerCase() as AlertKind;
-      rest = stripAlertMarker(arr, first, firstIdx);
-    }
-  }
-  if (!kind) {
-    return <blockquote>{children}</blockquote>;
-  }
-  const alertClass = {
-    note: s.alertNote,
-    tip: s.alertTip,
-    important: s.alertImportant,
-    warning: s.alertWarning,
-    caution: s.alertCaution,
-  }[kind];
-  return (
-    <blockquote className={`${s.alert} ${alertClass}`}>
-      <div className={s.alertTitle}>{kind.charAt(0).toUpperCase() + kind.slice(1)}</div>
-      {rest}
-    </blockquote>
-  );
-}
-
-function extractLeadingText(el: JSX.Element): string | null {
-  const props = el.props as { children?: ReactNode } | undefined;
-  const ch = props?.children;
-  if (typeof ch === 'string') return ch;
-  if (Array.isArray(ch) && typeof ch[0] === 'string') return ch[0];
-  return null;
-}
-
-function stripAlertMarker(arr: ReactNode[], firstP: JSX.Element, idx: number): ReactNode {
-  // 把 firstP 的内容里的 [!XXX] 标记去掉;若该 p 全是标记,去掉整个 p
-  const props = firstP.props as { children?: ReactNode } | undefined;
-  const ch = props?.children;
-  if (typeof ch === 'string' && ALERT_RE.test(ch.trim())) {
-    return arr.slice(0, idx).concat(arr.slice(idx + 1));
-  }
-  if (Array.isArray(ch) && typeof ch[0] === 'string' && ALERT_RE.test(ch[0].trim())) {
-    const restCh = ch.slice(1);
-    if (!restCh.length) {
-      return arr.slice(0, idx).concat(arr.slice(idx + 1));
-    }
-    // cloneElement 保留 key/ref 等内部字段;不要手工 spread ReactElement
-    const cleanedFirst = cloneElement(firstP, undefined, ...restCh);
-    return arr.slice(0, idx).concat([cleanedFirst], arr.slice(idx + 1));
-  }
-  return arr;
-}

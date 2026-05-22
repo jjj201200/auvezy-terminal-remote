@@ -220,6 +220,9 @@ importers:
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       '@types/picomatch':
         specifier: ^4.0.3
         version: 4.0.3
@@ -244,6 +247,9 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      unist-util-visit:
+        specifier: ^5.1.0
+        version: 5.1.0
       vite:
         specifier: ^8.0.14
         version: 8.0.14(@types/node@20.19.39)(esbuild@0.28.0)(jiti@2.6.1)(sass@1.99.0)(terser@5.46.2)(tsx@4.21.0)
