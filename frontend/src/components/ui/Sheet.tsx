@@ -156,6 +156,10 @@ export function Sheet({
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
+          // a11y:Radix 在缺 description 时会 console.warn 建议加 aria-describedby。
+          // 我们的 Sheet 是通用容器,内容由调用方决定,统一显式声明「无描述」
+          // 来消警告(不影响截屏阅读器 — Title 已足够标识 modal)
+          aria-describedby={undefined}
         >
           {/* tabs 模式下 Dialog.Title 隐藏到 sr-only（Radix 仍要求一个 Title 节点） */}
           {tabs && tabs.length > 0 && (

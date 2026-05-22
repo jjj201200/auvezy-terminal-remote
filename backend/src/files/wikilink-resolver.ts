@@ -38,6 +38,11 @@ export interface ResolveResult {
 
 const MD_EXTS = new Set(['.md', '.markdown']);
 const REBUILD_INTERVAL_MS = 5 * 60 * 1000;
+/** 索引最大「保鲜期」— 超过这个间隔的 resolve 调用会先触发一次 rebuild。
+ *  Why:WSL2 mirrored 文件系统(/mnt/* / iCloud / SMB)上 fs.watch(recursive) 已知
+ *  不稳;5 min poll 兜底太慢,用户加完 md 立即点 wikilink 看不到。30s 是「用户操作
+ *  之间的典型间隔」— 用户来回切窗口、编辑、点链接,有 30s 间隔时刷新索引几乎无感。 */
+const STALE_REBUILD_MS = 30 * 1000;
 
 export class WorkspaceIndex {
   /** lowercased basename(去扩展名) → 相对 cwd 路径数组(已 sorted) */
@@ -47,11 +52,20 @@ export class WorkspaceIndex {
   private watcher: FSWatcher | null = null;
   private rebuildTimer: NodeJS.Timeout | null = null;
   private rebuildScheduled = false;
+  /** 上次 buildOnce() 完成时间;用于 staleness 检查决定是否要重 build */
+  private lastBuiltAt = 0;
 
   constructor(private readonly cwd: string) {}
 
   async ensureBuilt(): Promise<void> {
-    if (this.built) return;
+    if (this.built) {
+      // staleness check:fs.watch 在 WSL/mirrored FS 不稳,超过 STALE_REBUILD_MS
+      // 的 resolve 调用强制重 build 一次。lazy 触发 — 用户来回操作有 30s 间隔时
+      // 几乎无感,但能让"刚 touch 的 md 立刻能被解析"。
+      const stale = Date.now() - this.lastBuiltAt > STALE_REBUILD_MS;
+      if (!stale) return;
+      // 进入 stale rebuild — 跟首次 build 一样走 buildPromise 防并发
+    }
     if (this.buildPromise) {
       await this.buildPromise;
       return;
@@ -60,6 +74,7 @@ export class WorkspaceIndex {
     try {
       await this.buildPromise;
       this.built = true;
+      this.lastBuiltAt = Date.now();
       this.startWatch();
     } finally {
       this.buildPromise = null;
@@ -104,9 +119,10 @@ export class WorkspaceIndex {
     this.rebuildTimer = null;
   }
 
-  /** Test-only:同步触发一次 rebuild(单测调用) */
+  /** 同步触发一次 rebuild(单测 + scheduleRebuild 复用) */
   async rebuild(): Promise<void> {
     await this.buildOnce();
+    this.lastBuiltAt = Date.now();
   }
 
   // ─── internals ──────────────────────────────────────────────
@@ -231,7 +247,10 @@ async function walk(
   let ents;
   try {
     ents = await fsp.readdir(cur, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    // 单个目录 readdir 失败(perm denied / 符号链接断 / WSL fs 偶发)不应整体失败,
+    // 但要记 debug 让用户知道为什么少了某些文件
+    logger.debug({ err, dir: cur }, 'WorkspaceIndex.walk: readdir failed (skipped)');
     return;
   }
   for (const e of ents) {
