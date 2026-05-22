@@ -36,6 +36,7 @@ import { highlight, type ColorScheme } from '../../utils/syntax-highlight.js';
 import { translateFileErr } from './translate-err.js';
 import type { ObsidianBindings, ObsidianEffective } from './markdown/obsidian/index.js';
 import { consumePendingAnchor } from './markdown/obsidian/anchor-bus.js';
+import { EmbedAncestorsProvider } from './markdown/obsidian/embed.js';
 import s from './MarkdownPreview.module.scss';
 
 /**
@@ -158,6 +159,10 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
     // blockquote 默认渲染;callout 子开关启用时由 obsidian/callout plugin 接管(见 S4)
   }), [colorScheme]);
 
+  // 顶层 ancestors set:把自己 path 加入,防止 A.md `![[A]]` 自指无限递归。
+  // EmbedMd 内会进一步 `Set(ancestors).add(child)` 沿递归链增长。
+  const ancestorsForEmbed = useMemo(() => new Set<string>([path]), [path]);
+
   // wikilink 跳转后 consume 目标 anchor(heading/block-id) → scrollIntoView
   useEffect(() => {
     if (!raw) return;
@@ -196,15 +201,19 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
     return <div className={s.loading}>{t('files.previewLoading')}</div>;
   }
   return (
-    <div className={`${s.root} fb-markdown`}>
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={[rehypeRaw, rehypeKatex]}
-        components={components}
-      >
-        {raw}
-      </ReactMarkdown>
-    </div>
+    // 顶层包 EmbedAncestorsProvider:把自己 path 加入祖先 set,
+    // 防止 A.md ![[A]] 这种自指 embed 触发无限递归(单层即被循环检测拦截)
+    <EmbedAncestorsProvider value={ancestorsForEmbed}>
+      <div className={`${s.root} fb-markdown`}>
+        <ReactMarkdown
+          remarkPlugins={remarkPlugins}
+          rehypePlugins={[rehypeRaw, rehypeKatex]}
+          components={components}
+        >
+          {raw}
+        </ReactMarkdown>
+      </div>
+    </EmbedAncestorsProvider>
   );
 }
 

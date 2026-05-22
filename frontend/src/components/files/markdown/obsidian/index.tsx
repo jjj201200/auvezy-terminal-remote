@@ -30,6 +30,7 @@ import { remarkObsidianCallout, CalloutBlock } from './callout.js';
 import { remarkObsidianInline } from './inline-syntax.js';
 import './inline-syntax.module.scss';
 import { remarkObsidianLink, WikilinkActive, WikilinkDisabled } from './wikilink.js';
+import { EmbedDispatch } from './embed.js';
 
 export interface ObsidianEffective {
   frontmatter: boolean;
@@ -145,11 +146,14 @@ export function buildObsidianBindings(
       ) : (
         <WikilinkDisabled target={props.target ?? ''} {...(props.alias ? { alias: props.alias } : {})} />
       )),
-    // embed 占位 — S7 实现具体分发
+    // embed 5 类分发(image/md/pdf/audio/video + 不支持占位)+ 循环检测 + 深度限制
     'obs-embed': ((props: { target?: string }) => (
-      <span style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
-        ![[{props.target ?? ''}]]
-      </span>
+      <EmbedDispatch
+        enabled={eff.embed}
+        instanceId={ctx.instanceId}
+        from={ctx.path}
+        target={props.target ?? ''}
+      />
     )),
   } as unknown as Components;
 
