@@ -135,9 +135,12 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
 
   const openObsidianSettings = (): void => {
     presentObsidian({
+      enabled: obsidianEnabled,
+      onEnabledChange: setObsidianEnabled,
       value: obsidianSubToggles,
       onChange: setObsidianSubToggles,
       active: obsidianActive,
+      markdownEnabled: renderingMdEnabled,
     });
   };
 
@@ -227,7 +230,8 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
         onChange={setRenderingMd}
       />
 
-      {/* Obsidian — 强依赖 Markdown */}
+      {/* Obsidian — 强依赖 Markdown;形态与 ClaudeCode 对称:section header 显示
+          标题 + 状态徽章 + 描述,row 里只放「详细」按钮。enabled 开关在子 modal 顶部。 */}
       <section className={s.section} aria-disabled={!renderingMdEnabled || undefined}>
         <header className={s.header}>
           <h3 className={s.title}>
@@ -249,16 +253,7 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
             )}
           </p>
         </header>
-        <div
-          className={s.row}
-          style={!renderingMdEnabled ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
-        >
-          <BoolToggleRow
-            title={t('obsidian.obsidianTitle')}
-            value={obsidianEnabled}
-            disabled={!renderingMdEnabled}
-            onChange={setObsidianEnabled}
-          />
+        <div className={s.row}>
           <button
             type="button"
             onClick={openObsidianSettings}
