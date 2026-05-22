@@ -1,0 +1,264 @@
+/**
+ * WorkspaceIndex — wikilink 短名解析的工作目录索引。
+ *
+ * Lazy build:首次 ensureBuilt() 时全 walk cwd 收集 .md / .markdown,key 用
+ * basename 去扩展名 + lowercase(对齐 Obsidian 大小写不敏感)。
+ *
+ * 增量维护:fs.watch(cwd, { recursive: true }) 监 rename/unlink/create;失败
+ * (WSL/macOS 大目录已知不稳)时回退每 5 min 全扫。
+ *
+ * 解析算法:含 `/` → vault-root 相对 → 当前目录相对 fallback;短名 →
+ * 全 vault 索引 → shortest-path 启发式(共同前缀目录段数最多 → 字节序最小)。
+ *
+ * 详见 docs/plans/obsidian-integration/adrs/003-wikilink-resolution-algorithm.md
+ *
+ * **不持久化**:索引完全活在内存,broker 重启重新 build(理由见 ADR-003 方案 E)。
+ */
+
+import { promises as fsp } from 'node:fs';
+import { watch, type FSWatcher } from 'node:fs';
+import { join, relative, dirname, basename, extname, sep } from 'node:path';
+import { logger } from '../logger/logger.js';
+
+export interface Anchor {
+  kind: 'heading' | 'block';
+  id: string;
+}
+
+export interface ResolveResult {
+  /** 命中时:相对 cwd 的目标路径 */
+  resolved?: string;
+  /** ambiguous 时:全部候选(包含 resolved) */
+  candidates?: string[];
+  /** 无任何匹配 */
+  broken?: true;
+  /** 锚点信息(heading 或 block-id) */
+  fragment?: Anchor;
+}
+
+const MD_EXTS = new Set(['.md', '.markdown']);
+const REBUILD_INTERVAL_MS = 5 * 60 * 1000;
+
+export class WorkspaceIndex {
+  /** lowercased basename(去扩展名) → 相对 cwd 路径数组(已 sorted) */
+  private byBasename = new Map<string, string[]>();
+  private built = false;
+  private buildPromise: Promise<void> | null = null;
+  private watcher: FSWatcher | null = null;
+  private rebuildTimer: NodeJS.Timeout | null = null;
+  private rebuildScheduled = false;
+
+  constructor(private readonly cwd: string) {}
+
+  async ensureBuilt(): Promise<void> {
+    if (this.built) return;
+    if (this.buildPromise) {
+      await this.buildPromise;
+      return;
+    }
+    this.buildPromise = this.buildOnce();
+    try {
+      await this.buildPromise;
+      this.built = true;
+      this.startWatch();
+    } finally {
+      this.buildPromise = null;
+    }
+  }
+
+  resolve(from: string, target: string): ResolveResult {
+    const { pathPart, fragment } = splitFragment(target);
+    if (pathPart.length === 0) {
+      return fragment ? { broken: true, fragment } : { broken: true };
+    }
+
+    if (pathPart.includes('/')) {
+      // 路径形态:先 vault root 相对
+      const fromVault = this.findByRelPath(pathPart);
+      if (fromVault) return makeResult(fromVault, fragment);
+      // 当前目录相对 fallback
+      const fromCurrent = this.findByRelPath(join(dirname(from), pathPart));
+      if (fromCurrent) return makeResult(fromCurrent, fragment);
+      return makeBroken(fragment);
+    }
+
+    // 短名形态
+    const key = stripExt(pathPart).toLowerCase();
+    const candidates = this.byBasename.get(key);
+    if (!candidates || candidates.length === 0) return makeBroken(fragment);
+    if (candidates.length === 1) return makeResult(candidates[0]!, fragment);
+
+    // 多匹配:shortest-path 启发式
+    const best = pickShortestPath(from, candidates);
+    return {
+      resolved: best,
+      candidates: [...candidates],
+      ...(fragment ? { fragment } : {}),
+    };
+  }
+
+  shutdown(): void {
+    this.watcher?.close();
+    this.watcher = null;
+    if (this.rebuildTimer) clearInterval(this.rebuildTimer);
+    this.rebuildTimer = null;
+  }
+
+  /** Test-only:同步触发一次 rebuild(单测调用) */
+  async rebuild(): Promise<void> {
+    await this.buildOnce();
+  }
+
+  // ─── internals ──────────────────────────────────────────────
+
+  private async buildOnce(): Promise<void> {
+    const fresh = new Map<string, string[]>();
+    await walk(this.cwd, this.cwd, (rel) => {
+      const ext = extname(rel).toLowerCase();
+      if (!MD_EXTS.has(ext)) return;
+      const key = stripExt(basename(rel)).toLowerCase();
+      const arr = fresh.get(key) ?? [];
+      arr.push(rel);
+      fresh.set(key, arr);
+    });
+    // 排序好的索引在 resolve() 内部不再排
+    for (const arr of fresh.values()) arr.sort();
+    this.byBasename = fresh;
+  }
+
+  private startWatch(): void {
+    try {
+      this.watcher = watch(this.cwd, { recursive: true }, () => {
+        this.scheduleRebuild();
+      });
+    } catch (e) {
+      logger.warn(
+        { err: e, cwd: this.cwd },
+        'WorkspaceIndex: fs.watch failed, falling back to 5min poll',
+      );
+    }
+    // 周期兜底:即使 watch 失败 / 丢事件,5 min 一次全扫保底
+    this.rebuildTimer = setInterval(() => {
+      this.scheduleRebuild();
+    }, REBUILD_INTERVAL_MS);
+    this.rebuildTimer.unref?.();
+  }
+
+  private scheduleRebuild(): void {
+    if (this.rebuildScheduled) return;
+    this.rebuildScheduled = true;
+    setTimeout(() => {
+      this.rebuildScheduled = false;
+      void this.buildOnce().catch((err) =>
+        logger.warn({ err }, 'WorkspaceIndex rebuild failed'),
+      );
+    }, 500);
+  }
+
+  private findByRelPath(rel: string): string | null {
+    const norm = rel.split(sep).join('/');
+    // 显式带扩展名 / 默认 .md / 默认 .markdown 都试一遍
+    for (const ext of ['', '.md', '.markdown']) {
+      const candidate = norm + ext;
+      const key = stripExt(basename(candidate)).toLowerCase();
+      const arr = this.byBasename.get(key);
+      if (arr?.includes(candidate)) return candidate;
+    }
+    return null;
+  }
+}
+
+function makeResult(resolved: string, fragment?: Anchor): ResolveResult {
+  return fragment ? { resolved, fragment } : { resolved };
+}
+
+function makeBroken(fragment?: Anchor): ResolveResult {
+  return fragment ? { broken: true, fragment } : { broken: true };
+}
+
+/**
+ * `Foo`         → { pathPart: 'Foo' }
+ * `Foo#H2`      → { pathPart: 'Foo', fragment: { kind: 'heading', id: 'H2' } }
+ * `Foo#^abc`    → { pathPart: 'Foo', fragment: { kind: 'block', id: 'abc' } }
+ * `a/b#H`       → { pathPart: 'a/b', fragment: { kind: 'heading', id: 'H' } }
+ * `Foo|alias`   → { pathPart: 'Foo' }(alias 防御性切除,前端 plugin 应已处理)
+ */
+function splitFragment(target: string): { pathPart: string; fragment?: Anchor } {
+  const piped = target.split('|')[0]!;
+  const hashIdx = piped.indexOf('#');
+  if (hashIdx < 0) return { pathPart: piped.trim() };
+  const pathPart = piped.slice(0, hashIdx).trim();
+  const frag = piped.slice(hashIdx + 1).trim();
+  if (frag.startsWith('^')) {
+    return { pathPart, fragment: { kind: 'block', id: frag.slice(1) } };
+  }
+  return { pathPart, fragment: { kind: 'heading', id: frag } };
+}
+
+function stripExt(name: string): string {
+  const ext = extname(name).toLowerCase();
+  if (MD_EXTS.has(ext)) return name.slice(0, -ext.length);
+  return name;
+}
+
+function pickShortestPath(from: string, candidates: string[]): string {
+  return candidates
+    .map((c) => ({ c, common: countCommonDirSegments(from, c) }))
+    .sort((a, b) => {
+      if (b.common !== a.common) return b.common - a.common;
+      // 字节序 tie-break(用 < 而非 localeCompare,跨平台稳定。详见 ADR-003)
+      return a.c < b.c ? -1 : a.c > b.c ? 1 : 0;
+    })[0]!.c;
+}
+
+function countCommonDirSegments(a: string, b: string): number {
+  const da = a.split('/').slice(0, -1);
+  const db = b.split('/').slice(0, -1);
+  let i = 0;
+  while (i < da.length && i < db.length && da[i] === db[i]) i++;
+  return i;
+}
+
+/**
+ * 安全 walk:跟 symlink 时 realpath 校验未跳出 cwd。
+ * 隐藏目录(`.` 开头)跳过 — 对齐 file-browser 既有惯例。
+ */
+async function walk(
+  root: string,
+  cur: string,
+  onFile: (rel: string) => void,
+): Promise<void> {
+  let ents;
+  try {
+    ents = await fsp.readdir(cur, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of ents) {
+    if (e.name.startsWith('.')) continue;
+    const full = join(cur, e.name);
+    if (e.isSymbolicLink()) {
+      try {
+        const real = await fsp.realpath(full);
+        const r = relative(root, real);
+        if (r.startsWith('..') || r === '' || r.startsWith(sep + '..')) continue;
+      } catch {
+        continue;
+      }
+    }
+    if (e.isDirectory() || (e.isSymbolicLink() && (await isDir(full)))) {
+      await walk(root, full, onFile);
+    } else if (e.isFile() || e.isSymbolicLink()) {
+      const rel = relative(root, full).split(sep).join('/');
+      onFile(rel);
+    }
+  }
+}
+
+async function isDir(p: string): Promise<boolean> {
+  try {
+    return (await fsp.stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
