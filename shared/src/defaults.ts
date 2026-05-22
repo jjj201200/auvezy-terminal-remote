@@ -448,6 +448,28 @@ export interface UserConfig {
 }
 
 /**
+ * 渲染集成偏好。与运行时集成(forceModule 单选)不同,渲染集成是多选 ——
+ * 每个模块独立 enabled,可同时启用。详见
+ * docs/plans/obsidian-integration/adrs/001-rendering-vs-runtime-integration.md。
+ */
+export interface RenderingIntegrationPrefs {
+  markdown?: { enabled?: boolean };
+  obsidian?: {
+    enabled?: boolean;
+    /** YAML frontmatter 渲染为 Properties 表;关:frontmatter 块直接 strip */
+    frontmatter?: boolean;
+    /** [[Foo]] / [[Foo|alias]];关:仍识别但渲染为 disabled 样式 */
+    wikilink?: boolean;
+    /** ![[...]] 嵌入;关:仍识别但渲染为占位框 */
+    embed?: boolean;
+    /** 13 类 callout(GFM Alert 超集);关:回退普通 blockquote */
+    callout?: boolean;
+    /** ==highlight== / %%comment%% / #tag / ^block-id;关:保留原文 */
+    inlineSyntax?: boolean;
+  };
+}
+
+/**
  * Integrations 偏好结构。与 backend/src/integrations/types.ts 的 IntegrationPreferences 等价
  * (不直接 import 跨包是为了让 shared 包不依赖 backend)。
  */
@@ -465,6 +487,8 @@ export interface IntegrationsPrefs {
       };
     };
   };
+  /** 渲染集成 — 与 forceModule 单选无关,各模块独立 enabled */
+  rendering?: RenderingIntegrationPrefs;
 }
 
 /** Integrations 默认值(供 ensureDefaultUserConfig 兜底用) */
@@ -482,6 +506,17 @@ export const DEFAULT_INTEGRATIONS: Required<{
       };
     };
   };
+  rendering: {
+    markdown: { enabled: boolean };
+    obsidian: {
+      enabled: boolean;
+      frontmatter: boolean;
+      wikilink: boolean;
+      embed: boolean;
+      callout: boolean;
+      inlineSyntax: boolean;
+    };
+  };
 }> = {
   enabled: true,
   forceModule: 'auto',
@@ -494,6 +529,17 @@ export const DEFAULT_INTEGRATIONS: Required<{
         sessionLifecycle: true,
         userPrompts: false,
       },
+    },
+  },
+  rendering: {
+    markdown: { enabled: true },
+    obsidian: {
+      enabled: true,
+      frontmatter: true,
+      wikilink: true,
+      embed: true,
+      callout: true,
+      inlineSyntax: true,
     },
   },
 };

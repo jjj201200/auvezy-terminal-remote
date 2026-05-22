@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_SHORTCUTS,
   DEFAULT_COMMANDS,
+  DEFAULT_INTEGRATIONS,
   SHORTCUT_GROUPS,
   findShortcutGroup,
   ensureDefaultUserConfig,
@@ -190,5 +191,17 @@ describe('ensureDefaultUserConfig：旧版直接重置', () => {
     const r = ensureDefaultUserConfig(newConfig);
     expect(r.shortcuts).toHaveLength(1);
     expect(r.shortcuts[0]?.label).toBe('Esc');
+  });
+});
+
+describe('rendering integration defaults', () => {
+  it('exposes markdown.enabled and obsidian.* sub-toggles via DEFAULT_INTEGRATIONS', () => {
+    expect(DEFAULT_INTEGRATIONS.rendering.markdown.enabled).toBe(true);
+    expect(DEFAULT_INTEGRATIONS.rendering.obsidian.enabled).toBe(true);
+    expect(DEFAULT_INTEGRATIONS.rendering.obsidian.frontmatter).toBe(true);
+    expect(DEFAULT_INTEGRATIONS.rendering.obsidian.wikilink).toBe(true);
+    expect(DEFAULT_INTEGRATIONS.rendering.obsidian.embed).toBe(true);
+    expect(DEFAULT_INTEGRATIONS.rendering.obsidian.callout).toBe(true);
+    expect(DEFAULT_INTEGRATIONS.rendering.obsidian.inlineSyntax).toBe(true);
   });
 });
