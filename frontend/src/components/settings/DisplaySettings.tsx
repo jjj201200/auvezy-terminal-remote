@@ -36,7 +36,6 @@ import clsx from 'clsx';
 import { getDefaultXtermFontSize } from '../../config/constants.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { THEME_LIST, resolveTheme } from '../../themes/terminal-themes.js';
-import { BoolToggleRow } from './BoolToggleRow.js';
 import s from './DisplaySettings.module.scss';
 
 // 与 useTerminal 同源：mono 字符宽度 / fontSize 比例
@@ -139,7 +138,6 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
   const fontSizeMax = value?.fontSizeMax ?? DEFAULT_DISPLAY.fontSizeMax;
   const letterSpacing = value?.letterSpacing ?? DEFAULT_DISPLAY.letterSpacing;
   const theme = value?.theme ?? DEFAULT_DISPLAY.theme;
-  const markdownPreview = value?.markdownPreview ?? DEFAULT_DISPLAY.markdownPreview;
   // 预览也用当前主题色,让用户改主题立即看到效果
   const palette = useMemo(() => resolveTheme(theme), [theme]);
 
@@ -474,13 +472,6 @@ export function DisplaySettings({ value, onChange }: DisplaySettingsProps): JSX.
         </div>
       </section>
 
-      {/* 文件预览 — markdown 可视化 */}
-      <BoolToggleRow
-        title={t('display.markdownPreviewTitle')}
-        hint={t('display.markdownPreviewHint')}
-        value={markdownPreview}
-        onChange={(next) => onChange({ ...value, markdownPreview: next })}
-      />
     </div>
   );
 }

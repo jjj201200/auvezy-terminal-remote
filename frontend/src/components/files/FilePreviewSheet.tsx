@@ -36,7 +36,7 @@ export function FilePreviewSheet({
   useEffect(() => { saveWrapLines(wrapLines); }, [wrapLines]);
 
   // markdown 富文本预览自带换行,wrap toggle 在该模式下无意义 → 隐藏
-  const mdEnabled = config.display?.markdownPreview === true;
+  const mdEnabled = config.integrations?.rendering?.markdown?.enabled !== false;
   const isMarkdown = mdEnabled && target.kind === 'text' && isMarkdownPath(target.path);
 
   const wrapToggle = target.kind === 'text' && !isMarkdown ? (

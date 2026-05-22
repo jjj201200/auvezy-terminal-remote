@@ -27,7 +27,9 @@ export interface PreviewPaneProps {
 export function PreviewPane({ instanceId, target, wrapLines }: PreviewPaneProps): JSX.Element {
   const t = useT();
   const { config } = useUserConfig();
-  const mdEnabled = config.display?.markdownPreview === true;
+  // rendering.markdown.enabled 是新位置;ensureDefaultUserConfig 已把旧
+  // display.markdownPreview 迁移过来。默认开启(undefined 视同 enabled)。
+  const mdEnabled = config.integrations?.rendering?.markdown?.enabled !== false;
 
   if (!target) {
     return (

@@ -1,8 +1,8 @@
 /**
  * MarkdownPreview — .md / .markdown 富文本预览
  *
- * 仅在用户在 DisplaySettings 中开启 `markdownPreview` 时使用;关闭时
- * .md 走 TextPreview(同其它代码文件)。
+ * 仅在用户在 集成 → 渲染 → Markdown 开启时使用(读 `rendering.markdown.enabled`);
+ * 关闭时 .md 走 TextPreview(同其它代码文件)。
  *
  * 渲染链:react-markdown + remark-gfm + remark-math + rehype-raw + rehype-katex
  *

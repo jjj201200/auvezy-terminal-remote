@@ -191,8 +191,6 @@ export interface Messages {
     letterSpacingAriaLabel: string;
     letterSpacingValue: string; // {{val}} px
     resetTooltip: string;
-    markdownPreviewTitle: string;
-    markdownPreviewHint: string;
     colsModeAuto: string;
     colsModeTarget: string; // 目标 {{cols}} / target {{cols}}
     themeTitle: string;

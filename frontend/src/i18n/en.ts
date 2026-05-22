@@ -157,8 +157,6 @@ export const en: Messages = {
     letterSpacingAriaLabel: 'Letter spacing',
     letterSpacingValue: '{{val}} px',
     resetTooltip: 'Reset to 0',
-    markdownPreviewTitle: 'Markdown rich preview',
-    markdownPreviewHint: 'Render .md / .markdown files as formatted document (headings / lists / tables / code blocks). When off, .md is shown as plain text with syntax highlighting like other source files.',
     colsModeAuto: 'auto',
     colsModeTarget: 'target {{cols}}',
     themeTitle: 'Palette',
