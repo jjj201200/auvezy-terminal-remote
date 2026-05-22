@@ -1,0 +1,36 @@
+/**
+ * Inline syntax 样式 — 高亮 / 标签 / block-id 锚点。
+ * comment 节点 react-markdown components 返回 null,无样式。
+ *
+ * 这些 class 名是 :global,因为 plugin 通过 hProperties 写入,不经过 CSS Modules
+ * 哈希。
+ */
+
+:global {
+  .atr-obs-highlight {
+    background: var(--color-highlight, #ffe58a);
+    color: var(--color-text);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+
+  .atr-obs-tag {
+    display: inline-block;
+    padding: 0 6px;
+    margin: 0 2px;
+    border-radius: 9999px;
+    background: var(--color-surface-3);
+    color: var(--color-info);
+    font-size: 0.85em;
+    font-family: var(--font-mono);
+    text-decoration: none;
+  }
+
+  /* block-id 锚点:不可见但保留 DOM 节点供 anchor-bus scrollIntoView 定位(S6b) */
+  .atr-obs-block-id {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+}

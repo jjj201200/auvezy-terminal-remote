@@ -241,6 +241,9 @@ importers:
       jsdom:
         specifier: ^26.0.0
         version: 26.1.0
+      remark-parse:
+        specifier: ^11.0.0
+        version: 11.0.0
       sass:
         specifier: ^1.99.0
         version: 1.99.0

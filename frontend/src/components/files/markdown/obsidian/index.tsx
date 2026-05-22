@@ -19,7 +19,7 @@
  * 关闭 frontmatter 子开关时,plugin 直接从 mdast 中 splice 掉 yaml 节点(strip)。
  */
 
-import type { JSX } from 'react';
+import type { JSX, ReactNode } from 'react';
 import type { PluggableList, Plugin } from 'unified';
 import type { Components } from 'react-markdown';
 import type { Root, Yaml } from 'mdast';
@@ -27,6 +27,8 @@ import remarkFrontmatter from 'remark-frontmatter';
 import { visit, SKIP } from 'unist-util-visit';
 import { FrontmatterTable } from './frontmatter.js';
 import { remarkObsidianCallout, CalloutBlock } from './callout.js';
+import { remarkObsidianInline } from './inline-syntax.js';
+import './inline-syntax.module.scss';
 
 export interface ObsidianEffective {
   frontmatter: boolean;
@@ -84,16 +86,38 @@ export function buildObsidianBindings(eff: ObsidianEffective): ObsidianBindings 
     remarkFrontmatter,
     [remarkObsidianFrontmatter, { enabled: eff.frontmatter }],
     [remarkObsidianCallout, { enabled: eff.callout }],
+    [remarkObsidianInline, { enabled: eff.inlineSyntax }],
   ];
 
   // react-markdown 的 components 字段只接受标准 HTML 标签名作为 key 的类型,
-  // 自定义元素名(obs-frontmatter / obs-callout)需用 `unknown` 中转。运行时 react-markdown
-  // 实际支持任意小写带连字符的标签名(因为 mdast→hast 阶段的 hName 直接成为 type)。
+  // 自定义元素名(obs-frontmatter / obs-callout / obs-highlight / obs-comment /
+  // obs-tag / obs-block-id)需用 `unknown` 中转。运行时 react-markdown 实际支持
+  // 任意小写带连字符的标签名(因为 mdast→hast 阶段的 hName 直接成为 type)。
+  //
+  // inline 类节点(highlight/comment/tag/block-id)的样式 class 由 plugin 直接写
+  // 进 hProperties.className,这里组件层只决定结构 + comment 返回 null。
   const components = {
     'obs-frontmatter': ((props: { raw?: string }): JSX.Element => (
       <FrontmatterTable raw={props.raw ?? ''} />
     )),
     'obs-callout': CalloutBlock,
+    // highlight / tag / block-id:transparent wrap children(class 已挂在 hProperties)
+    'obs-highlight': ((props: { children?: ReactNode; className?: string }) => (
+      <mark className={props.className}>{props.children}</mark>
+    )),
+    'obs-tag': ((props: { children?: ReactNode; className?: string }) => (
+      <span className={props.className}>#{props.children}</span>
+    )),
+    'obs-block-id': ((props: { children?: ReactNode; className?: string; 'data-block-id'?: string }) => (
+      <span
+        className={props.className}
+        data-block-id={props['data-block-id']}
+        aria-hidden="true"
+      >
+        {props.children}
+      </span>
+    )),
+    'obs-comment': (() => null),
   } as unknown as Components;
 
   return { remarkPlugins, components };
