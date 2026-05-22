@@ -29,6 +29,7 @@ import { FrontmatterTable } from './frontmatter.js';
 import { remarkObsidianCallout, CalloutBlock } from './callout.js';
 import { remarkObsidianInline } from './inline-syntax.js';
 import './inline-syntax.module.scss';
+import { remarkObsidianLink, WikilinkActive, WikilinkDisabled } from './wikilink.js';
 
 export interface ObsidianEffective {
   frontmatter: boolean;
@@ -81,12 +82,26 @@ const remarkObsidianFrontmatter: Plugin<[RemarkObsidianFrontmatterOptions], Root
  * S3-3 当前只接 frontmatter;后续 task 增量补:S4 加 callout,S5 加 inline-syntax,
  * S6b 加 wikilink,S7 加 embed。
  */
-export function buildObsidianBindings(eff: ObsidianEffective): ObsidianBindings {
+/** wikilink / embed 组件需要的运行时上下文 */
+export interface ObsidianContext {
+  /** 当前 markdown 所在的实例 id */
+  instanceId: string;
+  /** 当前 markdown 文档相对 cwd 的路径(用于 backend resolver shortest-path 启发式) */
+  path: string;
+}
+
+export function buildObsidianBindings(
+  eff: ObsidianEffective,
+  ctx: ObsidianContext,
+): ObsidianBindings {
   const remarkPlugins: PluggableList = [
     remarkFrontmatter,
     [remarkObsidianFrontmatter, { enabled: eff.frontmatter }],
     [remarkObsidianCallout, { enabled: eff.callout }],
     [remarkObsidianInline, { enabled: eff.inlineSyntax }],
+    // wikilink/embed 总是识别(plugin push 与否由 obsidian 总开关决定);
+    // 子开关在渲染层判
+    [remarkObsidianLink, { enabled: true }],
   ];
 
   // react-markdown 的 components 字段只接受标准 HTML 标签名作为 key 的类型,
@@ -118,6 +133,24 @@ export function buildObsidianBindings(eff: ObsidianEffective): ObsidianBindings 
       </span>
     )),
     'obs-comment': (() => null),
+    // wikilink 渲染分支:子开关开 → 可点击 + 解析;关 → 虚线灰显
+    'obs-wikilink': ((props: { target?: string; alias?: string }) =>
+      eff.wikilink ? (
+        <WikilinkActive
+          instanceId={ctx.instanceId}
+          from={ctx.path}
+          target={props.target ?? ''}
+          {...(props.alias ? { alias: props.alias } : {})}
+        />
+      ) : (
+        <WikilinkDisabled target={props.target ?? ''} {...(props.alias ? { alias: props.alias } : {})} />
+      )),
+    // embed 占位 — S7 实现具体分发
+    'obs-embed': ((props: { target?: string }) => (
+      <span style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+        ![[{props.target ?? ''}]]
+      </span>
+    )),
   } as unknown as Components;
 
   return { remarkPlugins, components };

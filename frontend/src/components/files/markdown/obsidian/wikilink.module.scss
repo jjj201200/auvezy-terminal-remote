@@ -1,0 +1,29 @@
+.active {
+  color: var(--color-info);
+  text-decoration: none;
+  border-bottom: 1px solid var(--color-info);
+  cursor: pointer;
+  &:hover {
+    background: var(--color-surface-2);
+  }
+}
+
+.broken {
+  color: var(--color-alarm);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  cursor: help;
+}
+
+.disabled {
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: var(--color-text-muted);
+  cursor: help;
+}
+
+.pending {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}

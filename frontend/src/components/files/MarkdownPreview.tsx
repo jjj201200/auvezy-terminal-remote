@@ -35,7 +35,19 @@ import { useUserConfig } from '../../hooks/useUserConfig.js';
 import { highlight, type ColorScheme } from '../../utils/syntax-highlight.js';
 import { translateFileErr } from './translate-err.js';
 import type { ObsidianBindings, ObsidianEffective } from './markdown/obsidian/index.js';
+import { consumePendingAnchor } from './markdown/obsidian/anchor-bus.js';
 import s from './MarkdownPreview.module.scss';
+
+/**
+ * heading text → slug
+ * 算法:lowercase → 空白替为连字符 → 去除非 \w- 字符。对齐 Obsidian 默认 slugify。
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]/g, '');
+}
 
 export interface MarkdownPreviewProps {
   instanceId: string;
@@ -74,12 +86,14 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
     }
     let cancelled = false;
     void import('./markdown/obsidian/index.js').then((m) => {
-      if (!cancelled) setObsBindings(m.buildObsidianBindings(obsEff));
+      if (!cancelled) {
+        setObsBindings(m.buildObsidianBindings(obsEff, { instanceId, path }));
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [obsEff]);
+  }, [obsEff, instanceId, path]);
 
   const themeName = config.display?.theme;
   const colorScheme: ColorScheme =
@@ -134,8 +148,32 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
       // 给表格外加滚动包装
       return <div className={s.tableWrap}>{props.children && <table>{props.children}</table>}</div>;
     },
+    // heading 注入 data-heading-id 供 anchor-bus scrollIntoView 定位(S6b)
+    h1: (p) => <h1 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h1>,
+    h2: (p) => <h2 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h2>,
+    h3: (p) => <h3 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h3>,
+    h4: (p) => <h4 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h4>,
+    h5: (p) => <h5 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h5>,
+    h6: (p) => <h6 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h6>,
     // blockquote 默认渲染;callout 子开关启用时由 obsidian/callout plugin 接管(见 S4)
   }), [colorScheme]);
+
+  // wikilink 跳转后 consume 目标 anchor(heading/block-id) → scrollIntoView
+  useEffect(() => {
+    if (!raw) return;
+    // 等一帧让 ReactMarkdown 渲染完成 DOM
+    const handle = requestAnimationFrame(() => {
+      const anchor = consumePendingAnchor(instanceId, path);
+      if (!anchor) return;
+      const sel =
+        anchor.kind === 'heading'
+          ? `[data-heading-id="${slugify(anchor.id)}"]`
+          : `[data-block-id="${CSS.escape(anchor.id)}"]`;
+      const el = document.querySelector(sel);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [raw, instanceId, path]);
 
   // 合并 base + obsidian 的 plugin / components
   const remarkPlugins = useMemo<PluggableList>(
