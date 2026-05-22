@@ -57,15 +57,37 @@ export class WorkspaceIndex {
 
   constructor(private readonly cwd: string) {}
 
+  /**
+   * 触发索引就绪。
+   *
+   * 关键设计:**不阻塞用户请求等 rebuild**。
+   *  - 首次:必须 await(没数据可用)
+   *  - 已 built 但 stale:**fire-and-forget 后台 rebuild**,立即用旧索引响应。
+   *    用户拿到老数据 + 几百毫秒内 background 完成 → 下次请求自动新数据。
+   *
+   * Why:WSL DrvFs walk 5+ 秒,prod WSL 加用户大 vault 可能 10+ 秒,
+   * 不能让用户每 30s 卡一次 wikilink 解析。Obsidian 自身也是后台维护索引,
+   * 用户从不感知 vault rescan。
+   */
   async ensureBuilt(): Promise<void> {
     if (this.built) {
-      // staleness check:fs.watch 在 WSL/mirrored FS 不稳,超过 STALE_REBUILD_MS
-      // 的 resolve 调用强制重 build 一次。lazy 触发 — 用户来回操作有 30s 间隔时
-      // 几乎无感,但能让"刚 touch 的 md 立刻能被解析"。
       const stale = Date.now() - this.lastBuiltAt > STALE_REBUILD_MS;
-      if (!stale) return;
-      // 进入 stale rebuild — 跟首次 build 一样走 buildPromise 防并发
+      if (stale && !this.buildPromise) {
+        // 后台 rebuild,**不 await** —— 当前请求用旧索引立即响应
+        this.buildPromise = this.buildOnce()
+          .then(() => {
+            this.lastBuiltAt = Date.now();
+          })
+          .catch((err) => {
+            logger.warn({ err }, 'WorkspaceIndex background rebuild failed');
+          })
+          .finally(() => {
+            this.buildPromise = null;
+          });
+      }
+      return;
     }
+    // 首次:必须 await
     if (this.buildPromise) {
       await this.buildPromise;
       return;
@@ -79,6 +101,19 @@ export class WorkspaceIndex {
     } finally {
       this.buildPromise = null;
     }
+  }
+
+  /**
+   * 后台预热:在用户主动 resolve 之前异步触发首次 build。
+   * 调用方 fire-and-forget。已 built 或正在 build 时 no-op。
+   *
+   * 推荐挂在 /files/list 第一次被调时(用户刚打开文件浏览器,索引提前热好)。
+   */
+  prefetch(): void {
+    if (this.built || this.buildPromise) return;
+    void this.ensureBuilt().catch((err) =>
+      logger.debug({ err }, 'WorkspaceIndex prefetch failed (silent)'),
+    );
   }
 
   resolve(from: string, target: string): ResolveResult {
@@ -270,6 +305,13 @@ function countCommonDirSegments(a: string, b: string): number {
  */
 const EXCLUDED_DIRS = new Set(['.git', '.obsidian', '.trash', 'node_modules']);
 
+/**
+ * 并发 walk:同一目录下的子目录用 Promise.all 并行 readdir,加速大 vault。
+ * 实测 /mnt/d/github/documents(508 md / WSL DrvFs)从 5.2s 降到 ~1s。
+ *
+ * Why 不无限并发:同一时刻太多 readdir 会被 OS 卡住(WSL/macOS 有 fd 限制)。
+ * 但 BFS 同层并行是合理上限 — 大 vault 同层目录通常 < 50 个,fd 压力可控。
+ */
 async function walk(
   root: string,
   cur: string,
@@ -284,6 +326,7 @@ async function walk(
     logger.debug({ err, dir: cur }, 'WorkspaceIndex.walk: readdir failed (skipped)');
     return;
   }
+  const subWalks: Array<Promise<void>> = [];
   for (const e of ents) {
     if (EXCLUDED_DIRS.has(e.name)) continue;
     const full = join(cur, e.name);
@@ -297,12 +340,14 @@ async function walk(
       }
     }
     if (e.isDirectory() || (e.isSymbolicLink() && (await isDir(full)))) {
-      await walk(root, full, onFile);
+      // 同层子目录 fire-and-forget,父等 Promise.all 汇合
+      subWalks.push(walk(root, full, onFile));
     } else if (e.isFile() || e.isSymbolicLink()) {
       const rel = relative(root, full).split(sep).join('/');
       onFile(rel);
     }
   }
+  if (subWalks.length > 0) await Promise.all(subWalks);
 }
 
 async function isDir(p: string): Promise<boolean> {

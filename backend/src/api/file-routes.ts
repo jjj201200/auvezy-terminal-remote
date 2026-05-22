@@ -98,6 +98,10 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
       ip: req.ip, elapsedMs: Date.now() - tStart,
     }, '/api/files audit');
     res.json(payload);
+    // 预热 wikilink 索引(用户进了文件浏览器,大概率会点 .md → 解析 wikilink)。
+    // fire-and-forget,首次 build 在用户浏览目录的几百毫秒里就跑起来,
+    // 等他真点 wikilink 时索引已 ready,无白屏等待。
+    getWikilinkIndex(ctx.instanceId, ctx.cwd).prefetch();
   }));
 
   router.get('/files/stat', authModule.requireAuth, requireRate(fileLimiter), wrap(async (req, res) => {
