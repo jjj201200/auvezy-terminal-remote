@@ -121,6 +121,7 @@ export const zhCN: Messages = {
       general: '常规',
       actions: '操作',
       display: '显示',
+      integrations: '集成',
       notifications: '通知',
       other: '其他',
       about: '关于',

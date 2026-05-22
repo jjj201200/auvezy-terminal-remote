@@ -44,6 +44,7 @@ type TabKey =
   | 'general'
   | 'actions'
   | 'display'
+  | 'integrations'
   | 'other'
   | 'about'
   | 'notifications';
@@ -170,6 +171,7 @@ export function SettingsModal({
       { id: 'general', title: t('settings.tab.general') },
       { id: 'actions', title: t('settings.tab.actions') },
       { id: 'display', title: t('settings.tab.display') },
+      { id: 'integrations', title: t('settings.tab.integrations') },
       { id: 'other', title: t('settings.tab.other') },
       { id: 'about', title: t('settings.tab.about') },
     ],
@@ -224,15 +226,17 @@ export function SettingsModal({
           onChange={(display) => setDraft({ ...draft, display })}
         />
       )}
+      {tab === 'integrations' && (
+        <IntegrationsSettings
+          value={draft.integrations}
+          onChange={(integrations) => setDraft({ ...draft, integrations })}
+        />
+      )}
       {tab === 'other' && (
         <div className={s.otherStack}>
           <NetworkSettings
             value={draft.network}
             onChange={(network) => setDraft({ ...draft, network })}
-          />
-          <IntegrationsSettings
-            value={draft.integrations}
-            onChange={(integrations) => setDraft({ ...draft, integrations })}
           />
           <DevSettings value={prefsDraft} onChange={setPrefsDraft} />
         </div>

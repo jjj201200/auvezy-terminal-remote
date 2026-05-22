@@ -126,6 +126,7 @@ export const en: Messages = {
       general: 'General',
       actions: 'Actions',
       display: 'Display',
+      integrations: 'Integrations',
       notifications: 'Notifications',
       other: 'Other',
       about: 'About',

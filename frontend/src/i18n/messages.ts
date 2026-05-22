@@ -160,6 +160,7 @@ export interface Messages {
       general: string;
       actions: string;
       display: string;
+      integrations: string;
       notifications: string;
       other: string;
       about: string;
