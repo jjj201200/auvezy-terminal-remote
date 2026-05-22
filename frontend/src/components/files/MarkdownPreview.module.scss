@@ -29,17 +29,27 @@
   -moz-osx-font-smoothing: grayscale;
 
   // 选中态用 accent 反白(项目终端美学)
-  ::selection { background: var(--color-accent); color: var(--color-bg-canvas); }
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-bg-canvas);
+  }
 }
 
 // ──── Section heads ────
-.root h1, .root h2, .root h3, .root h4, .root h5, .root h6 {
+.root h1,
+.root h2,
+.root h3,
+.root h4,
+.root h5,
+.root h6 {
   font-family: var(--font-sans);
   font-weight: 700;
   color: var(--color-fg);
   line-height: var(--lh-tight);
   margin: var(--sp-5) 0 var(--sp-3);
+  padding-top: var(--sp-6);
 }
+
 .root h1 {
   font-size: var(--fs-xl);
   text-transform: uppercase;
@@ -48,23 +58,28 @@
   padding-bottom: var(--sp-2);
   position: relative;
 }
+
 .root h1::after {
   content: '';
   position: absolute;
-  left: 0; right: 0; bottom: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   height: 1px;
   background: linear-gradient(90deg,
-    var(--color-fg) 0,
-    var(--color-fg) 64px,
-    var(--color-border) 64px,
-    var(--color-border) 100%);
+      var(--color-fg) 0,
+      var(--color-fg) 64px,
+      var(--color-border) 64px,
+      var(--color-border) 100%);
 }
+
 .root h2 {
   font-size: var(--fs-lg);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-top: var(--sp-6);
 }
+
 .root h3 {
   font-size: var(--fs-md);
   color: var(--color-fg-dim);
@@ -72,23 +87,27 @@
   padding-left: var(--sp-3);
   position: relative;
 }
+
 .root h3::before {
   content: '▸';
   position: absolute;
   left: 0;
   color: var(--color-accent);
 }
+
 .root h4 {
   font-size: var(--fs-sm);
   color: var(--color-fg-low);
   font-weight: 600;
   padding-left: var(--sp-5);
 }
+
 .root h5 {
   font-size: var(--fs-sm);
   color: var(--color-fg-low);
   padding-left: var(--sp-5);
 }
+
 .root h6 {
   font-size: var(--fs-xs);
   color: var(--color-fg-low);
@@ -98,15 +117,22 @@
 }
 
 // ──── 正文左缩进(man-page 风);.table-wrap / admonition 单独走 margin-left ────
-.root > p, .root > ul, .root > ol, .root > blockquote,
-.root > pre, .root > .figure,
-.root > details, .root > dl, .root > .math-block, .root > .footnotes {
+.root>p,
+.root>ul,
+.root>ol,
+.root>blockquote,
+.root>pre,
+.root>.figure,
+.root>details,
+.root>dl,
+.root>.math-block,
+.root>.footnotes {
   padding-left: var(--sp-5);
   padding-right: 0;
 }
-.root > .tableWrap,
-.root > .admonition,
-.root > blockquote.alert {
+
+.root>.tableWrap,
+.root>.admonition {
   margin-left: var(--sp-5);
 }
 
@@ -125,26 +151,44 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
 .root a:hover {
   background: var(--color-accent-soft);
   border-bottom-style: solid;
 }
-.root a::before { content: '['; color: var(--color-fg-low); }
-.root a::after { content: ']'; color: var(--color-fg-low); }
 
-.root strong { color: var(--color-fg); font-weight: 700; }
+.root a::before {
+  content: '[';
+  color: var(--color-fg-low);
+}
+
+.root a::after {
+  content: ']';
+  color: var(--color-fg-low);
+}
+
+.root strong {
+  color: var(--color-fg);
+  font-weight: 700;
+}
+
 .root em {
   color: #d2a8ff; // magenta — 与 mockup 一致
   font-style: italic;
 }
-.root del { color: var(--color-fg-low); text-decoration-thickness: 1px; }
+
+.root del {
+  color: var(--color-fg-low);
+  text-decoration-thickness: 1px;
+}
+
 .root mark {
   background: var(--color-warn-soft);
   color: var(--color-warn);
   padding: 0 4px;
 }
 
-.root :not(pre) > code {
+.root :not(pre)>code {
   font-family: var(--font-mono);
   font-size: 0.92em;
   background: var(--color-bg-elev);
@@ -176,7 +220,8 @@
   padding: 0;
   overflow: hidden;
 }
-.root pre > .codeHeader {
+
+.root pre>.codeHeader {
   font-family: var(--font-mono);
   font-size: var(--fs-2xs);
   color: var(--color-fg-low);
@@ -188,25 +233,32 @@
   justify-content: space-between;
   gap: var(--sp-3);
 }
-.root pre > .codeHeader .meta {
+
+.root pre>.codeHeader .meta {
   display: flex;
   gap: var(--sp-3);
   align-items: center;
   min-width: 0;
 }
-.root pre > .codeHeader .lang { color: var(--color-accent); }
-.root pre > .codeHeader .path {
+
+.root pre>.codeHeader .lang {
+  color: var(--color-accent);
+}
+
+.root pre>.codeHeader .path {
   color: var(--color-fg-low);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.root pre > .codeHeader .actions {
+
+.root pre>.codeHeader .actions {
   display: inline-flex;
   gap: var(--sp-1);
   flex-shrink: 0;
 }
-.root pre > .codeHeader .iconBtn {
+
+.root pre>.codeHeader .iconBtn {
   appearance: none;
   background: transparent;
   border: none;
@@ -222,14 +274,23 @@
   line-height: 1;
   @include m.transition(color var(--dur-fast), background var(--dur-fast));
 }
-.root pre > .codeHeader .iconBtn:hover {
+
+.root pre>.codeHeader .iconBtn:hover {
   color: var(--color-accent);
   background: var(--color-accent-soft);
 }
-.root pre > .codeHeader .iconBtn svg { width: 12px; height: 12px; display: block; }
-.root pre > .codeHeader .iconBtn[data-copied='true'] { color: var(--color-ok); }
 
-.root pre > code {
+.root pre>.codeHeader .iconBtn svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+.root pre>.codeHeader .iconBtn[data-copied='true'] {
+  color: var(--color-ok);
+}
+
+.root pre>code {
   display: block;
   padding: var(--sp-3) var(--sp-3) var(--sp-3) 0;
   font-family: var(--font-mono);
@@ -241,6 +302,7 @@
   // 渲染成额外的 line 高度。改 normal 让 \n 折叠,字符级空白由 .lineContent 保留
   white-space: normal;
 }
+
 // .line / .shikiLineNumber / .lineContent 由 Shiki transformer 输出 class
 // 都不在 css modules scope,要 :global 选择
 .root pre :global(.line) {
@@ -249,12 +311,14 @@
   column-gap: var(--sp-3);
   tab-size: 2;
 }
+
 .root pre :global(.shiki-line-number) {
   color: var(--color-fg-low);
   user-select: none;
   text-align: right;
   padding-left: var(--sp-3);
 }
+
 .root pre :global(.line-content) {
   white-space: pre;
   tab-size: 2;
@@ -266,10 +330,23 @@
   padding-left: 2ch;
   position: relative;
 }
-.root pre :global(.line.diff-add) { background: rgba(126, 231, 135, 0.08); }
-.root pre :global(.line.diff-remove) { background: rgba(255, 123, 114, 0.08); }
-.root pre :global(.line.diff-add) :global(.shiki-line-number) { color: #7ee787; }
-.root pre :global(.line.diff-remove) :global(.shiki-line-number) { color: var(--color-alarm); }
+
+.root pre :global(.line.diff-add) {
+  background: rgba(126, 231, 135, 0.08);
+}
+
+.root pre :global(.line.diff-remove) {
+  background: rgba(255, 123, 114, 0.08);
+}
+
+.root pre :global(.line.diff-add) :global(.shiki-line-number) {
+  color: #7ee787;
+}
+
+.root pre :global(.line.diff-remove) :global(.shiki-line-number) {
+  color: var(--color-alarm);
+}
+
 .root pre :global(.line.diff-add) :global(.line-content)::before {
   content: '+';
   color: #7ee787;
@@ -277,6 +354,7 @@
   left: 0;
   font-weight: 700;
 }
+
 .root pre :global(.line.diff-remove) :global(.line-content)::before {
   content: '-';
   color: var(--color-alarm);
@@ -286,34 +364,45 @@
 }
 
 // ──── Lists ────
-.root ul, .root ol {
+.root ul,
+.root ol {
   padding-left: var(--sp-5);
   margin: var(--sp-2) 0;
 }
-.root ul { list-style: none; }
-.root ul > li {
+
+.root ul {
+  list-style: none;
+}
+
+.root ul>li {
   position: relative;
   padding-left: var(--sp-4);
   margin: 2px 0;
 }
-.root ul > li::before {
+
+.root ul>li::before {
   content: '·';
   color: var(--color-accent);
   position: absolute;
   left: 4px;
   font-weight: 700;
 }
-.root ul ul > li::before {
+
+.root ul ul>li::before {
   content: '◦';
   color: var(--color-fg-low);
   font-size: 0.85em;
   top: 1px;
 }
-.root li > ul, .root li > ol {
+
+.root li>ul,
+.root li>ol {
   padding-left: 0;
   margin: 2px 0;
 }
-.root li > ul > li, .root li > ol > li {
+
+.root li>ul>li,
+.root li>ol>li {
   padding-left: var(--sp-4);
 }
 
@@ -321,13 +410,15 @@
   list-style: none;
   counter-reset: olcount;
 }
-.root ol > li {
+
+.root ol>li {
   counter-increment: olcount;
   position: relative;
   padding-left: 32px;
   margin: 2px 0;
 }
-.root ol > li::before {
+
+.root ol>li::before {
   content: counter(olcount, decimal-leading-zero) '.';
   position: absolute;
   left: 0;
@@ -335,15 +426,22 @@
   color: var(--color-fg-low);
   font-variant-numeric: tabular-nums;
 }
-.root li > ol > li { padding-left: 32px; }
+
+.root li>ol>li {
+  padding-left: 32px;
+}
 
 // Task list — react-markdown + remark-gfm 输出 <li class="task-list-item">
 .root ul :global(li.task-list-item) {
   padding-left: var(--sp-4);
   list-style: none;
 }
-.root ul :global(li.task-list-item)::before { content: ''; }
-.root ul :global(li.task-list-item) > input[type='checkbox'] {
+
+.root ul :global(li.task-list-item)::before {
+  content: '';
+}
+
+.root ul :global(li.task-list-item)>input[type='checkbox'] {
   appearance: none;
   position: absolute;
   left: 0;
@@ -358,11 +456,13 @@
   margin: 0;
   cursor: default;
 }
-.root ul :global(li.task-list-item) > input[type='checkbox']:checked {
+
+.root ul :global(li.task-list-item)>input[type='checkbox']:checked {
   border-color: #7ee787;
   background: var(--color-bg-elev);
 }
-.root ul :global(li.task-list-item) > input[type='checkbox']:checked::after {
+
+.root ul :global(li.task-list-item)>input[type='checkbox']:checked::after {
   content: '✓';
   color: #7ee787;
   font-family: var(--font-mono);
@@ -380,42 +480,20 @@
   color: var(--color-fg-dim);
   background: linear-gradient(90deg, var(--color-accent-soft), transparent 60%);
 }
-.root blockquote p { padding-left: 0; margin: var(--sp-1) 0; }
+
+.root blockquote p {
+  padding-left: 0;
+  margin: var(--sp-1) 0;
+}
+
 .root blockquote blockquote {
   margin-left: 0;
   border-left-color: #d2a8ff; // magenta — 嵌套区分
   background: linear-gradient(90deg, rgba(210, 168, 255, 0.08), transparent 60%);
 }
 
-// ──── GFM Alert(> [!NOTE]):复用 blockquote 样式但加色边类型 ────
-.root blockquote.alert {
-  margin-left: var(--sp-5);
-  margin-top: var(--sp-3);
-  margin-bottom: var(--sp-3);
-  border-left: 3px solid var(--color-accent);
-  background: var(--color-bg-elev);
-  padding: var(--sp-1) var(--sp-3);
-  color: var(--color-fg);
-}
-.root blockquote.alertNote { border-left-color: var(--color-accent); }
-.root blockquote.alertTip { border-left-color: #7ee787; }
-.root blockquote.alertWarning { border-left-color: var(--color-warn); }
-.root blockquote.alertCaution { border-left-color: #ff7b72; }
-.root blockquote.alertImportant { border-left-color: #d2a8ff; }
-.root blockquote.alert .alertTitle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  font-size: var(--fs-sm);
-  margin: var(--sp-1) 0;
-  text-transform: capitalize;
-}
-.root blockquote.alertNote .alertTitle { color: var(--color-accent); }
-.root blockquote.alertTip .alertTitle { color: #7ee787; }
-.root blockquote.alertWarning .alertTitle { color: var(--color-warn); }
-.root blockquote.alertCaution .alertTitle { color: #ff7b72; }
-.root blockquote.alertImportant .alertTitle { color: #d2a8ff; }
+// GFM Alert 旧实现已被 Obsidian callout 替换(13 类超集,详见
+// frontend/src/components/files/markdown/obsidian/callout.module.scss)。
 
 // ──── Admonition(自定义语法:用户在 md 里用 ::: 围栏)────
 // 当前实现暂不支持自定义语法 — 留 class 占位,需要时接 remark-directive
@@ -426,10 +504,23 @@
   background: var(--color-bg-elev);
   overflow: hidden;
 }
-.root .admonitionNote { border-left-color: var(--color-accent); }
-.root .admonitionTip { border-left-color: #7ee787; }
-.root .admonitionWarn { border-left-color: var(--color-warn); }
-.root .admonitionDanger { border-left-color: #ff7b72; }
+
+.root .admonitionNote {
+  border-left-color: var(--color-accent);
+}
+
+.root .admonitionTip {
+  border-left-color: #7ee787;
+}
+
+.root .admonitionWarn {
+  border-left-color: var(--color-warn);
+}
+
+.root .admonitionDanger {
+  border-left-color: #ff7b72;
+}
+
 .root .admonitionTag {
   padding: var(--sp-1) var(--sp-3);
   font-weight: 700;
@@ -438,12 +529,31 @@
   text-transform: uppercase;
   background: var(--color-bg-hover);
 }
-.root .admonitionNote .admonitionTag { color: var(--color-accent); }
-.root .admonitionTip .admonitionTag { color: #7ee787; }
-.root .admonitionWarn .admonitionTag { color: var(--color-warn); }
-.root .admonitionDanger .admonitionTag { color: #ff7b72; }
-.root .admonitionBody { padding: var(--sp-2) var(--sp-3); }
-.root .admonitionBody p { margin: var(--sp-1) 0; padding-left: 0; }
+
+.root .admonitionNote .admonitionTag {
+  color: var(--color-accent);
+}
+
+.root .admonitionTip .admonitionTag {
+  color: #7ee787;
+}
+
+.root .admonitionWarn .admonitionTag {
+  color: var(--color-warn);
+}
+
+.root .admonitionDanger .admonitionTag {
+  color: #ff7b72;
+}
+
+.root .admonitionBody {
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.root .admonitionBody p {
+  margin: var(--sp-1) 0;
+  padding-left: 0;
+}
 
 // ──── Table ────
 .root .tableWrap {
@@ -452,6 +562,7 @@
   border: 1px solid var(--color-border);
   scrollbar-color: var(--color-border-hi) var(--color-bg-elev);
 }
+
 .root table {
   border-collapse: collapse;
   margin: 0;
@@ -459,15 +570,25 @@
   width: 100%;
   font-variant-numeric: tabular-nums;
 }
-.root th, .root td {
+
+.root th,
+.root td {
   padding: var(--sp-1) var(--sp-3);
   text-align: left;
   border-right: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
-.root th:last-child, .root td:last-child { border-right: none; }
-.root tbody tr:last-child td { border-bottom: none; }
+
+.root th:last-child,
+.root td:last-child {
+  border-right: none;
+}
+
+.root tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .root th {
   background: var(--color-bg-elev);
   color: var(--color-fg);
@@ -477,8 +598,14 @@
   font-size: var(--fs-2xs);
   letter-spacing: 0.05em;
 }
-.root tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.012); }
-.root tbody tr:hover { background: var(--color-accent-soft); }
+
+.root tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.root tbody tr:hover {
+  background: var(--color-accent-soft);
+}
 
 // ──── HR ────
 .root hr {
@@ -488,6 +615,7 @@
   margin: var(--sp-5) var(--sp-5);
   position: relative;
 }
+
 .root hr::after {
   content: '* * *';
   position: absolute;
@@ -509,22 +637,27 @@
   font-size: var(--fs-xs);
   color: var(--color-fg-low);
 }
-.root .figure svg, .root .figure img {
+
+.root .figure svg,
+.root .figure img {
   display: block;
   margin: 0 auto;
   max-width: 100%;
   height: auto;
 }
+
 .root .figure figcaption {
   margin-top: var(--sp-2);
   text-align: center;
 }
+
 .root .figure figcaption::before {
   content: 'Fig. ';
   color: var(--color-accent);
   font-weight: 700;
 }
-.root p > img:only-child {
+
+.root p>img:only-child {
   display: block;
   margin: var(--sp-3) auto;
   max-width: 100%;
@@ -535,6 +668,7 @@
 .root details {
   margin: var(--sp-3) 0;
 }
+
 .root details summary {
   cursor: pointer;
   padding: var(--sp-1) 0;
@@ -543,7 +677,11 @@
   list-style: none;
   user-select: none;
 }
-.root details summary::-webkit-details-marker { display: none; }
+
+.root details summary::-webkit-details-marker {
+  display: none;
+}
+
 .root details summary::before {
   content: '▸';
   display: inline-block;
@@ -551,8 +689,12 @@
   color: var(--color-accent);
   @include m.transition(transform var(--dur-fast));
 }
-.root details[open] summary::before { transform: rotate(90deg); }
-.root details > :not(summary) {
+
+.root details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.root details> :not(summary) {
   margin-top: var(--sp-1);
 }
 
@@ -564,12 +706,17 @@
   column-gap: var(--sp-4);
   row-gap: var(--sp-1);
 }
+
 .root dt {
   font-family: var(--font-mono);
   color: var(--color-accent);
   font-size: var(--fs-sm);
 }
-.root dd { margin: 0; color: var(--color-fg-dim); }
+
+.root dd {
+  margin: 0;
+  color: var(--color-fg-dim);
+}
 
 // ──── Math(KaTeX 渲染产物用 .katex / .katex-display 类) ────
 .root :global(.katex-display) {
@@ -579,6 +726,7 @@
   overflow-x: auto;
   text-align: center;
 }
+
 .root :global(.katex) {
   color: var(--color-fg);
   font-size: 1em;
@@ -592,15 +740,28 @@
   font-size: var(--fs-sm);
   color: var(--color-fg-dim);
 }
-.root :global(.footnotes) ol { padding-left: var(--sp-5); }
-.root :global(.footnotes) li { padding-left: 32px; }
+
+.root :global(.footnotes) ol {
+  padding-left: var(--sp-5);
+}
+
+.root :global(.footnotes) li {
+  padding-left: 32px;
+}
+
 .root sup a {
   color: var(--color-accent);
   border: none;
   padding: 0 2px;
 }
-.root sup a::before { content: '['; }
-.root sup a::after { content: ']'; }
+
+.root sup a::before {
+  content: '[';
+}
+
+.root sup a::after {
+  content: ']';
+}
 
 // ──── 错误 / 提示 ────
 .root .errorState {
@@ -608,6 +769,7 @@
   color: var(--color-alarm);
   background: var(--color-bg-elev);
 }
+
 .root .loading {
   padding: var(--sp-4);
   color: var(--color-fg-low);

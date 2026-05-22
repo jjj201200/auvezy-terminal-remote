@@ -5,6 +5,65 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 待发布
+
+主题:**Obsidian 集成** — .md 预览升级为完整 Obsidian-flavored 渲染;同时
+重构「集成」概念,把渲染相关功能模块提升为顶层「集成」分类的一类(与 Claude Code
+这类运行时集成并列)。
+
+### Added
+
+- **Obsidian 渲染集成**:.md / .markdown 文件预览全套语法升级
+  - **Frontmatter Properties 表**(顶部 YAML 块):类型推断(text/number/checkbox/
+    date/list/link 6 种),tags/aliases/cssclass 强制 array,折叠/展开
+  - **13 类 Callout**(替换原 5 类 GFM Alert):note/abstract/info/todo/tip/
+    success/question/warning/failure/danger/bug/example/quote + 14 种别名(tldr/
+    summary/hint/check/done/help/faq/caution/attention/fail/missing/error/cite/
+    important);支持 `+`/`-` collapsible 与自定义标题
+  - **Wikilink 跨文件跳转**:`[[Note]]` / `[[Note|alias]]` / `[[Note#Heading]]` /
+    `[[Note#^block-id]]`;backend `WorkspaceIndex` 全工作目录短名查找 + shortest-path
+    启发式(对齐 Obsidian);broken 红虚线 / ambiguous tooltip / 跳转后 scrollIntoView
+    锚点
+  - **Embed 5 类分发**:`![[image]]`(jpg/png/gif/webp/svg)/ `![[md]]`(递归嵌入,
+    默认折叠)/ `![[pdf]]`(iframe + 外链)/ `![[audio]]`(mp3/wav/ogg/flac)/
+    `![[video]]`(mp4/webm/mov);循环检测 + 深度上限 5
+  - **Inline 语法**:`==高亮==`(yellow `<mark>`)/ `%%注释%%`(隐藏)/
+    `#tag`(letter-start;`#123` 等纯数字不识别)/ `^block-id`(行尾锚点)
+- **「集成」顶层分类升格**:从原 SettingsModal 「其他」tab 抽出为独立 tab;
+  分两组 — **运行时集成**(Claude Code,原状)与 **渲染集成**(Markdown / Obsidian,
+  各自独立 enabled)
+- 状态条:当前无 active 实例时显示「无实例」灰色 pill(原为永远 Connecting 黄色)
+
+### Changed
+
+- `display.markdownPreview` 偏好字段迁移到 `integrations.rendering.markdown.enabled`;
+  旧字段保留 3 个 minor(0.9 / 0.10 / 0.11),0.12 删除。`ensureDefaultUserConfig`
+  双写迁移:旧字段值优先复制到新位置,新值存在时以新为准
+- `MarkdownPreview` 通过二级 lazy import 加载 obsidian 子模块,关闭 Obsidian 集成
+  的用户不付 js-yaml + 自写 plugin 的体积代价
+- `files-api.ts` 改用绝对路径 `/api/files/*`(file-routes 是 broker 系统级 API,
+  相对路径在 `/i/<id>/` 下会被错误反代到 worker → 404)
+- `vite.config.ts` `/i/<id>/` 纯 HTML 路径 bypass 代理,走 vite 自己 SPA fallback
+  (dev 模式 broker 没 frontend-dist,无法 fallback)
+
+### Backend
+
+- 新增 `POST /api/files/resolve-links` 批量端点(wikilink 解析,最多 200 targets/次)
+- `WorkspaceIndex` 内存索引:lazy build,fs.watch(recursive)+ 5min poll 兜底,
+  shortest-path 启发式 tie-break 用字节序(跨平台稳定)
+
+### Docs
+
+- `docs/plans/obsidian-integration/` 完整设计稿 + 4 ADR + 9 阶段 progress
+
+### 详见
+
+- 设计稿:`docs/plans/obsidian-integration/design.md`
+- ADR-001:渲染集成 vs 运行时集成
+- ADR-002:Obsidian 强依赖 Markdown
+- ADR-003:wikilink 解析算法
+- ADR-004:embed 循环与深度限制
+
 ## [0.8.0] - 2026-05-22
 
 主题:**文件浏览体验整轮升级**(Shiki 行号 / 虚拟滚动 / 搜索秒回 / Markdown 富文本预览),
