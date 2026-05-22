@@ -145,9 +145,9 @@
 
 // ──── Inline ────
 .root a {
-  color: var(--color-accent);
+  color: var(--color-link);
   text-decoration: none;
-  border-bottom: 1px dotted var(--color-accent);
+  border-bottom: 1px dotted var(--color-link);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -168,8 +168,9 @@
 }
 
 .root strong {
-  color: var(--color-fg);
-  font-weight: 700;
+  color: var(--color-accent);
+  font-weight: 400;
+  padding: 0 var(--sp-2);
 }
 
 .root em {

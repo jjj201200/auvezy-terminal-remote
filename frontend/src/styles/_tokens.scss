@@ -71,6 +71,7 @@ $alarm:        #ff6b6b;   // 错误（珊瑚红，不刺眼）
 $warn:         #ffb84d;   // 警告（琥珀）
 $ok:           $accent;   // 成功 = 主 accent（不引入新色）
 $info:         #6cb6ff;   // 信息(柔和蓝,与 alarm/warn 区分,亮度匹配整体暗背景)
+$link:         #87ceeb;   // 链接(天蓝 sky blue,跟 $info 同色域但更亮一档;独立 token 让链接配色与 accent/info 解耦)
 
 // soft 半透明底:用于 inline 提示条背景。沿用 $accent-soft 同款 0.10 alpha
 $warn-soft:    rgba(255, 184, 77, 0.10);
@@ -260,6 +261,7 @@ $z-toast:    60;
   --color-ok:           #{$ok};
   --color-info:         #{$info};
   --color-info-soft:    #{$info-soft};
+  --color-link:         #{$link};
   --color-terminal-red: #{$terminal-red};
 
   --color-overlay-bg:   #{$overlay-bg};
