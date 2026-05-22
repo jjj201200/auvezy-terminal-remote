@@ -26,6 +26,7 @@ import type { Root, Yaml } from 'mdast';
 import remarkFrontmatter from 'remark-frontmatter';
 import { visit, SKIP } from 'unist-util-visit';
 import { FrontmatterTable } from './frontmatter.js';
+import { remarkObsidianCallout, CalloutBlock } from './callout.js';
 
 export interface ObsidianEffective {
   frontmatter: boolean;
@@ -82,15 +83,17 @@ export function buildObsidianBindings(eff: ObsidianEffective): ObsidianBindings 
   const remarkPlugins: PluggableList = [
     remarkFrontmatter,
     [remarkObsidianFrontmatter, { enabled: eff.frontmatter }],
+    [remarkObsidianCallout, { enabled: eff.callout }],
   ];
 
   // react-markdown 的 components 字段只接受标准 HTML 标签名作为 key 的类型,
-  // 自定义元素名(obs-frontmatter)需用 `unknown` 中转。运行时 react-markdown
+  // 自定义元素名(obs-frontmatter / obs-callout)需用 `unknown` 中转。运行时 react-markdown
   // 实际支持任意小写带连字符的标签名(因为 mdast→hast 阶段的 hName 直接成为 type)。
   const components = {
     'obs-frontmatter': ((props: { raw?: string }): JSX.Element => (
       <FrontmatterTable raw={props.raw ?? ''} />
     )),
+    'obs-callout': CalloutBlock,
   } as unknown as Components;
 
   return { remarkPlugins, components };
