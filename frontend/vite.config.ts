@@ -102,11 +102,29 @@ export default defineConfig({
         target: 'http://localhost:3737',
         changeOrigin: true,
       },
-      // `/i/<id>/ws` 与 `/i/<id>/api/...`：实例特定路径，broker 接管反代
+      // `/i/<id>/ws` 与 `/i/<id>/api/...`：实例特定路径，broker 接管反代。
+      //
+      // 但 dev 模式下，纯 `/i/<id>/` HTML 路径必须由 vite 自己 serve SPA
+      // （broker dev 模式没有 frontend-dist，无法 fallback）。bypass 返回 '/index.html'
+      // 让 vite 渲染 SPA；前端 router 拿 URL 里的 instanceId 切实例。
       '/i/': {
         target: 'http://localhost:3737',
         ws: true,
         changeOrigin: true,
+        bypass(req) {
+          // 只让 /i/<id>/api/* 与 /i/<id>/ws* 走代理；其它 /i/<id>/... 落回 vite SPA
+          const url = req.url ?? '';
+          const m = /^\/i\/[^/]+\/(.*)$/.exec(url);
+          if (!m) {
+            // /i/<id>（无尾斜杠）→ vite SPA
+            return '/index.html';
+          }
+          const rest = m[1] ?? '';
+          if (rest.startsWith('api/') || rest === 'api' || rest === 'ws' || rest.startsWith('ws')) {
+            return undefined; // 走代理到 broker
+          }
+          return '/index.html';
+        },
       },
       // 兼容老路径 /ws（attach 客户端 / 旧 webapp）；新前端不再使用
       '/ws': {
