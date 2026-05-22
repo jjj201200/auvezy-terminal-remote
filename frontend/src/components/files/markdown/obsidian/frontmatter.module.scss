@@ -1,0 +1,115 @@
+.table {
+  margin: 0 0 1.5rem;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface-2);
+  font-size: 13px;
+}
+
+.header {
+  margin: 0 0 8px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-text);
+  width: 100%;
+  text-align: left;
+}
+
+.chev {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.count {
+  color: var(--color-text-muted);
+  margin-left: 4px;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+.row {
+  display: contents;
+}
+
+.kindIcon {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: center;
+  width: 16px;
+}
+
+.key {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.val {
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: var(--color-surface-3);
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.nullVal {
+  color: var(--color-text-muted);
+}
+
+.error {
+  margin: 0 0 1.5rem;
+  padding: 12px 16px;
+  border: 1px solid var(--color-alarm);
+  border-radius: 6px;
+  background: var(--color-surface-2);
+  color: var(--color-alarm);
+  font-size: 13px;
+}
+
+.errorMsg {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.empty {
+  margin: 0 0 1.5rem;
+  padding: 8px 16px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 13px;
+}
