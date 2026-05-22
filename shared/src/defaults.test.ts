@@ -205,3 +205,38 @@ describe('rendering integration defaults', () => {
     expect(DEFAULT_INTEGRATIONS.rendering.obsidian.inlineSyntax).toBe(true);
   });
 });
+
+describe('rendering integration migration', () => {
+  it('migrates legacy display.markdownPreview=false to rendering.markdown.enabled=false when new field absent', () => {
+    const input = {
+      display: { markdownPreview: false },
+    } as unknown as Parameters<typeof ensureDefaultUserConfig>[0];
+    const out = ensureDefaultUserConfig(input);
+    expect(out.integrations.rendering?.markdown?.enabled).toBe(false);
+    // 旧字段保留(双写窗口)
+    expect(out.display.markdownPreview).toBe(false);
+  });
+
+  it('prefers new rendering.markdown.enabled over legacy display.markdownPreview', () => {
+    const input = {
+      display: { markdownPreview: false },
+      integrations: { rendering: { markdown: { enabled: true } } },
+    } as unknown as Parameters<typeof ensureDefaultUserConfig>[0];
+    const out = ensureDefaultUserConfig(input);
+    expect(out.integrations.rendering?.markdown?.enabled).toBe(true);
+  });
+
+  it('fills obsidian sub-toggles with defaults when partially configured', () => {
+    const input = {
+      integrations: { rendering: { obsidian: { wikilink: false } } },
+    } as unknown as Parameters<typeof ensureDefaultUserConfig>[0];
+    const out = ensureDefaultUserConfig(input);
+    const obs = out.integrations.rendering?.obsidian;
+    expect(obs?.enabled).toBe(true);
+    expect(obs?.wikilink).toBe(false);
+    expect(obs?.frontmatter).toBe(true);
+    expect(obs?.embed).toBe(true);
+    expect(obs?.callout).toBe(true);
+    expect(obs?.inlineSyntax).toBe(true);
+  });
+});

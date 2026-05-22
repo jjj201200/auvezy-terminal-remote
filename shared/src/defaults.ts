@@ -824,6 +824,49 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
   const ccUserEvents =
     rawIntegrations?.perModule?.['claude-code']?.events ?? {};
   const ccDefaults = DEFAULT_INTEGRATIONS.perModule['claude-code'].events;
+
+  // 渲染集成 — 兼容 0.8.x:display.markdownPreview 是旧位置,0.9 起搬到
+  // integrations.rendering.markdown.enabled。新字段存在则优先用新的;旧字段保留
+  // 三个 minor(0.9/0.10/0.11),0.12 删除(详见 design.md §4.3)。
+  const userRenderingMd = rawIntegrations?.rendering?.markdown?.enabled;
+  const renderingMdEnabled =
+    typeof userRenderingMd === 'boolean'
+      ? userRenderingMd
+      : typeof rawDisplay?.markdownPreview === 'boolean'
+        ? rawDisplay.markdownPreview
+        : DEFAULT_INTEGRATIONS.rendering.markdown.enabled;
+  const userObsidian = rawIntegrations?.rendering?.obsidian;
+  const obsDefaults = DEFAULT_INTEGRATIONS.rendering.obsidian;
+  const rendering: RenderingIntegrationPrefs = {
+    markdown: { enabled: renderingMdEnabled },
+    obsidian: {
+      enabled:
+        typeof userObsidian?.enabled === 'boolean'
+          ? userObsidian.enabled
+          : obsDefaults.enabled,
+      frontmatter:
+        typeof userObsidian?.frontmatter === 'boolean'
+          ? userObsidian.frontmatter
+          : obsDefaults.frontmatter,
+      wikilink:
+        typeof userObsidian?.wikilink === 'boolean'
+          ? userObsidian.wikilink
+          : obsDefaults.wikilink,
+      embed:
+        typeof userObsidian?.embed === 'boolean'
+          ? userObsidian.embed
+          : obsDefaults.embed,
+      callout:
+        typeof userObsidian?.callout === 'boolean'
+          ? userObsidian.callout
+          : obsDefaults.callout,
+      inlineSyntax:
+        typeof userObsidian?.inlineSyntax === 'boolean'
+          ? userObsidian.inlineSyntax
+          : obsDefaults.inlineSyntax,
+    },
+  };
+
   const integrations: IntegrationsPrefs = {
     enabled:
       typeof rawIntegrations?.enabled === 'boolean'
@@ -859,6 +902,7 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
         },
       },
     },
+    rendering,
   };
 
   return {
