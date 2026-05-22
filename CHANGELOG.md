@@ -5,6 +5,86 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-05-23
+
+主题:**Wikilink modal stack + Sheet 架构重构**。wikilink 跨文件预览改为
+modal 栈叠加,返回保留原阅读位置;同时把 Sheet 从依赖 Radix Dialog 的 modal
+模式重构为"纯渲染 + 自管栈",彻底解决 bringToTop 后鼠标滚轮失效等冲突。
+
+### Added
+
+- **Wikilink 跨文件预览栈**:点击 `[[Note]]` 不再替换当前预览,而是 push
+  一层新 modal;esc 关栈顶回到上一层,**原文件 scrollTop 自然保留**
+- **环检测**:同 `(instanceId, path)` 已在栈中时不再 push,而是把已有那层
+  "提到视觉顶"(bringToTop) — A→B→A 不会无限增长
+- **anchor 重激活**:bringToTop 后 `activatedSeq` 变化触发 MarkdownPreview
+  重跑 anchor scrollIntoView,带不同 anchor 的二次跳转也生效
+- **预览栈视图**(IconStack2):栈深 ≥ 2 时 FilePreviewSheet 头栏可见,纵向
+  卡片列表显示所有 file-preview,点卡 = bringToTop + 关本视图,**横向 swipe
+  > 80px 关单层**
+- **"全部关闭"**(IconCircleX):一键关掉整个 file-preview group(含
+  FileBrowser 入口那层),走 `useConfirm({ tone: 'danger' })` 二次确认
+- **BrailleSpinner 共享组件**:终端式 `⣾⣽⣻⢿⡿⣟⣯⣷` 8 帧旋转,accent
+  磷光绿 + phosphor-glow;sm/md/lg 三档;用在 FileBrowser 列表 loading /
+  MarkdownPreview / Suspense fallback
+- **文件夹加载防误点**:files.list 500ms 后才显示 loading 遮罩,inert 阻挡
+  列表点击避免用户重复点同一目录触发多次请求
+- **MarkdownPreview fenced code 自动换行**:`.line-content` 改 `pre-wrap` +
+  `overflow-wrap: anywhere`,长行不再水平滚动(Obsidian / GitHub 风格)
+
+### Changed
+
+- **Sheet 架构重构**:Radix Dialog / vaul Drawer 永久 `modal={false}`,
+  降级为"纯渲染 + 动画 + a11y 工具"。ModalStack 接管 focus 隔离(layer inert)、
+  scroll 控制、外部点击关、栈管理。
+  - **修复鼠标滚轮在切换后失效** — react-remove-scroll 的全局 lockStack 与
+    bringToTop 不兼容(它只让"最后 push 的"实例处理 wheel,bringToTop 不重
+    mount → 视觉顶 layer 永远不在 lockStack 顶 → wheel 被错误 preventDefault)
+  - Backdrop 由 Sheet 自画(div fixed inset:0,onClick=close),不再用
+    Dialog.Overlay(modal=false 时 Radix 不渲染)
+- **Sheet DOM id 唯一化**:多个 FilePreviewSheet 叠加时不再 id 冲突。
+  props.id 降为 `data-sheet-id`(可重复,e2e 选择器仍可用),DOM id 由
+  `useId()` 派生
+- **Sheet 底色全局统一**:`--color-bg-elev`(alpha 0.5,半透明)→ `--color-bg`
+  (不透明)。新架构下没有 Radix Overlay 提供模糊底,半透明会让下层 layer
+  内容透出。所有 14 处 Sheet 现在底色一致
+- **MarkdownPreview 内 `--color-bg-elev` → `--color-bg-hover`**:inline code /
+  kbd / pre / th / .katex-display / .errorState / task checkbox — 这些卡片
+  元素在新不透明 sheet 上失去可见度,改用 hover 色(亮 ~10)恢复层次
+- **MarkdownPreview `.root code` 替代 `:not(pre)>code`**:base 规则覆盖所有
+  `<code>`(裸 / inline / 嵌套),fenced code 由更具体 `.root pre>code` 覆盖
+- **`hr::after` 装饰用 `--color-bg`**:必须不透明才能真遮 hr 横线
+- **ModalStack 视觉叠序改 z-index 显式控制**:`zIndex = BASE + topRank` +
+  `isolation: isolate` 把内部 Radix Content 的固定 z-index 禁锢在层内。
+  原"靠 DOM 文档流顺序天然叠加"的策略与 bringToTop 不兼容(bringToTop 不
+  移动数组位置)
+- **bringToTop 切换过渡**:同 group 内的 layer fade in/out(file-preview
+  group,320ms cubic-bezier);`will-change: opacity` 防低端机跳帧
+- **FilePreviewSheet headerExtra 按钮改 IconX 风**:之前的"全部关闭"文字
+  按钮换 IconCircleX,新增 IconStack2 栈视图按钮,统一 28×28 icon 规格
+
+### Fixed
+
+- `useViewportFix`:删 `kbLayout` 路径。本项目 meta viewport 是
+  `interactive-widget=resizes-visual`,键盘弹起不缩 layout viewport →
+  `kbLayout = baselineInnerH - innerH` 永远是 0。当用户**调整浏览器窗口大小**
+  时,`baselineInnerH` 不更新导致 `kbLayout` 误判键盘弹起,`--vv-bottom` 卡
+  在错误大值不解锁。改为只用 `Math.max(0, innerH - vvH) + bottomGap`,无
+  历史状态
+- 全屏 Sheet 隐藏 vaul Drawer 顶部拖拽手柄(`hideDragHandle` prop),释放顶部
+  ~12px 空间。文件预览 / 栈视图沉浸阅读场景不需要下拉关闭手势
+
+### Internal
+
+- ModalStack 新增 API:`bringToTop(id)` / `find(predicate)` / `popGroup(group)`;
+  ModalEntry 加 `group?` / `meta?` / `topRank`;ModalRenderContext 加
+  `activatedSeq` / `groupSize`
+- 新 `useModalStackGroup(group)` hook:订阅同 group 栈快照(响应栈变化重渲染);
+  返回 readonly ModalGroupItem 数组(id + meta + isTop + topRank)
+- ModalStack.test.tsx 新增 8 个用例覆盖 bringToTop / find / popGroup /
+  activatedSeq / groupSize(共 20 个全过)
+- 设计文档:`docs/plans/wikilink-modal-stack/{design.md,progress/*}`
+
 ## [0.9.0] - 2026-05-22
 
 主题:**Obsidian 集成** — .md 预览升级为完整 Obsidian-flavored 渲染;同时

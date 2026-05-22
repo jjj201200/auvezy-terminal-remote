@@ -1,0 +1,31 @@
+@use '../../styles/mixins' as m;
+
+.spinner {
+  font-family: var(--font-mono);
+  line-height: 1;
+  color: var(--color-accent);
+  @include m.phosphor-glow(var(--color-accent));
+  display: inline-block;
+  // Braille 字符宽度恒定,但 1ch 给定宽度防 layout 抖动
+  width: 1ch;
+  text-align: center;
+}
+
+.size_sm { font-size: 14px; }
+.size_md { font-size: 20px; }
+.size_lg { font-size: 28px; }
+
+// 带文字标签的容器:spinner 在左、文字在右,横向居中显示
+.withLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--color-fg-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-wide);
+}
+
+.label {
+  text-transform: uppercase;
+}

@@ -31,6 +31,43 @@ export interface ModalStackHandle {
   dismiss: () => void;
   /** 当前栈深度（开发调试用） */
   depth: () => number;
+  /**
+   * 把指定 id 的 entry 提到栈顶(视觉/交互上的顶)。
+   *
+   * 关键:**不移动数组位置**,只更新 entry.topRank 为新的最大值。
+   * 数组位置稳定 → React key 不变 → portal container 引用稳定 → DOM 节点不
+   * 重 mount → 子组件 state / scrollTop 全部保留。z-index 与 isTop 由 topRank
+   * 决定(详见 ModalEntry.topRank 注释)。
+   *
+   * 用于"环检测":wikilink 跳到栈中已存在的文件时,把那层提到顶而非再 push,
+   * 避免 A→B→A→B 死循环式叠加。
+   */
+  bringToTop: (id: string) => void;
+  /**
+   * 按 meta 谓词查找首个匹配的 entry,返回 id;无匹配返回 undefined。
+   * 主要供"已存在则 bringToTop,否则 push"的环检测用。
+   */
+  find: (
+    predicate: (meta: Readonly<Record<string, unknown>> | undefined) => boolean,
+  ) => string | undefined;
+  /**
+   * 关掉所有属于指定 group 的 entry。语义与 pop 相同(closing 标记 + 退场动画 +
+   * onClosed),只是作用范围由"单个 id"扩为"一组"。
+   *
+   * 用于"全部关闭 file-preview"按钮 — 一键清掉所有预览,保留 FileBrowser 等
+   * 其它 modal。
+   */
+  popGroup: (group: string) => void;
+}
+
+/** useModalStackGroup hook 返回项 — entry 的只读快照 */
+export interface ModalGroupItem {
+  id: string;
+  meta: Readonly<Record<string, unknown>> | undefined;
+  /** 是否当前视觉栈顶(用于在栈视图卡片上加 "current" 标记) */
+  isTop: boolean;
+  /** 栈中排序权(同 group 内升序意味着"较旧"到"较新" — 视觉上从底到顶) */
+  topRank: number;
 }
 
 /** 调用方提交给 stack 的 modal 描述（id 由 stack 生成） */
@@ -40,6 +77,19 @@ export interface ModalEntryInput {
    * 不传 = 总是叠加（用于真正的嵌套，如 confirm-from-detail）
    */
   kind?: string;
+  /**
+   * 批量操作分组。与 kind 互补:kind = 单例语义,group = 批量语义。
+   * 同 group 可叠加多个,通过 popGroup(group) 一次性清掉这一组。
+   *
+   * 例:wikilink 跨文件预览 push 的 entry 不带 kind(允许叠加)、带
+   * group: 'file-preview',供"全部关闭预览"按钮使用。
+   */
+  group?: string;
+  /**
+   * 调用方附带的查询元数据。stack 不解读其内容,仅供 find(predicate) 与
+   * 调用方自身用作 entry 标识(如 wikilink 用 { instanceId, path } 做环检测)。
+   */
+  meta?: Readonly<Record<string, unknown>>;
   /**
    * Modal 的渲染函数。stack 把 helpers 注入进来，让 modal 内部能 pop / push 子 modal。
    * 注：ModalShell 的 open / onOpenChange / 标题 / footer 由 render 函数自己用 ModalShell 组件生成
@@ -64,11 +114,23 @@ export interface ModalEntryInput {
 export interface ModalEntry extends Required<Pick<ModalEntryInput, 'render'>> {
   id: string;
   kind: string | undefined;
+  group: string | undefined;
+  meta: Readonly<Record<string, unknown>> | undefined;
   dismissible: boolean;
   onClosed: (() => void) | undefined;
   debugLabel: string | undefined;
   /** 是否正在退场（动画中，等 onClosed 触发后从数组里移除） */
   closing: boolean;
+  /**
+   * 单调递增的"激活序号",决定 z-index 与 isTop:
+   *  - z-index = BASE + topRank(显式分层,替代之前"靠 DOM 顺序天然分层"的策略)
+   *  - isTop = (topRank === max(stack.topRank))
+   *  - bringToTop(id) 把指定 entry 的 topRank 改为新的最大值,**不动数组位置**
+   *
+   * 数组位置仍按 push 顺序保留 → React key 不变 → portal container 引用稳定 →
+   * DOM 节点不重 mount → scrollTop / 子 state 全部保留。
+   */
+  topRank: number;
 }
 
 /** stack 注入给 render 函数的上下文 */
@@ -95,4 +157,16 @@ export interface ModalRenderContext {
    * render 函数把这个值传给 Sheet 的 `open` prop。
    */
   isOpen: boolean;
+  /**
+   * 激活序号 = entry.topRank。每次 push / bringToTop 都会让目标 entry 的此值
+   * 变为新的最大值。render 函数可把它当作 React 的 deps 触发"重激活后的副作用"
+   * (如 wikilink 跳已存在文件后,需要重新触发 anchor scrollIntoView)。
+   */
+  activatedSeq: number;
+  /**
+   * 同 group 的 entry 总数(含自己)。供调用方决定"是否显示批量操作 UI"
+   * (如:深度 ≥ 2 时显示"全部关闭")。
+   * 自己没 group → 0。
+   */
+  groupSize: number;
 }

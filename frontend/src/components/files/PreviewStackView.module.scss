@@ -1,0 +1,138 @@
+@use '../../styles/mixins' as m;
+
+// 全屏 sheet — 与 .previewSheet 同款,在 modal-stack 第三层
+.sheet {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  inset: 0 !important;
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-bg);
+}
+
+// 纵向卡片滚动器 — 类似浏览器 tab 列表,每条全宽
+.scroller {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-3);
+  // 大屏时居中收窄,移动端全宽
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--sp-4) var(--sp-4);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.card {
+  flex: 0 0 auto;
+  // 横向条状,padding 决定行高(纵向用 sp-5=12px,横向 sp-5=12px)
+  width: 100%;
+  min-height: 64px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-5) var(--sp-5);
+  background: var(--color-bg-elev);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  user-select: none;
+  // touch-action: 允许纵向 pan(列表滚动),横向交给 pointer-handler 决定
+  touch-action: pan-y;
+  @include m.transition(
+    transform var(--dur-fast),
+    opacity var(--dur-fast),
+    border-color var(--dur-fast),
+    background var(--dur-fast)
+  );
+
+  &:hover {
+    border-color: var(--color-border-hi);
+    background: var(--color-bg-hover);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+}
+
+// 当前栈顶那张:左侧 accent 条 + 边框磷光
+.cardTop {
+  border-color: var(--color-accent);
+  // 左侧厚边表示"当前"
+  border-left-width: 3px;
+  padding-left: calc(var(--sp-5) - 2px);
+
+  &:hover {
+    border-color: var(--color-accent);
+  }
+}
+
+.cardClose {
+  @include m.btn-reset;
+  position: absolute;
+  // 横向条状卡:close 按钮垂直居中靠右
+  top: 50%;
+  right: var(--sp-3);
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-fg-dim);
+  cursor: pointer;
+  @include m.transition(color var(--dur-fast), background var(--dur-fast));
+
+  &:hover {
+    color: var(--color-alarm);
+    background: var(--color-alarm-08);
+  }
+}
+
+.cardBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-1);
+  // 留出 cardClose 的位置
+  padding-right: var(--sp-6);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cardName {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--color-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardPath {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -89,13 +89,41 @@ docs/plans/<计划名>/
 
 ## 🔄 dev server 重启流程（给 AI 助手用）
 
+**预先授权(给 AI 助手)**:用户已授权 AI 助手自行启动 dev 实例,无需再用
+AskUserQuestion 确认。
+
+**决策树:何时启什么**:
+1. 探活先行:`pgrep -af "vite|cli\.js start|cli\.ts start"` + `ss -tln | grep -E ":3737|:5173"`
+2. **改 backend / shared/src** → 必须用开发版 broker:
+   - `nohup pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts start > /tmp/atr-broker.log 2>&1 &`
+   - 若 :3737 已被生产版(`atr start --foreground`,即全局 npm 装的 dist 版)占用,
+     必须 AskUserQuestion 授权 kill 那个 PID 再启
+3. **只改 frontend** → 不动 broker,**复用** :3737 上的现有 broker(无论是开发版还是
+   生产版,API 同协议),只起 vite:
+   - `nohup pnpm --filter auvezy-terminal-remote-frontend dev > /tmp/atr-vite.log 2>&1 &`
+4. 鉴别 :3737 上跑的是开发版还是生产版:`ps -p <PID> -o cmd --no-headers`
+   - 含 `node_modules/auvezy-terminal-remote/dist/cli.js` → 生产版
+   - 含 `tsx src/cli.ts` → 开发版
+
+子命令名:**broker 的启动子命令是 `start`,不是 `broker start`**(CLI 没有 `broker`
+这个子命令)。broker 默认监听 `:3737`(不是 :3000)。
+
+启好后**必须**提供带 token 的访问链接(token 从 `~/.atrrc` 读):
+`http://localhost:5173/?token=<TOKEN>`(vite proxy 自动转 :3737 broker)
+
 **触发场景：** 改了 `shared/src/*`（特别是 schema / 默认值 / `ensureDefaultUserConfig`）必须重启 backend，否则旧的 ESM 模块缓存会让新字段被 strip。**前端 vite HMR 不需要重启**。
 
 > **0.7.0 v2 起 dev 流程变化（API 归属重划分）**：所有 `/api/*` 系统级路由由 broker 进程持有，worker 只剩 `/api/health` + `/api/hook` + WS。
-> 因此 dev 启动顺序变成 **先 `atr broker start` →  vite**：
-> - `pnpm --filter auvezy-terminal-remote dev` 单独跑 worker 进程已经无法独立工作（webapp /api/auth 会 404）
-> - 正确顺序：① 启 broker（`node backend/dist/cli.js broker start` 或 `pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts broker start`） ② 起 vite（`pnpm --filter auvezy-terminal-remote-frontend dev`） ③ 浏览器访问 `http://localhost:5173/`
-> - vite proxy 反代 `/api`、`/i/<id>/ws`、`/i/<id>/api/...` 全部到 :3000（broker），broker 内部再反代到 worker
+> 因此 dev 启动顺序变成 **先 broker → vite**:
+> - `pnpm --filter auvezy-terminal-remote dev` 单独跑 worker 进程已经无法独立工作(webapp /api/auth 会 404)
+> - **改 frontend 时**:**不需要**重启 broker,直接复用 :3737 上已有的 broker(无论
+>   生产版 `atr start` 还是开发版 tsx),只起 vite 即可
+> - **改 backend / shared 时**:必须用开发版 broker —
+>   `pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts start`(子命令是
+>   `start`,不是 `broker start`;CLI 没注册 `broker` 子命令)
+> - 起 vite:`pnpm --filter auvezy-terminal-remote-frontend dev`
+> - broker 默认监听 **`:3737`**(不是 :3000)。vite proxy 反代 `/api`、`/i/<id>/ws`、
+>   `/i/<id>/api/...` 全部到 :3737(broker),broker 内部再反代到 worker
 > - worker 由 broker 通过 `POST /api/instances` 派生（带 `ATR_INSTANCE_ID` env），用户不直接启 worker
 
 **重要前提：**
@@ -105,21 +133,25 @@ docs/plans/<计划名>/
 
 **标准重启流程：**
 
-1. `pgrep -af "node.*cli\.js broker\|tsx.*cli\.ts broker"` 找到 broker 进程 PID（v2 起核心是 broker，不是 worker）
+1. `pgrep -af "cli\.js start\|cli\.ts start"` 找到 broker 进程 PID(v2 起核心是
+   broker,不是 worker;子命令是 `start`,匹配字串里别用 `broker`)
 2. 用 **AskUserQuestion** 让用户授权 kill（"Kill <PID>" 选项），不要直接 `kill` 等沙箱拒了再问
 3. 用户授权后 `kill <broker-pid>`（broker SIGTERM 自己有 graceful handler）
-4. 重启 broker：`nohup node /mnt/d/github/open-terminal-remote/backend/dist/cli.js broker start > /tmp/atr-broker-restart.log 2>&1 &`（生产路径）；或开发路径 `nohup pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts broker start > /tmp/atr-broker-restart.log 2>&1 &`
-5. `sleep 5-8` 后 `curl --noproxy '*' http://127.0.0.1:3000/api/health` 确认就绪（broker 自己的 health，含 `role: 'broker'`）
+4. 重启 broker:**开发路径**(改 backend / shared 后必走)
+   `nohup pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts start > /tmp/atr-broker-restart.log 2>&1 &`;
+   生产路径 = `atr start --foreground`(全局已装时;只为生产 smoke,改 src 后用不上)
+5. `sleep 5-8` 后 `curl --noproxy '*' http://127.0.0.1:3737/api/health` 确认就绪(端口
+   是 **3737**,响应含 `role: 'broker'`)
 6. 拿 token：从 `~/.atrrc` 读 `.token` 字段（broker 与 worker 共享 token 来源），或 `node -e "console.log(JSON.parse(require('fs').readFileSync(require('os').homedir()+'/.atrrc','utf-8')).token)"`
 7. broker log 在 `~/.auvezy/terminal-remote/broker-YYYY-MM-DD.log`（按天 rotate，保留 7 天）
 
 **验证 schema 是否生效：** 走完整 auth 链路而不是直接 GET：
 
 ```bash
-COOKIE=$(curl -s --noproxy '*' -i -X POST http://127.0.0.1:3000/api/auth \
+COOKIE=$(curl -s --noproxy '*' -i -X POST http://127.0.0.1:3737/api/auth \
   -H 'Content-Type: application/json' -d "{\"token\":\"$TOKEN\"}" \
   | grep -i '^set-cookie:' | head -1 | sed 's/^[Ss]et-[Cc]ookie: //; s/;.*$//')
-curl -s --noproxy '*' -H "Cookie: $COOKIE" http://127.0.0.1:3000/api/config | python3 -m json.tool
+curl -s --noproxy '*' -H "Cookie: $COOKIE" http://127.0.0.1:3737/api/config | python3 -m json.tool
 ```
 
 如果新字段返回 → ensureDefaultUserConfig 已加载新版；如果被 strip → 还是旧 dist 或忘了 normalize。

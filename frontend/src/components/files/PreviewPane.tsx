@@ -4,6 +4,7 @@ import { TextPreview } from './TextPreview.js';
 import { ImagePreview } from './ImagePreview.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useUserConfig } from '../../hooks/useUserConfig.js';
+import { BrailleSpinner } from '../ui/BrailleSpinner.js';
 import { isMarkdownPath } from './file-kind.js';
 import s from './FileBrowserSheet.module.scss';
 
@@ -22,9 +23,11 @@ export interface PreviewPaneProps {
   instanceId: string;
   target: PreviewTarget | null;
   wrapLines: boolean;
+  /** 透传至 MarkdownPreview,触发 bringToTop 后重新跳 anchor。见 FilePreviewSheet 注释 */
+  activationSeq?: number;
 }
 
-export function PreviewPane({ instanceId, target, wrapLines }: PreviewPaneProps): JSX.Element {
+export function PreviewPane({ instanceId, target, wrapLines, activationSeq }: PreviewPaneProps): JSX.Element {
   const t = useT();
   const { config } = useUserConfig();
   // rendering.markdown.enabled 是新位置;ensureDefaultUserConfig 已把旧
@@ -50,8 +53,14 @@ export function PreviewPane({ instanceId, target, wrapLines }: PreviewPaneProps)
       data-path={target.path}
     >
       {target.kind === 'text' && mdEnabled && isMarkdownPath(target.path) ? (
-        <Suspense fallback={<div className={`${s.notice} fb-preview__notice`}>{t('files.previewLoading')}</div>}>
-          <MarkdownPreview instanceId={instanceId} path={target.path} />
+        <Suspense
+          fallback={
+            <div className={`${s.notice} ${s.previewLoadingFallback} fb-preview__notice`}>
+              <BrailleSpinner size="lg" label={t('files.previewLoading')} />
+            </div>
+          }
+        >
+          <MarkdownPreview instanceId={instanceId} path={target.path} activationSeq={activationSeq} />
         </Suspense>
       ) : target.kind === 'text' && (
         <TextPreview

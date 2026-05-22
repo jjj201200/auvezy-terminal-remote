@@ -655,6 +655,14 @@ export interface Messages {
     previewLoading: string;
     /** 预览自动换行 toggle 标签 */
     previewWrap: string;
+    /** 预览叠加栈 ≥ 2 时显示的"全部关闭"按钮(aria-label / tooltip / confirm 按钮文案) */
+    previewCloseAll: string;
+    /** "全部关闭"二次确认弹窗标题 */
+    previewCloseAllConfirmTitle: string;
+    /** "全部关闭"二次确认弹窗正文 */
+    previewCloseAllConfirmMsg: string;
+    /** 预览栈视图(Recent Apps 风) tooltip / 标题 */
+    previewStackView: string;
     /** 错误 toast */
     errorPathNotFound: string;
     errorPathForbidden: string;

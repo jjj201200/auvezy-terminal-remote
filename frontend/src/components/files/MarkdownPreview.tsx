@@ -34,6 +34,7 @@ import { useT } from '../../i18n/i18n-context.js';
 import { useUserConfig } from '../../hooks/useUserConfig.js';
 import { highlight, type ColorScheme } from '../../utils/syntax-highlight.js';
 import { translateFileErr } from './translate-err.js';
+import { BrailleSpinner } from '../ui/BrailleSpinner.js';
 import type { ObsidianBindings, ObsidianEffective } from './markdown/obsidian/index.js';
 import { consumePendingAnchor } from './markdown/obsidian/anchor-bus.js';
 import { EmbedAncestorsProvider } from './markdown/obsidian/embed.js';
@@ -53,11 +54,19 @@ function slugify(text: string): string {
 export interface MarkdownPreviewProps {
   instanceId: string;
   path: string;
+  /**
+   * 重激活序号(可选)。modal-stack bringToTop 时此值变化 → 强制重跑 anchor
+   * useEffect → 重新 consumePendingAnchor + scrollIntoView。
+   *
+   * 不传(FileBrowser 入口)时该 effect 仍按 [raw, instanceId, path] 触发,行为
+   * 与改动前一致。
+   */
+  activationSeq?: number;
 }
 
 const HIGHLIGHT_OFF_BYTES = 1024 * 1024;
 
-export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX.Element {
+export function MarkdownPreview({ instanceId, path, activationSeq }: MarkdownPreviewProps): JSX.Element {
   const t = useT();
   const files = useFiles(instanceId);
   const { config } = useUserConfig();
@@ -164,6 +173,10 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
   const ancestorsForEmbed = useMemo(() => new Set<string>([path]), [path]);
 
   // wikilink 跳转后 consume 目标 anchor(heading/block-id) → scrollIntoView
+  //
+  // activationSeq 进 deps:当同一文件被 bringToTop 复活(组件不卸载,raw / path
+  // 都没变),此值变化触发 effect 重跑,让带 anchor 的二次跳转(如 [[A#H2]] 后
+  // 又 [[A#H3]])也能滚到新位置。
   useEffect(() => {
     if (!raw) return;
     // 等一帧让 ReactMarkdown 渲染完成 DOM
@@ -178,7 +191,7 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     return () => cancelAnimationFrame(handle);
-  }, [raw, instanceId, path]);
+  }, [raw, instanceId, path, activationSeq]);
 
   // 合并 base + obsidian 的 plugin / components
   const remarkPlugins = useMemo<PluggableList>(
@@ -198,7 +211,11 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
     );
   }
   if (loading) {
-    return <div className={s.loading}>{t('files.previewLoading')}</div>;
+    return (
+      <div className={s.loading}>
+        <BrailleSpinner size="lg" label={t('files.previewLoading')} />
+      </div>
+    );
   }
   return (
     // 顶层包 EmbedAncestorsProvider:把自己 path 加入祖先 set,

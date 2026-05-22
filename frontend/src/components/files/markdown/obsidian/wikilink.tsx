@@ -17,7 +17,7 @@ import { useEffect, useState, type JSX, type MouseEvent } from 'react';
 import type { Plugin } from 'unified';
 import type { Root, Text, Paragraph, PhrasingContent } from 'mdast';
 import { visit, SKIP } from 'unist-util-visit';
-import { useFilePreviewPresenter } from '../../../ui/modal-stack/presenters.js';
+import { useFilePreviewPusher } from '../../../ui/modal-stack/presenters.js';
 import { useT } from '../../../../i18n/i18n-context.js';
 import { resolveLink, type WikilinkResult } from './resolve-link.js';
 import { setPendingAnchor } from './anchor-bus.js';
@@ -140,7 +140,7 @@ export function WikilinkActive({
   alias,
 }: WikilinkActiveProps): JSX.Element {
   const t = useT();
-  const presentPreview = useFilePreviewPresenter();
+  const presentPreview = useFilePreviewPusher();
   const [result, setResult] = useState<WikilinkResult | null>(null);
 
   useEffect(() => {

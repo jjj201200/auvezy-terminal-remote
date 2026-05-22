@@ -106,6 +106,39 @@
   user-select: none;
 }
 
+// headerExtra 内的 icon 按钮(栈视图 / 全部关闭) — 仅 file-preview 栈深 ≥ 2
+// 时显示。统一 28x28 无文字,图标由组件传入。
+.iconAction {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--color-fg-dim);
+  cursor: pointer;
+  @include m.transition(color var(--dur-fast), background var(--dur-fast));
+
+  &:hover {
+    color: var(--color-fg);
+    background: var(--color-bg-hover);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+}
+
+// 危险动作(批量关闭) — hover 转 alarm
+.iconActionDanger {
+  &:hover,
+  &:focus-visible {
+    color: var(--color-alarm);
+    background: var(--color-alarm-08);
+  }
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -280,6 +313,44 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  // loadingOverlay 走 absolute,在自己内部定位
+  position: relative;
+}
+
+// loading 期间真正承载列表/搜索的 wrapper。inert 时让视觉变淡,提示"暂不可点"
+.bodyInner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  @include m.transition(opacity var(--dur-fast));
+
+  &[inert] {
+    opacity: 0.4;
+  }
+}
+
+// 500ms 后才显示 — overlay 自身不挡点击(列表那侧 inert 已生效),
+// 居中给个轻量 spinner + 文案;背景透明,靠 bodyInner 的 opacity:0.4 提供层次
+.loadingOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  pointer-events: none;
+  color: var(--color-fg-dim);
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-wide);
+  animation: fb-loading-fade var(--dur-fast) ease-out;
+}
+
+@keyframes fb-loading-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 // ──────────── 预览专用 sheet(独立 modal,modal-stack 第二层) ────────────
@@ -508,9 +579,11 @@
     :global(.line-content) :global(span) {
       color: var(--shiki-dark);
     }
+
     &[data-color-scheme='light'] :global(.line-content) :global(span) {
       color: var(--shiki-light);
     }
+
     &[data-color-scheme='light'] {
       background: var(--color-bg);
     }
@@ -548,6 +621,20 @@
   color: var(--color-warn);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
+}
+
+// Markdown chunk lazy load 的 Suspense fallback —— 覆盖 .notice 的 warn 配色,
+// 改为水平 + 垂直居中,占满 preview 容器
+.previewLoadingFallback {
+  background: transparent;
+  color: var(--color-fg-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  padding: var(--sp-6);
 }
 
 .error {

@@ -203,6 +203,171 @@ describe('ModalStack onClosed 回调', () => {
   });
 });
 
+describe('ModalStack bringToTop / find / popGroup', () => {
+  it('bringToTop:底层 entry 不动数组位置,但 data-modal-top 转向它', () => {
+    const { handle, container } = setup();
+    let idA = '';
+    act(() => {
+      idA = handle.push({ render: dummyRender('a') });
+      handle.push({ render: dummyRender('b') });
+      handle.push({ render: dummyRender('c') });
+    });
+    // 现状:c 在 top
+    let layers = container.querySelectorAll<HTMLElement>('[data-modal-layer]');
+    expect(layers[2]?.getAttribute('data-modal-top')).toBe('true');
+    expect(layers[0]?.getAttribute('data-modal-top')).toBe('false');
+
+    act(() => handle.bringToTop(idA));
+
+    // 数组位置不动:layer-0/1/2 仍按 push 顺序 a/b/c,但 data-modal-top 现在落在
+    // a 那层(layer-0),且只一个 top
+    layers = container.querySelectorAll<HTMLElement>('[data-modal-layer]');
+    expect(layers.length).toBe(3);
+    expect(layers[0]?.getAttribute('data-modal-layer')).toBe('0');
+    expect(layers[1]?.getAttribute('data-modal-layer')).toBe('1');
+    expect(layers[2]?.getAttribute('data-modal-layer')).toBe('2');
+    expect(layers[0]?.getAttribute('data-modal-top')).toBe('true');
+    expect(layers[1]?.getAttribute('data-modal-top')).toBe('false');
+    expect(layers[2]?.getAttribute('data-modal-top')).toBe('false');
+    // 所有层仍存在(没有被卸载)
+    expect(container.querySelector('[data-testid="modal-a"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="modal-b"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="modal-c"]')).toBeTruthy();
+  });
+
+  it('bringToTop:z-index 反映新顺序', () => {
+    const { handle, container } = setup();
+    let idA = '';
+    act(() => {
+      idA = handle.push({ render: dummyRender('a') });
+      handle.push({ render: dummyRender('b') });
+    });
+    const layers = container.querySelectorAll<HTMLElement>('[data-modal-layer]');
+    const zABefore = Number(layers[0]?.style.zIndex);
+    const zBBefore = Number(layers[1]?.style.zIndex);
+    expect(zABefore).toBeLessThan(zBBefore);
+
+    act(() => handle.bringToTop(idA));
+
+    const after = container.querySelectorAll<HTMLElement>('[data-modal-layer]');
+    const zAAfter = Number(after[0]?.style.zIndex);
+    const zBAfter = Number(after[1]?.style.zIndex);
+    expect(zAAfter).toBeGreaterThan(zBAfter);
+  });
+
+  it('bringToTop 已在顶 → 无副作用', () => {
+    const { handle } = setup();
+    let idA = '';
+    act(() => {
+      idA = handle.push({ render: dummyRender('a') });
+    });
+    // 不应抛 / 不应改变 depth
+    act(() => handle.bringToTop(idA));
+    expect(handle.depth()).toBe(1);
+  });
+
+  it('bringToTop:esc 关栈顶按 topRank 算,不是数组末尾', () => {
+    const { handle, container } = setup();
+    let idA = '';
+    act(() => {
+      idA = handle.push({ render: dummyRender('a') });
+      handle.push({ render: dummyRender('b') });
+    });
+    act(() => handle.bringToTop(idA));
+    // 现在 A 在视觉顶。模拟 esc → 应关 A,留 B
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    flushClose();
+    expect(handle.depth()).toBe(1);
+    expect(container.querySelector('[data-testid="modal-a"]')).toBeNull();
+    expect(container.querySelector('[data-testid="modal-b"]')).toBeTruthy();
+  });
+
+  it('find:按 meta 谓词命中,closing 的 entry 不算', () => {
+    const { handle } = setup();
+    let idA = '';
+    act(() => {
+      idA = handle.push({
+        meta: { kind: 'file', path: '/a.md' },
+        render: dummyRender('a'),
+      });
+      handle.push({
+        meta: { kind: 'file', path: '/b.md' },
+        render: dummyRender('b'),
+      });
+    });
+    expect(
+      handle.find((m) => m?.['path'] === '/a.md'),
+    ).toBe(idA);
+    expect(handle.find((m) => m?.['path'] === '/missing.md')).toBeUndefined();
+    expect(handle.find((m) => !m)).toBeUndefined(); // 都有 meta
+  });
+
+  it('popGroup:只关同 group 的 entry,其它保留', () => {
+    const { handle, container } = setup();
+    act(() => {
+      handle.push({ render: dummyRender('keeper') }); // 无 group
+      handle.push({ group: 'preview', render: dummyRender('p1') });
+      handle.push({ group: 'preview', render: dummyRender('p2') });
+    });
+    expect(handle.depth()).toBe(3);
+    act(() => handle.popGroup('preview'));
+    flushClose();
+    expect(handle.depth()).toBe(1);
+    expect(container.querySelector('[data-testid="modal-keeper"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="modal-p1"]')).toBeNull();
+    expect(container.querySelector('[data-testid="modal-p2"]')).toBeNull();
+  });
+
+  it('ctx.activatedSeq:bringToTop 后透传给 render 的值会变大', () => {
+    let seqA1 = 0;
+    let seqA2 = 0;
+    let renderCount = 0;
+    const renderA = (ctx: { activatedSeq: number }) => {
+      const c = ++renderCount;
+      if (c === 1) seqA1 = ctx.activatedSeq;
+      seqA2 = ctx.activatedSeq;
+      return <div data-testid="modal-a">a:{ctx.activatedSeq}</div>;
+    };
+    const { handle } = setup();
+    let idA = '';
+    act(() => {
+      idA = handle.push({ render: renderA });
+      handle.push({ render: dummyRender('b') });
+    });
+    act(() => handle.bringToTop(idA));
+    expect(seqA2).toBeGreaterThan(seqA1);
+  });
+
+  it('ctx.groupSize:同 group 计数,自己无 group → 0', () => {
+    let groupSizeKeeper = -1;
+    let groupSizeP1 = -1;
+    let groupSizeP2 = -1;
+    const renderKeeper = (ctx: { groupSize: number }) => {
+      groupSizeKeeper = ctx.groupSize;
+      return <div data-testid="modal-keeper" />;
+    };
+    const renderP1 = (ctx: { groupSize: number }) => {
+      groupSizeP1 = ctx.groupSize;
+      return <div data-testid="modal-p1" />;
+    };
+    const renderP2 = (ctx: { groupSize: number }) => {
+      groupSizeP2 = ctx.groupSize;
+      return <div data-testid="modal-p2" />;
+    };
+    const { handle } = setup();
+    act(() => {
+      handle.push({ render: renderKeeper });
+      handle.push({ group: 'preview', render: renderP1 });
+      handle.push({ group: 'preview', render: renderP2 });
+    });
+    expect(groupSizeKeeper).toBe(0);
+    expect(groupSizeP1).toBe(2);
+    expect(groupSizeP2).toBe(2);
+  });
+});
+
 describe('ModalStack data attrs', () => {
   it('每层都有 data-modal-layer + data-modal-top；只有最顶层 top=true', () => {
     const { handle, container } = setup();

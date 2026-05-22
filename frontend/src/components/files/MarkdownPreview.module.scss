@@ -187,22 +187,18 @@
   padding: 0 4px;
 }
 
-.root :not(pre)>code {
+.root code {
   font-family: var(--font-mono);
-  font-size: 0.92em;
-  background: var(--color-bg-elev);
-  padding: 0 4px;
-  color: #ffa657; // orange
   overflow-wrap: anywhere;
   word-break: break-word;
-  border-radius: 2px;
+  white-space: pre-wrap;
 }
 
 .root kbd {
   font-family: var(--font-mono);
   font-size: 0.85em;
   color: var(--color-fg);
-  background: var(--color-bg-elev);
+  background: var(--color-bg-hover);
   border-bottom: 2px solid var(--color-border-hi);
   padding: 0 6px;
   margin: 0 1px;
@@ -215,7 +211,7 @@
 // 与 TextPreview 共用 .line / .shiki-line-number 样式;.root pre 提供容器框架
 .root pre {
   margin: var(--sp-3) 0;
-  background: var(--color-bg-elev);
+  background: var(--color-bg-hover);
   padding: 0;
   overflow: hidden;
 }
@@ -319,7 +315,13 @@
 }
 
 .root pre :global(.line-content) {
-  white-space: pre;
+  // pre-wrap:保留空白和缩进(代码视觉对齐),但允许长行**软换行**(包裹到下一行
+  // 而不是水平滚动)。与 Obsidian / GitHub Markdown 预览的代码块行为一致 —
+  // modal 全屏阅读场景下水平滚动很难用,默认换行更合理。
+  white-space: pre-wrap;
+  // 长 token(URL / 长路径)无法在常规位置打断时,允许任意字符位置换。
+  // 否则单个超长 token 仍会撑出容器。
+  overflow-wrap: anywhere;
   tab-size: 2;
   min-width: 0;
 }
@@ -447,7 +449,7 @@
   top: 5px;
   width: 12px;
   height: 12px;
-  background: var(--color-bg-elev);
+  background: var(--color-bg-hover);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -458,7 +460,7 @@
 
 .root ul :global(li.task-list-item)>input[type='checkbox']:checked {
   border-color: #7ee787;
-  background: var(--color-bg-elev);
+  background: var(--color-bg-hover);
 }
 
 .root ul :global(li.task-list-item)>input[type='checkbox']:checked::after {
@@ -532,7 +534,7 @@
 }
 
 .root th {
-  background: var(--color-bg-elev);
+  background: var(--color-bg-hover);
   color: var(--color-fg);
   border-bottom: 1px solid var(--color-border-hi);
   font-weight: 700;
@@ -564,7 +566,8 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  background: var(--color-bg-elev);
+  // 必须与父背景**完全一致**(不透明)才能真遮住 hr 横线;否则透出半截线
+  background: var(--color-bg);
   color: var(--color-fg-low);
   padding: 0 var(--sp-3);
   letter-spacing: 0.4em;
@@ -664,7 +667,7 @@
 .root :global(.katex-display) {
   margin: var(--sp-3) 0;
   padding: var(--sp-3) var(--sp-4);
-  background: var(--color-bg-elev);
+  background: var(--color-bg-hover);
   overflow-x: auto;
   text-align: center;
 }
@@ -709,12 +712,20 @@
 .root .errorState {
   padding: var(--sp-4);
   color: var(--color-alarm);
-  background: var(--color-bg-elev);
+  background: var(--color-bg-hover);
 }
 
-.root .loading {
-  padding: var(--sp-4);
-  color: var(--color-fg-low);
+// loading 状态在 MarkdownPreview 顶层渲染(不在 .root 内),用作 Suspense 完成
+// 前的占位 + raw 拉取期的占位。水平 + 垂直居中,BrailleSpinner 自带 accent 磷光色。
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: var(--sp-6);
+  width: 100%;
+  // 父 .fb-preview 一般高度由 sheet body 撑满,这里 100% 让 loading 居中到全高
+  height: 100%;
 }
 
 // 单代码块超大被截断时的尾部提示(贴在 pre 底部)

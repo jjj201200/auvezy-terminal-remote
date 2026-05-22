@@ -21,13 +21,6 @@ export function useViewportFix(): void {
     if (typeof window === 'undefined') return;
     const vv = window.visualViewport;
 
-    // 记录键盘弹起前的窗口高度作为"无键盘时的应有高度"，用于推算键盘真实占用：
-    // - 桌面 / interactive-widget=resizes-content 路径：window.innerHeight 跟着
-    //   键盘一起缩小，光看 (innerH - vvH) 永远是 0
-    // - 必须用"键盘弹起前的 innerH"减"当前 innerH"，才能拿到键盘高度
-    let baselineInnerH = window.innerHeight;
-    let keyboardOpenLast = false;
-
     const update = (): void => {
       const vvH = vv?.height ?? window.innerHeight;
       const vvTop = vv?.offsetTop ?? 0;
@@ -35,30 +28,26 @@ export function useViewportFix(): void {
 
       // visualViewport 在 layout 内的"底部空白"= layout 高度 - 可视区底端
       const bottomGap = vv ? Math.max(0, innerH - (vvTop + vvH)) : 0;
-      // visualViewport 顶端在 layout 内的偏移（iOS 上键盘弹起时会出现 > 0）
+      // visualViewport 顶端在 layout 内的偏移(iOS 键盘弹起时 > 0)
       document.documentElement.style.setProperty('--vv-top', `${vvTop}px`);
 
-      // 键盘高度推算：
-      //  1. visualViewport 路径（resizes-visual / 现代浏览器）：innerH - vvH
-      //  2. layout 缩小路径（iOS WebKit 默认）：baselineInnerH - innerH
-      // 取两者最大值
-      const kbVv = vv ? Math.max(0, innerH - vvH) : 0;
-      const kbLayout = Math.max(0, baselineInnerH - innerH);
-      const kbH = Math.max(kbVv, kbLayout, bottomGap);
+      // 键盘高度 = innerH - vvH。
+      //
+      // index.html 的 meta viewport 设了 `interactive-widget=resizes-visual`,
+      // 这模式下键盘弹起**只缩 visualViewport, 不缩 layout viewport** → innerH
+      // 稳定不变, vvH 跟随键盘 → (innerH - vvH) 就是真实键盘高度。
+      //
+      // 之前版本另外引入 `kbLayout = baselineInnerH - innerH` 作为 resizes-content
+      // 模式的 fallback。但本项目固定 resizes-visual, kbLayout 永远是 0 — 而且
+      // 当用户主动**缩小浏览器窗口**时, innerH 缩小但 baselineInnerH 仍是旧值,
+      // 导致 kbLayout > 100 被误判为"键盘弹起", --vv-bottom 错误持有大值, 且
+      // baselineInnerH 只在"键盘开→关"时更新, 错误状态自锁不解。已删除该路径。
+      const kbH = vv ? Math.max(Math.max(0, innerH - vvH), bottomGap) : 0;
       document.documentElement.style.setProperty('--keyboard-h', `${kbH}px`);
-      // --vv-bottom 现在是"键盘 + 视口底部空白"的统一值
+      // --vv-bottom 是"键盘 + 视口底部空白"的统一值
       document.documentElement.style.setProperty('--vv-bottom', `${kbH}px`);
 
       const keyboardOpen = kbH >= KEYBOARD_THRESHOLD_PX;
-      // 键盘从开 → 关：当前 innerH 可能就是新的 baseline（用户旋屏 / 缩放也走这）
-      if (keyboardOpenLast && !keyboardOpen) {
-        baselineInnerH = innerH;
-      }
-      // 键盘从关 → 开：第一次升起时锁定 baseline
-      if (!keyboardOpenLast && !keyboardOpen) {
-        baselineInnerH = Math.max(baselineInnerH, innerH);
-      }
-      keyboardOpenLast = keyboardOpen;
       if (keyboardOpen) {
         document.body.setAttribute('data-keyboard', 'true');
       } else {

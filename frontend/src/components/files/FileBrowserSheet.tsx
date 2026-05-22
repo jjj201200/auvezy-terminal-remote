@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { ErrorCode, type FileEntry, type SearchEvent } from 'auvezy-terminal-remote-shared';
 import { Sheet } from '../ui/Sheet.js';
+import { BrailleSpinner } from '../ui/BrailleSpinner.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useFiles } from '../../hooks/useFiles.js';
 import { streamSearch, type SearchHandle } from '../../services/files-api.js';
@@ -36,6 +37,12 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const [showHidden, setShowHidden] = useState<boolean>(() => loadFileBrowserPrefs().showHidden);
   useEffect(() => { saveShowHidden(showHidden); }, [showHidden]);
   const [error, setError] = useState<string | null>(null);
+
+  // 列表加载 loading:files.list 发起后若 >= 500ms 仍未返回,显示遮罩 + 阻挡
+  // 列表点击,避免用户重复点同一目录触发多次请求。<500ms 完成则完全无感(本地
+  // FS 通常 <50ms,只有慢盘/网盘/大目录会冒头)。
+  const LOADING_THRESHOLD_MS = 500;
+  const [listLoading, setListLoading] = useState(false);
 
   const [submittedQ, setSubmittedQ] = useState('');
   // SearchBox 自己维护 input draft,用 key 强制重挂载让父在 onPick / 切实例 / 重开
@@ -89,6 +96,11 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
     if (!open) return;
     let cancelled = false;
     setError(null);
+    // 500ms 后才进入 loading 视觉态 — 短请求(<500ms)完全无视觉抖动,慢请求才
+    // 触发遮罩防误点
+    const loadingTimer = window.setTimeout(() => {
+      if (!cancelled) setListLoading(true);
+    }, LOADING_THRESHOLD_MS);
     files.list(path).then((r) => {
       if (cancelled) return;
       setCwd(r.cwd);
@@ -97,8 +109,15 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       if (path !== r.path) setPath(r.path);
     }).catch((e: Error & { code?: string }) => {
       if (!cancelled) setError(e.code ?? ErrorCode.INTERNAL_ERROR);
+    }).finally(() => {
+      if (cancelled) return;
+      window.clearTimeout(loadingTimer);
+      setListLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(loadingTimer);
+    };
     // t 不进 deps —— 错误状态只存 ErrorCode,渲染时再翻译,避免 t 引用每次 render
     // 微变化触发 effect 重跑。
   }, [open, path, instanceId, files]);
@@ -149,6 +168,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       title={t('files.title')}
       className={s.sheet}
       id="file-browser-sheet"
+      hideBackdrop
     >
       <div className={`${s.root} fb-root`} data-instance-id={instanceId} data-cwd={cwd} data-path={path ?? cwd}>
         <Breadcrumb
@@ -179,22 +199,37 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
         <div
           className={`${s.body} fb-body`}
           data-mode={inSearchMode ? 'search' : 'list'}
+          data-list-loading={listLoading ? 'true' : 'false'}
         >
-          {inSearchMode ? (
-            <SearchResults
-              hits={hits}
-              truncated={searchTruncated}
-              onPick={onPickHit}
-            />
-          ) : (
-            <FileList
-              entries={visibleEntries}
-              error={error ? translateFileErr(t, error) : null}
-              onEntryClick={onEntryClick}
-            />
+          {/*
+            listLoading 时给内部 wrapper 设 inert + opacity,阻挡点击避免用户在等
+            待时重复点同一目录触发多次请求(effect 已有 cancelled 标记防数据错乱,
+            但视觉上 list 仍可点会让人困惑)。inert 比 pointer-events:none 更彻底
+            (还屏蔽键盘),且 a11y 友好(辅助技术也会感知)。
+          */}
+          <div className={s.bodyInner} inert={listLoading && !inSearchMode}>
+            {inSearchMode ? (
+              <SearchResults
+                hits={hits}
+                truncated={searchTruncated}
+                onPick={onPickHit}
+              />
+            ) : (
+              <FileList
+                entries={visibleEntries}
+                error={error ? translateFileErr(t, error) : null}
+                onEntryClick={onEntryClick}
+              />
+            )}
+          </div>
+          {listLoading && !inSearchMode && (
+            <div className={s.loadingOverlay}>
+              <BrailleSpinner size="md" label={t('files.previewLoading')} />
+            </div>
           )}
         </div>
       </div>
     </Sheet>
   );
 }
+

@@ -18,14 +18,24 @@
   }
 }
 
-// 移动端 vaul Drawer overlay：不用 keyframes —— vaul 拖动时通过 inline opacity
-// 动态 fade backdrop 实现"跟手"，CSS animation 会覆盖 inline opacity 让背景
-// 一直全黑、不响应拖动进度。这里只设静态背景 + backdrop-filter
+// 移动端 vaul Drawer backdrop。
+//
+// 旧设计:用 Drawer.Overlay,vaul 拖动时通过 inline opacity 跟手 fade(因此
+// CSS 不能写 keyframes 否则覆盖 inline)。
+//
+// 新架构(modal=false):不再用 Drawer.Overlay,backdrop 是 Sheet 自画的 div。
+// vaul 不再操纵它,可以走与桌面相同的 fade-in/fade-out keyframes。
+// 跟手淡入淡出消失(代价可接受 — drag-to-dismiss 仍能工作,只是 backdrop 不
+// 跟手变淡)。
 .overlayMobile {
   position: fixed;
   inset: 0;
   z-index: var(--z-overlay);
   @include m.glass-overlay;
+  animation: fade-in var(--dur-modal) var(--ease) both;
+  &[data-state='closed'] {
+    animation: fade-out var(--dur-modal) var(--ease) both;
+  }
 }
 
 // ──────────────── 桌面 Dialog ────────────────
@@ -43,7 +53,12 @@
   height: 80dvh;
   max-height: 720px;
   transform: translate(-50%, -50%);
-  background: var(--color-bg-elev);
+  // 用 --color-bg(不透明)而不是 --color-bg-elev(alpha 0.5)。
+  // 旧设计依赖 Radix modal=true + Overlay 模糊背景营造层次,Sheet 自身半透明
+  // 让下层"轻微透出"。新架构(Sheet 永久 nonModal,无 Radix Overlay,backdrop
+  // 是 Sheet 自画)下,半透明会让下层 layer 的内容直接漏出来,视觉不干净。
+  // 统一用 --color-bg 让所有 Sheet(全屏 / 弹窗)底色一致。
+  background: var(--color-bg);
   outline: none;
   box-shadow: var(--shadow-3);
   animation: pop-in var(--dur-modal) var(--ease) both;
@@ -76,7 +91,12 @@
   // 容器位置 / 高度保持稳定（变化会被 vaul 误识别为 drag-to-dismiss），
   // 让 input 可见的责任交给 .body 的 padding-bottom（见下方）
   height: 88dvh;
-  background: var(--color-bg-elev);
+  // 用 --color-bg(不透明)而不是 --color-bg-elev(alpha 0.5)。
+  // 旧设计依赖 Radix modal=true + Overlay 模糊背景营造层次,Sheet 自身半透明
+  // 让下层"轻微透出"。新架构(Sheet 永久 nonModal,无 Radix Overlay,backdrop
+  // 是 Sheet 自画)下,半透明会让下层 layer 的内容直接漏出来,视觉不干净。
+  // 统一用 --color-bg 让所有 Sheet(全屏 / 弹窗)底色一致。
+  background: var(--color-bg);
   outline: none;
   box-shadow: var(--shadow-3);
 
