@@ -25,6 +25,10 @@ import {
   type ClaudeCodeSettingsModalProps,
 } from '../../settings/ClaudeCodeSettingsModal.js';
 import {
+  ObsidianSettingsModal,
+  type ObsidianSettingsModalProps,
+} from '../../settings/ObsidianSettingsModal.js';
+import {
   ShortcutSettingsModal,
   type ShortcutSettingsModalProps,
 } from '../../settings/ShortcutSettingsModal.js';
@@ -137,6 +141,11 @@ export const useSettingsPresenter = makeModalPresenter<SettingsModalProps>(
 export const useClaudeCodeSettingsPresenter = makeModalPresenter<ClaudeCodeSettingsModalProps>(
   ClaudeCodeSettingsModal,
   { kind: 'claude-code-settings' },
+);
+
+export const useObsidianSettingsPresenter = makeModalPresenter<ObsidianSettingsModalProps>(
+  ObsidianSettingsModal,
+  { kind: 'obsidian-settings' },
 );
 
 export const useShortcutSettingsPresenter = makeModalPresenter<ShortcutSettingsModalProps>(

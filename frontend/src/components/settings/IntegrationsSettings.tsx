@@ -20,7 +20,11 @@ import {
 } from 'auvezy-terminal-remote-shared';
 import { useT } from '../../i18n/i18n-context.js';
 import { BoolToggleRow } from './BoolToggleRow.js';
-import { useClaudeCodeSettingsPresenter } from '../ui/modal-stack/presenters.js';
+import {
+  useClaudeCodeSettingsPresenter,
+  useObsidianSettingsPresenter,
+} from '../ui/modal-stack/presenters.js';
+import type { ObsidianSubToggles } from './ObsidianSettingsModal.js';
 import s from './GeneralSettings.module.scss';
 
 export interface IntegrationsSettingsProps {
@@ -82,6 +86,61 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
     });
   };
 
+  // ─── 渲染集成(Markdown / Obsidian)— 与 forceModule 单选无关,各自独立 enabled ───
+  const presentObsidian = useObsidianSettingsPresenter();
+
+  const mdDefaults = DEFAULT_INTEGRATIONS.rendering.markdown;
+  const renderingMdEnabled = value?.rendering?.markdown?.enabled ?? mdDefaults.enabled;
+
+  const userObsidian = value?.rendering?.obsidian;
+  const obsDefaults = DEFAULT_INTEGRATIONS.rendering.obsidian;
+  const obsidianEnabled = userObsidian?.enabled ?? obsDefaults.enabled;
+  /** Obsidian 强依赖 Markdown(ADR-002):effective = md && obs */
+  const obsidianActive = renderingMdEnabled && obsidianEnabled;
+  const obsidianSubToggles: ObsidianSubToggles = {
+    frontmatter: userObsidian?.frontmatter ?? obsDefaults.frontmatter,
+    wikilink: userObsidian?.wikilink ?? obsDefaults.wikilink,
+    embed: userObsidian?.embed ?? obsDefaults.embed,
+    callout: userObsidian?.callout ?? obsDefaults.callout,
+    inlineSyntax: userObsidian?.inlineSyntax ?? obsDefaults.inlineSyntax,
+  };
+
+  const setRenderingMd = (next: boolean): void => {
+    onChange({
+      ...value,
+      rendering: {
+        ...value?.rendering,
+        markdown: { enabled: next },
+      },
+    });
+  };
+  const setObsidianEnabled = (next: boolean): void => {
+    onChange({
+      ...value,
+      rendering: {
+        ...value?.rendering,
+        obsidian: { ...value?.rendering?.obsidian, enabled: next },
+      },
+    });
+  };
+  const setObsidianSubToggles = (next: ObsidianSubToggles): void => {
+    onChange({
+      ...value,
+      rendering: {
+        ...value?.rendering,
+        obsidian: { ...value?.rendering?.obsidian, ...next },
+      },
+    });
+  };
+
+  const openObsidianSettings = (): void => {
+    presentObsidian({
+      value: obsidianSubToggles,
+      onChange: setObsidianSubToggles,
+      active: obsidianActive,
+    });
+  };
+
   return (
     <div className={s.root}>
       {/* ──── 顶层:总开关 ──── */}
@@ -129,7 +188,11 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
         </div>
       </section>
 
-      {/* ──── 模块列表(平铺,不再 section 包裹) ──── */}
+      {/* ──── 运行时集成分组 ──── */}
+      <header className={s.groupHeader}>
+        <h2 className={s.groupTitle}>{t('obsidian.sectionRuntime')}</h2>
+      </header>
+
       {/* ClaudeCode */}
       <section className={s.section}>
         <header className={s.header}>
@@ -146,6 +209,62 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
         </header>
         <div className={s.row}>
           <button type="button" onClick={openClaudeCodeSettings} className={s.btn}>
+            {t('integrations.openDetails')}
+          </button>
+        </div>
+      </section>
+
+      {/* ──── 渲染集成分组 ──── */}
+      <header className={s.groupHeader}>
+        <h2 className={s.groupTitle}>{t('obsidian.sectionRendering')}</h2>
+      </header>
+
+      {/* Markdown */}
+      <BoolToggleRow
+        title={t('obsidian.markdownTitle')}
+        hint={t('obsidian.markdownDescription')}
+        value={renderingMdEnabled}
+        onChange={setRenderingMd}
+      />
+
+      {/* Obsidian — 强依赖 Markdown */}
+      <section className={s.section} aria-disabled={!renderingMdEnabled || undefined}>
+        <header className={s.header}>
+          <h3 className={s.title}>
+            {t('obsidian.obsidianTitle')}
+            <span
+              className={s.titleStatus}
+              data-tone={obsidianActive ? 'info' : 'muted'}
+            >
+              {obsidianActive ? t('integrations.activeBadge') : t('integrations.inactiveBadge')}
+            </span>
+          </h3>
+          <p className={s.hint}>
+            {t('obsidian.obsidianDescription')}
+            {!renderingMdEnabled && (
+              <>
+                {' '}
+                <span className={s.requirement}>{t('obsidian.obsidianRequiresMarkdown')}</span>
+              </>
+            )}
+          </p>
+        </header>
+        <div
+          className={s.row}
+          style={!renderingMdEnabled ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+        >
+          <BoolToggleRow
+            title={t('obsidian.obsidianTitle')}
+            value={obsidianEnabled}
+            disabled={!renderingMdEnabled}
+            onChange={setObsidianEnabled}
+          />
+          <button
+            type="button"
+            onClick={openObsidianSettings}
+            className={s.btn}
+            disabled={!renderingMdEnabled}
+          >
             {t('integrations.openDetails')}
           </button>
         </div>
