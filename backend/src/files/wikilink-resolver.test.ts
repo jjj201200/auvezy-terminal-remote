@@ -133,6 +133,16 @@ describe('WorkspaceIndex.resolve — fragments', () => {
     idx.shutdown();
   });
 
+  it('accepts absolute `from` path (frontend may send abs path from PreviewTarget)', async () => {
+    touch('sub/foo.md');
+    const idx = new WorkspaceIndex(cwd);
+    await idx.ensureBuilt();
+    // 前端 target.path 来自 list-dir,是绝对路径。resolver 应归一为相对 cwd
+    const absFrom = join(cwd, 'sub/other.md');
+    expect(idx.resolve(absFrom, 'sub/foo').resolved).toBe('sub/foo.md');
+    idx.shutdown();
+  });
+
   it('strips alias pipe before resolving (defensive)', async () => {
     touch('notes/foo.md');
     const idx = new WorkspaceIndex(cwd);

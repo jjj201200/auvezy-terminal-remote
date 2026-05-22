@@ -87,12 +87,16 @@ export class WorkspaceIndex {
       return fragment ? { broken: true, fragment } : { broken: true };
     }
 
+    // 归一 from 为相对 cwd 路径(前端传过来的可能是绝对路径,如 PreviewTarget.path
+    // 直接来自 list-dir 的绝对形态)
+    const fromRel = this.normalizeFrom(from);
+
     if (pathPart.includes('/')) {
       // 路径形态:先 vault root 相对
       const fromVault = this.findByRelPath(pathPart);
       if (fromVault) return makeResult(fromVault, fragment);
       // 当前目录相对 fallback
-      const fromCurrent = this.findByRelPath(join(dirname(from), pathPart));
+      const fromCurrent = this.findByRelPath(join(dirname(fromRel), pathPart));
       if (fromCurrent) return makeResult(fromCurrent, fragment);
       return makeBroken(fragment);
     }
@@ -103,13 +107,30 @@ export class WorkspaceIndex {
     if (!candidates || candidates.length === 0) return makeBroken(fragment);
     if (candidates.length === 1) return makeResult(candidates[0]!, fragment);
 
-    // 多匹配:shortest-path 启发式
-    const best = pickShortestPath(from, candidates);
+    // 多匹配:shortest-path 启发式(用归一后的 fromRel)
+    const best = pickShortestPath(fromRel, candidates);
     return {
       resolved: best,
       candidates: [...candidates],
       ...(fragment ? { fragment } : {}),
     };
+  }
+
+  /**
+   * 把 from 归一为相对 cwd 路径(POSIX `/` 分隔)。
+   *
+   * - 绝对路径(以 cwd 为前缀)→ 剥前缀
+   * - 已是相对路径 → 原样(再做一次 split/join 防 Windows 反斜杠)
+   * - 越过 cwd 的(`..`)→ 不在 vault 内,返回原 from(让 findByRelPath 自然 miss)
+   */
+  private normalizeFrom(from: string): string {
+    const normalized = from.split(sep).join('/');
+    const rootPosix = this.cwd.split(sep).join('/');
+    if (normalized.startsWith(rootPosix + '/')) {
+      return normalized.slice(rootPosix.length + 1);
+    }
+    if (normalized === rootPosix) return '';
+    return normalized;
   }
 
   shutdown(): void {
@@ -237,8 +258,18 @@ function countCommonDirSegments(a: string, b: string): number {
 
 /**
  * 安全 walk:跟 symlink 时 realpath 校验未跳出 cwd。
- * 隐藏目录(`.` 开头)跳过 — 对齐 file-browser 既有惯例。
+ *
+ * 排除目录规则(对齐"Obsidian 视角")**只**跳少数无意义噪声目录:
+ *  - `.git` / `.obsidian` / `.trash` :版本控制 / Obsidian 自身缓存
+ *  - `node_modules` :前端 lock 包,几万个 README.md 是噪声
+ *
+ * **不跳一般以 `.` 开头的目录**(如 `.claude/`, `.config/`),因为这些常包含
+ *  用户实际想要 wikilink 的笔记/规则文档。这跟 file-browser 的"展示隐藏"逻辑
+ *  不同 — file-browser 给前端打 hidden 标后由用户 toggle;索引则必须主动决定
+ *  是否扫,默认应贴近 Obsidian 行为(尽量全扫,只屏蔽明显噪声)。
  */
+const EXCLUDED_DIRS = new Set(['.git', '.obsidian', '.trash', 'node_modules']);
+
 async function walk(
   root: string,
   cur: string,
@@ -254,7 +285,7 @@ async function walk(
     return;
   }
   for (const e of ents) {
-    if (e.name.startsWith('.')) continue;
+    if (EXCLUDED_DIRS.has(e.name)) continue;
     const full = join(cur, e.name);
     if (e.isSymbolicLink()) {
       try {
