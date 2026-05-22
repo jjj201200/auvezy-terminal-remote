@@ -294,6 +294,56 @@ export interface Messages {
     eventUserPromptsWarning: string;
   };
 
+  // 设置 - 集成 → Obsidian 渲染集成命名空间
+  obsidian: {
+    sectionRendering: string;
+    sectionRuntime: string;
+    markdownTitle: string;
+    markdownDescription: string;
+    obsidianTitle: string;
+    obsidianDescription: string;
+    obsidianRequiresMarkdown: string;
+    obsidianModalTitle: string;
+    obsidianModalHint: string;
+    toggleFrontmatter: string;
+    toggleFrontmatterHint: string;
+    toggleWikilink: string;
+    toggleWikilinkHint: string;
+    toggleEmbed: string;
+    toggleEmbedHint: string;
+    toggleCallout: string;
+    toggleCalloutHint: string;
+    toggleInlineSyntax: string;
+    toggleInlineSyntaxHint: string;
+    frontmatterTitle: string;
+    frontmatterCount: string;
+    frontmatterParseError: string;
+    frontmatterEmpty: string;
+    calloutNote: string;
+    calloutAbstract: string;
+    calloutInfo: string;
+    calloutTodo: string;
+    calloutTip: string;
+    calloutSuccess: string;
+    calloutQuestion: string;
+    calloutWarning: string;
+    calloutFailure: string;
+    calloutDanger: string;
+    calloutBug: string;
+    calloutExample: string;
+    calloutQuote: string;
+    wikilinkBroken: string;
+    wikilinkAmbiguous: string;
+    wikilinkDisabledHint: string;
+    embedExpand: string;
+    embedCollapse: string;
+    embedNotFound: string;
+    embedUnsupportedType: string;
+    embedCircular: string;
+    embedDepthLimit: string;
+    embedDisabledHint: string;
+  };
+
   // 设置 - 开发者
   dev: {
     erudaTitle: string;

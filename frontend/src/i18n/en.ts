@@ -262,6 +262,68 @@ export const en: Messages = {
       'Off by default. Only enable if your ATR instance is on a trusted network—any client holding the token can see this text.',
   },
 
+  obsidian: {
+    sectionRendering: 'Rendering integrations',
+    sectionRuntime: 'Runtime integrations',
+    markdownTitle: 'Markdown',
+    markdownDescription:
+      'Rich preview for .md / .markdown files (headings / lists / tables / code blocks).',
+    obsidianTitle: 'Obsidian',
+    obsidianDescription:
+      'Layer Obsidian-flavored extensions on top of Markdown rendering (frontmatter / callouts / wikilinks / embeds / inline syntax).',
+    obsidianRequiresMarkdown: 'Requires Markdown to be enabled.',
+    obsidianModalTitle: 'Obsidian integration details',
+    obsidianModalHint:
+      'When a sub-toggle is off, the corresponding syntax is still recognized but rendered as a hint style (wikilink / embed) or kept as raw text (highlight / comment / tag / block-id).',
+
+    toggleFrontmatter: 'Frontmatter (Properties)',
+    toggleFrontmatterHint:
+      'Render YAML front matter as a typed properties table. Off: front matter block is hidden.',
+    toggleWikilink: 'Wikilink ([[...]])',
+    toggleWikilinkHint:
+      'Recognize [[Note]] / [[Note|alias]]. Off: rendered as disabled style (dashed underline), not clickable.',
+    toggleEmbed: 'Embed (![[...]])',
+    toggleEmbedHint:
+      'Recognize ![[file]] embedding (images / md slices / pdf / audio / video). Off: rendered as placeholder.',
+    toggleCallout: 'Callouts (> [!type])',
+    toggleCalloutHint:
+      '13 Obsidian callout types with collapsibles. Off: falls back to standard blockquote rendering.',
+    toggleInlineSyntax: 'Inline syntax',
+    toggleInlineSyntaxHint:
+      '==highlight==, %%comment%%, #tag, ^block-id. Off: original text is preserved as-is.',
+
+    frontmatterTitle: 'Properties',
+    frontmatterCount: '{n} items',
+    frontmatterParseError: 'Front matter parse error',
+    frontmatterEmpty: '(empty)',
+
+    calloutNote: 'Note',
+    calloutAbstract: 'Abstract',
+    calloutInfo: 'Info',
+    calloutTodo: 'Todo',
+    calloutTip: 'Tip',
+    calloutSuccess: 'Success',
+    calloutQuestion: 'Question',
+    calloutWarning: 'Warning',
+    calloutFailure: 'Failure',
+    calloutDanger: 'Danger',
+    calloutBug: 'Bug',
+    calloutExample: 'Example',
+    calloutQuote: 'Quote',
+
+    wikilinkBroken: 'Target not found',
+    wikilinkAmbiguous: '{n} candidates',
+    wikilinkDisabledHint: 'Enable Obsidian wikilink sub-toggle to navigate',
+
+    embedExpand: '▶ Embed: {path} ({size})',
+    embedCollapse: 'Collapse',
+    embedNotFound: 'Embedded file not found',
+    embedUnsupportedType: 'Embed not supported: {ext}',
+    embedCircular: 'Circular embed: {path}',
+    embedDepthLimit: 'Embed depth limit reached',
+    embedDisabledHint: 'Embed sub-toggle is off',
+  },
+
   dev: {
     erudaTitle: 'Mobile DevTools overlay (eruda)',
     erudaHint:

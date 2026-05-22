@@ -253,6 +253,63 @@ export const zhCN: Messages = {
       '默认关闭。开启前请确保你的 ATR 实例只在受信网络中可达——任何持有 token 的客户端都能看到这些原文。',
   },
 
+  obsidian: {
+    sectionRendering: '渲染集成',
+    sectionRuntime: '运行时集成',
+    markdownTitle: 'Markdown',
+    markdownDescription: '.md / .markdown 文件富文本预览(标题 / 列表 / 表格 / 代码块等)。',
+    obsidianTitle: 'Obsidian',
+    obsidianDescription:
+      '在 Markdown 渲染管线上叠加 Obsidian 扩展语法(frontmatter / callout / wikilink / embed / 内联语法)。',
+    obsidianRequiresMarkdown: '需要先启用 Markdown。',
+    obsidianModalTitle: 'Obsidian 集成详细设置',
+    obsidianModalHint:
+      '关闭子开关后,对应语法仍被识别,但渲染为提示样式(wikilink / embed)或保留原文(高亮 / 注释 / 标签 / block-id)。',
+
+    toggleFrontmatter: 'Frontmatter(属性表)',
+    toggleFrontmatterHint: '把文件头 YAML 渲染为带类型图标的属性表;关闭则隐藏头部 YAML 块。',
+    toggleWikilink: 'Wikilink([[...]])',
+    toggleWikilinkHint:
+      '识别 [[笔记]] / [[笔记|别名]];关闭后仍识别为 wikilink,但渲染为虚线灰色样式且不可点击。',
+    toggleEmbed: 'Embed(![[...]])',
+    toggleEmbedHint: '识别 ![[文件]] 嵌入(图片 / md 片段 / PDF / 音视频);关闭后渲染为占位框。',
+    toggleCallout: 'Callout(> [!type])',
+    toggleCalloutHint: '13 种 Obsidian callout 类型及折叠语法;关闭则回退为普通 blockquote。',
+    toggleInlineSyntax: '内联语法',
+    toggleInlineSyntaxHint: '==高亮==、%%注释%%、#标签、^block-id;关闭则保留原始文本不做识别。',
+
+    frontmatterTitle: '属性',
+    frontmatterCount: '{n} 项',
+    frontmatterParseError: 'Frontmatter 解析失败',
+    frontmatterEmpty: '(空)',
+
+    calloutNote: '笔记',
+    calloutAbstract: '摘要',
+    calloutInfo: '信息',
+    calloutTodo: '待办',
+    calloutTip: '提示',
+    calloutSuccess: '成功',
+    calloutQuestion: '问题',
+    calloutWarning: '警告',
+    calloutFailure: '失败',
+    calloutDanger: '危险',
+    calloutBug: '缺陷',
+    calloutExample: '示例',
+    calloutQuote: '引用',
+
+    wikilinkBroken: '目标不存在',
+    wikilinkAmbiguous: '{n} 个候选',
+    wikilinkDisabledHint: '启用 Obsidian wikilink 子开关以跳转',
+
+    embedExpand: '▶ Embed:{path}({size})',
+    embedCollapse: '收起',
+    embedNotFound: '嵌入文件不存在',
+    embedUnsupportedType: '不支持的嵌入类型:{ext}',
+    embedCircular: '循环嵌入:{path}',
+    embedDepthLimit: '已达嵌入深度上限',
+    embedDisabledHint: '嵌入子开关未启用',
+  },
+
   dev: {
     erudaTitle: '移动端调试浮层（eruda）',
     erudaHint:
