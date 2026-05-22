@@ -1,7 +1,13 @@
 /**
  * /api/files/* 客户端封装
  *
- * 所有调用走相对路径(broker 反代回 HTML 已注入 <base href>)。
+ * 所有调用走**绝对路径 `/api/files/*`** —— 0.7.0 v2 起 file-routes 是 broker
+ * 系统级 API,挂在 broker 根 `/api/` 下而非 instance scope。如果用相对路径
+ * `api/files/...`,浏览器在 `/i/<id>/` 当前路径下会解析为 `/i/<id>/api/files/...`,
+ * 被 instance-router 反代到 worker 而 worker 不接 file-routes → 404。
+ *
+ * 绝对路径在生产 base href 注入下也对(`<base href="/i/<id>/">` 不影响绝对路径)。
+ *
  * 错误统一抛 Error & { code: string },code 取自后端 ErrorPayload.code。
  */
 
@@ -17,21 +23,21 @@ import type {
 export async function listFiles(instanceId: string, path?: string): Promise<FileListResponse> {
   const q = new URLSearchParams({ instanceId });
   if (path) q.set('path', path);
-  const r = await fetch(`api/files/list?${q.toString()}`, { credentials: 'include' });
+  const r = await fetch(`/api/files/list?${q.toString()}`, { credentials: 'include' });
   if (!r.ok) throw await asError(r);
   return r.json();
 }
 
 export async function readFile(instanceId: string, path: string): Promise<FileReadResponse> {
   const q = new URLSearchParams({ instanceId, path });
-  const r = await fetch(`api/files/read?${q.toString()}`, { credentials: 'include' });
+  const r = await fetch(`/api/files/read?${q.toString()}`, { credentials: 'include' });
   if (!r.ok) throw await asError(r);
   return r.json();
 }
 
 export async function statFile(instanceId: string, path: string): Promise<FileStatResponse> {
   const q = new URLSearchParams({ instanceId, path });
-  const r = await fetch(`api/files/stat?${q.toString()}`, { credentials: 'include' });
+  const r = await fetch(`/api/files/stat?${q.toString()}`, { credentials: 'include' });
   if (!r.ok) throw await asError(r);
   return r.json();
 }
@@ -39,7 +45,7 @@ export async function statFile(instanceId: string, path: string): Promise<FileSt
 /** 拼 raw URL,前端给 <img src> 用 */
 export function rawUrl(instanceId: string, path: string): string {
   const q = new URLSearchParams({ instanceId, path });
-  return `api/files/raw?${q.toString()}`;
+  return `/api/files/raw?${q.toString()}`;
 }
 
 export interface SearchHandle {
@@ -75,7 +81,7 @@ export function streamSearch(
   });
   if (params.scope) sp.set('scope', params.scope);
 
-  const es = new EventSource(`api/files/search?${sp.toString()}`, { withCredentials: true });
+  const es = new EventSource(`/api/files/search?${sp.toString()}`, { withCredentials: true });
   es.addEventListener('match', (ev) => {
     try { onMatch(JSON.parse((ev as MessageEvent).data) as SearchEvent); }
     catch { /* 单条解析失败不致命 */ }
