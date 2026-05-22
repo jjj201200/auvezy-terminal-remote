@@ -43,6 +43,7 @@ import { detectMime } from '../files/mime-detect.js';
 import { readTextFile } from '../files/read-file.js';
 import { runSearch } from '../files/search-engine.js';
 import { getFileKind } from '../files/file-kind.js';
+import { WorkspaceIndex } from '../files/wikilink-resolver.js';
 
 
 export interface FileRoutesOptions {
@@ -62,10 +63,26 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
   const router = Router();
   const { authModule, registry, workdirPolicy } = opts;
 
-  // per-IP 限流:list/stat/read/raw 共享 fileLimiter,search 独立 searchLimiter。
+  // per-IP 限流:list/stat/read/raw/resolve-links 共享 fileLimiter,search 独立。
   // RateLimiter 内部 cleanupTimer 已 unref,无需显式 destroy 即可让 process 退出。
   const fileLimiter = new RateLimiter(FILE_RATE_LIMIT_PER_MIN);
   const searchLimiter = new RateLimiter(SEARCH_RATE_LIMIT_PER_MIN);
+
+  /**
+   * 实例级 WorkspaceIndex 缓存(wikilink 解析用)。
+   * 首次访问时 lazy build,instance shutdown 时 registry 不通知 file-routes,
+   * 索引会在内存中残留 — 接受这个泄漏(单 broker 进程内最多几十个 instance)。
+   * 后续若需精细管理,在 instance-registry shutdown hook 里调 idx.shutdown()。
+   */
+  const wikilinkIndexes = new Map<string, WorkspaceIndex>();
+  function getWikilinkIndex(instanceId: string, cwd: string): WorkspaceIndex {
+    let idx = wikilinkIndexes.get(instanceId);
+    if (!idx) {
+      idx = new WorkspaceIndex(cwd);
+      wikilinkIndexes.set(instanceId, idx);
+    }
+    return idx;
+  }
 
   router.get('/files/list', authModule.requireAuth, requireRate(fileLimiter), wrap(async (req, res) => {
     const tStart = Date.now();
@@ -254,6 +271,76 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
       res.end();
     }
   });
+
+  // ──────────────── POST /api/files/resolve-links ────────────────
+  // wikilink 批量解析 — 输入 { instanceId, from, targets[] } → 输出每个 target 的解析结果。
+  // Why POST(非幂等检索):targets 数组可能很长不适合 query string;且首次调用可能
+  // 触发 WorkspaceIndex lazy build(有副作用)。详见 design.md §7.1。
+  router.post(
+    '/files/resolve-links',
+    authModule.requireAuth,
+    requireRate(fileLimiter),
+    wrap(async (req, res) => {
+      const tStart = Date.now();
+      const body = req.body as {
+        instanceId?: unknown;
+        from?: unknown;
+        targets?: unknown;
+      };
+      if (
+        typeof body.instanceId !== 'string' ||
+        body.instanceId.length === 0 ||
+        typeof body.from !== 'string' ||
+        !Array.isArray(body.targets)
+      ) {
+        throw new AppError(
+          ErrorCode.BAD_REQUEST,
+          'body must be { instanceId: string, from: string, targets: string[] }',
+        );
+      }
+      // 数量上限:一个 markdown 文档常含 < 50 wikilink;200 是安全冗余
+      if (body.targets.length > 200) {
+        throw new AppError(ErrorCode.BAD_REQUEST, 'too many targets (max 200)');
+      }
+      for (const t of body.targets) {
+        if (typeof t !== 'string') {
+          throw new AppError(ErrorCode.BAD_REQUEST, 'target must be string');
+        }
+      }
+      const targets = body.targets as string[];
+
+      // 复用 resolveContext —— 把 instanceId 注入 query 通过它一致校验
+      const reqWithQuery = Object.assign(Object.create(Object.getPrototypeOf(req) as object), req, {
+        query: { ...req.query, instanceId: body.instanceId },
+      }) as Request;
+      const ctx = await resolveContext(reqWithQuery, registry, workdirPolicy);
+
+      // from 安全检查 — 防伪造 ../.. 路径用 cwd 之外的位置定位
+      resolveSafePath(ctx.cwd, body.from, ctx.policy);
+
+      const idx = getWikilinkIndex(ctx.instanceId, ctx.cwd);
+      await idx.ensureBuilt();
+
+      const results = targets.map((target) => ({
+        target,
+        ...idx.resolve(body.from as string, target),
+      }));
+
+      res.json({ ok: true, results });
+
+      logger.info(
+        {
+          action: 'resolve-links',
+          instanceId: ctx.instanceId,
+          from: body.from,
+          targetsCount: targets.length,
+          ip: req.ip,
+          elapsedMs: Date.now() - tStart,
+        },
+        '/api/files audit',
+      );
+    }),
+  );
 
   return router;
 }
