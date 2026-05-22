@@ -314,7 +314,10 @@ export function MultiInstanceConsole(): JSX.Element {
   const onSearchClose = useCallback(() => setSearchOpen(false), []);
 
   const activeStatus = activeId ? statusMap[activeId] : undefined;
-  const connection = activeStatus?.connection ?? 'connecting';
+  // 无 activeId(实例列表空)→ 'no_instance';有 activeId 但 statusMap 还没初始化 → 'connecting'
+  const connection: ConnectionStatus = activeId
+    ? (activeStatus?.connection ?? 'connecting')
+    : 'no_instance';
   const session = activeStatus?.session ?? 'idle';
   const extras = activeStatus?.extras;
 

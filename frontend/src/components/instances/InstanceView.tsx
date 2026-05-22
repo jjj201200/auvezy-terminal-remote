@@ -25,6 +25,7 @@ import { isMouseReportingActive } from '../../utils/xterm-internals.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
 import { LongPressIndicator } from '../input/LongPressIndicator.js';
 import { useWebSocket } from '../../hooks/useWebSocket.js';
+import type { ConnectionStatus } from '../../stores/app-store.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useLocalNotification } from '../../hooks/useLocalNotification.js';
 import { TerminalView } from '../terminal/TerminalView.js';
@@ -69,7 +70,7 @@ export interface InstanceViewProps {
   onStatusChange?: (
     instanceId: string,
     s: {
-      connection: 'connecting' | 'connected' | 'disconnected' | 'gave_up';
+      connection: ConnectionStatus;
       session: SessionStatus;
       /** 富状态:integration 模块上报的活跃工具 / 审批计数 / 失败信息等 */
       extras?: SessionStatusExtras;

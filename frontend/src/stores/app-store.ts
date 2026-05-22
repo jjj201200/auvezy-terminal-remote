@@ -10,8 +10,16 @@
 import { create } from 'zustand';
 
 /** WS 连接状态 */
-// 'gave_up'：达到最大重试次数后停止自动重连，等用户手动点 / 网络事件触发重置
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'gave_up';
+// 'gave_up'   :达到最大重试次数后停止自动重连，等用户手动点 / 网络事件触发重置
+// 'no_instance':当前没有 active 实例(实例列表空)。区别于 'disconnected' —— 后者暗示
+//              "断开",而 no_instance 是"没有任何要连接的目标"。MultiInstanceConsole
+//              在 activeId 为 null 时传该值给 StatusBar。
+export type ConnectionStatus =
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'gave_up'
+  | 'no_instance';
 
 interface AppState {
   /** 默认实例的 WS 状态（多实例时各实例状态另存） */

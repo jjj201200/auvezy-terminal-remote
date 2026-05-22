@@ -128,6 +128,7 @@ export interface Messages {
     disconnectedReconnect: string;
     gaveUp: string;
     gaveUpReconnect: string;
+    noInstance: string;
     reconnecting: string;
     reconnect: string;
     reconnectTooltip: string;
@@ -144,6 +145,7 @@ export interface Messages {
     descConnected: string;
     descDisconnected: string;
     descGaveUp: string;
+    descNoInstance: string;
     descPtyPending: string;
     descIdle: string;
     descRunning: string;

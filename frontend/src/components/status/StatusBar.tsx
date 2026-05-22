@@ -30,6 +30,7 @@ const CONN_KEY: Record<ConnectionStatus, string> = {
   connected: 'status.connected',
   disconnected: 'status.disconnected',
   gave_up: 'status.gaveUp',
+  no_instance: 'status.noInstance',
 };
 
 const SESSION_KEY: Record<SessionStatus, string> = {
@@ -44,6 +45,7 @@ const CONN_TONE: Record<ConnectionStatus, PillTone> = {
   connected: 'ok',
   disconnected: 'error',
   gave_up: 'error',
+  no_instance: 'muted',
 };
 
 const SESSION_TONE: Record<SessionStatus, PillTone> = {
@@ -58,6 +60,7 @@ const CONN_DESC_KEY: Record<ConnectionStatus, string> = {
   connected: 'status.descConnected',
   disconnected: 'status.descDisconnected',
   gave_up: 'status.descGaveUp',
+  no_instance: 'status.descNoInstance',
 };
 
 const SESSION_DESC_KEY: Record<SessionStatus, string> = {
