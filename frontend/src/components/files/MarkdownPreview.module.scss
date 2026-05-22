@@ -3,14 +3,16 @@
  *
  * 设计参考 /public/md-preview-mockup-a.html(方案 A · MAN(1) 修订版)。
  * 风格:正文 sans / 代码 mono;无衬线段落,标题 ALL CAPS,左缩进 man-page 感;
- * 边线减到最少 — 只保留语义性边线(admonition 左色边、表格内框、HR、blockquote)。
+ * 边线减到最少 — 只保留语义性边线(callout 左色边、表格内框、HR、blockquote)。
  *
  * 层级原则:
  *   --bg-canvas (页面)        body
  *   --bg        (容器)        FilePreviewSheet 容器
- *   --bg-elev   (组件)        pre / admonition body / inline code / kbd / table 等
- *   --bg-hover  (组件高一层)  code-header / admonition tag
+ *   --bg-elev   (组件)        pre / inline code / kbd / table 等
+ *   --bg-hover  (组件高一层)  code-header
  * 组件内部不用 --bg-canvas 或 --bg(避免与父背景混在一起)。
+ *
+ * Callout 样式独立在 markdown/obsidian/callout.module.scss。
  */
 
 @use '../../styles/mixins' as m;
@@ -116,23 +118,19 @@
   letter-spacing: 0.04em;
 }
 
-// ──── 正文左缩进(man-page 风);.table-wrap / admonition 单独走 margin-left ────
+// ──── 正文左缩进(man-page 风);.tableWrap 单独走 margin-left ────
 .root>p,
 .root>ul,
 .root>ol,
 .root>blockquote,
 .root>pre,
-.root>.figure,
 .root>details,
-.root>dl,
-.root>.math-block,
-.root>.footnotes {
+.root>dl {
   padding-left: var(--sp-5);
   padding-right: 0;
 }
 
-.root>.tableWrap,
-.root>.admonition {
+.root>.tableWrap {
   margin-left: var(--sp-5);
 }
 
@@ -159,12 +157,12 @@
 
 .root a::before {
   content: '[';
-  color: var(--color-fg-low);
+  // color: var(--color-fg-low);
 }
 
 .root a::after {
   content: ']';
-  color: var(--color-fg-low);
+  // color: var(--color-fg-low);
 }
 
 .root strong {
@@ -496,65 +494,8 @@
 // GFM Alert 旧实现已被 Obsidian callout 替换(13 类超集,详见
 // frontend/src/components/files/markdown/obsidian/callout.module.scss)。
 
-// ──── Admonition(自定义语法:用户在 md 里用 ::: 围栏)────
-// 当前实现暂不支持自定义语法 — 留 class 占位,需要时接 remark-directive
-.root .admonition {
-  margin-top: var(--sp-3);
-  margin-bottom: var(--sp-3);
-  border-left: 3px solid var(--color-accent);
-  background: var(--color-bg-elev);
-  overflow: hidden;
-}
-
-.root .admonitionNote {
-  border-left-color: var(--color-accent);
-}
-
-.root .admonitionTip {
-  border-left-color: #7ee787;
-}
-
-.root .admonitionWarn {
-  border-left-color: var(--color-warn);
-}
-
-.root .admonitionDanger {
-  border-left-color: #ff7b72;
-}
-
-.root .admonitionTag {
-  padding: var(--sp-1) var(--sp-3);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  font-size: var(--fs-2xs);
-  text-transform: uppercase;
-  background: var(--color-bg-hover);
-}
-
-.root .admonitionNote .admonitionTag {
-  color: var(--color-accent);
-}
-
-.root .admonitionTip .admonitionTag {
-  color: #7ee787;
-}
-
-.root .admonitionWarn .admonitionTag {
-  color: var(--color-warn);
-}
-
-.root .admonitionDanger .admonitionTag {
-  color: #ff7b72;
-}
-
-.root .admonitionBody {
-  padding: var(--sp-2) var(--sp-3);
-}
-
-.root .admonitionBody p {
-  margin: var(--sp-1) 0;
-  padding-left: 0;
-}
+// admonition 旧占位样式已删 — Obsidian callout 见
+// frontend/src/components/files/markdown/obsidian/callout.module.scss
 
 // ──── Table ────
 .root .tableWrap {

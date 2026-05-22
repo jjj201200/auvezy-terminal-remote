@@ -21,7 +21,7 @@
  * 自写 plugin,共 ~50KB)。未开 obsidian 的用户不付这份代价。
  */
 
-import { memo, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
+import { createElement, memo, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -149,13 +149,13 @@ export function MarkdownPreview({ instanceId, path }: MarkdownPreviewProps): JSX
       // 给表格外加滚动包装
       return <div className={s.tableWrap}>{props.children && <table>{props.children}</table>}</div>;
     },
-    // heading 注入 data-heading-id 供 anchor-bus scrollIntoView 定位(S6b)
-    h1: (p) => <h1 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h1>,
-    h2: (p) => <h2 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h2>,
-    h3: (p) => <h3 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h3>,
-    h4: (p) => <h4 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h4>,
-    h5: (p) => <h5 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h5>,
-    h6: (p) => <h6 data-heading-id={slugify(toCodeText(p.children))}>{p.children}</h6>,
+    // heading 注入 data-heading-id 供 anchor-bus scrollIntoView 定位(S6b)。
+    // h1..h6 6 个 tag 行为一致,工厂化避免重复 — 用 React.createElement 绑 tag 名。
+    ...(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const).reduce<Partial<Components>>((acc, tag) => {
+      acc[tag] = (p) =>
+        createElement(tag, { 'data-heading-id': slugify(toCodeText(p.children)) }, p.children);
+      return acc;
+    }, {}),
     // blockquote 默认渲染;callout 子开关启用时由 obsidian/callout plugin 接管(见 S4)
   }), [colorScheme]);
 
