@@ -5,7 +5,7 @@
 
 ## [Unreleased]
 
-## [0.9.0] - 待发布
+## [0.9.0] - 2026-05-22
 
 主题:**Obsidian 集成** — .md 预览升级为完整 Obsidian-flavored 渲染;同时
 重构「集成」概念,把渲染相关功能模块提升为顶层「集成」分类的一类(与 Claude Code
@@ -51,6 +51,37 @@
 - 新增 `POST /api/files/resolve-links` 批量端点(wikilink 解析,最多 200 targets/次)
 - `WorkspaceIndex` 内存索引:lazy build,fs.watch(recursive)+ 5min poll 兜底,
   shortest-path 启发式 tie-break 用字节序(跨平台稳定)
+- `WorkspaceIndex` 性能 3 处加速:
+  - **prefetch**:用户调 `/files/list`(打开文件浏览器)时 fire-and-forget 触发首次 build,
+    等他点 wikilink 时索引已 ready,无 5s 白屏
+  - **后台 rebuild**:stale 索引(>30s)走旧值立即响应 + 后台 rebuild,用户从不等
+  - **并发 walk**:同层子目录 `Promise.all` 并行 readdir,508 md / WSL DrvFs 实测
+    rebuild 从 491ms → 95ms(5x 提速)
+- `WorkspaceIndex.resolve` 归一绝对 `from` 为相对 cwd —— 修前端 PreviewTarget.path 是绝对路径
+  时含 `/` 的 target 找不到子目录目标的 bug
+- `WorkspaceIndex` walk 排除规则更新:不再无脑跳 `.` 开头目录,只跳
+  `.git` / `.obsidian` / `.trash` / `node_modules` — `.claude/` 等用户笔记目录被正确索引
+
+### Fixed
+
+- 文件浏览器在 `/i/<id>/` 路径下文件列表 404:`files-api.ts` 改用绝对路径
+  `/api/files/*`(相对路径在 `/i/<id>/` 下被 instance-router 错误反代到 worker)
+- vite dev 模式 `/i/<id>/` HTML 路径返 404:加 proxy bypass,纯 HTML 路径走 vite 自己
+  SPA fallback,仅 `api/`/`ws` 反代给 broker
+- 状态条「无实例」时显示「Connecting」误导:新增 `no_instance` 状态(灰色 muted),
+  独立 i18n `status.noInstance`
+- DOM `aria-describedby` 警告:Sheet Dialog 显式声明 `aria-describedby={undefined}` 消 Radix 警告
+
+### Tokens
+
+- 新增 `--color-link`(天蓝 `#87ceeb`)语义 token,markdown 链接 + wikilink active 都用此色
+  与 `--color-accent`(项目主色绿)解耦
+
+### Internal
+
+- `MarkdownPreview` simplify:删 60 行 admonition 占位 SCSS(callout 已完全取代),
+  h1-h6 6 行 component 工厂化(用 `createElement`)
+- 状态条 ConnectionStatus 类型扩 `no_instance`,InstanceView onStatusChange 改用全集 type
 
 ### Docs
 
