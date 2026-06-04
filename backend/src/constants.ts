@@ -92,6 +92,23 @@ export const STOP_INSTANCE_GRACE_MS = 3_000;
 /** 停止实例时轮询进程退出的间隔（ms） */
 export const STOP_INSTANCE_POLL_INTERVAL_MS = 100;
 
+// ──────────────── HTTP body 上限 ────────────────
+
+/**
+ * worker 进程顶层 express.json body 上限。
+ *
+ * worker 只接两条路由(`/api/health`, `/api/hook`),health 是 GET 无 body,
+ * 大上限实际只用于 hook。Claude Code 的 tool_response 偶尔几 MB(读大文件 /
+ * 长 ls / lint 输出);默认 express.json() 的 100kb 太紧。10mb 覆盖几乎所有
+ * 真实 hook payload,同时把攻击面压在合理上限 —— LAN 上恶意 peer 也无法
+ * 跑 100mb 的 raw-body buffer。
+ *
+ * broker 进程顶层维持 express.json 默认(100kb),它的端点都是小 JSON(auth /
+ * config / instances 等)。/i/<id>/api/hook 走 instance-router 反代到 worker,
+ * worker 自己再用这个上限解析。
+ */
+export const JSON_BODY_LIMIT_WORKER = '10mb';
+
 // ──────────────── attach 客户端 ────────────────
 
 /**

@@ -54,6 +54,13 @@ export class WorkspaceIndex {
   private rebuildScheduled = false;
   /** 上次 buildOnce() 完成时间;用于 staleness 检查决定是否要重 build */
   private lastBuiltAt = 0;
+  /**
+   * vault 探测结果缓存。null = 还没探,true/false = 已知。
+   * non-vault 用户每次 /files/list 都触发 prefetch,不缓存就会每次 lstat。
+   * vault 状态运行时几乎不变(用户开 Obsidian 时 .obsidian/ 才出现),缓存到
+   * 实例生命周期足够。
+   */
+  private vaultChecked: boolean | null = null;
 
   constructor(private readonly cwd: string) {}
 
@@ -108,12 +115,35 @@ export class WorkspaceIndex {
    * 调用方 fire-and-forget。已 built 或正在 build 时 no-op。
    *
    * 推荐挂在 /files/list 第一次被调时(用户刚打开文件浏览器,索引提前热好)。
+   *
+   * **vault gate**:预热只对 Obsidian vault 触发。判定靠 `<cwd>/.obsidian/`
+   * 是否存在。其它仓库(observer、monorepo、Go project 等)首次 list 不会触发
+   * 整仓 walk —— 这是非 vault 用户进 files browser 直接卡死的根因(原本即便
+   * 没 .obsidian 也会 prefetch + 全 walk,大仓库会 fd 风暴或耗几十秒)。
+   *
+   * 注意:`ensureBuilt()` 不受此 gate 影响 —— 若用户显式发 wikilink resolve
+   * 请求(/files/resolve-links),无论是不是 vault 都会按需 build。这层只屏蔽
+   * 后台预热的"猜测性" walk。
    */
   prefetch(): void {
     if (this.built || this.buildPromise) return;
-    void this.ensureBuilt().catch((err) =>
-      logger.debug({ err }, 'WorkspaceIndex prefetch failed (silent)'),
-    );
+    // 已知非 vault → 直接早退,不再 lstat(避免 monorepo 浏览每个目录都跑一次)
+    if (this.vaultChecked === false) return;
+    void (async () => {
+      try {
+        if (this.vaultChecked === null) {
+          this.vaultChecked = await isObsidianVault(this.cwd);
+        }
+        if (!this.vaultChecked) {
+          // 非 vault 不预热;留 byBasename 为空,若后续真有 resolve 请求会走
+          // ensureBuilt 按需 build(那时用户已显式表达意图)
+          return;
+        }
+        await this.ensureBuilt();
+      } catch (err) {
+        logger.debug({ err }, 'WorkspaceIndex prefetch failed (silent)');
+      }
+    })();
   }
 
   resolve(from: string, target: string): ResolveResult {
@@ -294,16 +324,40 @@ function countCommonDirSegments(a: string, b: string): number {
 /**
  * 安全 walk:跟 symlink 时 realpath 校验未跳出 cwd。
  *
- * 排除目录规则(对齐"Obsidian 视角")**只**跳少数无意义噪声目录:
- *  - `.git` / `.obsidian` / `.trash` :版本控制 / Obsidian 自身缓存
- *  - `node_modules` :前端 lock 包,几万个 README.md 是噪声
+ * 排除目录规则:除了 Obsidian 视角的无意义噪声外,还硬排几大类**构建/依赖/
+ * 缓存**目录 —— 即便 vault 根真存在这些(monorepo / 项目内 vault),这些目录
+ * 里的 .md 也几乎全是第三方 README / 自动生成产物,不是用户笔记,
+ * 扫了反而拖垮性能 + 污染解析候选。
  *
- * **不跳一般以 `.` 开头的目录**(如 `.claude/`, `.config/`),因为这些常包含
- *  用户实际想要 wikilink 的笔记/规则文档。这跟 file-browser 的"展示隐藏"逻辑
- *  不同 — file-browser 给前端打 hidden 标后由用户 toggle;索引则必须主动决定
- *  是否扫,默认应贴近 Obsidian 行为(尽量全扫,只屏蔽明显噪声)。
+ * 设计原则:**已知无价值** > 误杀风险。若某用户真把笔记放在 `vendor/notes/`
+ * 之类的目录里(极少),可后续做白名单配置;现状先用保守屏蔽。
+ *
+ * **仍不跳一般以 `.` 开头的目录**(如 `.claude/`, `.config/`),因为这些常包含
+ * 用户实际想要 wikilink 的笔记/规则文档。这跟 file-browser 的"展示隐藏"逻辑
+ * 不同 — file-browser 给前端打 hidden 标后由用户 toggle;索引则必须主动决定
+ * 是否扫,默认应贴近 Obsidian 行为(尽量全扫,只屏蔽明显噪声)。
  */
-const EXCLUDED_DIRS = new Set(['.git', '.obsidian', '.trash', 'node_modules']);
+const EXCLUDED_DIRS = new Set([
+  // Obsidian / VCS / 系统级
+  '.git', '.svn', '.hg', '.obsidian', '.trash',
+
+  // JS/TS 生态(node_modules 单独提是因为它通常含上万 README.md)
+  'node_modules', '.pnpm-store', '.yarn',
+  '.next', '.nuxt', '.svelte-kit', '.astro', '.vercel', '.turbo',
+  'dist', 'build', 'out', 'coverage', '.nyc_output',
+
+  // Python / Rust / Java / Go / Ruby / PHP
+  '.venv', 'venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.tox',
+  'target',
+  '.gradle', '.mvn',
+  'vendor',
+
+  // IDE / 编辑器
+  '.idea', '.vs', '.vscode-test',
+
+  // 通用缓存
+  '.cache', '.parcel-cache',
+]);
 
 /**
  * 并发 walk:同一目录下的子目录用 Promise.all 并行 readdir,加速大 vault。
@@ -353,6 +407,22 @@ async function walk(
 async function isDir(p: string): Promise<boolean> {
   try {
     return (await fsp.stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * cwd 是否 Obsidian vault:根目录有 `.obsidian/` 即认。
+ *
+ * Obsidian 启动会在 vault 根写入 `.obsidian/`(存配置/插件/workspace 等),
+ * 这是用 `*.md` 还是真"vault 想要 wikilink 索引"的唯一可靠区分。
+ * 仅检查 dir 存在,不打开内容(性能优先;.obsidian 是 fs.lstat 一次的事)。
+ */
+export async function isObsidianVault(cwd: string): Promise<boolean> {
+  try {
+    const st = await fsp.lstat(join(cwd, '.obsidian'));
+    return st.isDirectory();
   } catch {
     return false;
   }

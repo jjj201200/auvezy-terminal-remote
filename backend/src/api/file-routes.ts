@@ -151,6 +151,16 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
   }));
 
   // /raw 不走 wrap:错误时不返 JSON,用 X-ATR-Error header
+  //
+  // Range 支持:<video>/<audio> 元素加载时浏览器会先发不带 Range 的 GET 探总
+  // 长度,再发 `Range: bytes=<start>-<end>` 拉片段以支持拖动进度条/seek。
+  // 不带 Range → 200 + 全量 pipe;带合法 Range → 206 + 部分 pipe + Content-Range;
+  // 不可满足 → 416。<img> 不发 Range,逻辑不受影响。
+  //
+  // size 上限策略 — `FILE_RAW_MAX_BYTES` 只对 **图片 / 未知二进制** 生效,
+  // 视频/音频不查上限:浏览器 <video>/<audio> 通过 Range 分片拉,不会把整个
+  // 文件 buffer 进客户端;一集 1080p 动画动辄几百 MB,套硬上限只会让正常
+  // 媒体预览失败。同时也限制了图片仍走整文件 GET → 大图保护内存。
   router.get('/files/raw', authModule.requireAuth, requireRate(fileLimiter), async (req, res) => {
     const tStart = Date.now();
     let auditCtx: RouteContext | undefined;
@@ -160,12 +170,63 @@ export function createFileRoutes(opts: FileRoutesOptions): Router {
       auditPath = resolveSafePath(auditCtx.cwd, asString(req.query.path), auditCtx.policy);
       const st = await lstat(auditPath);
       if (!st.isFile()) throw new FileError(ErrorCode.FILE_TYPE_FORBID, '', 409);
-      if (st.size > FILE_RAW_MAX_BYTES) {
+      const { mime, previewable } = detectMime(auditPath);
+      // 视频/音频跳过 size 上限(Range 分片自带流控,不会一次性灌满内存);
+      // 图片 / 未知二进制 / 文本仍受 FILE_RAW_MAX_BYTES 保护
+      const exemptFromSizeLimit = previewable === 'video' || previewable === 'audio';
+      if (!exemptFromSizeLimit && st.size > FILE_RAW_MAX_BYTES) {
         throw new FileError(ErrorCode.FILE_TOO_LARGE, '', 413);
       }
-      const { mime } = detectMime(auditPath);
+      // weak ETag = `<size>-<mtimeMs ⌊⌋>`:size+mtime 区分内容版本,够稳;
+      // weak(W/)因为 mtime 在某些 FS 精度低于浏览器期望的字节级强校验。
+      // 用 ⌊mtimeMs⌋ 而非 toFixed:跨平台精度差异在整数毫秒以下不该让 ETag 抖
+      const etag = `W/"${st.size}-${Math.floor(st.mtimeMs)}"`;
       res.setHeader('Content-Type', mime);
-      res.setHeader('Cache-Control', 'private, max-age=0');
+      // LAN 内容用户私有(token 鉴权);max-age=3600 让浏览器二次打开秒回 304。
+      // 媒体文件用户切回再开很常见(关 sheet → 想想 → 再开),缓存命中省大流量
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.setHeader('ETag', etag);
+      res.setHeader('Accept-Ranges', 'bytes');
+
+      // 304 优先:If-None-Match 命中直接返,不走 Range/全量 pipe 分支。
+      // 即使带 Range 也优先 304 — 浏览器拿到 304 后用 disk cache 满足 Range
+      const ifNoneMatch = req.headers['if-none-match'];
+      if (typeof ifNoneMatch === 'string' && etagMatches(ifNoneMatch, etag)) {
+        res.status(304).end();
+        logger.info({
+          action: 'raw', instanceId: auditCtx.instanceId, path: auditPath,
+          ip: req.ip, elapsedMs: Date.now() - tStart, size: st.size, status: 304,
+        }, '/api/files audit (not modified)');
+        return;
+      }
+
+      const rangeHeader = req.headers.range;
+      const range = parseRangeHeader(rangeHeader, st.size);
+      if (range === 'invalid') {
+        // 416 必须带 Content-Range: bytes */<size> 告知合法范围
+        res.setHeader('Content-Range', `bytes */${st.size}`);
+        res.status(416).end();
+        logger.info({
+          action: 'raw', instanceId: auditCtx.instanceId, path: auditPath,
+          ip: req.ip, elapsedMs: Date.now() - tStart, size: st.size,
+          rangeHeader, status: 416,
+        }, '/api/files audit (range not satisfiable)');
+        return;
+      }
+      if (range) {
+        const len = range.end - range.start + 1;
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${st.size}`);
+        res.setHeader('Content-Length', String(len));
+        logger.info({
+          action: 'raw', instanceId: auditCtx.instanceId, path: auditPath,
+          ip: req.ip, elapsedMs: Date.now() - tStart, size: st.size,
+          rangeStart: range.start, rangeEnd: range.end, partialLen: len,
+        }, '/api/files audit (partial)');
+        createReadStream(auditPath, { start: range.start, end: range.end }).pipe(res);
+        return;
+      }
+
       res.setHeader('Content-Length', String(st.size));
       logger.info({
         action: 'raw', instanceId: auditCtx.instanceId, path: auditPath,
@@ -374,6 +435,75 @@ function wrap(h: AsyncHandler) {
 
 function asString(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
+}
+
+/**
+ * If-None-Match 头 vs 服务端 ETag 比对(RFC 7232 §3.2):
+ *  - `*` → 永远匹配
+ *  - 逗号分隔的多 ETag,任一匹配即可
+ *  - weak 比较(W/ 前缀剥掉再比):因为我们生成的是 weak ETag
+ *
+ * 不实现 strong 比较 — 我们只回 weak ETag,客户端不应基于强校验决策。
+ */
+function etagMatches(ifNoneMatch: string, etag: string): boolean {
+  const trimmed = ifNoneMatch.trim();
+  if (trimmed === '*') return true;
+  const stripWeak = (e: string): string =>
+    e.trim().replace(/^W\//, '');
+  const target = stripWeak(etag);
+  return trimmed.split(',').some((cand) => stripWeak(cand) === target);
+}
+
+/**
+ * 解析 HTTP Range 头(只接受 `bytes=` 单段),返回:
+ *   - 字节区间 `{start, end}`(均含两端,符合 RFC 7233)
+ *   - `null` 表示无 Range 头(走 200 全量分支)
+ *   - `'invalid'` 表示语法/越界不可满足(走 416)
+ *
+ * 仅支持单段范围 —— 多段 `bytes=0-100,200-300` 需要 multipart/byteranges 响应,
+ * <video>/<audio> 实际只会发单段,不实现这层复杂性。
+ *
+ * 三种合法形式:
+ *   - `bytes=START-END`     完整区间
+ *   - `bytes=START-`        从 START 到文件末尾
+ *   - `bytes=-SUFFIXLEN`    末尾 SUFFIXLEN 字节(SUFFIXLEN > 0)
+ */
+function parseRangeHeader(
+  header: string | undefined,
+  size: number,
+): { start: number; end: number } | null | 'invalid' {
+  if (!header) return null;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m) return 'invalid';
+  const startStr = m[1] ?? '';
+  const endStr = m[2] ?? '';
+  if (startStr === '' && endStr === '') return 'invalid';
+
+  // 空文件:任意范围都不满足
+  if (size === 0) return 'invalid';
+
+  let start: number;
+  let end: number;
+  if (startStr === '') {
+    // suffix:bytes=-N → 末尾 N 字节
+    const suffix = Number.parseInt(endStr, 10);
+    if (!Number.isFinite(suffix) || suffix <= 0) return 'invalid';
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number.parseInt(startStr, 10);
+    if (!Number.isFinite(start) || start < 0) return 'invalid';
+    if (endStr === '') {
+      end = size - 1;
+    } else {
+      end = Number.parseInt(endStr, 10);
+      if (!Number.isFinite(end) || end < start) return 'invalid';
+      // 末端超尾按 RFC 7233 截到 size-1
+      if (end >= size) end = size - 1;
+    }
+  }
+  if (start >= size) return 'invalid';
+  return { start, end };
 }
 
 /** per-IP 限流 middleware:超限 → 429 + AUTH_RATE_LIMITED */

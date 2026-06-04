@@ -204,6 +204,12 @@ export const zhCN: Messages = {
     scrollLinesUnitLine: '行',
     scrollLinesHalf: '半屏',
     scrollLinesFull: '一屏',
+
+    wheelSensitivityTitle: '鼠标滚轮敏感度',
+    wheelSensitivityHint: '触摸板 / 鼠标滚轮在 TUI 内的累计阈值。低 = 一拨手指走的行少（适合 macOS 触摸板），高 = 一格滚轮就大幅滚动（适合传统鼠标）。',
+    wheelSensitivityLow: '低',
+    wheelSensitivityMed: '中',
+    wheelSensitivityHigh: '高',
   },
 
   network: {

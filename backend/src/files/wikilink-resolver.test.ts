@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { WorkspaceIndex } from './wikilink-resolver.js';
+import { WorkspaceIndex, isObsidianVault } from './wikilink-resolver.js';
 
 let cwd: string;
 
@@ -160,6 +160,87 @@ describe('WorkspaceIndex.ensureBuilt — concurrency', () => {
     const promises = [idx.ensureBuilt(), idx.ensureBuilt(), idx.ensureBuilt()];
     await Promise.all(promises);
     expect(idx.resolve('x.md', 'a').resolved).toBe('a.md');
+    idx.shutdown();
+  });
+});
+
+describe('isObsidianVault', () => {
+  it('cwd 含 .obsidian/ → true', async () => {
+    mkdirSync(join(cwd, '.obsidian'));
+    expect(await isObsidianVault(cwd)).toBe(true);
+  });
+
+  it('cwd 无 .obsidian → false', async () => {
+    expect(await isObsidianVault(cwd)).toBe(false);
+  });
+
+  it('.obsidian 是文件而非目录 → false', async () => {
+    writeFileSync(join(cwd, '.obsidian'), 'oops');
+    expect(await isObsidianVault(cwd)).toBe(false);
+  });
+
+  it('cwd 不存在 → false(不抛)', async () => {
+    expect(await isObsidianVault(join(cwd, 'nope'))).toBe(false);
+  });
+});
+
+describe('WorkspaceIndex.prefetch — vault gate', () => {
+  it('非 vault cwd → prefetch 不 build,索引仍空', async () => {
+    touch('a.md');
+    touch('b.md');
+    const idx = new WorkspaceIndex(cwd);
+    idx.prefetch();
+    // prefetch 是 fire-and-forget,微任务排空后非 vault 应不 build
+    await new Promise((r) => setTimeout(r, 50));
+    expect(idx.resolve('x.md', 'a').broken).toBe(true);
+    idx.shutdown();
+  });
+
+  it('vault cwd → prefetch 触发 build,索引可用', async () => {
+    mkdirSync(join(cwd, '.obsidian'));
+    touch('a.md');
+    const idx = new WorkspaceIndex(cwd);
+    idx.prefetch();
+    // 等 prefetch build 完成(小 vault 几 ms)
+    await new Promise((r) => setTimeout(r, 100));
+    expect(idx.resolve('x.md', 'a').resolved).toBe('a.md');
+    idx.shutdown();
+  });
+
+  it('非 vault 但显式 ensureBuilt → 仍 build(用户主动 resolve 不受 gate 影响)', async () => {
+    touch('a.md');
+    const idx = new WorkspaceIndex(cwd);
+    await idx.ensureBuilt();
+    expect(idx.resolve('x.md', 'a').resolved).toBe('a.md');
+    idx.shutdown();
+  });
+});
+
+describe('WorkspaceIndex.buildOnce — 排除目录', () => {
+  it('跳过 node_modules / dist / .next / __pycache__ / target 等', async () => {
+    // 噪声 .md(应被跳)
+    touch('node_modules/react/README.md');
+    touch('dist/index.md');
+    touch('.next/server/notes.md');
+    touch('__pycache__/cached.md');
+    touch('target/doc.md');
+    touch('.venv/site-packages/pkg.md');
+    touch('.pnpm-store/v3/files.md');
+    touch('vendor/lib/USAGE.md');
+    // 真实笔记(应被收)
+    touch('docs/real-note.md');
+
+    const idx = new WorkspaceIndex(cwd);
+    await idx.ensureBuilt();
+
+    // 噪声不该被解析到
+    expect(idx.resolve('x.md', 'README').broken).toBe(true);
+    expect(idx.resolve('x.md', 'cached').broken).toBe(true);
+    expect(idx.resolve('x.md', 'doc').broken).toBe(true);
+    expect(idx.resolve('x.md', 'pkg').broken).toBe(true);
+    expect(idx.resolve('x.md', 'USAGE').broken).toBe(true);
+    // 真实笔记可解析
+    expect(idx.resolve('x.md', 'real-note').resolved).toBe('docs/real-note.md');
     idx.shutdown();
   });
 });

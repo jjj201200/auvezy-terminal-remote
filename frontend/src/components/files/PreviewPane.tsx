@@ -2,6 +2,7 @@ import { lazy, Suspense, type JSX } from 'react';
 import type { FilePreviewKind } from 'auvezy-terminal-remote-shared';
 import { TextPreview } from './TextPreview.js';
 import { ImagePreview } from './ImagePreview.js';
+import { MediaPreview } from './MediaPreview.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useUserConfig } from '../../hooks/useUserConfig.js';
 import { BrailleSpinner } from '../ui/BrailleSpinner.js';
@@ -17,6 +18,8 @@ const MarkdownPreview = lazy(() =>
 export type PreviewTarget =
   | { kind: Extract<FilePreviewKind, 'text'>; path: string; name: string; jumpLine?: number }
   | { kind: Extract<FilePreviewKind, 'image'>; path: string; name: string; size: number }
+  | { kind: Extract<FilePreviewKind, 'video'>; path: string; name: string; size: number }
+  | { kind: Extract<FilePreviewKind, 'audio'>; path: string; name: string; size: number }
   | { kind: Extract<FilePreviewKind, 'none'>; path: string; name: string; size: number };
 
 export interface PreviewPaneProps {
@@ -71,6 +74,9 @@ export function PreviewPane({ instanceId, target, wrapLines, activationSeq }: Pr
         />
       )}
       {target.kind === 'image' && <ImagePreview instanceId={instanceId} path={target.path} />}
+      {(target.kind === 'video' || target.kind === 'audio') && (
+        <MediaPreview instanceId={instanceId} path={target.path} kind={target.kind} />
+      )}
       {target.kind === 'none' && (
         <div className={`${s.unsupported} fb-preview__unsupported`}>
           {t('files.previewBinary')}

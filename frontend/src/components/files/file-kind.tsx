@@ -5,6 +5,8 @@ import {
   IconPhoto,
   IconFileText,
   IconFile,
+  IconMovie,
+  IconMusic,
 } from '@tabler/icons-react';
 import type { FileEntry } from 'auvezy-terminal-remote-shared';
 
@@ -14,6 +16,8 @@ export function iconFor(e: FileEntry): JSX.Element {
   if (e.kind === 'dir') return <IconFolder {...ICON_PROPS} />;
   if (e.kind === 'symlink') return <IconLink {...ICON_PROPS} />;
   if (e.previewable === 'image') return <IconPhoto {...ICON_PROPS} />;
+  if (e.previewable === 'video') return <IconMovie {...ICON_PROPS} />;
+  if (e.previewable === 'audio') return <IconMusic {...ICON_PROPS} />;
   if (e.previewable === 'text') return <IconFileText {...ICON_PROPS} />;
   return <IconFile {...ICON_PROPS} />;
 }

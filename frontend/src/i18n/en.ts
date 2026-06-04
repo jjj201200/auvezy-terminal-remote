@@ -212,6 +212,12 @@ export const en: Messages = {
     scrollLinesUnitLine: 'line',
     scrollLinesHalf: 'Half screen',
     scrollLinesFull: 'Full screen',
+
+    wheelSensitivityTitle: 'Wheel sensitivity',
+    wheelSensitivityHint: 'Accumulation threshold for touchpad / mouse wheel inside TUI. Low = fewer lines per swipe (best for macOS trackpad), High = each wheel notch jumps a lot (best for traditional mouse).',
+    wheelSensitivityLow: 'Low',
+    wheelSensitivityMed: 'Med',
+    wheelSensitivityHigh: 'High',
   },
 
   network: {

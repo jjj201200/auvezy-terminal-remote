@@ -237,6 +237,7 @@ export function InstanceView({
     termRef,
     enabled: config.input?.tuiScrollEnabled !== false,
     scrollLines: config.input?.scrollLines ?? 3,
+    wheelSensitivity: config.input?.wheelSensitivity ?? 'med',
     tuiTapEnabled: config.input?.tuiTapEnabled !== false,
     // 移动端长按 = 弹 IME（focus 输入框）：方案 1+2 的第 2 部分，让用户在
     // mouse-reporting TUI 内能明确表达"我要打字"意图，避免短 tap 同时弹 IME

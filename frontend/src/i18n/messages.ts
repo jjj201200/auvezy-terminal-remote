@@ -252,6 +252,12 @@ export interface Messages {
     scrollLinesUnitLine: string;
     scrollLinesHalf: string;
     scrollLinesFull: string;
+
+    wheelSensitivityTitle: string;
+    wheelSensitivityHint: string;
+    wheelSensitivityLow: string;
+    wheelSensitivityMed: string;
+    wheelSensitivityHigh: string;
   };
 
   // 设置 - 网络

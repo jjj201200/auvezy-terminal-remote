@@ -611,6 +611,57 @@
     margin: auto;
     padding: var(--sp-4);
   }
+
+  // <video> / <audio> 共用:用宽度填满预览容器、高度限制不溢出;
+  // controls 由浏览器原生提供,不自画。audio 高度本来就小,样式无害。
+  .media {
+    max-width: 100%;
+    max-height: 100%;
+    align-self: center;
+    margin: auto;
+    padding: var(--sp-4);
+  }
+
+  .audio {
+    // 音频不需要 max-height,但宽度撑满让 controls 不太挤
+    width: 100%;
+    max-width: 480px;
+    align-self: center;
+    margin: auto;
+    padding: var(--sp-4);
+  }
+
+  // mediaWrap / audioWrap:position relative 给 loading 叠层做定位锚点;
+  // canplay 之前 spinner 浮在 video/audio 上方居中
+  .mediaWrap,
+  .audioWrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-self: center;
+    margin: auto;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .audioWrap {
+    // audio 不占满预览容器,叠层 + audio 都集中在中部
+    height: auto;
+    padding: var(--sp-4);
+  }
+
+  .mediaLoading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-fg-dim);
+    background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+    pointer-events: none;
+  }
 }
 
 // ──────────── 通用提示 ────────────

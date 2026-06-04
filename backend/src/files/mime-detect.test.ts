@@ -38,6 +38,28 @@ describe('detectMime', () => {
     expect(detectMime('a.PNG').previewable).toBe('image');
     expect(detectMime('b.Md').previewable).toBe('text');
   });
+
+  it('.mp4 / .webm / .mov → previewable=video', () => {
+    expect(detectMime('clip.mp4').previewable).toBe('video');
+    expect(detectMime('clip.mp4').mime).toBe('video/mp4');
+    expect(detectMime('clip.webm').previewable).toBe('video');
+    expect(detectMime('clip.webm').mime).toBe('video/webm');
+    expect(detectMime('clip.mov').previewable).toBe('video');
+  });
+
+  it('.mp3 / .m4a / .flac / .wav / .ogg → previewable=audio', () => {
+    expect(detectMime('song.mp3').previewable).toBe('audio');
+    expect(detectMime('song.mp3').mime).toBe('audio/mpeg');
+    expect(detectMime('song.m4a').previewable).toBe('audio');
+    expect(detectMime('song.flac').previewable).toBe('audio');
+    expect(detectMime('song.wav').previewable).toBe('audio');
+    expect(detectMime('song.ogg').previewable).toBe('audio');
+  });
+
+  it('视频/音频扩展大小写不敏感', () => {
+    expect(detectMime('a.MP4').previewable).toBe('video');
+    expect(detectMime('b.MP3').previewable).toBe('audio');
+  });
 });
 
 describe('detectLang', () => {

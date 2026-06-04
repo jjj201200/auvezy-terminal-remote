@@ -569,14 +569,26 @@ export const DEFAULT_INTEGRATIONS: Required<{
  *     - 'half'：当前可视区高度的一半（运行时 = floor(rows/2)）
  *     - 'full'：整个可视区高度（= rows）
  *   默认 3（接近 CLAUDE_CODE_SCROLL_SPEED 默认值）
+ *
+ * - wheelSensitivity:鼠标滚轮 / 触摸板敏感度。控制 TUI alt-screen 内累计多少
+ *   像素的 deltaY 才发一次 scrollLines 行 SGR。
+ *   背景:macOS Chrome 触摸板每次惯性滚动会发上百个小 deltaY 事件,旧实现
+ *   每个事件直发 N 行 → 一拨手指几百行,飞过 transcript。新实现按 cellHeight
+ *   倍数累计:
+ *     - 'low':2 × cellHeight 累计阈值,最不灵敏(适合 mac 触摸板)
+ *     - 'med':1 × cellHeight,默认,鼠标 / Win 触摸板手感正常
+ *     - 'high':0.5 × cellHeight,最灵敏(适合传统离散鼠标滚轮)
+ *   默认 'med'
  */
 export type ScrollLinesValue = number | 'half' | 'full';
+export type WheelSensitivity = 'low' | 'med' | 'high';
 
 export interface InputPrefs {
   useInputBar?: boolean;
   tuiScrollEnabled?: boolean;
   tuiTapEnabled?: boolean;
   scrollLines?: ScrollLinesValue;
+  wheelSensitivity?: WheelSensitivity;
 }
 
 /** input 字段的硬默认 */
@@ -585,15 +597,27 @@ export const DEFAULT_INPUT: {
   tuiScrollEnabled: boolean;
   tuiTapEnabled: boolean;
   scrollLines: ScrollLinesValue;
+  wheelSensitivity: WheelSensitivity;
 } = {
   useInputBar: true,
   tuiScrollEnabled: true,
   tuiTapEnabled: true,
   scrollLines: 3,
+  wheelSensitivity: 'med',
 };
 
 /** scrollLines 预设值（设置面板按顺序渲染） */
 export const SCROLL_LINES_PRESETS: readonly ScrollLinesValue[] = [1, 3, 5, 10, 'half', 'full'] as const;
+
+/** wheelSensitivity 三档(设置面板渲染顺序) */
+export const WHEEL_SENSITIVITY_PRESETS: readonly WheelSensitivity[] = ['low', 'med', 'high'] as const;
+
+/** wheelSensitivity 字符串值 → cellHeight 倍数(累计阈值) */
+export const WHEEL_SENSITIVITY_MULTIPLIER: Readonly<Record<WheelSensitivity, number>> = {
+  low: 2,
+  med: 1,
+  high: 0.5,
+};
 
 /**
  * 网络偏好
@@ -734,16 +758,24 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
       : slRaw === 'half' || slRaw === 'full'
         ? slRaw
         : DEFAULT_INPUT.scrollLines;
+  // wheelSensitivity normalize:三选一,非法回退默认
+  const wsRaw = src.input?.wheelSensitivity;
+  const wheelSensitivity: WheelSensitivity =
+    wsRaw === 'low' || wsRaw === 'med' || wsRaw === 'high'
+      ? wsRaw
+      : DEFAULT_INPUT.wheelSensitivity;
   const inputPrefs: {
     useInputBar: boolean;
     tuiScrollEnabled: boolean;
     tuiTapEnabled: boolean;
     scrollLines: ScrollLinesValue;
+    wheelSensitivity: WheelSensitivity;
   } = {
     useInputBar: useInputBarValue,
     tuiScrollEnabled: tuiScrollEnabledValue,
     tuiTapEnabled: tuiTapEnabledValue,
     scrollLines,
+    wheelSensitivity,
   };
 
   // workdir 白名单：用户未设 = undefined（不限制）；用户设了非数组 = 视为 undefined

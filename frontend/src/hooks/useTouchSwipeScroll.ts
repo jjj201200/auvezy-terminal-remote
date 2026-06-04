@@ -28,11 +28,16 @@ import {
   isMouseReportingActive,
   isAltScreen as termIsAlt,
   clientToCell,
+  getCellHeight,
   buildSgrEvent,
   dispatchSelectionMouseDown,
   type SgrButton,
 } from '../utils/xterm-internals.js';
 import { copyToClipboard } from '../utils/clipboard.js';
+import {
+  WHEEL_SENSITIVITY_MULTIPLIER,
+  type WheelSensitivity,
+} from 'auvezy-terminal-remote-shared';
 
 // ──────────────── 阈值常量 ────────────────
 
@@ -54,6 +59,50 @@ const PROGRESS_DELAY_MS = 200;
 /** tap 发完 SGR 后的抑制窗口，浏览器合成的 mousedown 不再发第二次 */
 const TAP_SUPPRESS_MS = 300;
 
+// ──────────────── 纯函数(便于单测,不依赖 DOM / xterm) ────────────────
+
+/**
+ * 把 WheelEvent.deltaY 归一为像素。
+ *  - deltaMode 0 (DOM_DELTA_PIXEL):已是 px,直接返回
+ *  - deltaMode 1 (DOM_DELTA_LINE):× 16(粗估,后续 drainWheelAccum 用真实 cellHeight)
+ *  - deltaMode 2 (DOM_DELTA_PAGE):× viewportHeight × 0.8
+ */
+export function normalizeWheelDelta(deltaY: number, deltaMode: number, viewportHeight: number): number {
+  if (deltaMode === 1) return deltaY * 16;
+  if (deltaMode === 2) return deltaY * viewportHeight * 0.8;
+  return deltaY;
+}
+
+/**
+ * 方向反转检测:新 sign 与上一个 nonzero sign 相反时返回 true(累加器应清零)。
+ * 0 不算反转(避免抖动)。
+ */
+export function isWheelDirectionReversed(prevSign: number, newSign: number): boolean {
+  return newSign !== 0 && prevSign !== 0 && newSign !== prevSign;
+}
+
+/**
+ * 把累加器按 threshold 排空。返回剩余的累加值 + 要发的 button 序列。
+ *  - |accum| < threshold:remaining = accum,ticks = []
+ *  - |accum| ≥ threshold:每扣一份阈值发一次 button(accum > 0 → 65 / down, < 0 → 64 / up)
+ *  - threshold ≤ 0:防御性把累计清零、不发(可能 cellHeight 异常)
+ */
+export function drainWheelAccum(
+  accum: number,
+  threshold: number,
+): { remaining: number; ticks: SgrButton[] } {
+  if (!Number.isFinite(threshold) || threshold <= 0) {
+    return { remaining: 0, ticks: [] };
+  }
+  const ticks: SgrButton[] = [];
+  let remaining = accum;
+  while (Math.abs(remaining) >= threshold) {
+    ticks.push(remaining > 0 ? 65 : 64);
+    remaining -= Math.sign(remaining) * threshold;
+  }
+  return { remaining, ticks };
+}
+
 // ──────────────── 类型 ────────────────
 
 export interface UseTouchSwipeScrollOptions {
@@ -70,6 +119,16 @@ export interface UseTouchSwipeScrollOptions {
    * 默认 3。
    */
   scrollLines?: number | 'half' | 'full';
+  /**
+   * 鼠标滚轮 / 触摸板敏感度。控制累计多少像素 deltaY 才发一次 scrollLines 行
+   * SGR(以 cellHeight 为基准的倍数 — low=2/med=1/high=0.5)。
+   * 默认 'med'。
+   *
+   * Why:macOS Chrome 触摸板每次惯性滚动会发上百个小 deltaY 事件,旧实现
+   * 每个事件直发 N 行,一拨手指就飞过几百行 transcript。改成累计触发后,
+   * 一拨 = 物理距离对应的合理行数,跟原生 Terminal.app 体验对齐。
+   */
+  wheelSensitivity?: WheelSensitivity;
   /** 是否启用触摸 tap → SGR 点击。默认 true */
   tuiTapEnabled?: boolean;
   /** 长按触发回调（在 touchend 同步链路调用，确保能在 iOS 弹 IME） */
@@ -90,6 +149,7 @@ export function useTouchSwipeScroll(opts: UseTouchSwipeScrollOptions): void {
     enabled = true,
     termRef,
     scrollLines = 3,
+    wheelSensitivity = 'med',
     tuiTapEnabled = true,
     onLongPress,
     longPressMs = 600,
@@ -102,6 +162,7 @@ export function useTouchSwipeScroll(opts: UseTouchSwipeScrollOptions): void {
   const onSendKeyRef = useRef(onSendKey);
   const termRefRef = useRef(termRef);
   const scrollLinesRef = useRef(scrollLines);
+  const wheelSensitivityRef = useRef(wheelSensitivity);
   const tuiTapEnabledRef = useRef(tuiTapEnabled);
   const onLongPressRef = useRef(onLongPress);
   const longPressMsRef = useRef(longPressMs);
@@ -111,6 +172,7 @@ export function useTouchSwipeScroll(opts: UseTouchSwipeScrollOptions): void {
   onSendKeyRef.current = onSendKey;
   termRefRef.current = termRef;
   scrollLinesRef.current = scrollLines;
+  wheelSensitivityRef.current = wheelSensitivity;
   tuiTapEnabledRef.current = tuiTapEnabled;
   onLongPressRef.current = onLongPress;
   longPressMsRef.current = longPressMs;
@@ -376,18 +438,71 @@ export function useTouchSwipeScroll(opts: UseTouchSwipeScrollOptions): void {
       }
     };
 
-    // ─────────── Wheel handler（桌面 / 也能命中触摸板） ───────────
+    // ─────────── Wheel handler（桌面鼠标 + 触摸板） ───────────
+    //
+    // 设计:不再每个 wheel 事件直发 SGR(老路 = 触摸板惯性流 100+ 事件 →
+    // 几百行飞屏),改累计 deltaY 达到阈值才发,且 rAF 节流。
+    //
+    //  - 阈值 = cellHeight × WHEEL_SENSITIVITY_MULTIPLIER[wheelSensitivity]
+    //    low=2(mac 触摸板舒适),med=1(默认),high=0.5(传统鼠标灵敏)
+    //  - 方向反向 → 清零累计(避免上下来回有遗留 delta 残留发"反向行")
+    //  - rAF 节流:浏览器 burst 期一帧内多次 onWheel 只在帧尾 flush 一次
+    //  - 同帧累计可能足够发多行 SGR(如鼠标大 notch deltaY=120,4 个 cell 高)
+    //    → 一次 flush 内 while-loop 扣阈值多次发,直到余量不足
+    //
+    // 坐标:用首次累计开始时的 clientX/Y 作为发 SGR 的 (col,row);后续累计
+    // 期间用最新坐标。绝大多数情况位置都在 viewport 中,(col,row) 几乎不影响
+    // TUI 行为(它只看 wheel button 值),稳定就够
+    let wheelAccum = 0;
+    /** 上一次 onWheel 的 deltaY 符号;用于检测方向反转 */
+    let wheelLastSign = 0;
+    let wheelLastClientX = 0;
+    let wheelLastClientY = 0;
+    let wheelRafId = 0;
+
+    const flushWheelAccum = (): void => {
+      wheelRafId = 0;
+      const ctx = getCtx();
+      if (!ctx) {
+        wheelAccum = 0;
+        return;
+      }
+      const { term, elt } = ctx;
+      const cellH = Math.max(8, getCellHeight(elt, term)); // 8 兜底防 0 除
+      const mult = WHEEL_SENSITIVITY_MULTIPLIER[wheelSensitivityRef.current];
+      const threshold = cellH * mult;
+      const linesPerNotch = resolveLines(term.rows);
+      const { col, row } = clientToCell(elt, term, wheelLastClientX, wheelLastClientY);
+
+      const { remaining, ticks } = drainWheelAccum(wheelAccum, threshold);
+      wheelAccum = remaining;
+      for (const button of ticks) {
+        sendWheel(button, linesPerNotch, col, row);
+      }
+    };
 
     const onWheel = (e: WheelEvent): void => {
       const ctx = getCtx();
       if (!ctx) return;
       e.stopPropagation();
       e.preventDefault();
-      const { term, elt } = ctx;
-      const linesPerNotch = resolveLines(term.rows);
-      const button: SgrButton = e.deltaY > 0 ? 65 : 64;
-      const { col, row } = clientToCell(elt, term, e.clientX, e.clientY);
-      sendWheel(button, linesPerNotch, col, row);
+
+      const dy = normalizeWheelDelta(e.deltaY, e.deltaMode, window.innerHeight);
+      const sign = Math.sign(dy);
+      if (isWheelDirectionReversed(wheelLastSign, sign)) {
+        // 方向反转清零:防止"刚累计上 30px,反手下 30px → 互抵不响应"
+        // 或反向少量 delta 触发反向 SGR 的误触
+        wheelAccum = 0;
+      }
+      wheelLastSign = sign;
+      wheelAccum += dy;
+      wheelLastClientX = e.clientX;
+      wheelLastClientY = e.clientY;
+
+      // rAF 节流:同一帧内多次 onWheel 合并到帧尾 flush 一次
+      if (wheelRafId === 0) {
+        wheelRafId = requestAnimationFrame(flushWheelAccum);
+      }
     };
 
     // ─────────── Mouse handler（PC 真鼠标点击 + 拦截 helper-textarea 焦点） ───────────
@@ -491,6 +606,7 @@ export function useTouchSwipeScroll(opts: UseTouchSwipeScrollOptions): void {
       el.removeEventListener('click', onClick, { capture: true } as EventListenerOptions);
       document.removeEventListener('mouseup', onMouseUp);
       if (rafId !== 0) cancelAnimationFrame(rafId);
+      if (wheelRafId !== 0) cancelAnimationFrame(wheelRafId);
       if (longPressTimer !== 0) clearTimeout(longPressTimer);
       if (progressShowTimer !== 0) clearTimeout(progressShowTimer);
     };

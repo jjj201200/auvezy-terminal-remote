@@ -5,6 +5,65 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-04
+
+主题:**视频/音频预览 + Range/ETag + macOS 触摸板滚动优化**。文件浏览器
+新增视频/音频原生预览(支持拖进度条 + 二次打开命中 304),wikilink 索引
+按 `.obsidian/` 探测 + 扩展构建噪声目录黑名单避免大仓库浏览卡死;
+TUI 滚轮在触摸板上改用累计阈值 + rAF 节流,告别"一拨手指飞 300 行"。
+
+### Added
+
+- **视频 / 音频文件预览**:文件浏览器识别 `.mp4/.webm/.mov/.m4v/.ogv` 与
+  `.mp3/.m4a/.aac/.wav/.ogg/.opus/.flac/.weba` 等扩展名,用原生
+  `<video>/<audio>` + `controls` 渲染,浏览器自动 Range 拉片段
+- **HTTP Range 支持**(`GET /api/files/raw`):`Accept-Ranges: bytes` +
+  `Content-Range` + 206/416 标准实现,大视频拖进度条 / seek 工作正常
+- **ETag + 缓存**(`/api/files/raw`):weak ETag = `<size>-<mtimeMs>`,
+  返回 `Cache-Control: private, max-age=3600`,`If-None-Match` 命中走
+  304(优先于 Range)— 关闭再打开同一文件秒回
+- **触摸板滚轮敏感度配置**:Settings → 操作 tab 新增"鼠标滚轮敏感度"
+  低/中/高 三档(`input.wheelSensitivity`),默认中。低档适合 macOS
+  触摸板("一拨 = 一两行"),高档适合传统离散鼠标滚轮
+- **文件目录图标**:video / audio 预览支持后,FileList 多了 IconMovie /
+  IconMusic 区分
+
+### Changed
+
+- **wikilink 索引按需建**:仅当 cwd 根有 `.obsidian/` 时 `/files/list`
+  才后台预热索引;非 vault 仓库(monorepo / 普通项目)进文件浏览器
+  **完全不触发** walk,observer 这种大仓库进 docs 不再卡死
+- **wikilink 排除目录扩展**:`EXCLUDED_DIRS` 从 4 个(`.git` / `.obsidian` /
+  `.trash` / `node_modules`)扩到 30+,新增 `.next / dist / build /
+  target / .venv / __pycache__ / .pnpm-store / vendor / .gradle` 等
+- **TUI 滚轮累计模式**:`useTouchSwipeScroll.onWheel` 从"每个 wheel 立即
+  发 N 行 SGR"改为"累计 deltaY 达 `cellHeight × {low:2,med:1,high:0.5}`
+  才发 + rAF 节流",方向反转清零累计。macOS Chrome 触摸板惯性流
+  不再变成飞屏
+- **worker JSON body 上限**:从默认 100kb 提到 10mb(原本临时改的 100mb
+  攻击面过大),集中到 `backend/src/constants.ts` 的 `JSON_BODY_LIMIT_WORKER`
+- **`FILE_RAW_MAX_BYTES` 8MB → 100MB**:`/files/raw` 视频/音频跳过 size
+  上限(Range 分片自带流控);图片 / 未知二进制仍受限保护内存
+
+### Fixed
+
+- **大文件 hook payload 不再被拒**:Claude Code hook 的 tool_response
+  偶尔几 MB,原 100kb 默认会被 raw-body 抛 PayloadTooLargeError
+- **`PreviewPane` 视频音频分支**:扩展 `FilePreviewKind` 加 `'video' |
+  'audio'`,前端 dispatch 不再降级为"二进制不可预览"
+
+### Internal
+
+- **`MediaPreview` 单组件**:合并原 VideoPreview / AudioPreview 95%
+  重复代码,`kind: 'video' | 'audio'` 一参驱动;loading/ready/failed
+  合并为 `status` union
+- **`RadioPresetGroup<T>` 共享组件**:Settings 内 scrollLines /
+  wheelSensitivity 两段 radio 抽出共用,后续新增枚举型偏好直接复用
+- **`isObsidianVault` 结果缓存**:WorkspaceIndex 实例字段记忆负探测结果,
+  非 vault 仓库每次 `/files/list` 不再 lstat
+- **新增 25+ 单测**:`drainWheelAccum` 累计行为、ETag/Range 边界、
+  `isObsidianVault` 四种状态、构建噪声目录跳过覆盖
+
 ## [0.10.0] - 2026-05-23
 
 主题:**Wikilink modal stack + Sheet 架构重构**。wikilink 跨文件预览改为

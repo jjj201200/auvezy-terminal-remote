@@ -137,6 +137,10 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       openPreview({ kind: 'text', path: full, name: e.name });
     } else if (e.previewable === 'image') {
       openPreview({ kind: 'image', path: full, name: e.name, size: e.size });
+    } else if (e.previewable === 'video') {
+      openPreview({ kind: 'video', path: full, name: e.name, size: e.size });
+    } else if (e.previewable === 'audio') {
+      openPreview({ kind: 'audio', path: full, name: e.name, size: e.size });
     } else {
       openPreview({ kind: 'none', path: full, name: e.name, size: e.size });
     }

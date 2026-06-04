@@ -64,6 +64,7 @@ import { randomUUID } from 'node:crypto';
 import {
   SHUTDOWN_WS_FLUSH_DELAY_MS,
   SHUTDOWN_FORCE_EXIT_MS,
+  JSON_BODY_LIMIT_WORKER,
 } from './constants.js';
 
 export interface StartServerOverrides {
@@ -207,7 +208,9 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   await pushService.init();
 
   const app = express();
-  app.use(express.json());
+  // worker 顶层 JSON 上限见 constants.ts JSON_BODY_LIMIT_WORKER —— 10mb 给
+  // hook 留足空间,不像之前 100mb 那样把整个 buffer 攻击面打开
+  app.use(express.json({ limit: JSON_BODY_LIMIT_WORKER }));
   const httpServer: HttpServer = createServer(app);
 
   // 1.11 bindAvailablePort：worker 0.7.0 起强制 loopback（ADR-009）

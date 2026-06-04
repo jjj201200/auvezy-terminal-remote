@@ -6,7 +6,7 @@
  */
 
 /** 文件可预览类型 */
-export type FilePreviewKind = 'text' | 'image' | 'none';
+export type FilePreviewKind = 'text' | 'image' | 'video' | 'audio' | 'none';
 
 /** 列表条目 */
 export interface FileEntry {
@@ -104,8 +104,8 @@ export function isSearchMode(v: unknown): v is SearchMode {
 /** /read 单文件最大读取字节数(超出截断) */
 export const FILE_READ_MAX_BYTES = 2 * 1024 * 1024;
 
-/** /raw 单文件最大字节数(超出拒绝) */
-export const FILE_RAW_MAX_BYTES = 8 * 1024 * 1024;
+/** /raw 单文件最大字节数(超出拒绝);视频/图片预览走此端点,需大上限 */
+export const FILE_RAW_MAX_BYTES = 100 * 1024 * 1024;
 
 /** 搜索关键字最大长度 */
 export const SEARCH_MAX_Q_LENGTH = 200;

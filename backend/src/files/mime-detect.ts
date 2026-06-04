@@ -146,6 +146,25 @@ const IMAGE_EXT_TO_MIME: Record<string, string> = {
   '.tiff': 'image/tiff', '.tif': 'image/tiff',
 };
 
+// 视频:仅列浏览器 <video> 普遍能直接播放的容器/编码
+// (mkv/avi/wmv/flv 浏览器原生支持差,留给二进制提示;用户真要看自己下载)
+const VIDEO_EXT_TO_MIME: Record<string, string> = {
+  '.mp4': 'video/mp4', '.m4v': 'video/mp4',
+  '.webm': 'video/webm',
+  '.ogv': 'video/ogg',
+  '.mov': 'video/quicktime', // Safari OK; Chromium 部分编码 OK
+};
+
+// 音频:同样只列 <audio> 普遍能播的格式
+const AUDIO_EXT_TO_MIME: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4', '.aac': 'audio/aac',
+  '.wav': 'audio/wav', '.wave': 'audio/wav',
+  '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.opus': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.weba': 'audio/webm',
+};
+
 const TEXT_EXT_TO_MIME: Record<string, string> = {
   // 纯文本 / 文档
   '.txt': 'text/plain', '.text': 'text/plain', '.log': 'text/plain',
@@ -387,6 +406,12 @@ export function detectMime(filename: string): MimeInfo {
   // 图片优先(svg 走 image 渲染)
   if (ext in IMAGE_EXT_TO_MIME) {
     return { mime: IMAGE_EXT_TO_MIME[ext]!, previewable: 'image', lang };
+  }
+  if (ext in VIDEO_EXT_TO_MIME) {
+    return { mime: VIDEO_EXT_TO_MIME[ext]!, previewable: 'video', lang };
+  }
+  if (ext in AUDIO_EXT_TO_MIME) {
+    return { mime: AUDIO_EXT_TO_MIME[ext]!, previewable: 'audio', lang };
   }
   if (ext in TEXT_EXT_TO_MIME) {
     return { mime: TEXT_EXT_TO_MIME[ext]!, previewable: 'text', lang };

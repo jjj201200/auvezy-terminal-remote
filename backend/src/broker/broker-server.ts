@@ -142,7 +142,10 @@ export function createBrokerApp(
   const startedAt = opts.startedAt ?? Date.now();
   const app = express();
 
-  // 0.7.0 v2：broker 接 webapp 直发的 /api/auth POST 等，需要 JSON body 解析
+  // 0.7.0 v2：broker 接 webapp 直发的 /api/auth POST 等,需要 JSON body 解析。
+  // 用 express.json() 默认上限(100kb)够 auth / config / instances 等小 JSON。
+  // /i/<id>/api/hook 走 instance-router 反代,worker 端 hook-routes 自己挂大上限,
+  // **不经过这层 JSON parser**(反代走 stream pipe),所以不需要在 broker 层放大。
   app.use(express.json());
 
   // CORS：与 worker 同样策略（同源 + 本机所有网卡 IP）。webapp 单 PWA

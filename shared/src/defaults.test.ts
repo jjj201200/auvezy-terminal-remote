@@ -129,6 +129,23 @@ describe('ensureDefaultUserConfig', () => {
     expect(r.shortcuts).toEqual(DEFAULT_SHORTCUTS);
   });
 
+  it('input.wheelSensitivity 缺失 → 默认 med', () => {
+    const r = ensureDefaultUserConfig({});
+    expect(r.input?.wheelSensitivity).toBe('med');
+  });
+
+  it('input.wheelSensitivity 接受 low/med/high', () => {
+    expect(ensureDefaultUserConfig({ input: { wheelSensitivity: 'low' } } as never).input?.wheelSensitivity).toBe('low');
+    expect(ensureDefaultUserConfig({ input: { wheelSensitivity: 'med' } } as never).input?.wheelSensitivity).toBe('med');
+    expect(ensureDefaultUserConfig({ input: { wheelSensitivity: 'high' } } as never).input?.wheelSensitivity).toBe('high');
+  });
+
+  it('input.wheelSensitivity 非法值 → 回退 med', () => {
+    expect(ensureDefaultUserConfig({ input: { wheelSensitivity: 'extreme' } } as never).input?.wheelSensitivity).toBe('med');
+    expect(ensureDefaultUserConfig({ input: { wheelSensitivity: 1.5 } } as never).input?.wheelSensitivity).toBe('med');
+    expect(ensureDefaultUserConfig({ input: { wheelSensitivity: null } } as never).input?.wheelSensitivity).toBe('med');
+  });
+
   it('display:新 maxCols 字段透传,旧 targetCols 字段平滑迁移', () => {
     // 旧 config 只有 targetCols
     const r1 = ensureDefaultUserConfig({ display: { targetCols: 100 } } as never);
