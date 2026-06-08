@@ -164,8 +164,11 @@
   color: var(--color-fg);
   font-weight: 500;
   letter-spacing: var(--tracking-tight);
-  // 避免与 headerExtra 抢空间导致 tabs 溢出 modal 边界
-  flex-shrink: 0;
+  // flex: 0 1 auto —— 不 grow(短标题不撑满),可 shrink(长文件名收缩),
+  // 配合 min-width:0 + ellipsis 让超长标题省略号截断,而非把 headerExtra /
+  // close 按钮挤出 modal 右边界。headerExtra(margin-left:auto)与 close
+  // 都 flex-shrink:0,固定在右侧不被标题挤走。
+  flex: 0 1 auto;
   white-space: nowrap;
   min-width: 0;
   overflow: hidden;

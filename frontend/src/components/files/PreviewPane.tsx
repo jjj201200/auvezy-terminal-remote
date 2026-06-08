@@ -6,7 +6,7 @@ import { MediaPreview } from './MediaPreview.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useUserConfig } from '../../hooks/useUserConfig.js';
 import { BrailleSpinner } from '../ui/BrailleSpinner.js';
-import { isMarkdownPath } from './file-kind.js';
+import { isMarkdownPath, isHtmlPath } from './file-kind.js';
 import s from './FileBrowserSheet.module.scss';
 
 // MarkdownPreview 含 react-markdown + remark/rehype 全套 + katex CSS,
@@ -14,6 +14,14 @@ import s from './FileBrowserSheet.module.scss';
 const MarkdownPreview = lazy(() =>
   import('./MarkdownPreview.js').then((m) => ({ default: m.MarkdownPreview })),
 );
+
+// HtmlPreview 仅 .html 渲染模式按需加载(iframe srcdoc)
+const HtmlPreview = lazy(() =>
+  import('./HtmlPreview.js').then((m) => ({ default: m.HtmlPreview })),
+);
+
+/** 预览视图模式:rendered = md/html 富渲染;source = 走 TextPreview 看源码 */
+export type PreviewViewMode = 'rendered' | 'source';
 
 export type PreviewTarget =
   | { kind: Extract<FilePreviewKind, 'text'>; path: string; name: string; jumpLine?: number }
@@ -28,9 +36,20 @@ export interface PreviewPaneProps {
   wrapLines: boolean;
   /** 透传至 MarkdownPreview,触发 bringToTop 后重新跳 anchor。见 FilePreviewSheet 注释 */
   activationSeq?: number;
+  /**
+   * 视图模式。md/html 文件在 rendered(默认)走富渲染,source 走 TextPreview 看源码;
+   * 其它 text 文件该值无意义(始终 TextPreview)。由 FilePreviewSheet 的切换按钮控制。
+   */
+  viewMode?: PreviewViewMode;
 }
 
-export function PreviewPane({ instanceId, target, wrapLines, activationSeq }: PreviewPaneProps): JSX.Element {
+export function PreviewPane({
+  instanceId,
+  target,
+  wrapLines,
+  activationSeq,
+  viewMode = 'rendered',
+}: PreviewPaneProps): JSX.Element {
   const t = useT();
   const { config } = useUserConfig();
   // rendering.markdown.enabled 是新位置;ensureDefaultUserConfig 已把旧
@@ -48,6 +67,17 @@ export function PreviewPane({ instanceId, target, wrapLines, activationSeq }: Pr
       </div>
     );
   }
+  // rendered 模式下 md/html 走富渲染;source 模式或其它 text 文件走 TextPreview。
+  const rendered = viewMode === 'rendered';
+  const showMarkdown = target.kind === 'text' && rendered && mdEnabled && isMarkdownPath(target.path);
+  const showHtml = target.kind === 'text' && rendered && isHtmlPath(target.path);
+
+  const suspenseFallback = (
+    <div className={`${s.notice} ${s.previewLoadingFallback} fb-preview__notice`}>
+      <BrailleSpinner size="lg" label={t('files.previewLoading')} />
+    </div>
+  );
+
   return (
     <div
       id="file-browser-preview"
@@ -55,15 +85,13 @@ export function PreviewPane({ instanceId, target, wrapLines, activationSeq }: Pr
       data-kind={target.kind}
       data-path={target.path}
     >
-      {target.kind === 'text' && mdEnabled && isMarkdownPath(target.path) ? (
-        <Suspense
-          fallback={
-            <div className={`${s.notice} ${s.previewLoadingFallback} fb-preview__notice`}>
-              <BrailleSpinner size="lg" label={t('files.previewLoading')} />
-            </div>
-          }
-        >
+      {showMarkdown ? (
+        <Suspense fallback={suspenseFallback}>
           <MarkdownPreview instanceId={instanceId} path={target.path} activationSeq={activationSeq} />
+        </Suspense>
+      ) : showHtml ? (
+        <Suspense fallback={suspenseFallback}>
+          <HtmlPreview instanceId={instanceId} path={target.path} />
         </Suspense>
       ) : target.kind === 'text' && (
         <TextPreview

@@ -11,6 +11,10 @@
   left: 0 !important;
   transform: none !important;
   inset: 0 !important;
+  // 安全区让位(同 .previewSheet):绕过 #app top inset,上下 padding 让
+  // header 与卡片列表避开刘海 / home indicator。
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }
 
 .root {

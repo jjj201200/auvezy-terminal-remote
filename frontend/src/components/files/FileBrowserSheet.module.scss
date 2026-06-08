@@ -18,6 +18,10 @@
   left: 0 !important;
   transform: none !important;
   inset: 0 !important;
+  // 安全区让位(同 .previewSheet):全屏 sheet 绕过 #app top inset,
+  // 上下 padding 让 header / 列表 / 底部避开刘海与 home indicator。
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }
 
 // 让 sheet body 区域吃满高度,内部三段(breadcrumb / search / body)纵向布局
@@ -367,6 +371,12 @@
   left: 0 !important;
   transform: none !important;
   inset: 0 !important;
+  // 安全区让位:全屏 sheet 走 modal-stack portal(position:fixed 相对视口),
+  // 绕过 #app 的 top inset → header 会顶进刘海/动态岛、底部内容压到 home
+  // indicator 下。容器是 flex column,上下 padding 从 100dvh 里让出空间,
+  // header / body / footer 自动避开。背景仍 --color-bg 铺满,安全区是干净底色。
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }
 
 // ──────────── 文件列表 ────────────
@@ -387,7 +397,9 @@
     padding: var(--sp-3) var(--sp-3) var(--sp-3) 0;
     cursor: pointer;
     min-height: 36px;
-    align-items: center;
+    // 顶对齐:长文件名换行成多行时,图标 / 大小停在首行而非整列居中,
+    // 视觉更稳。单行时配合 min-height 仍接近居中。
+    align-items: start;
     color: var(--color-fg);
     @include m.transition(background var(--dur-fast), color var(--dur-fast));
 
@@ -415,7 +427,14 @@
   .name {
     font-family: var(--font-mono);
     font-size: var(--fs-sm);
-    @include m.truncate;
+    // 完整显示文件名:超出宽度换行,不截断、不设行数上限。
+    // min-width:0 让 grid 1fr 轨道可收缩(否则超长名撑开把 size 列挤出);
+    // overflow-wrap:anywhere 让无空格的长名(路径 / hash)也能在任意处断行。
+    min-width: 0;
+    overflow-wrap: anywhere;
+    // 行高 = 图标高度(20px),让单行时文字与图标垂直居中对齐;
+    // 换行后每行也按此行高排,首行与图标 / 大小齐平。
+    line-height: 20px;
     color: inherit;
   }
 
@@ -427,6 +446,9 @@
     color: var(--color-fg-low);
     font-size: var(--fs-xs);
     font-family: var(--font-mono);
+    // 与 .name 首行同高,多行场景下大小停在首行且与文件名首行齐平
+    line-height: 20px;
+    white-space: nowrap;
   }
 }
 
@@ -710,4 +732,86 @@
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   text-align: center;
+}
+
+// ──────────── HTML 渲染预览(HtmlPreview) ────────────
+
+// 渲染前的「沙箱 / 危险」选择卡 —— 居中,警示色图标 + 两个动作按钮
+.htmlTrustGate {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+  padding: var(--sp-6);
+  text-align: center;
+}
+
+.htmlTrustIcon {
+  color: var(--color-warn);
+  display: inline-flex;
+}
+
+.htmlTrustMsg {
+  margin: 0;
+  max-width: 360px;
+  color: var(--color-fg-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+
+.htmlTrustActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-3);
+}
+
+.htmlTrustBtn {
+  @include m.btn-reset;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-5);
+  border: 1px solid var(--color-border-hi);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elev);
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  @include m.transition(border-color var(--dur-fast), background var(--dur-fast), color var(--dur-fast));
+
+  &:hover {
+    border-color: var(--color-accent);
+    background: var(--color-bg-hover);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+}
+
+// 危险模式按钮:hover 转警示色,提示这是放开脚本执行的选择
+.htmlTrustBtnDanger {
+  color: var(--color-warn);
+
+  &:hover {
+    border-color: var(--color-warn);
+    background: var(--color-warn-08);
+    color: var(--color-warn);
+  }
+}
+
+// 渲染 iframe — 填满预览区,白底(网页默认背景),无边框
+.htmlFrame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
 }

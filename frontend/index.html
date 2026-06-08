@@ -28,9 +28,43 @@
     <!-- 浏览器标签页 / 桌面快捷方式 favicon -->
     <link rel="icon" type="image/svg+xml" href="/icons/atr-icon.svg" />
     <title>Auvezy Terminal Remote</title>
+
+    <!-- 首屏防白闪:JS/CSS 加载前的内联兜底。色值取自 _tokens.scss 深色主题
+         (bg #08090b / fg-dim #8a8f99 / accent #b6f09c)。React mount 后替换 #app-loading。 -->
+    <style>
+      html, body { margin: 0; background: #08090b; }
+      #app-loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #08090b;
+        color: #8a8f99;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+      }
+      #app-loading .spinner {
+        width: 22px;
+        height: 22px;
+        border: 2px solid rgba(182, 240, 156, 0.18);
+        border-top-color: #b6f09c;
+        border-radius: 50%;
+        animation: app-loading-spin 0.7s linear infinite;
+      }
+      @keyframes app-loading-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="app-loading">
+        <div class="spinner"></div>
+        <div>加载中 · Loading…</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -32,6 +32,13 @@ describe('listDir', () => {
     expect(names).toEqual(['.hidden', 'a.txt', 'b.png', 'lnk', 'sub']);
   });
 
+  it('排序:目录优先,组内字节序升序(符号<数字<字母)', async () => {
+    const entries = await listDir(root);
+    // sub 是唯一目录 → 排第一;其余 file/symlink 组按字节序:
+    // '.'(0x2E) < 'a' < 'b' < 'l'
+    expect(entries.map((e) => e.name)).toEqual(['sub', '.hidden', 'a.txt', 'b.png', 'lnk']);
+  });
+
   it('hidden 字段正确', async () => {
     const entries = await listDir(root);
     const h = entries.find((e) => e.name === '.hidden')!;

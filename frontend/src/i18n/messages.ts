@@ -661,6 +661,16 @@ export interface Messages {
     previewLoading: string;
     /** 预览自动换行 toggle 标签 */
     previewWrap: string;
+    /** 源码/渲染 切换按钮:当前渲染态 → 点击「查看源码」 */
+    previewViewSource: string;
+    /** 源码/渲染 切换按钮:当前源码态 → 点击「查看渲染」 */
+    previewViewRendered: string;
+    /** html 渲染前的警告(选择卡标题) */
+    htmlRenderWarn: string;
+    /** html 渲染:沙箱模式按钮(脚本禁用,推荐) */
+    htmlRenderSandbox: string;
+    /** html 渲染:危险模式按钮(脚本执行) */
+    htmlRenderDanger: string;
     /** 预览叠加栈 ≥ 2 时显示的"全部关闭"按钮(aria-label / tooltip / confirm 按钮文案) */
     previewCloseAll: string;
     /** "全部关闭"二次确认弹窗标题 */

@@ -217,17 +217,31 @@ export function MobileInstanceSwitcher({
   return (
     <>
       {!hideTrigger && (
-        <button
-          id="mobile-instance-switcher"
-          type="button"
-          onClick={() => setOpen(true)}
-          className={s.trigger}
-          aria-label={t('topBar.switchInstance')}
-        >
-          <IconLayoutGrid size={12} stroke={1.5} />
-          <span className={s.triggerName}>{active?.name ?? t('shortcuts.unnamed')}</span>
-          <span className={s.triggerPort}>:{active?.port ?? '-'}</span>
-        </button>
+        active ? (
+          <button
+            id="mobile-instance-switcher"
+            type="button"
+            onClick={() => setOpen(true)}
+            className={s.trigger}
+            aria-label={t('topBar.switchInstance')}
+          >
+            <IconLayoutGrid size={12} stroke={1.5} />
+            <span className={s.triggerName}>{active.name}</span>
+            <span className={s.triggerPort}>:{active.port}</span>
+          </button>
+        ) : (
+          // 无实例:不显示"未命名:-",trigger 直接是创建入口
+          <button
+            id="mobile-instance-switcher"
+            type="button"
+            onClick={onCreateClick}
+            className={s.trigger}
+            aria-label={t('instance.create')}
+          >
+            <IconPlus size={12} stroke={1.5} />
+            <span className={s.triggerName}>{t('instance.create')}</span>
+          </button>
+        )
       )}
 
       <Sheet id="mobile-instance-sheet" open={open} onOpenChange={setOpen} title={t('instance.sheetTitle')}>

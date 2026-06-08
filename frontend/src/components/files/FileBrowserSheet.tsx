@@ -173,6 +173,7 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
       className={s.sheet}
       id="file-browser-sheet"
       hideBackdrop
+      hideDragHandle
     >
       <div className={`${s.root} fb-root`} data-instance-id={instanceId} data-cwd={cwd} data-path={path ?? cwd}>
         <Breadcrumb

@@ -6,13 +6,13 @@
  */
 
 import { useEffect, useState, type JSX } from 'react';
-import { IconCircleX, IconStack2 } from '@tabler/icons-react';
+import { IconCircleX, IconCode, IconEye, IconStack2 } from '@tabler/icons-react';
 import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { useUserConfig } from '../../hooks/useUserConfig.js';
 import { useConfirm } from '../ui/ConfirmProvider.js';
-import { PreviewPane, type PreviewTarget } from './PreviewPane.js';
-import { isMarkdownPath } from './file-kind.js';
+import { PreviewPane, type PreviewTarget, type PreviewViewMode } from './PreviewPane.js';
+import { isMarkdownPath, isHtmlPath } from './file-kind.js';
 import {
   loadFileBrowserPrefs,
   saveWrapLines,
@@ -60,11 +60,42 @@ export function FilePreviewSheet({
   const [wrapLines, setWrapLines] = useState<boolean>(() => loadFileBrowserPrefs().wrapLines);
   useEffect(() => { saveWrapLines(wrapLines); }, [wrapLines]);
 
-  // markdown 富文本预览自带换行,wrap toggle 在该模式下无意义 → 隐藏
+  // 视图模式:md/html 默认 rendered(富渲染),可切 source 看源码。不持久化 —
+  // 每次打开预览都从 rendered 起步(用户确认的行为)。
+  const [viewMode, setViewMode] = useState<PreviewViewMode>('rendered');
+  // 切文件时复位到 rendered:同一 sheet 实例不重 mount,target 变了但 state 不会
+  // 自动重置,显式跟随 path 复位,避免上一个文件切到 source 后下一个也是 source。
+  useEffect(() => { setViewMode('rendered'); }, [target.path]);
+
+  // 该文件是否支持「源码 / 渲染」切换:markdown(且开启)或 html。
   const mdEnabled = config.integrations?.rendering?.markdown?.enabled !== false;
   const isMarkdown = mdEnabled && target.kind === 'text' && isMarkdownPath(target.path);
+  const isHtml = target.kind === 'text' && isHtmlPath(target.path);
+  const toggleable = isMarkdown || isHtml;
 
-  const wrapToggle = target.kind === 'text' && !isMarkdown ? (
+  // 当前是否处于富渲染(toggleable 文件 + rendered 模式)。决定 wrap toggle 是否有意义。
+  const isRendering = toggleable && viewMode === 'rendered';
+
+  // 源码 / 渲染 切换按钮(单图标 toggle)。仅 toggleable 文件显示。
+  // rendered 态 → IconCode(点击去看源码);source 态 → IconEye(点击回渲染)。
+  const viewToggle = toggleable ? (
+    <button
+      type="button"
+      className={`${s.iconAction} fb-preview__view-toggle`}
+      onClick={() => setViewMode((m) => (m === 'rendered' ? 'source' : 'rendered'))}
+      title={viewMode === 'rendered' ? t('files.previewViewSource') : t('files.previewViewRendered')}
+      aria-label={viewMode === 'rendered' ? t('files.previewViewSource') : t('files.previewViewRendered')}
+      data-action="files-toggle-view-mode"
+      data-mode={viewMode}
+    >
+      {viewMode === 'rendered'
+        ? <IconCode size={18} stroke={1.5} />
+        : <IconEye size={18} stroke={1.5} />}
+    </button>
+  ) : undefined;
+
+  // wrap toggle:富渲染(markdown/html)自带换行,无意义 → 仅在看源码时显示。
+  const wrapToggle = target.kind === 'text' && !isRendering ? (
     <label className={`${s.toggle} fb-preview__wrap-toggle`}>
       <input
         type="checkbox"
@@ -112,9 +143,10 @@ export function FilePreviewSheet({
     </button>
   ) : undefined;
 
-  const headerExtra = wrapToggle || stackBtn || closeAllBtn ? (
+  const headerExtra = viewToggle || wrapToggle || stackBtn || closeAllBtn ? (
     <>
       {wrapToggle}
+      {viewToggle}
       {stackBtn}
       {closeAllBtn}
     </>
@@ -136,6 +168,7 @@ export function FilePreviewSheet({
         target={target}
         wrapLines={wrapLines}
         activationSeq={activationSeq}
+        viewMode={viewMode}
       />
     </Sheet>
   );
