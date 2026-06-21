@@ -223,6 +223,38 @@ describe('ensureBroker', () => {
     expect(r.state.port).toBe(13099);
   });
 
+  it('fork broker 时传 --foreground + ATR_BROKER_FOREGROUND=1（避免子进程二次 daemonize → pid 错位 → 超时）', async () => {
+    // 回归测试:无 broker 时 `atr <program>` 隐式 fork 的 broker 子进程必须走
+    // 前台分支。否则被 spawn 的 `start` 会再 daemonize(fork 孙进程当真 broker),
+    // broker.json 写孙进程 pid ≠ child.pid → ensureBroker 轮询永不满足 → 5s 超时。
+    let capturedArgs: string[] | undefined;
+    let capturedEnv: NodeJS.ProcessEnv | undefined;
+    const captureSpawn = ((_exec: string, args: string[], opts: { env: NodeJS.ProcessEnv }) => {
+      capturedArgs = args;
+      capturedEnv = opts.env;
+      // 同步写 broker.json 模拟就绪,让 ensureBroker 正常返回
+      writeBrokerState(
+        { pid: process.pid, port: 13006, host: '0.0.0.0', startedAt: Date.now(), brokerVersion: '0.7.0' },
+        statePath,
+      );
+      return { pid: process.pid, unref() {} };
+    }) as unknown as typeof import('node:child_process').spawn;
+
+    await ensureBroker({
+      cliJsPath: '/nonexistent/cli.js',
+      statePath,
+      lockDir,
+      startupTimeoutMs: 2000,
+      probeTimeoutMs: 200,
+      fetchFn: mockFetch('ok'),
+      spawnFn: captureSpawn,
+    });
+
+    expect(capturedArgs).toContain('start');
+    expect(capturedArgs).toContain('--foreground');
+    expect(capturedEnv?.['ATR_BROKER_FOREGROUND']).toBe('1');
+  });
+
   it('broker.json 存在但损坏 → 当作不存在处理 → fork', async () => {
     writeFileSync(statePath, 'bad json {{{');
     const r = await ensureBroker({

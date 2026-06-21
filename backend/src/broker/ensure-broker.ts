@@ -217,11 +217,24 @@ function forkBroker(o: ForkBrokerOpts): { pid: number | undefined } {
     : 'ignore';
 
   // 0.7.x 起 broker 启动用 subcommand `start`（旧 `--start` flag / `broker start` 子命令均已删除）
+  //
+  // **关键**：必须让子进程走前台分支（`--foreground` + env `ATR_BROKER_FOREGROUND=1`），
+  // 与 `atr start` 的 daemonize 路径(cli.ts runBrokerStartDaemonize)一致。
+  // 否则被 spawn 的 `start` 会**再次 daemonize**(fork 一个孙进程当真 broker)：
+  //   - 孙进程才是真 broker，broker.json 里写的是孙进程 pid
+  //   - 而本函数返回的是子进程 child.pid（孙进程的父）
+  //   - 调用方 ensureBroker 轮询条件 `st.pid === child.pid` 永不满足 → 5s 超时
+  // 这正是"无 broker 时首次 `atr <program>` 报 did-not-become-ready、第二次才好"的根因。
+  // 走前台后 child 直接就是 broker 进程，pid 匹配，detached+unref 保证父退出不连带杀。
   const child = o.spawnImpl(
     entry.execPath,
-    [...entry.args, 'start'],
+    [...entry.args, 'start', '--foreground'],
     {
-      env: { ...process.env, ...(o.env ?? {}) },
+      env: {
+        ...process.env,
+        ...(o.env ?? {}),
+        ATR_BROKER_FOREGROUND: '1',
+      },
       detached: true,
       stdio: ['ignore', logFd, logFd],
     },

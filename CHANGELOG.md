@@ -5,6 +5,20 @@
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-06-21
+
+主题:**修复无 broker 时首次 `atr <program>` 冷启动报错**。
+
+### Fixed
+
+- **冷启动 broker 超时**:没有 broker 在跑时直接 `atr <program>`,首次必报
+  `broker did not become ready within 5000ms`、第二次才正常。根因:隐式
+  拉起 broker 的 `ensureBroker.forkBroker` spawn `start` 子命令时漏传
+  `--foreground` / `ATR_BROKER_FOREGROUND=1`,导致子进程**二次 daemonize**
+  (再 fork 一个孙进程当真 broker),`broker.json` 写孙进程 pid,而父进程
+  轮询条件 `st.pid === child.pid` 永不满足 → 超时。修复让其与 `atr start`
+  的 daemonize 路径一致(走前台分支),child 直接就是 broker,pid 匹配
+
 ## [0.12.0] - 2026-06-09
 
 主题:**文件预览 md/html 渲染切换 + 移动端预览界面打磨**。文件预览界面
