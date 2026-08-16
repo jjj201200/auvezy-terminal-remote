@@ -11,7 +11,7 @@
  * callout 回退普通 blockquote),顶部 hint 总说明,避免每行重复。
  */
 
-import { type JSX } from 'react';
+import { useState, type JSX } from 'react';
 import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { BoolToggleRow } from './BoolToggleRow.js';
@@ -37,12 +37,6 @@ export interface ObsidianSettingsModalProps {
   value: ObsidianSubToggles;
   /** 子开关改动回调,父级 SettingsModal draft 接管落盘 */
   onChange: (next: ObsidianSubToggles) => void;
-  /**
-   * Obsidian 集成当前是否真会被激活(`rendering.markdown.enabled && enabled`)。
-   * 用于决定子开关是否可点 + 顶部 hint 是否显示「需要先启用 Markdown」。
-   * Markdown 关 = 父强依赖未满足,子开关全灰显;Markdown 开 = 子开关跟随 enabled 状态。
-   */
-  active: boolean;
   /** Markdown 集成是否启用(用于区分「Markdown 关」与「Obsidian 自身关」两种 inactive 原因) */
   markdownEnabled: boolean;
 }
@@ -54,17 +48,31 @@ export function ObsidianSettingsModal({
   onEnabledChange,
   value,
   onChange,
-  active,
   markdownEnabled,
 }: ObsidianSettingsModalProps): JSX.Element {
   const t = useT();
 
+  // modal-stack entry 固化 present() 时的 props —— 受控 value/enabled 是打开瞬间的
+  // 快照,连续切换会互相覆盖(每次都从快照 spread)、总开关切换后也不解灰子开关。
+  // 编辑态在 modal 内部持有:mount 快照播种 + 本地累积 + 每次变更上报 onChange。
+  const [local, setLocal] = useState<ObsidianSubToggles>(value);
+  const [localEnabled, setLocalEnabled] = useState(enabled);
+  // markdownEnabled 不可能在本 modal 内变化,快照冻结无影响
+  const [localMarkdownEnabled] = useState(markdownEnabled);
+
   const setToggle = (key: keyof ObsidianSubToggles, next: boolean): void => {
-    onChange({ ...value, [key]: next });
+    const nextToggles = { ...local, [key]: next };
+    setLocal(nextToggles);
+    onChange(nextToggles);
+  };
+
+  const handleEnabledChange = (next: boolean): void => {
+    setLocalEnabled(next);
+    onEnabledChange(next);
   };
 
   // 子开关 disable 条件:总集成关 / markdown 关 / obsidian 自身 enabled 关 任一即灰显
-  const subDisabled = !active;
+  const subDisabled = !(localMarkdownEnabled && localEnabled);
 
   return (
     <Sheet
@@ -78,7 +86,7 @@ export function ObsidianSettingsModal({
       <div className={s.root}>
         <p className={s.hint}>{t('obsidian.obsidianModalHint')}</p>
 
-        {!markdownEnabled && (
+        {!localMarkdownEnabled && (
           <p className={`${s.note} ${s.noteInfo}`}>
             {t('obsidian.obsidianRequiresMarkdown')}
           </p>
@@ -88,44 +96,44 @@ export function ObsidianSettingsModal({
         <BoolToggleRow
           title={t('obsidian.obsidianTitle')}
           hint={t('obsidian.obsidianDescription')}
-          value={enabled}
-          disabled={!markdownEnabled}
-          onChange={onEnabledChange}
+          value={localEnabled}
+          disabled={!localMarkdownEnabled}
+          onChange={handleEnabledChange}
         />
 
         {/* 5 子开关 — Obsidian 真激活时才可点 */}
         <BoolToggleRow
           title={t('obsidian.toggleFrontmatter')}
           hint={t('obsidian.toggleFrontmatterHint')}
-          value={value.frontmatter}
+          value={local.frontmatter}
           disabled={subDisabled}
           onChange={(v) => setToggle('frontmatter', v)}
         />
         <BoolToggleRow
           title={t('obsidian.toggleCallout')}
           hint={t('obsidian.toggleCalloutHint')}
-          value={value.callout}
+          value={local.callout}
           disabled={subDisabled}
           onChange={(v) => setToggle('callout', v)}
         />
         <BoolToggleRow
           title={t('obsidian.toggleWikilink')}
           hint={t('obsidian.toggleWikilinkHint')}
-          value={value.wikilink}
+          value={local.wikilink}
           disabled={subDisabled}
           onChange={(v) => setToggle('wikilink', v)}
         />
         <BoolToggleRow
           title={t('obsidian.toggleEmbed')}
           hint={t('obsidian.toggleEmbedHint')}
-          value={value.embed}
+          value={local.embed}
           disabled={subDisabled}
           onChange={(v) => setToggle('embed', v)}
         />
         <BoolToggleRow
           title={t('obsidian.toggleInlineSyntax')}
           hint={t('obsidian.toggleInlineSyntaxHint')}
-          value={value.inlineSyntax}
+          value={local.inlineSyntax}
           disabled={subDisabled}
           onChange={(v) => setToggle('inlineSyntax', v)}
         />

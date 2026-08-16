@@ -11,7 +11,7 @@
  * 内部组合:简短说明 + 现成的 ShortcutSettings 树形组件。
  */
 
-import { type JSX } from 'react';
+import { useState, type JSX } from 'react';
 import { type ShortcutGroup } from 'auvezy-terminal-remote-shared';
 import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
@@ -35,6 +35,17 @@ export function ShortcutSettingsModal({
 }: ShortcutSettingsModalProps): JSX.Element {
   const t = useT();
 
+  // modal-stack 的 entry render 闭包在 present() 时固化 props,父级 draft 之后
+  // 再变也不会送来新 value(受控直连会让编辑不显示 / 连续编辑互相覆盖)。
+  // 因此编辑态在这里持有:mount 时用快照播种,之后所有变更基于本地态累积,
+  // 每次变更同步上报 onChange —— 父 draft 仍实时跟进,关闭不丢改动的模型不变。
+  const [local, setLocal] = useState<ShortcutGroup[]>(value);
+
+  const handleChange = (next: ShortcutGroup[]): void => {
+    setLocal(next);
+    onChange(next);
+  };
+
   return (
     <Sheet
       id="shortcut-settings-modal"
@@ -46,7 +57,7 @@ export function ShortcutSettingsModal({
     >
       <div className={s.root}>
         <p className={s.hint}>{t('actions.shortcutsModalHint')}</p>
-        <ShortcutSettings groups={value} onChange={onChange} />
+        <ShortcutSettings groups={local} onChange={handleChange} />
       </div>
     </Sheet>
   );

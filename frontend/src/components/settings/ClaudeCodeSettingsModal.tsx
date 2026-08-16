@@ -14,7 +14,7 @@
  * 视觉一致。
  */
 
-import { type JSX } from 'react';
+import { useState, type JSX } from 'react';
 import { Sheet } from '../ui/Sheet.js';
 import { useT } from '../../i18n/i18n-context.js';
 import { BoolToggleRow } from './BoolToggleRow.js';
@@ -52,8 +52,15 @@ export function ClaudeCodeSettingsModal({
 }: ClaudeCodeSettingsModalProps): JSX.Element {
   const t = useT();
 
+  // modal-stack entry 固化 present() 时的 props —— 受控 value 是打开瞬间的快照,
+  // 连续切换多个开关会互相覆盖(每次都从快照 spread)。编辑态在 modal 内部持有:
+  // mount 快照播种 + 本地累积 + 每次变更上报 onChange(父 draft 实时跟进的模型不变)。
+  const [local, setLocal] = useState<ClaudeCodeEvents>(value);
+
   const setEvent = (key: keyof ClaudeCodeEvents, next: boolean): void => {
-    onChange({ ...value, [key]: next });
+    const nextEvents = { ...local, [key]: next };
+    setLocal(nextEvents);
+    onChange(nextEvents);
   };
 
   const eventsDisabled = !active;
@@ -79,35 +86,35 @@ export function ClaudeCodeSettingsModal({
         <BoolToggleRow
           title={t('integrations.eventApprovals')}
           hint={t('integrations.eventApprovalsHint')}
-          value={value.approvals}
+          value={local.approvals}
           disabled={eventsDisabled}
           onChange={(v) => setEvent('approvals', v)}
         />
         <BoolToggleRow
           title={t('integrations.eventToolProgress')}
           hint={t('integrations.eventToolProgressHint')}
-          value={value.toolProgress}
+          value={local.toolProgress}
           disabled={eventsDisabled}
           onChange={(v) => setEvent('toolProgress', v)}
         />
         <BoolToggleRow
           title={t('integrations.eventTurnLifecycle')}
           hint={t('integrations.eventTurnLifecycleHint')}
-          value={value.turnLifecycle}
+          value={local.turnLifecycle}
           disabled={eventsDisabled}
           onChange={(v) => setEvent('turnLifecycle', v)}
         />
         <BoolToggleRow
           title={t('integrations.eventSessionLifecycle')}
           hint={t('integrations.eventSessionLifecycleHint')}
-          value={value.sessionLifecycle}
+          value={local.sessionLifecycle}
           disabled={eventsDisabled}
           onChange={(v) => setEvent('sessionLifecycle', v)}
         />
         <BoolToggleRow
           title={t('integrations.eventUserPrompts')}
           hint={t('integrations.eventUserPromptsHint')}
-          value={value.userPrompts}
+          value={local.userPrompts}
           disabled={eventsDisabled}
           onChange={(v) => setEvent('userPrompts', v)}
           note={{ tone: 'warn', text: t('integrations.eventUserPromptsWarning') }}

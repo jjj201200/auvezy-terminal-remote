@@ -139,7 +139,6 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
       onEnabledChange: setObsidianEnabled,
       value: obsidianSubToggles,
       onChange: setObsidianSubToggles,
-      active: obsidianActive,
       markdownEnabled: renderingMdEnabled,
     });
   };
