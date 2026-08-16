@@ -126,31 +126,68 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     const resolved = resolveExecutable(cfg.claudeCommand);
     if (!resolved) {
       const { c } = await import('./utils/colors.js');
-      const lines: string[] = [
-        `${c.red('[atr]')} command not found: ${cfg.claudeCommand}`,
-      ];
-      // 含 / 时是路径错,didyoumean 没意义(不在 PATH 上找);只给路径 hint
+      // 含 / 时是路径错,不可能是 shell 函数(函数只以纯名字调用)——直接 127
       if (cfg.claudeCommand.includes('/')) {
-        lines.push(c.dim('hint: file does not exist or is not executable; check the path and permissions'));
+        process.stderr.write(
+          `${c.red('[atr]')} command not found: ${cfg.claudeCommand}\n`
+          + c.dim('hint: file does not exist or is not executable; check the path and permissions')
+          + '\n',
+        );
+        process.exit(127);
+      }
+
+      // 纯名字:先看是不是拼错的保留 subcommand(优先级高于函数 fallback)——
+      // 用户拼错 `atr stp` 想的多半是 `atr stop`,而不是 zshrc 里的函数
+      let subGuess: string | null = null;
+      try {
+        const { suggest } = await import('./utils/did-you-mean.js');
+        const { RESERVED_SUBCOMMANDS } = await import('./cli-utils.js');
+        subGuess = suggest(cfg.claudeCommand, {
+          candidates: Array.from(RESERVED_SUBCOMMANDS),
+          threshold: 0.6,
+        });
+      } catch {
+        /* 建议失败不影响主流程 */
+      }
+      if (subGuess) {
+        process.stderr.write(
+          `${c.red('[atr]')} command not found: ${cfg.claudeCommand}\n`
+          + `  did you mean: ${c.cyan(`atr ${subGuess}`)}?\n`,
+        );
+        process.exit(127);
+      }
+
+      // 既不在 PATH 也不是拼错的 subcommand → 大概率是 shell 函数/alias
+      // (如用户 .zshrc 里定义的 zclaude)。node-pty 走 execvp 语义无法解析,
+      // 改写为 `$SHELL -ic '<命令行>'` 让交互 shell 加载 rc 后执行——
+      // 函数、alias、rc 里的 export(典型:claude 的 API 网关变量)全部生效。
+      // 代价:ClaudeCodeIntegration 的 detect(看 basename)不再命中 claude,
+      // hook 注入等集成功能对本实例不生效;能跑起来优先于集成。
+      const { buildInteractiveFallback } = await import('./utils/shell-function-fallback.js');
+      const fb = buildInteractiveFallback(cfg.claudeCommand, cfg.claudeArgs);
+      if (fb) {
+        process.stderr.write(
+          `${c.yellow('[atr]')} '${cfg.claudeCommand}' is not on PATH — retrying as a shell function/alias via ${fb.command} -ic\n`
+          + c.dim('note: claude integration hooks are not injected for shell-function launches')
+          + '\n',
+        );
+        logger.info(
+          { original: cfg.claudeCommand, shell: fb.command, cmdline: fb.args[1] },
+          'program 不在 PATH,fallback 到交互 shell 执行(函数/alias 场景)',
+        );
+        cfg.claudeCommand = fb.command;
+        cfg.claudeArgs = fb.args;
       } else {
-        // 先在 atr 保留 subcommand 里找(优先级高于 PATH 二进制) ——
-        // 用户拼错 `atr stp` 想的多半是 `atr stop`,而不是 PATH 上的 sftp
+        // 无法 fallback(Windows / 无 $SHELL):维持原 127 + 拼写建议
+        const lines: string[] = [
+          `${c.red('[atr]')} command not found: ${cfg.claudeCommand}`,
+        ];
         try {
           const { suggest } = await import('./utils/did-you-mean.js');
-          const { RESERVED_SUBCOMMANDS } = await import('./cli-utils.js');
-          const subGuess = suggest(cfg.claudeCommand, {
-            candidates: Array.from(RESERVED_SUBCOMMANDS),
-            threshold: 0.6,
-          });
-          if (subGuess) {
-            lines.push(`  did you mean: ${c.cyan(`atr ${subGuess}`)}?`);
-          } else {
-            // 没像 subcommand → 在 PATH 上找最相似的二进制名
-            const candidates = listPathExecutables();
-            const guess = suggest(cfg.claudeCommand, { candidates, threshold: 0.6 });
-            if (guess) {
-              lines.push(`  did you mean: ${c.cyan(guess)}?`);
-            }
+          const candidates = listPathExecutables();
+          const guess = suggest(cfg.claudeCommand, { candidates, threshold: 0.6 });
+          if (guess) {
+            lines.push(`  did you mean: ${c.cyan(guess)}?`);
           }
         } catch {
           /* 建议失败不影响 127 */
@@ -158,11 +195,12 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
         lines.push(
           c.dim(`hint: check spelling, or use an absolute path (e.g. /usr/bin/${cfg.claudeCommand})`),
         );
+        process.stderr.write(lines.join('\n') + '\n');
+        process.exit(127); // 127 = standard "command not found" exit code
       }
-      process.stderr.write(lines.join('\n') + '\n');
-      process.exit(127); // 127 = standard "command not found" exit code
+    } else {
+      logger.info({ requested: cfg.claudeCommand, resolved }, 'PTY program resolved');
     }
-    logger.info({ requested: cfg.claudeCommand, resolved }, 'PTY program resolved');
   }
 
   // 1.7 ensureBroker（0.7.0 ADR-001/002）：worker 启动前先保证 broker 存在；
