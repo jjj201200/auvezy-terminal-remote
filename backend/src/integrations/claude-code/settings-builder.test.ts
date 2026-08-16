@@ -66,20 +66,48 @@ describe('buildClaudeSettings - 与用户 settings 合并', () => {
     expect(Object.keys(settings)).toEqual(['hooks']);
   });
 
-  it('existing 的非 hooks 字段保留,同名 hook 事件被覆盖', () => {
+  it('existing 的非 hooks 字段保留', () => {
     const settings = buildClaudeSettings(
       3000,
       DEFAULT_CLAUDE_CODE_EVENTS,
-      {
-        model: 'opus',
-        hooks: {
-          PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo old' }] }],
-        },
-      },
-    ) as { model: string; hooks: Record<string, unknown> };
-
+      { model: 'opus', env: { FOO: '1' }, statusLine: { type: 'command', command: 'x' } },
+    ) as { model: string; env: unknown; statusLine: unknown };
     expect(settings.model).toBe('opus');
-    // 同名事件整体替换为 atr 的 hook
+    expect(settings.env).toEqual({ FOO: '1' });
+    expect(settings.statusLine).toEqual({ type: 'command', command: 'x' });
+  });
+
+  it('同名 hook 事件:用户条目保留在前,atr 条目追加在后(条目级合并)', () => {
+    const userEntry = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo old' }] };
+    const settings = buildClaudeSettings(
+      3000,
+      DEFAULT_CLAUDE_CODE_EVENTS,
+      { hooks: { PreToolUse: [userEntry] } },
+    ) as { hooks: Record<string, unknown[]> };
+
+    const merged = settings.hooks['PreToolUse']!;
+    // 用户条目不丢
+    expect(merged[0]).toEqual(userEntry);
+    // atr 的 curl 条目追加,指向本实例端口
+    expect(merged).toHaveLength(2);
+    const atrCmd = (merged[1] as { hooks: Array<{ command: string }> }).hooks[0]!.command;
+    expect(atrCmd).toContain('127.0.0.1:3000/api/hook');
+  });
+
+  it('用户独有事件(atri 未注册)原样保留', () => {
+    const userEntry = { matcher: '', hooks: [{ type: 'command', command: 'echo mine' }] };
+    const settings = buildClaudeSettings(
+      3000,
+      DEFAULT_CLAUDE_CODE_EVENTS,
+      { hooks: { PostToolBatch: [userEntry] } },
+    ) as { hooks: Record<string, unknown[]> };
+    expect(settings.hooks['PostToolBatch']).toEqual([userEntry]);
+  });
+
+  it('用户 hooks 字段类型异常时安全回退为纯 atr hooks', () => {
+    const settings = buildClaudeSettings(3000, DEFAULT_CLAUDE_CODE_EVENTS, {
+      hooks: 'not-an-object',
+    }) as { hooks: Record<string, unknown[]> };
     expect(settings.hooks['PreToolUse']).toEqual(
       (buildHooksConfig(3000) as Record<string, unknown>)['PreToolUse'],
     );

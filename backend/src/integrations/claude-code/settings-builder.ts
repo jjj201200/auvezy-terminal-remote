@@ -104,6 +104,11 @@ export function buildHooksConfig(
 /**
  * 完整 settings 文件构造(与用户原 settings 合并)
  *
+ * hooks 合并粒度是**条目级 append**:用户在每个事件下的 hook 条目全部保留,
+ * atr 的 curl 条目追加在其后。此前的事件级整体覆盖会把用户自己的 hooks
+ * (如 ghost-probe / detect-ghost-tool-call)在 atr 注册的同名事件下全部顶掉,
+ * 镜像 settings.json 因此"丢配置"。
+ *
  * @param port    当前实例端口
  * @param toggles 事件子开关(由 IntegrationManager 传入用户偏好)
  * @param existing 用户原有 settings(从 --settings <path> 提取的内容)
@@ -122,12 +127,23 @@ export function buildClaudeSettings(
       ? (existing['hooks'] as Record<string, unknown>)
       : {};
 
+  const mergedHooks: Record<string, unknown> = { ...existingHooks };
+  for (const [event, entries] of Object.entries(ourHooks)) {
+    const theirs = mergedHooks[event];
+    mergedHooks[event] =
+      Array.isArray(theirs) && Array.isArray(entries)
+        ? [...theirs, ...entries]
+        : entries;
+  }
   const overlapped = Object.keys(ourHooks).filter((k) => k in existingHooks);
   if (overlapped.length > 0) {
-    logger.warn({ overlapped }, '用户已有同名 hook 事件被 atr 覆盖(这是必需的)');
+    logger.info(
+      { overlapped },
+      '用户已有同名 hook 事件,atr 条目追加在用户条目之后(双方都执行)',
+    );
   }
 
-  return { ...existing, hooks: { ...existingHooks, ...ourHooks } };
+  return { ...existing, hooks: mergedHooks };
 }
 
 /**
