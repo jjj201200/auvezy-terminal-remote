@@ -53,6 +53,7 @@ interface EditingItemState {
 interface EditingGroupState {
   groupId: string;
   title: string;
+  desc: string;
   error: string | null;
 }
 
@@ -134,11 +135,11 @@ export function CommandSettings({ groups, onChange }: CommandSettingsProps): JSX
     };
     onChange([...groups, newGroup]);
     setExpanded((prev) => new Set(prev).add(id));
-    setEditingGroup({ groupId: id, title: newGroup.title, error: null });
+    setEditingGroup({ groupId: id, title: newGroup.title, desc: '', error: null });
   };
 
   const startEditGroup = (g: CommandGroup): void => {
-    setEditingGroup({ groupId: g.id, title: g.title, error: null });
+    setEditingGroup({ groupId: g.id, title: g.title, desc: g.desc ?? '', error: null });
   };
 
   const commitEditGroup = (): void => {
@@ -148,7 +149,10 @@ export function CommandSettings({ groups, onChange }: CommandSettingsProps): JSX
       setEditingGroup({ ...editingGroup, error: t('commands.groupTitleEmptyError') });
       return;
     }
-    updateGroup(editingGroup.groupId, { title: trimmed });
+    updateGroup(editingGroup.groupId, {
+      title: trimmed,
+      desc: editingGroup.desc.trim() || undefined,
+    });
     setEditingGroup(null);
   };
 
@@ -294,6 +298,9 @@ export function CommandSettings({ groups, onChange }: CommandSettingsProps): JSX
           onChangeEditingTitle={(title) =>
             setEditingGroup((prev) => (prev ? { ...prev, title, error: null } : prev))
           }
+          onChangeEditingDesc={(desc) =>
+            setEditingGroup((prev) => (prev ? { ...prev, desc } : prev))
+          }
           onCommitEditTitle={commitEditGroup}
           onCancelEditTitle={cancelEditGroup}
           onDeleteGroup={() => void deleteGroup(g)}
@@ -377,6 +384,7 @@ interface GroupBlockProps {
   onDisableAll: () => void;
   onStartEditTitle: () => void;
   onChangeEditingTitle: (title: string) => void;
+  onChangeEditingDesc: (desc: string) => void;
   onCommitEditTitle: () => void;
   onCancelEditTitle: () => void;
   onDeleteGroup: () => void;
@@ -402,6 +410,7 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
     onDisableAll,
     onStartEditTitle,
     onChangeEditingTitle,
+    onChangeEditingDesc,
     onCommitEditTitle,
     onCancelEditTitle,
     onDeleteGroup,
@@ -433,10 +442,54 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
       <div className={s.head}>
         {isEditingTitle && editingGroupState ? (
           <div className={s.groupTitleEdit}>
+            <div className={s.groupTitleRow}>
+              <input
+                type="text"
+                value={editingGroupState.title}
+                onChange={(e) => onChangeEditingTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onCommitEditTitle();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    onCancelEditTitle();
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.relatedTarget instanceof Node) {
+                    const headEl = (e.currentTarget as HTMLElement).closest(`.${s.head}`);
+                    if (headEl?.contains(e.relatedTarget)) return;
+                  }
+                  onCancelEditTitle();
+                }}
+                autoFocus
+                placeholder={t('commands.addGroupPlaceholder')}
+                className={s.groupTitleInput}
+              />
+              <button
+                type="button"
+                onClick={onCommitEditTitle}
+                aria-label={t('commands.saveTooltip')}
+                title={t('commands.saveTooltip')}
+                className={s.commitBtn}
+              >
+                <IconCheck size={12} stroke={2} />
+              </button>
+              <button
+                type="button"
+                onClick={onCancelEditTitle}
+                aria-label={t('commands.cancelTooltip')}
+                title={t('commands.cancelTooltip')}
+                className={s.cancelBtn}
+              >
+                <IconX size={12} stroke={1.5} />
+              </button>
+            </div>
             <input
               type="text"
-              value={editingGroupState.title}
-              onChange={(e) => onChangeEditingTitle(e.target.value)}
+              value={editingGroupState.desc}
+              onChange={(e) => onChangeEditingDesc(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -446,35 +499,9 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
                   onCancelEditTitle();
                 }
               }}
-              onBlur={(e) => {
-                if (e.relatedTarget instanceof Node) {
-                  const headEl = (e.currentTarget as HTMLElement).closest(`.${s.head}`);
-                  if (headEl?.contains(e.relatedTarget)) return;
-                }
-                onCancelEditTitle();
-              }}
-              autoFocus
-              placeholder={t('commands.addGroupPlaceholder')}
-              className={s.groupTitleInput}
+              placeholder={t('commands.groupDescPlaceholder')}
+              className={s.groupDescInput}
             />
-            <button
-              type="button"
-              onClick={onCommitEditTitle}
-              aria-label={t('commands.saveTooltip')}
-              title={t('commands.saveTooltip')}
-              className={s.commitBtn}
-            >
-              <IconCheck size={12} stroke={2} />
-            </button>
-            <button
-              type="button"
-              onClick={onCancelEditTitle}
-              aria-label={t('commands.cancelTooltip')}
-              title={t('commands.cancelTooltip')}
-              className={s.cancelBtn}
-            >
-              <IconX size={12} stroke={1.5} />
-            </button>
             {editingGroupState.error && (
               <span className={s.groupErrorText}>{editingGroupState.error}</span>
             )}

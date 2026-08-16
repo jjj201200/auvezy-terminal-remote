@@ -444,10 +444,15 @@
   color: var(--color-alarm);
 }
 
-// 分组标题编辑 inline form
+// 分组标题 + 说明编辑 inline form（两行：标题行 + 说明行）
 .groupTitleEdit {
-  @include m.row-flex(var(--sp-2));
+  @include m.col-flex(var(--sp-1));
   flex: 1;
+  min-width: 0;
+}
+
+.groupTitleRow {
+  @include m.row-flex(var(--sp-2));
 }
 
 .groupTitleInput {
@@ -462,6 +467,27 @@
   font-family: inherit;
   letter-spacing: var(--tracking-tight);
   outline: none;
+}
+
+// 分组说明输入行：弱化样式（虚线下划线 + 次要前景），与标题行拉开层级
+.groupDescInput {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  border-bottom: 1px dashed var(--color-border-hi);
+  background: transparent;
+  color: var(--color-fg-dim);
+  padding: 2px 0;
+  font-size: var(--fs-xs);
+  font-family: inherit;
+  letter-spacing: var(--tracking-tight);
+  outline: none;
+
+  &:focus {
+    border-bottom-color: var(--color-accent);
+    border-bottom-style: solid;
+    color: var(--color-fg);
+  }
 }
 
 // "+ 新建分组" 大按钮（root 级 footer）

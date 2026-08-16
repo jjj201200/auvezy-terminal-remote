@@ -56,6 +56,7 @@ interface EditingItemState {
 interface EditingGroupState {
   groupId: string;
   title: string;
+  desc: string;
   error: string | null;
 }
 
@@ -145,11 +146,11 @@ export function ShortcutSettings({ groups, onChange }: ShortcutSettingsProps): J
     onChange([...groups, newGroup]);
     setExpanded((prev) => new Set(prev).add(id));
     // 立刻进入标题编辑
-    setEditingGroup({ groupId: id, title: newGroup.title, error: null });
+    setEditingGroup({ groupId: id, title: newGroup.title, desc: '', error: null });
   };
 
   const startEditGroup = (g: ShortcutGroup): void => {
-    setEditingGroup({ groupId: g.id, title: g.title, error: null });
+    setEditingGroup({ groupId: g.id, title: g.title, desc: g.desc ?? '', error: null });
   };
 
   const commitEditGroup = (): void => {
@@ -159,7 +160,10 @@ export function ShortcutSettings({ groups, onChange }: ShortcutSettingsProps): J
       setEditingGroup({ ...editingGroup, error: t('shortcuts.groupTitleEmptyError') });
       return;
     }
-    updateGroup(editingGroup.groupId, { title: trimmed });
+    updateGroup(editingGroup.groupId, {
+      title: trimmed,
+      desc: editingGroup.desc.trim() || undefined,
+    });
     setEditingGroup(null);
   };
 
@@ -303,6 +307,9 @@ export function ShortcutSettings({ groups, onChange }: ShortcutSettingsProps): J
           onChangeEditingTitle={(title) =>
             setEditingGroup((prev) => (prev ? { ...prev, title, error: null } : prev))
           }
+          onChangeEditingDesc={(desc) =>
+            setEditingGroup((prev) => (prev ? { ...prev, desc } : prev))
+          }
           onCommitEditTitle={commitEditGroup}
           onCancelEditTitle={cancelEditGroup}
           onDeleteGroup={() => void deleteGroup(g)}
@@ -394,6 +401,7 @@ interface GroupBlockProps {
   onDisableAll: () => void;
   onStartEditTitle: () => void;
   onChangeEditingTitle: (title: string) => void;
+  onChangeEditingDesc: (desc: string) => void;
   onCommitEditTitle: () => void;
   onCancelEditTitle: () => void;
   onDeleteGroup: () => void;
@@ -419,6 +427,7 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
     onDisableAll,
     onStartEditTitle,
     onChangeEditingTitle,
+    onChangeEditingDesc,
     onCommitEditTitle,
     onCancelEditTitle,
     onDeleteGroup,
@@ -450,10 +459,55 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
       <div className={s.head}>
         {isEditingTitle && editingGroupState ? (
           <div className={s.groupTitleEdit}>
+            <div className={s.groupTitleRow}>
+              <input
+                type="text"
+                value={editingGroupState.title}
+                onChange={(e) => onChangeEditingTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onCommitEditTitle();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    onCancelEditTitle();
+                  }
+                }}
+                onBlur={(e) => {
+                  // 点本行内按钮 → 不退出，让 click 跑完
+                  if (e.relatedTarget instanceof Node) {
+                    const headEl = (e.currentTarget as HTMLElement).closest(`.${s.head}`);
+                    if (headEl?.contains(e.relatedTarget)) return;
+                  }
+                  onCancelEditTitle();
+                }}
+                autoFocus
+                placeholder={t('shortcuts.addGroupPlaceholder')}
+                className={s.groupTitleInput}
+              />
+              <button
+                type="button"
+                onClick={onCommitEditTitle}
+                aria-label={t('shortcuts.saveTooltip')}
+                title={t('shortcuts.saveTooltip')}
+                className={s.commitBtn}
+              >
+                <IconCheck size={12} stroke={2} />
+              </button>
+              <button
+                type="button"
+                onClick={onCancelEditTitle}
+                aria-label={t('shortcuts.cancelTooltip')}
+                title={t('shortcuts.cancelTooltip')}
+                className={s.cancelBtn}
+              >
+                <IconX size={12} stroke={1.5} />
+              </button>
+            </div>
             <input
               type="text"
-              value={editingGroupState.title}
-              onChange={(e) => onChangeEditingTitle(e.target.value)}
+              value={editingGroupState.desc}
+              onChange={(e) => onChangeEditingDesc(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -463,36 +517,9 @@ function GroupBlock(props: GroupBlockProps): JSX.Element {
                   onCancelEditTitle();
                 }
               }}
-              onBlur={(e) => {
-                // 点本行内按钮 → 不退出，让 click 跑完
-                if (e.relatedTarget instanceof Node) {
-                  const headEl = (e.currentTarget as HTMLElement).closest(`.${s.head}`);
-                  if (headEl?.contains(e.relatedTarget)) return;
-                }
-                onCancelEditTitle();
-              }}
-              autoFocus
-              placeholder={t('shortcuts.addGroupPlaceholder')}
-              className={s.groupTitleInput}
+              placeholder={t('shortcuts.groupDescPlaceholder')}
+              className={s.groupDescInput}
             />
-            <button
-              type="button"
-              onClick={onCommitEditTitle}
-              aria-label={t('shortcuts.saveTooltip')}
-              title={t('shortcuts.saveTooltip')}
-              className={s.commitBtn}
-            >
-              <IconCheck size={12} stroke={2} />
-            </button>
-            <button
-              type="button"
-              onClick={onCancelEditTitle}
-              aria-label={t('shortcuts.cancelTooltip')}
-              title={t('shortcuts.cancelTooltip')}
-              className={s.cancelBtn}
-            >
-              <IconX size={12} stroke={1.5} />
-            </button>
             {editingGroupState.error && (
               <span className={s.groupErrorText}>{editingGroupState.error}</span>
             )}

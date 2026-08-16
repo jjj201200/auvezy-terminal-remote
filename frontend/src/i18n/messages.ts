@@ -429,6 +429,8 @@ export interface Messages {
     addGroupTitle: string;
     /** 新建分组 placeholder */
     addGroupPlaceholder: string;
+    /** 分组说明编辑 placeholder */
+    groupDescPlaceholder: string;
     /** 标题不能为空 */
     groupTitleEmptyError: string;
     /** 项级"重置为默认"tooltip */
@@ -469,6 +471,8 @@ export interface Messages {
     addGroupTitle: string;
     /** 新建分组 placeholder */
     addGroupPlaceholder: string;
+    /** 分组说明编辑 placeholder */
+    groupDescPlaceholder: string;
     /** 标题不能为空 */
     groupTitleEmptyError: string;
     /** 项级"重置为默认"tooltip */
