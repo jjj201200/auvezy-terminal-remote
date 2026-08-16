@@ -121,6 +121,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   //
   // 仅当用户**显式指定** program（cli.command 非 undefined）时校验；走默认 $SHELL
   // 时不校验（resolveDefaultShell 已挑了实际存在的 shell）。
+  let usedShellFallback = false; // program 经 fallback 改写成 $SHELL -ic(integration detect 需要此信号)
   if (cli.command !== undefined) {
     const { resolveExecutable, listPathExecutables } = await import('./utils/resolve-executable.js');
     const resolved = resolveExecutable(cfg.claudeCommand);
@@ -161,20 +162,19 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       // (如用户 .zshrc 里定义的 zclaude)。node-pty 走 execvp 语义无法解析,
       // 改写为 `$SHELL -ic '<命令行>'` 让交互 shell 加载 rc 后执行——
       // 函数、alias、rc 里的 export(典型:claude 的 API 网关变量)全部生效。
-      // 代价:ClaudeCodeIntegration 的 detect(看 basename)不再命中 claude,
-      // hook 注入等集成功能对本实例不生效;能跑起来优先于集成。
+      // 集成不丢:viaShellFallback 让 claude-code 模块照常激活,hooks 经
+      // CLAUDE_CONFIG_DIR 镜像注入(与命令名/参数转发无关)。
       const { buildInteractiveFallback } = await import('./utils/shell-function-fallback.js');
       const fb = buildInteractiveFallback(cfg.claudeCommand, cfg.claudeArgs);
       if (fb) {
         process.stderr.write(
-          `${c.yellow('[atr]')} '${cfg.claudeCommand}' is not on PATH — retrying as a shell function/alias via ${fb.command} -ic\n`
-          + c.dim('note: claude integration hooks are not injected for shell-function launches')
-          + '\n',
+          `${c.yellow('[atr]')} '${cfg.claudeCommand}' is not on PATH — retrying as a shell function/alias via ${fb.command} -ic\n`,
         );
         logger.info(
           { original: cfg.claudeCommand, shell: fb.command, cmdline: fb.args[1] },
           'program 不在 PATH,fallback 到交互 shell 执行(函数/alias 场景)',
         );
+        usedShellFallback = true;
         cfg.claudeCommand = fb.command;
         cfg.claudeArgs = fb.args;
       } else {
@@ -343,9 +343,17 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
     command: cfg.claudeCommand,
     args: finalClaudeArgs,
     port: cfg.port,
+    ...(usedShellFallback ? { viaShellFallback: true } : {}),
   });
-  if (aug?.extraArgs && aug.extraArgs.length > 0) {
-    finalClaudeArgs.push(...aug.extraArgs);
+  /** PTY spawn 的额外 env(集成模块注入,如 CLAUDE_CONFIG_DIR 镜像) */
+  let ptyExtraEnv: Record<string, string> | undefined;
+  if (aug) {
+    if (aug.extraArgs && aug.extraArgs.length > 0) {
+      finalClaudeArgs.push(...aug.extraArgs);
+    }
+    if (aug.extraEnv && Object.keys(aug.extraEnv).length > 0) {
+      ptyExtraEnv = aug.extraEnv;
+    }
   } else {
     logger.info(
       { command: cfg.claudeCommand, activeIntegration: integrations.activeId },
@@ -682,6 +690,7 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
           command: cfg.claudeCommand,
           args: finalClaudeArgs,
           cwd: cfg.claudeCwd,
+          ...(ptyExtraEnv ? { env: ptyExtraEnv } : {}),
         });
         if (relay) relay.start();
         ctrl.setStatus('running');
