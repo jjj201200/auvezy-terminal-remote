@@ -107,7 +107,13 @@ pnpm build
 
 ### 7. smoke test
 
-bundle 后产物冒烟:
+bundle 后产物冒烟。**必须用 `--port 13737` 这类空闲端口**——本机 3737 常年被
+生产版 broker(`atr start --foreground`)占着,不带端口 start 的 broker 起不来,
+status 会误报 not running。
+
+**严禁** `atr -p <port> status` 这种写法——`-p` 是全局 flag,后面的 `status`
+会被当成要运行的程序名,atr fallback 起交互实例(双 banner + zsh),留下端口
+残留。status/stop 从 HOME 下的 `~/.atr/broker.json` 读端口,**不带任何端口参数**。
 
 ```
 mkdir -p /tmp/atr-smoke/home && rm -rf /tmp/atr-smoke/home/.atr /tmp/atr-smoke/home/.atrrc
@@ -117,16 +123,17 @@ ATR=/mnt/d/github/open-terminal-remote/backend/dist/cli.js
 HOME=/tmp/atr-smoke/home node $ATR --version
 # 2. help 不报错
 HOME=/tmp/atr-smoke/home node $ATR --help | head -5
-# 3. 完整 lifecycle:start → status → stop
-HOME=/tmp/atr-smoke/home node $ATR start > /tmp/atr-smoke.log 2>&1 &
-SPID=$!
+# 3. 完整 lifecycle:start → status → stop(空闲端口;status/stop 不带端口参数)
+HOME=/tmp/atr-smoke/home node $ATR start --port 13737
 sleep 4
 HOME=/tmp/atr-smoke/home node $ATR status | head -8
 HOME=/tmp/atr-smoke/home node $ATR stop
-wait $SPID 2>&1 || true
+sleep 2
+ss -tln | grep ':13737' && echo '!! 端口未释放' || echo '✓ 13737 已释放'
 rm -rf /tmp/atr-smoke /tmp/atr-smoke.log
 ```
 
+status 应显示 `status: running` + 正确 version/端口;stop 后端口必须已释放。
 任何一步报错 / version 显示不对 → **回头查**,别强发。
 
 ### 8. pack dry-run 检查包内容
