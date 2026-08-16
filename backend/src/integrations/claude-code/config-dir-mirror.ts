@@ -7,6 +7,8 @@
  *   ~/.atr/claude-config/<port>/
  *   ├── settings.json     ← 真文件:用户 ~/.claude/settings.json 合并 + atr hooks
  *   ├── .claude.json      ← symlink → ~/.claude.json(顶级状态文件,官方语义随目录迁移)
+ *   ├── plugins           ← 真目录:官方 ~/.claude/plugins 深拷贝副本(路径注册表
+ *   │                       须每实例独立,见 syncPluginsCopy)
  *   └── <其余 entry>      ← 全部 symlink → ~/.claude 对应 entry
  *                           (凭据/历史/projects/skills 零拷贝共享,登录态不丢)
  *
@@ -23,7 +25,9 @@
 
 import {
   chmodSync,
+  cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -64,10 +68,11 @@ export function buildConfigDirMirror(opts: ConfigDirMirrorOptions): string {
   // mkdirSync 的 mode 受 umask 影响且已存在目录不生效,显式校准(幂等)
   chmodSync(dir, 0o700);
 
-  // 1. symlink 透传:~/.claude 的每个 entry(除 settings.json)→ 镜像
+  // 1. symlink 透传:~/.claude 的每个 entry(除 settings.json/plugins)→ 镜像
   if (existsSync(opts.realConfigDir)) {
     for (const entry of readdirSync(opts.realConfigDir)) {
       if (entry === 'settings.json') continue; // 由镜像版顶替
+      if (entry === 'plugins') continue; // 注册表含绝对路径,须独立副本(见 syncPluginsCopy)
 
       const target = join(opts.realConfigDir, entry);
       const linkPath = join(dir, entry);
@@ -80,6 +85,12 @@ export function buildConfigDirMirror(opts: ConfigDirMirrorOptions): string {
         logger.warn({ entry, err }, 'claude-config 镜像:entry symlink 失败,已跳过');
       }
     }
+    // plugins 独立副本:市场/插件注册表(known_marketplaces.json /
+    // installed_plugins.json)以绝对路径记录 installLocation/installPath,
+    // Claude Code 强校验其位于当前 CLAUDE_CONFIG_DIR 内——多实例 symlink
+    // 共享一份注册表时,任一实例的写入都会让其它实例(含官方 ~/.claude
+    // 环境)报 marketplace corrupted。深拷贝一份并把路径归一到本镜像。
+    syncPluginsCopy(opts.realConfigDir, dir);
     // 顶级状态文件 ~/.claude.json:CLAUDE_CONFIG_DIR 的官方语义是整个配置目录
     // 迁移,Claude 会改读 $CLAUDE_CONFIG_DIR/.claude.json(引导完成标记/项目
     // 历史/账号绑定都在里面)。它躺在 realConfigDir 的父目录,readdir 看不到,
@@ -129,6 +140,101 @@ export function cleanupConfigDirMirror(mirrorBaseDir: string, port: number): voi
   } catch (err) {
     logger.warn({ err, dir }, 'claude-config 镜像清理失败(残留无害,下次启动幂等覆盖)');
   }
+}
+
+/** 注册表路径字段里 `<configDir>/plugins/` 分隔的截取标记 */
+const PLUGINS_PATH_SEP = '/plugins/';
+
+/**
+ * 深拷贝官方 plugins 到镜像并归一注册表路径。
+ *
+ * 幂等:镜像 plugins 已是真目录时跳过(实例运行期在副本上的演化不回滚);
+ * 是旧版残留 symlink 时删除重拷(升级兼容)。官方侧无 plugins 时不动,
+ * claude 首跑会在镜像内自初始化。
+ */
+function syncPluginsCopy(realConfigDir: string, mirrorDir: string): void {
+  const src = join(realConfigDir, 'plugins');
+  if (!existsSync(src)) return;
+  const dest = join(mirrorDir, 'plugins');
+  if (existsSync(dest)) {
+    if (!lstatSync(dest).isSymbolicLink()) return; // 已有独立副本
+    rmSync(dest, { recursive: true, force: true }); // 旧版 symlink 残留
+  }
+  try {
+    cpSync(src, dest, { recursive: true });
+    normalizePluginsPaths(dest);
+  } catch (err) {
+    logger.warn({ err }, 'claude-config 镜像:plugins 副本构建失败,该实例插件/市场不可用');
+  }
+}
+
+/**
+ * 归一 plugins 注册表里的绝对路径:白名单字段(installLocation /
+ * source.path / installPath)凡含 `/plugins/` 分隔的,前缀统一改写为本镜像
+ * plugins 路径(marketplaces/... 与 cache/... 后缀不变);projectPath 等
+ * 项目路径字段不碰。
+ */
+function normalizePluginsPaths(pluginsDir: string): void {
+  const rewrite = (value: string): string => {
+    const idx = value.indexOf(PLUGINS_PATH_SEP);
+    if (idx === -1) return value;
+    return pluginsDir + value.slice(idx + PLUGINS_PATH_SEP.length - 1);
+  };
+
+  // known_marketplaces.json:{ <name>: { installLocation, source: { path? } } }
+  rewriteJson(join(pluginsDir, 'known_marketplaces.json'), (root) => {
+    if (!isRecord(root)) return;
+    for (const entry of Object.values(root)) {
+      if (!isRecord(entry)) continue;
+      if (typeof entry.installLocation === 'string') {
+        entry.installLocation = rewrite(entry.installLocation);
+      }
+      if (isRecord(entry.source) && typeof entry.source.path === 'string') {
+        entry.source.path = rewrite(entry.source.path);
+      }
+    }
+  });
+
+  // installed_plugins.json:{ plugins: { <key>: [{ installPath }] } }
+  rewriteJson(join(pluginsDir, 'installed_plugins.json'), (root) => {
+    if (!isRecord(root) || !isRecord(root.plugins)) return;
+    for (const versions of Object.values(root.plugins)) {
+      if (!Array.isArray(versions)) continue;
+      for (const version of versions) {
+        if (isRecord(version) && typeof version.installPath === 'string') {
+          version.installPath = rewrite(version.installPath);
+        }
+      }
+    }
+  });
+}
+
+/** 读-改-写一个 json 文件;文件不存在或解析失败仅降级(保留拷贝原样) */
+function rewriteJson(path: string, mutate: (root: unknown) => void): void {
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf-8');
+  } catch {
+    return; // 官方侧无该文件——正常
+  }
+  let root: unknown;
+  try {
+    root = JSON.parse(raw);
+  } catch (err) {
+    logger.warn({ err, path }, 'claude-config 镜像:plugins 注册表解析失败,跳过归一');
+    return;
+  }
+  mutate(root);
+  try {
+    writeFileSync(path, JSON.stringify(root, null, 2), 'utf-8');
+  } catch (err) {
+    logger.warn({ err, path }, 'claude-config 镜像:plugins 注册表归一写回失败');
+  }
+}
+
+/** 窄化 unknown 为普通对象(排除 null/数组) */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** 读用户 ~/.claude/settings.json;不存在/损坏返回 undefined(按全新生成) */
