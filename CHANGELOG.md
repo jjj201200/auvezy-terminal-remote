@@ -5,6 +5,25 @@
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-08-16
+
+主题:**多实例 Claude Code 市场注册互相损坏修复**。atr 实例里执行市场
+刷新/安装报 `marketplace corrupted` 的根因是镜像把 `plugins` 整体
+symlink 共享——Claude Code 以绝对路径记录市场/插件位置并强校验其位于
+当前配置目录内,一份共享注册表存不下多个实例的路径。
+
+### Fixed
+
+- **多实例下 Claude Code 市场注册互相损坏**:`CLAUDE_CONFIG_DIR` 镜像
+  此前把 `plugins` 整体 symlink 到 `~/.claude/plugins`,所有实例共享
+  同一份 `known_marketplaces.json` / `installed_plugins.json`。Claude
+  Code 把市场 `installLocation` / 插件 `installPath` 以绝对路径写入
+  并强校验位于当前 CLAUDE_CONFIG_DIR 内——任一实例 add/refresh 市场后,
+  其它实例与官方 `~/.claude` 环境立刻报 `marketplace corrupted`,随实例
+  数量必然发生。改为每实例启动时深拷贝独立 `plugins` 副本(幂等),并把
+  副本注册表里的官方/异实例路径前缀归一为本镜像路径;`projectPath` 等
+  项目路径字段不动。旧版残留的 plugins symlink 自动替换为真目录
+
 ## [0.14.0] - 2026-08-16
 
 主题:**设置面板编辑修复 + claude 镜像配置完整性**。修复设置二层 modal
