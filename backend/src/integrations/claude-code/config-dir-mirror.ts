@@ -6,6 +6,7 @@
  *
  *   ~/.atr/claude-config/<port>/
  *   ├── settings.json     ← 真文件:用户 ~/.claude/settings.json 合并 + atr hooks
+ *   ├── .claude.json      ← symlink → ~/.claude.json(顶级状态文件,官方语义随目录迁移)
  *   └── <其余 entry>      ← 全部 symlink → ~/.claude 对应 entry
  *                           (凭据/历史/projects/skills 零拷贝共享,登录态不丢)
  *
@@ -31,7 +32,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { logger } from '../../logger/logger.js';
 import {
   buildClaudeSettings,
@@ -77,6 +78,21 @@ export function buildConfigDirMirror(opts: ConfigDirMirrorOptions): string {
       } catch (err) {
         // 单个 entry 失败(权限/平台限制)只降级该 entry,不阻断镜像整体
         logger.warn({ entry, err }, 'claude-config 镜像:entry symlink 失败,已跳过');
+      }
+    }
+    // 顶级状态文件 ~/.claude.json:CLAUDE_CONFIG_DIR 的官方语义是整个配置目录
+    // 迁移,Claude 会改读 $CLAUDE_CONFIG_DIR/.claude.json(引导完成标记/项目
+    // 历史/账号绑定都在里面)。它躺在 realConfigDir 的父目录,readdir 看不到,
+    // 不透传的话 atr 里跑 claude 每次都当全新用户(重新引导、丢历史)。
+    const topLevelState = join(dirname(opts.realConfigDir), '.claude.json');
+    if (existsSync(topLevelState)) {
+      const linkPath = join(dir, '.claude.json');
+      if (!existsSync(linkPath)) {
+        try {
+          symlinkSync(topLevelState, linkPath);
+        } catch (err) {
+          logger.warn({ err }, 'claude-config 镜像:.claude.json symlink 失败,已跳过');
+        }
       }
     }
   } else {

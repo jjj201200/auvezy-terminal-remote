@@ -107,4 +107,31 @@ describe('buildConfigDirMirror', () => {
     expect(d1).not.toBe(d2);
     expect(existsSync(d1) && existsSync(d2)).toBe(true);
   });
+
+  it('顶级状态文件 .claude.json 存在时 symlink 透传(CLAUDE_CONFIG_DIR 官方语义)', () => {
+    // ~/.claude.json 与 ~/.claude 同级:造在 realDir 的父目录
+    const topLevel = join(dirname(realDir), '.claude.json');
+    writeFileSync(topLevel, '{"firstLogin":true}');
+    try {
+      const dir = buildConfigDirMirror({
+        mirrorBaseDir: mirrorBase,
+        realConfigDir: realDir,
+        port: 41237,
+        toggles: DEFAULT_CLAUDE_CODE_EVENTS,
+      });
+      expect(readlinkSync(join(dir, '.claude.json'))).toBe(topLevel);
+    } finally {
+      rmSync(topLevel, { force: true });
+    }
+  });
+
+  it('顶级状态文件 .claude.json 不存在时不建 symlink(首跑用户)', () => {
+    const dir = buildConfigDirMirror({
+      mirrorBaseDir: mirrorBase,
+      realConfigDir: realDir,
+      port: 41238,
+      toggles: DEFAULT_CLAUDE_CODE_EVENTS,
+    });
+    expect(existsSync(join(dir, '.claude.json'))).toBe(false);
+  });
 });
