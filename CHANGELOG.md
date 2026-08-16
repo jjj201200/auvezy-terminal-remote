@@ -5,6 +5,44 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-16
+
+主题:**shell 函数/别名启动支持 + claude 集成注入通道重做**。`atr zshrc 函数名`
+(如 zclaude)从"command not found"变为自动经交互 shell 执行;claude hooks
+注入从 `--settings` 参数改为 `CLAUDE_CONFIG_DIR` 镜像,对函数/wrapper 启动
+方式无感生效。
+
+### Added
+
+- **shell 函数/别名自动 fallback**:`atr <program>` 的 program 不在 PATH、
+  非路径形式、也不是拼错的保留子命令时,自动改写为 `$SHELL -ic '<命令行>'`
+  由交互 shell 加载 rc 后执行——`.zshrc` 里定义的启动器函数(如 zclaude:
+  export 一组 API 网关变量后启动 claude)直接可用,rc 里的函数/alias/export
+  全部生效。含 POSIX 单引号转义(`shellQuote`)防参数注入;Windows / 无
+  `$SHELL` 环境维持原 127 报错
+
+### Changed
+
+- **claude hooks 注入通道改为 `CLAUDE_CONFIG_DIR` 镜像**:实例启动时在
+  `~/.atr/claude-config/<port>/` 构建镜像——settings.json(用户
+  `~/.claude/settings.json` 合并 + atr hooks)+ 其余 entry 全部 symlink
+  透传(登录态/历史/skills 共享),PTY env 注入该目录,实例退出自动清理。
+  settings 读取与命令名/参数转发解耦,`atr claude` / `atr zclaude`(函数)/
+  wrapper 脚本统一生效;不经 atr 的会话零影响,`~/.claude` 全程不被改动。
+  取代旧的 `--settings` 参数注入(依赖命令名 detect + 参数经函数 `"$@"`
+  转发,两条假设在函数场景全部落空);用户手动 `--settings` 仍被提取合并
+  进镜像(hooks 合并语义不变)。ADR: docs/plans/claude-hook-injection/adrs/001
+
+### Fixed
+
+- **hook curl 绕过 http_proxy**:注入的 hook 命令 `curl -s -X POST ...`
+  未绕过代理,在带 `http_proxy` 的环境下每次工具调用的
+  PreToolUse/PostToolUse 都要绕道 LAN 代理再回 loopback——代理瞬态故障
+  (重启/规则切换窗口)时 curl 无超时会挂到 Claude Code hook 超时,表现为
+  agent 的 Grep/Glob 等工具调用卡顿不可用。加 `--noproxy '*'`(仅这条
+  curl 直连,claude 主进程 API 请求照常走代理)+ `--max-time 2`(通知类
+  调用宁可丢弃不阻塞)
+
 ## [0.12.1] - 2026-06-21
 
 主题:**修复无 broker 时首次 `atr <program>` 冷启动报错**。
