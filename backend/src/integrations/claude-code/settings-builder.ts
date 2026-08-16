@@ -58,7 +58,11 @@ export function buildHooksConfig(
   toggles: ClaudeCodeEventToggles = DEFAULT_CLAUDE_CODE_EVENTS,
 ): Record<string, unknown> {
   const hookUrl = `http://127.0.0.1:${port}/api/hook`;
-  const hookCommand = `curl -s -X POST ${hookUrl} -H 'Content-Type: application/json' -d @-`;
+  // --noproxy '*':用户 shell 常带 http_proxy,curl 不绕过时 loopback 请求会被
+  //   代理拦截(实测稳定 503),backend 永远收不到 hook 事件,且阻塞工具调用
+  // --max-time 2:hook 是 fire-and-forget 通知,网络路径挂起时宁可丢弃也不拖慢
+  //   agent 的每次 PreToolUse/PostToolUse(否则单次工具调用可卡到 hook 超时)
+  const hookCommand = `curl -s --noproxy '*' --max-time 2 -X POST ${hookUrl} -H 'Content-Type: application/json' -d @-`;
   const handler = { type: 'command', command: hookCommand };
 
   // 同一 endpoint 注册多个事件:每个事件一个 matcher 组(matcher 留空 = 命中所有)
