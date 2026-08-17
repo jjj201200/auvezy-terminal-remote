@@ -17,6 +17,13 @@ import { injectManifestToken } from 'auvezy-terminal-remote-shared';
 
 const includeDesign = process.env.INCLUDE_DESIGN === '1';
 
+// dev broker 目标端口:默认 3737(与生产同端口)。3737 被生产实例占用时,
+// `ATR_BROKER_PORT=13737 pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts
+// start --foreground --port 13737` 起隔离 dev broker,vite 侧带同一 env 让
+// proxy 跟随(与 publish smoke 的独立端口模式一致,互不干扰)。
+const brokerPort = process.env.ATR_BROKER_PORT ?? '3737';
+const brokerTarget = `http://localhost:${brokerPort}`;
+
 // 注入构建时的版本号；前端 Settings → 关于 tab 用它显示。
 // 用 backend 的 version 而不是 frontend 自己的——两者总是对齐发布，
 // 但用户安装的是 backend npm 包，"我装的是哪一版"语义上以 backend 为准。
@@ -99,7 +106,7 @@ export default defineConfig({
     // 3000,显式 `atr start --port 3000`,但这里 vite 反代要同步改回 3000。
     proxy: {
       '/api': {
-        target: 'http://localhost:3737',
+        target: brokerTarget,
         changeOrigin: true,
       },
       // `/i/<id>/ws` 与 `/i/<id>/api/...`：实例特定路径，broker 接管反代。
@@ -108,7 +115,7 @@ export default defineConfig({
       // （broker dev 模式没有 frontend-dist，无法 fallback）。bypass 返回 '/index.html'
       // 让 vite 渲染 SPA；前端 router 拿 URL 里的 instanceId 切实例。
       '/i/': {
-        target: 'http://localhost:3737',
+        target: brokerTarget,
         ws: true,
         changeOrigin: true,
         bypass(req) {
@@ -128,7 +135,7 @@ export default defineConfig({
       },
       // 兼容老路径 /ws（attach 客户端 / 旧 webapp）；新前端不再使用
       '/ws': {
-        target: 'ws://localhost:3737',
+        target: `ws://localhost:${brokerPort}`,
         ws: true,
         changeOrigin: true,
       },
@@ -137,7 +144,7 @@ export default defineConfig({
       // 在 dev 也能测带 token 的 PWA 启动路径)。匹配前缀精确到这个文件,不影响
       // public 下别的静态资源
       '/manifest.webmanifest': {
-        target: 'http://localhost:3737',
+        target: brokerTarget,
         changeOrigin: true,
       },
     },
