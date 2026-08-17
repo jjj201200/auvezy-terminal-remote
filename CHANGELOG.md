@@ -5,6 +5,36 @@
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-18
+
+主题:**Markdown 预览正文字号设置 + 预览边距收紧**。
+
+### Added
+
+- **Markdown 预览正文字号设置**(设置 → 集成 → Markdown → 设置):Auto
+  跟随应用默认字号(13px,按钮显示 `Auto · 13`),或选固定 px(预设
+  12–18 / 自定义输入,范围 [10, 24])。标题、代码块、表格、脚注与
+  Obsidian callout / frontmatter / embed 等内容字号按比例同步缩放,
+  一次设置整篇生效。配置存于 `integrations.rendering.markdown.fontSize`
+  (0 = Auto,越界值读回时自动 clamp)。字号不采用终端"最大列数"的列数
+  反推:markdown 是比例字体 + 自动折行,列数不是硬契约,两端(手机过小 /
+  宽屏被上限夹)都会失效,故直接用 px。
+- **Markdown / Obsidian 集成总开关前移到集成列表行**(与「设置」按钮同
+  排,开/关即点即生效),详细设置 modal 只保留细分项;新增 Markdown 详细
+  设置 modal(正文字号),Obsidian modal 不再含总开关。未激活时详细设置
+  仍可调整,激活后生效(与 Claude Code 事件订阅同语义)。
+
+### Changed
+
+- **文件预览左右边距收紧**:Sheet 新增 bodyFlush,预览边距改由各预览
+  组件自管。markdown 渲染模式正文左 34→20 / 右 22→12(px);源码模式
+  左 22→12(与标题栏对齐)/ 右 16→6。
+
+### Internal
+
+- dev:vite proxy 支持 `ATR_BROKER_PORT` 环境变量覆盖,开发实例可与
+  常驻 3737 的生产 broker 并行(独立端口 + 隔离 HOME)。
+
 ## [0.14.1] - 2026-08-16
 
 主题:**多实例 Claude Code 市场注册互相损坏修复**。atr 实例里执行市场
