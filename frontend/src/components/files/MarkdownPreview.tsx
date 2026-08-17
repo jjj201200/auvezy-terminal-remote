@@ -21,7 +21,7 @@
  * 自写 plugin,共 ~50KB)。未开 obsidian 的用户不付这份代价。
  */
 
-import { createElement, memo, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
+import { createElement, memo, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -73,6 +73,15 @@ export function MarkdownPreview({ instanceId, path, activationSeq }: MarkdownPre
   const [raw, setRaw] = useState<string>('');
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // ─── 正文字号(集成 → Markdown 设置;0 = 自动跟随 --fs-md)──────────────
+  // 通过 CSS var --atr-md-fs 注入 .root;标题/代码/表格等内部字号全部 em 相对
+  // 该值,整篇按比例缩放(见 MarkdownPreview.module.scss .root 注释)。
+  const mdFontSize = config.integrations?.rendering?.markdown?.fontSize ?? 0;
+  const mdFsStyle = useMemo<CSSProperties | undefined>(
+    () => (mdFontSize > 0 ? ({ '--atr-md-fs': `${mdFontSize}px` } as CSSProperties) : undefined),
+    [mdFontSize],
+  );
 
   // ─── obsidian 集成 effective 状态 + 动态加载 bindings ─────────────────────
   // markdown 已开(走到这里就保证),只需判断 obsidian.enabled。子开关传给 bindings 内部分支。
@@ -221,7 +230,7 @@ export function MarkdownPreview({ instanceId, path, activationSeq }: MarkdownPre
     // 顶层包 EmbedAncestorsProvider:把自己 path 加入祖先 set,
     // 防止 A.md ![[A]] 这种自指 embed 触发无限递归(单层即被循环检测拦截)
     <EmbedAncestorsProvider value={ancestorsForEmbed}>
-      <div className={`${s.root} fb-markdown`}>
+      <div className={`${s.root} fb-markdown`} style={mdFsStyle}>
         <ReactMarkdown
           remarkPlugins={remarkPlugins}
           rehypePlugins={[rehypeRaw, rehypeKatex]}

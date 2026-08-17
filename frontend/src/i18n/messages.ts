@@ -284,6 +284,11 @@ export interface Messages {
 
     openDetails: string;
 
+    mdFontSizeTitle: string;
+    mdFontSizeHint: string;
+    mdFontSizeAutoTooltip: string;
+    mdFontSizeCustomAriaLabel: string;
+
     sectionClaudeCode: string;
     claudeCodeModalTitle: string;
     claudeCodeDescription: string;
@@ -307,6 +312,8 @@ export interface Messages {
     sectionRuntime: string;
     markdownTitle: string;
     markdownDescription: string;
+    markdownModalTitle: string;
+    markdownModalHint: string;
     obsidianTitle: string;
     obsidianDescription: string;
     obsidianRequiresMarkdown: string;

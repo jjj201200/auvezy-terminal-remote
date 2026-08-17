@@ -54,3 +54,16 @@ export function getDefaultXtermFontSize(): number {
     ? XTERM_FONT_SIZE_MOBILE
     : XTERM_FONT_SIZE_DESKTOP;
 }
+
+/** Markdown 预览 Auto 模式的正文字号(px)。
+ *  与 _tokens.scss 的 --fs-md($fs-md: 13px)同源——运行时从 :root 读取而非
+ *  硬编码,token 改动后设置面板 "Auto · 13" 的显示自动跟随,无漂移。
+ *  读不到(异常环境)返回 0,调用方隐藏 "· xx" 后缀即可。 */
+export function getDefaultMarkdownFontSize(): number {
+  if (typeof window === 'undefined') return 0;
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue('--fs-md')
+    .trim();
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}

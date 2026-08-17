@@ -453,7 +453,19 @@ export interface UserConfig {
  * docs/plans/obsidian-integration/adrs/001-rendering-vs-runtime-integration.md。
  */
 export interface RenderingIntegrationPrefs {
-  markdown?: { enabled?: boolean };
+  markdown?: {
+    enabled?: boolean;
+    /**
+     * 预览正文字号(px)。0 = 自动(用应用默认 --fs-md);固定值范围
+     * [MARKDOWN_FONT_SIZE_MIN, MARKDOWN_FONT_SIZE_MAX]。
+     *
+     * Why 不学 display.maxCols 用列数反推:终端列数是 TUI 绘制的硬契约
+     * (字号 = 宽度/列数/0.6),markdown 是比例字体 + 自动折行,列数只是
+     * 排版学 measure(每行字符数)的软约束,反推在手机(过小)与宽桌面
+     * (被上限夹)两端都崩,故直接用 px。
+     */
+    fontSize?: number;
+  };
   obsidian?: {
     enabled?: boolean;
     /** YAML frontmatter 渲染为 Properties 表;关:frontmatter 块直接 strip */
@@ -507,7 +519,7 @@ export const DEFAULT_INTEGRATIONS: Required<{
     };
   };
   rendering: {
-    markdown: { enabled: boolean };
+    markdown: { enabled: boolean; fontSize: number };
     obsidian: {
       enabled: boolean;
       frontmatter: boolean;
@@ -532,7 +544,7 @@ export const DEFAULT_INTEGRATIONS: Required<{
     },
   },
   rendering: {
-    markdown: { enabled: true },
+    markdown: { enabled: true, fontSize: 0 },
     obsidian: {
       enabled: true,
       frontmatter: true,
@@ -699,6 +711,13 @@ export const COLS_PRESETS = [80, 100, 120] as const;
 /** 字号设置 UI 允许选择的范围(超过这个范围渲染会糊或塞不下) */
 export const FONT_SIZE_FLOOR = 6;
 export const FONT_SIZE_CEIL = 32;
+
+/** Markdown 预览正文字号:0 = 自动(应用默认 --fs-md);固定值取值范围与预设 */
+export const MARKDOWN_FONT_SIZE_AUTO = 0;
+export const MARKDOWN_FONT_SIZE_MIN = 10;
+export const MARKDOWN_FONT_SIZE_MAX = 24;
+/** 设置面板字号预设(与 display.COLS_PRESETS 对应的 markdown 侧预设) */
+export const MARKDOWN_FONT_SIZE_PRESETS = [12, 13, 14, 15, 16, 18] as const;
 
 /** letterSpacing 范围 */
 export const LETTER_SPACING_MIN = -2;
@@ -869,8 +888,20 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
         : DEFAULT_INTEGRATIONS.rendering.markdown.enabled;
   const userObsidian = rawIntegrations?.rendering?.obsidian;
   const obsDefaults = DEFAULT_INTEGRATIONS.rendering.obsidian;
+  // markdown 正文字号:0 = 自动;固定值 clamp 到 [MIN, MAX],非整数取整,
+  // 非法(缺字段 / NaN / 越界外的乱值)回退自动
+  const userMdFontSize = rawIntegrations?.rendering?.markdown?.fontSize;
+  const mdFontSize =
+    userMdFontSize === MARKDOWN_FONT_SIZE_AUTO
+      ? MARKDOWN_FONT_SIZE_AUTO
+      : typeof userMdFontSize === 'number' && Number.isFinite(userMdFontSize)
+        ? Math.max(
+            MARKDOWN_FONT_SIZE_MIN,
+            Math.min(MARKDOWN_FONT_SIZE_MAX, Math.round(userMdFontSize)),
+          )
+        : MARKDOWN_FONT_SIZE_AUTO;
   const rendering: RenderingIntegrationPrefs = {
-    markdown: { enabled: renderingMdEnabled },
+    markdown: { enabled: renderingMdEnabled, fontSize: mdFontSize },
     obsidian: {
       enabled:
         typeof userObsidian?.enabled === 'boolean'

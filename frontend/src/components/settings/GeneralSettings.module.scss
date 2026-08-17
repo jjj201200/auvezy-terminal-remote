@@ -87,6 +87,41 @@
   }
 }
 
+// 数字预设按钮的紧凑变体("Auto / 12 / 13 …"一排,去掉 .btn 的 64px 最小宽,
+// 数字用 mono 对齐 DisplaySettings 的 presetBtn 视觉)
+.btnCompact {
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  font-family: var(--font-mono);
+}
+
+// 数字输入(自定义字号等;样式与 DisplaySettings.numInput 同源)
+.numInput {
+  width: 56px;
+  padding: var(--sp-2);
+  text-align: center;
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--color-fg);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  // 隐藏 number input 的上下旋钮(与紧凑视觉冲突)
+  -moz-appearance: textfield;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  &:focus-visible {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-focus);
+  }
+}
+
 // 标题旁的状态文字(直接附在标题尾部,无背景无边框,纯彩色文字)
 // data-tone='info' = 已激活蓝;data-tone='muted' = 未激活灰
 .titleStatus {

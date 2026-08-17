@@ -551,8 +551,9 @@
   .textPre {
     flex: 1;
     margin: 0;
-    // Why padding 上下:阅读呼吸感;左 0:每行的 .shiki-line-number 自带左 padding
-    padding: var(--sp-4) 0;
+    // Why padding 上下:阅读呼吸感。横向 sp-3:Sheet bodyFlush 后边距自管,
+    // 左侧与行号自带 padding 叠加(6+6=12px)对齐 sheet header 标题,右侧留呼吸
+    padding: var(--sp-4) var(--sp-3);
     // 虚拟列表自己管纵向滚动,容器不可 overflow:auto 否则会有两套滚动条
     overflow: hidden;
     background: var(--color-bg-canvas);

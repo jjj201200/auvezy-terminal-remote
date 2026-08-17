@@ -245,6 +245,12 @@ export const en: Messages = {
 
     openDetails: 'Configure',
 
+    mdFontSizeTitle: 'Body font size',
+    mdFontSizeHint:
+      'Markdown preview body font size (px). Auto follows the app default; headings / code blocks / tables scale proportionally.',
+    mdFontSizeAutoTooltip: 'Follow the app default body font size',
+    mdFontSizeCustomAriaLabel: 'Custom font size (px)',
+
     sectionClaudeCode: 'Claude Code',
     claudeCodeModalTitle: 'Claude Code integration',
     claudeCodeDescription:
@@ -275,6 +281,9 @@ export const en: Messages = {
     markdownTitle: 'Markdown',
     markdownDescription:
       'Rich preview for .md / .markdown files (headings / lists / tables / code blocks).',
+    markdownModalTitle: 'Markdown integration details',
+    markdownModalHint:
+      'When off, .md files fall back to the plain-text path (like other code files); the body font size only affects the rich preview, not source mode.',
     obsidianTitle: 'Obsidian',
     obsidianDescription:
       'Layer Obsidian-flavored extensions on top of Markdown rendering (frontmatter / callouts / wikilinks / embeds / inline syntax).',

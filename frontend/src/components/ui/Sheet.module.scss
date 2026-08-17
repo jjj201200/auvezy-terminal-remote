@@ -213,6 +213,13 @@
   -webkit-overflow-scrolling: touch;
 }
 
+// bodyFlush:全屏沉浸 sheet(文件预览)用 — 去掉默认 padding 与 scroll 余量,
+// 边距由各 preview 组件自管。必须定义在 .body 之后(同特异性靠后者生效)。
+.bodyFlush {
+  padding: 0;
+  scroll-padding-bottom: 0;
+}
+
 .footer {
   @include m.row-flex(var(--sp-3));
   justify-content: flex-end;

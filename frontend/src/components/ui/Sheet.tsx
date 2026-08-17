@@ -94,6 +94,13 @@ export interface SheetProps {
    * 默认 false(显示 backdrop)。
    */
   hideBackdrop?: boolean;
+  /**
+   * body 去掉默认 padding。给全屏沉浸 sheet(文件预览)用:默认 padding 是为
+   * 键盘弹起 / input scrollIntoView 的输入场景设计的,预览内容没有输入,边距
+   * 由各 preview 组件自管(MarkdownPreview / TextPreview 自带 padding)。
+   * 默认 false(保持原 padding)。
+   */
+  bodyFlush?: boolean;
 }
 
 export function Sheet({
@@ -110,6 +117,7 @@ export function Sheet({
   headerExtra,
   hideDragHandle = false,
   hideBackdrop = false,
+  bodyFlush = false,
 }: SheetProps): JSX.Element {
   const isMobile = useMediaQuery('(max-width: 767px)');
   // DOM id 必须唯一 — multiple FilePreviewSheet 叠加时,props.id 会重复;
@@ -193,7 +201,7 @@ export function Sheet({
                 <IconX size={16} stroke={1.5} />
               </button>
             </header>
-            <div className={s.body}>{children}</div>
+            <div className={clsx(s.body, bodyFlush && s.bodyFlush)}>{children}</div>
             {footer && (
               <footer className={clsx(s.footer, s.footerMobile)}>{footer}</footer>
             )}
@@ -236,7 +244,7 @@ export function Sheet({
               </button>
             </Dialog.Close>
           </header>
-          <div className={s.body}>{children}</div>
+          <div className={clsx(s.body, bodyFlush && s.bodyFlush)}>{children}</div>
           {footer && <footer className={s.footer}>{footer}</footer>}
         </Dialog.Content>
       </Dialog.Portal>

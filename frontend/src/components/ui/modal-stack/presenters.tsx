@@ -29,6 +29,10 @@ import {
   type ObsidianSettingsModalProps,
 } from '../../settings/ObsidianSettingsModal.js';
 import {
+  MarkdownSettingsModal,
+  type MarkdownSettingsModalProps,
+} from '../../settings/MarkdownSettingsModal.js';
+import {
   ShortcutSettingsModal,
   type ShortcutSettingsModalProps,
 } from '../../settings/ShortcutSettingsModal.js';
@@ -150,6 +154,11 @@ export const useClaudeCodeSettingsPresenter = makeModalPresenter<ClaudeCodeSetti
 export const useObsidianSettingsPresenter = makeModalPresenter<ObsidianSettingsModalProps>(
   ObsidianSettingsModal,
   { kind: 'obsidian-settings' },
+);
+
+export const useMarkdownSettingsPresenter = makeModalPresenter<MarkdownSettingsModalProps>(
+  MarkdownSettingsModal,
+  { kind: 'markdown-settings' },
 );
 
 export const useShortcutSettingsPresenter = makeModalPresenter<ShortcutSettingsModalProps>(

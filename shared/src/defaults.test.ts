@@ -214,6 +214,7 @@ describe('ensureDefaultUserConfig：旧版直接重置', () => {
 describe('rendering integration defaults', () => {
   it('exposes markdown.enabled and obsidian.* sub-toggles via DEFAULT_INTEGRATIONS', () => {
     expect(DEFAULT_INTEGRATIONS.rendering.markdown.enabled).toBe(true);
+    expect(DEFAULT_INTEGRATIONS.rendering.markdown.fontSize).toBe(0);
     expect(DEFAULT_INTEGRATIONS.rendering.obsidian.enabled).toBe(true);
     expect(DEFAULT_INTEGRATIONS.rendering.obsidian.frontmatter).toBe(true);
     expect(DEFAULT_INTEGRATIONS.rendering.obsidian.wikilink).toBe(true);
@@ -255,5 +256,28 @@ describe('rendering integration migration', () => {
     expect(obs?.embed).toBe(true);
     expect(obs?.callout).toBe(true);
     expect(obs?.inlineSyntax).toBe(true);
+  });
+
+  it('normalizes markdown.fontSize: 0=auto, fixed clamped to [10,24], garbage→auto', () => {
+    const mk = (fontSize: unknown) =>
+      ensureDefaultUserConfig({
+        integrations: { rendering: { markdown: { enabled: true, fontSize } } },
+      } as unknown as Parameters<typeof ensureDefaultUserConfig>[0]);
+
+    expect(mk(0).integrations.rendering?.markdown?.fontSize).toBe(0);
+    expect(mk(15).integrations.rendering?.markdown?.fontSize).toBe(15);
+    // 越界 clamp
+    expect(mk(4).integrations.rendering?.markdown?.fontSize).toBe(10);
+    expect(mk(99).integrations.rendering?.markdown?.fontSize).toBe(24);
+    // 非整数取整
+    expect(mk(14.6).integrations.rendering?.markdown?.fontSize).toBe(15);
+    // 非法值回退自动
+    expect(mk(Number.NaN).integrations.rendering?.markdown?.fontSize).toBe(0);
+    expect(mk('16').integrations.rendering?.markdown?.fontSize).toBe(0);
+    // 缺字段 = 自动
+    const missing = ensureDefaultUserConfig({
+      integrations: { rendering: { markdown: { enabled: true } } },
+    } as unknown as Parameters<typeof ensureDefaultUserConfig>[0]);
+    expect(missing.integrations.rendering?.markdown?.fontSize).toBe(0);
   });
 });

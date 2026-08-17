@@ -4,7 +4,7 @@
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-surface-2);
-  font-size: 13px;
+  font-size: 1em;
 }
 
 .header {
@@ -26,7 +26,7 @@
 
 .chev {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: 0.85em;
 }
 
 .title {
@@ -55,7 +55,7 @@
 .kindIcon {
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.85em;
   text-align: center;
   width: 16px;
 }
@@ -81,7 +81,7 @@
   padding: 1px 8px;
   border-radius: 9999px;
   background: var(--color-surface-3);
-  font-size: 12px;
+  font-size: 0.92em;
   color: var(--color-text);
 }
 
@@ -96,13 +96,13 @@
   border-radius: 6px;
   background: var(--color-surface-2);
   color: var(--color-alarm);
-  font-size: 13px;
+  font-size: 1em;
 }
 
 .errorMsg {
   margin: 4px 0 0;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 0.92em;
   white-space: pre-wrap;
 }
 
@@ -111,5 +111,5 @@
   padding: 8px 16px;
   color: var(--color-text-muted);
   font-style: italic;
-  font-size: 13px;
+  font-size: 1em;
 }

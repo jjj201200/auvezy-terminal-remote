@@ -162,6 +162,7 @@ export function FilePreviewSheet({
       headerExtra={headerExtra}
       hideDragHandle
       hideBackdrop
+      bodyFlush
     >
       <PreviewPane
         instanceId={instanceId}

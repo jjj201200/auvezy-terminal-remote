@@ -237,6 +237,12 @@ export const zhCN: Messages = {
 
     openDetails: '设置',
 
+    mdFontSizeTitle: '正文字号',
+    mdFontSizeHint:
+      'Markdown 预览正文字号(px)。Auto 跟随应用默认;标题 / 代码块 / 表格按比例同步缩放。',
+    mdFontSizeAutoTooltip: '跟随应用默认正文字号',
+    mdFontSizeCustomAriaLabel: '自定义字号(px)',
+
     sectionClaudeCode: 'Claude Code',
     claudeCodeModalTitle: 'Claude Code 集成设置',
     claudeCodeDescription:
@@ -265,6 +271,9 @@ export const zhCN: Messages = {
     sectionRuntime: '运行时集成',
     markdownTitle: 'Markdown',
     markdownDescription: '.md / .markdown 文件富文本预览(标题 / 列表 / 表格 / 代码块等)。',
+    markdownModalTitle: 'Markdown 集成详细设置',
+    markdownModalHint:
+      '关闭后 .md 走纯文本路径(同其它代码文件);正文字号只影响富文本预览,源码模式不受影响。',
     obsidianTitle: 'Obsidian',
     obsidianDescription:
       '在 Markdown 渲染管线上叠加 Obsidian 扩展语法(frontmatter / callout / wikilink / embed / 内联语法)。',

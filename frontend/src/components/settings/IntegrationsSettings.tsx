@@ -22,6 +22,7 @@ import { useT } from '../../i18n/i18n-context.js';
 import { BoolToggleRow } from './BoolToggleRow.js';
 import {
   useClaudeCodeSettingsPresenter,
+  useMarkdownSettingsPresenter,
   useObsidianSettingsPresenter,
 } from '../ui/modal-stack/presenters.js';
 import type { ObsidianSubToggles } from './ObsidianSettingsModal.js';
@@ -37,6 +38,49 @@ const FORCE_OPTIONS: ReadonlyArray<'auto' | 'claude-code' | 'none'> = [
   'claude-code',
   'none',
 ];
+
+/**
+ * 集成 section row 内的开/关按钮组 — 与 BoolToggleRow 同按钮形态
+ * (radiogroup 双按钮),但无标题行,用于与「设置」按钮同行混排。
+ */
+function InlineBoolToggle(props: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+  disabled?: boolean;
+  ariaLabel: string;
+}): JSX.Element {
+  const t = useT();
+  const { value, onChange, disabled, ariaLabel } = props;
+  return (
+    <div
+      className={s.row}
+      role="radiogroup"
+      aria-label={ariaLabel}
+      style={disabled ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+    >
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value}
+        disabled={disabled}
+        onClick={() => onChange(true)}
+        className={clsx(s.btn, value && s.btnActive)}
+      >
+        {t('common.on')}
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={!value}
+        disabled={disabled}
+        onClick={() => onChange(false)}
+        className={clsx(s.btn, !value && s.btnActive)}
+      >
+        {t('common.off')}
+      </button>
+    </div>
+  );
+}
 
 export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsProps): JSX.Element {
   const t = useT();
@@ -88,9 +132,12 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
 
   // ─── 渲染集成(Markdown / Obsidian)— 与 forceModule 单选无关,各自独立 enabled ───
   const presentObsidian = useObsidianSettingsPresenter();
+  const presentMarkdownSettings = useMarkdownSettingsPresenter();
 
   const mdDefaults = DEFAULT_INTEGRATIONS.rendering.markdown;
   const renderingMdEnabled = value?.rendering?.markdown?.enabled ?? mdDefaults.enabled;
+  const mdFontSize =
+    value?.rendering?.markdown?.fontSize ?? mdDefaults.fontSize;
 
   const userObsidian = value?.rendering?.obsidian;
   const obsDefaults = DEFAULT_INTEGRATIONS.rendering.obsidian;
@@ -110,10 +157,20 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
       ...value,
       rendering: {
         ...value?.rendering,
-        markdown: { enabled: next },
+        markdown: { enabled: next, fontSize: mdFontSize },
       },
     });
   };
+  const setMdFontSize = (next: number): void => {
+    onChange({
+      ...value,
+      rendering: {
+        ...value?.rendering,
+        markdown: { enabled: renderingMdEnabled, fontSize: next },
+      },
+    });
+  };
+
   const setObsidianEnabled = (next: boolean): void => {
     onChange({
       ...value,
@@ -136,10 +193,16 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
   const openObsidianSettings = (): void => {
     presentObsidian({
       enabled: obsidianEnabled,
-      onEnabledChange: setObsidianEnabled,
       value: obsidianSubToggles,
       onChange: setObsidianSubToggles,
       markdownEnabled: renderingMdEnabled,
+    });
+  };
+
+  const openMarkdownSettings = (): void => {
+    presentMarkdownSettings({
+      fontSize: mdFontSize,
+      onFontSizeChange: setMdFontSize,
     });
   };
 
@@ -221,16 +284,38 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
         <h2 className={s.groupTitle}>{t('obsidian.sectionRendering')}</h2>
       </header>
 
-      {/* Markdown */}
-      <BoolToggleRow
-        title={t('obsidian.markdownTitle')}
-        hint={t('obsidian.markdownDescription')}
-        value={renderingMdEnabled}
-        onChange={setRenderingMd}
-      />
+      {/* Markdown — section header 显示标题 + 状态徽章 + 描述;row 里开/关
+          按钮组在前、「设置」按钮在后(详细设置在子 modal)。 */}
+      <section className={s.section}>
+        <header className={s.header}>
+          <h3 className={s.title}>
+            {t('obsidian.markdownTitle')}
+            <span
+              className={s.titleStatus}
+              data-tone={renderingMdEnabled ? 'info' : 'muted'}
+            >
+              {renderingMdEnabled ? t('integrations.activeBadge') : t('integrations.inactiveBadge')}
+            </span>
+          </h3>
+          <p className={s.hint}>{t('obsidian.markdownDescription')}</p>
+        </header>
+        <div className={s.row}>
+          <InlineBoolToggle
+            value={renderingMdEnabled}
+            onChange={setRenderingMd}
+            ariaLabel={t('obsidian.markdownTitle')}
+          />
+          <button
+            type="button"
+            onClick={openMarkdownSettings}
+            className={s.btn}
+          >
+            {t('integrations.openDetails')}
+          </button>
+        </div>
+      </section>
 
-      {/* Obsidian — 强依赖 Markdown;形态与 ClaudeCode 对称:section header 显示
-          标题 + 状态徽章 + 描述,row 里只放「详细」按钮。enabled 开关在子 modal 顶部。 */}
+      {/* Obsidian — 强依赖 Markdown;开关同样在 row 前部,markdown 关时整组灰显 */}
       <section className={s.section} aria-disabled={!renderingMdEnabled || undefined}>
         <header className={s.header}>
           <h3 className={s.title}>
@@ -253,6 +338,12 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
           </p>
         </header>
         <div className={s.row}>
+          <InlineBoolToggle
+            value={obsidianEnabled}
+            onChange={setObsidianEnabled}
+            disabled={!renderingMdEnabled}
+            ariaLabel={t('obsidian.obsidianTitle')}
+          />
           <button
             type="button"
             onClick={openObsidianSettings}

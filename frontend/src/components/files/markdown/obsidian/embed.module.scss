@@ -19,7 +19,7 @@
     display: inline-block;
     margin-top: 4px;
     color: var(--color-info);
-    font-size: 13px;
+    font-size: 1em;
   }
 }
 
@@ -37,7 +37,7 @@
 
   summary {
     cursor: pointer;
-    font-size: 13px;
+    font-size: 1em;
     color: var(--color-text-muted);
     list-style: none;
 
@@ -46,7 +46,7 @@
       content: '▶';
       display: inline-block;
       margin-right: 6px;
-      font-size: 10px;
+      font-size: 0.8em;
       transition: transform 0.15s;
     }
 
@@ -70,7 +70,7 @@ details.mdEmbed[open] > summary::before {
   border-left: 3px solid var(--color-warn);
   background: var(--color-surface-2);
   color: var(--color-warn);
-  font-size: 13px;
+  font-size: 1em;
 }
 
 .disabled {
