@@ -51,6 +51,8 @@
     "prepublishOnly": "echo 'prepublishOnly: 由 root pnpm build 处理'"
   },
   "dependencies": {
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/headless": "5.5.0",
     "cookie": "^1.0.0",
     "cors": "^2.8.5",
     "didyoumean2": "^7.0.4",
