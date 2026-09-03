@@ -437,16 +437,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
 
   // 5. PTY + SessionController
   const pty = new PtyManager();
-  // alt-screen 过滤策略：见 resolveAnsiFilterEnabled 文档
-  const ansiFilter = resolveAnsiFilterEnabled(
-    cfg.claudeCommand,
-    process.env['OCR_ANSI_FILTER'],
-    process.env['OCR_ANSI_FILTER_TUI_NAMES'],
-  );
-  logger.info({ ansiFilter, command: cfg.claudeCommand }, 'AnsiFilter 策略');
   const ctrl = new SessionController(pty, ws, cfg.maxBufferLines, {
     writeToProcessStdout: !cfg.noTerminal,
-    ansiFilter,
   });
   ctrl.setIntegrationManager(integrations);
   // setPushService 的 url 是 fallback：仅当订阅记录里没存 entryUrl 时用。
@@ -779,109 +771,6 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       '服务已启动',
     );
   }
-}
-
-/**
- * 内置「全程 alt-screen TUI」名单
- *
- * 这些程序启动后整个 session 都在 alt-screen 里。即使用户显式开启
- * 过滤（OCR_ANSI_FILTER=true）以求 vim 退出干净，跑这些程序时也必须
- * 关掉，否则 webapp 永远空白。
- *
- * 用户可通过 OCR_ANSI_FILTER_TUI_NAMES 追加（逗号分隔），例如：
- *   OCR_ANSI_FILTER_TUI_NAMES="lazygit,k9s,gh-dash"
- */
-const BUILTIN_FULL_ALT_TUIS = new Set([
-  'claude',
-  'tmux',
-  'screen',
-  'vim',
-  'nvim',
-  'vi',
-  'htop',
-  'btop',
-  'top',
-  'less',
-  'more',
-  'fzf',
-  'lazygit',
-  'lazydocker',
-  'k9s',
-  'ranger',
-  'mc',
-  'tig',
-]);
-
-/** 取 path 末段并去掉常见 Windows 扩展名，转小写 */
-function basenameLower(command: string): string {
-  return (command.split(/[\\/]/).pop() ?? '')
-    .toLowerCase()
-    .replace(/\.(exe|cmd|bat|ps1|com)$/, '');
-}
-
-/** 解析逗号分隔的环境变量为 Set */
-function parseNameSet(env: string | undefined): Set<string> {
-  if (!env) return new Set();
-  return new Set(
-    env
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-/**
- * 判断 command 是否被识别为「全程 alt-screen TUI」
- *
- * 内置名单 + 用户额外名单（逗号分隔）union；basename 等于其中任一即命中。
- * 'claude-*' 前缀也命中（保留对 Claude 衍生命令的兼容）。
- */
-export function isFullAltScreenTui(
-  command: string,
-  extraNames: string | undefined = undefined,
-): boolean {
-  const base = basenameLower(command);
-  if (!base) return false;
-  if (BUILTIN_FULL_ALT_TUIS.has(base)) return true;
-  if (base.startsWith('claude-')) return true;
-  if (parseNameSet(extraNames).has(base)) return true;
-  return false;
-}
-
-/**
- * 决定是否启用 alt-screen 过滤。
- *
- * 历史背景（ADR 007）：默认开启过滤，让 vim/htop 等"偶尔进 alt"的程序
- * 不污染重连回放。但当 PTY 是交互 shell 时用户可能跑任何 TUI，过滤一直
- * 开着会让 claude / tmux 等全程 alt-screen TUI 在 webapp 永远空白。
- *
- * 三层策略：
- *
- *  1. **OCR_ANSI_FILTER 显式值**（true / false / 1 / 0 / yes / no）—— 最高优先级。
- *     但 true 时仍会被「全程 alt-screen TUI 黑名单」拒绝（避免老 bug 复现）。
- *  2. **全程 alt-screen TUI 黑名单**：basename 命中内置 BUILTIN_FULL_ALT_TUIS
- *     或用户 OCR_ANSI_FILTER_TUI_NAMES 追加的名单 → 强制关闭。
- *  3. **默认**：关闭。让交互 shell 里跑任何 TUI 都能在 webapp 正常显示。
- *
- * 用户场景：
- *   - 只跑命令行工具：`OCR_ANSI_FILTER=true` → 重连回放更干净
- *   - 想加自家 TUI 豁免：`OCR_ANSI_FILTER_TUI_NAMES="lazygit,k9s"`
- */
-export function resolveAnsiFilterEnabled(
-  command: string,
-  envOverride: string | undefined,
-  extraTuiNames: string | undefined = undefined,
-): boolean {
-  if (envOverride !== undefined) {
-    const v = envOverride.trim().toLowerCase();
-    if (v === 'true' || v === '1' || v === 'yes') {
-      // 即使显式 true，也要保护 alt-screen TUI 不空白
-      if (isFullAltScreenTui(command, extraTuiNames)) return false;
-      return true;
-    }
-    if (v === 'false' || v === '0' || v === 'no') return false;
-  }
-  return false;
 }
 
 /**

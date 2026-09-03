@@ -118,6 +118,10 @@ export class PtyManager extends EventEmitter implements IPtyManager {
       });
 
       logger.info({ pid: this.process.pid, cols, rows }, 'PTY 进程已启动');
+
+      // 尺寸事实变化（默认值 → 实际 TTY 尺寸）时通知上层——SessionController
+      // 需要同步 TerminalState 的 grid 尺寸，否则重连回放的 wrap 排列错位
+      this.emit('resize', cols, rows);
     } catch (err) {
       logger.error({ err }, 'spawn PTY 进程失败');
       const wrapped = new PtyError(

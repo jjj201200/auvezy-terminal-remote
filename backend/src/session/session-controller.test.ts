@@ -68,9 +68,12 @@ class MockWs {
     this.disconnectHandler = fn;
   }
 
-  broadcast(msg: ServerMessage): void {
+  broadcast(msg: ServerMessage, exclude?: { has(ws: WebSocket): boolean }): void {
     this.broadcasts.push(msg);
+    this.lastBroadcastExclude = exclude ?? null;
   }
+  /** 最近一次 broadcast 的排除集合（history_sync 顺序保证的断言用） */
+  lastBroadcastExclude: { has(ws: WebSocket): boolean } | null = null;
   sendTo(ws: WebSocket, msg: ServerMessage): void {
     this.directSends.push({ ws, msg });
   }
@@ -176,15 +179,18 @@ describe('SessionController', () => {
     // backpressure 计数体现在 PTY exit 日志，外部不可见，所以这里只验证立即 flush
   });
 
-  it('客户端连入推送 history_sync', () => {
+  it('客户端连入推送 history_sync（grid 序列化流）', async () => {
     pty.emit('data', 'hello\n');
     // 客户端连入
     const wsClient = {} as WebSocket;
     ws.fireConnect(wsClient, 'webapp');
+    // serialize 需等 headless 解析队列 flush（异步），让出事件循环
+    await new Promise((r) => setTimeout(r, 20));
     const sent = ws.directSends.find((s) => s.ws === wsClient && s.msg.type === 'history_sync');
     expect(sent).toBeTruthy();
     if (sent && sent.msg.type === 'history_sync') {
-      expect(sent.msg.data).toBe('hello\n');
+      // serialize 输出是重建的转义流（含光标定位），不再是原始字节——文本内容保留
+      expect(sent.msg.data).toContain('hello');
       expect(sent.msg.cols).toBe(80);
       expect(sent.msg.rows).toBe(24);
       // 默认未 spawn → pty_pending
@@ -294,77 +300,34 @@ describe('SessionController', () => {
     expect(pty.writeCalls).toEqual([]);
   });
 
-  it('seq 在 history_sync 中是当前 buffer 的 seq', () => {
+  it('seq 在 history_sync 中是当前 write 计数', async () => {
     pty.emit('data', 'a');
     pty.emit('data', 'b');
     pty.emit('data', 'c');
     const wsClient = {} as WebSocket;
     ws.fireConnect(wsClient);
+    await new Promise((r) => setTimeout(r, 20));
     const hs = ws.directSends.find((s) => s.msg.type === 'history_sync');
+    expect(hs).toBeTruthy();
     if (hs?.msg.type === 'history_sync') {
-      expect(hs.msg.seq).toBe(3); // 3 次 append
+      expect(hs.msg.seq).toBe(3); // 3 次 write
     }
   });
-});
 
-describe('SessionController + AnsiFilter（阶段 8）', () => {
-  it('alt-screen 内容默认被过滤，不进 buffer 也不广播', async () => {
-    const { SessionController } = await import('./session-controller.js');
-    const pty2 = new MockPty();
-    const ws2 = new MockWs();
-    const ctrl = new SessionController(
-      pty2 as unknown as PtyManager,
-      ws2 as unknown as WsServer,
-      100,
-      { writeToProcessStdout: false },
-    );
-
-    pty2.emit('data', 'before-alt');
-    pty2.emit('data', '\x1b[?1049h'); // enter alt
-    pty2.emit('data', 'inside-alt');
-    pty2.emit('data', '\x1b[?1049l'); // exit alt
-    pty2.emit('data', 'after-alt');
-
-    // 强制 flush 任何 pending（destroy 内部会 flush）
-    ctrl.destroy();
-
-    // 把所有 broadcast 的 terminal_output 内容拼起来
-    const out = ws2.broadcasts
-      .filter((m) => m.type === 'terminal_output')
-      .map((m) => (m.type === 'terminal_output' ? m.data : ''))
-      .join('');
-    // 应该不含 'inside-alt'
-    expect(out).not.toContain('inside-alt');
-    // 应该含 enter/exit 序列与正常文本
-    expect(out).toContain('before-alt');
-    expect(out).toContain('after-alt');
-    expect(out).toContain('\x1b[?1049h');
-    expect(out).toContain('\x1b[?1049l');
+  it('history_sync 送达前该客户端被排除在 terminal_output 广播外', async () => {
+    const wsClient = {} as WebSocket;
+    ws.fireConnect(wsClient, 'webapp');
+    // serialize 尚未完成时来了一段大输出（超阈值立即 flush）→ broadcast 应携带排除集合
+    pty.emit('data', 'x'.repeat(WS_MAX_CHUNK_BYTES + 1));
+    const out = ws.broadcasts.find((b) => b.type === 'terminal_output');
+    expect(out).toBeTruthy();
+    expect(ws.lastBroadcastExclude?.has(wsClient)).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+    // 送达后解除排除
+    expect(ws.lastBroadcastExclude?.has(wsClient)).toBeFalsy();
+    const hs = ws.directSends.find((s) => s.ws === wsClient && s.msg.type === 'history_sync');
+    expect(hs).toBeTruthy();
   });
-
-  it('ansiFilter=false 时不过滤', async () => {
-    const { SessionController } = await import('./session-controller.js');
-    const pty2 = new MockPty();
-    const ws2 = new MockWs();
-    const ctrl = new SessionController(
-      pty2 as unknown as PtyManager,
-      ws2 as unknown as WsServer,
-      100,
-      { writeToProcessStdout: false, ansiFilter: false },
-    );
-
-    pty2.emit('data', '\x1b[?1049h');
-    pty2.emit('data', 'inside');
-    pty2.emit('data', '\x1b[?1049l');
-    ctrl.destroy();
-
-    const out = ws2.broadcasts
-      .filter((m) => m.type === 'terminal_output')
-      .map((m) => (m.type === 'terminal_output' ? m.data : ''))
-      .join('');
-    expect(out).toContain('inside'); // 关闭过滤后保留
-  });
-
 });
 
 // ──────────────── pendingApprovals 生命周期(0.7.4 修)────────────────

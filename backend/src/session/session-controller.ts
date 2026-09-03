@@ -6,10 +6,10 @@
  * 接收已构造好的实例,便于测试与扩展。
  *
  * 责任：
- *  1. 监听 PTY data 事件 → 三向分发：PC stdout、OutputBuffer 历史、WS 批合并广播
+ *  1. 监听 PTY data 事件 → 三向分发：PC stdout、TerminalState（grid 历史）、WS 批合并广播
  *  2. 监听 WS 客户端消息 → 透传到 PTY（user_input → write，resize → resize）
  *  3. 维护 SessionStatus 状态机（idle / running / waiting_input）
- *  4. 客户端连入时立即推送 history_sync（含全量缓冲、当前 status、当前 PTY 尺寸）
+ *  4. 客户端连入时推送 history_sync（grid 状态序列化 + 当前 status + 当前 PTY 尺寸）
  *  5. PTY exit 时广播 session_ended 并 flush 剩余缓冲
  *
  * 不负责：
@@ -27,10 +27,9 @@ import { WebSocket } from 'ws';
 import type { SessionStatus, SessionStatusExtras } from 'auvezy-terminal-remote-shared';
 import type { IPtyManager } from '../pty/types.js';
 import { PtyManager } from '../pty/pty-manager.js';
-import { OutputBuffer } from '../pty/output-buffer.js';
+import { TerminalState, stripEraseScrollback, SERIALIZE_MAX_ATTEMPTS } from '../pty/terminal-state.js';
 import { WsServer, type ClientType, type ClientCounts } from '../ws/ws-server.js';
 import { handleWsMessage } from '../ws/ws-handler.js';
-import { AnsiFilter } from '../utils/ansi-filter.js';
 import type { PushService } from '../push/push-service.js';
 import { logger } from '../logger/logger.js';
 import type { IntegrationManager } from '../integrations/manager.js';
@@ -47,13 +46,6 @@ import {
 export interface SessionControllerOptions {
   /** 是否把 PTY 输出同时写到本进程 stdout（PC 终端可见）。默认 true。 */
   writeToProcessStdout?: boolean;
-  /**
-   * 是否启用 alt-screen ANSI 过滤。默认 true（与上游不同）：
-   *   - 进入 alt screen 后的内容不进 OutputBuffer / 不广播
-   *   - 重连时 history_sync 不会被 alt screen 临时画面污染
-   * 想保留 alt 内容的用户可关闭此开关。
-   */
-  ansiFilter?: boolean;
 }
 
 export class SessionController {
@@ -86,7 +78,8 @@ export class SessionController {
    */
   private pendingCancelRequested = false;
 
-  private readonly buffer: OutputBuffer;
+  /** grid 状态缓冲（headless xterm）：重连回放的数据源，替代旧 OutputBuffer */
+  private readonly state: TerminalState;
   private readonly writeToProcessStdout: boolean;
 
   // ──────────── WS 输出批合并 ────────────
@@ -114,8 +107,14 @@ export class SessionController {
    */
   private masterClient: WebSocket | null = null;
 
-  /** ANSI 过滤器（阶段 8 启用；null = 关闭过滤直接透传） */
-  private readonly ansiFilter: AnsiFilter | null;
+  /**
+   * history_sync 尚未送达的客户端集合（WeakSet：断开自动 GC）
+   *
+   * serialize() 需等 headless 解析队列 flush（异步），期间这些客户端被排除在
+   * terminal_output 广播外——保证客户端收到顺序严格为"全量（到 seq N）→ 增量
+   * （seq > N）"，否则前端 reset 会吞掉这段时间的增量
+   */
+  private readonly pendingHistoryClients = new WeakSet<WebSocket>();
 
   /** 可选的 PushService（阶段 9 启用；用于 hook 触发时推送通知） */
   private pushService: PushService | null = null;
@@ -128,9 +127,14 @@ export class SessionController {
     maxBufferLines: number,
     opts: SessionControllerOptions = {},
   ) {
-    this.buffer = new OutputBuffer(maxBufferLines);
+    this.state = new TerminalState({
+      scrollback: maxBufferLines,
+      // 初始尺寸取 PTY 默认值；spawn 用实际 TTY 尺寸时 PtyManager 会 emit
+      // 'resize'，由 wirePty 的 listener 同步进来
+      cols: pty.cols,
+      rows: pty.rows,
+    });
     this.writeToProcessStdout = opts.writeToProcessStdout ?? true;
-    this.ansiFilter = (opts.ansiFilter ?? true) ? new AnsiFilter() : null;
     this.wirePty();
     this.wireWs();
   }
@@ -400,12 +404,13 @@ export class SessionController {
   }
 
   /**
-   * 析构：清理批合并 timer，最后一次 flush
+   * 析构：清理批合并 timer，最后一次 flush，释放 grid 状态
    *
    * 在 SIGTERM / SIGINT 优雅关闭时调用
    */
   destroy(): void {
     this.flushPendingWsOutput();
+    this.state.dispose();
   }
 
   // ──────────────── PTY → 三向分发 ────────────────
@@ -420,13 +425,14 @@ export class SessionController {
         process.stdout.write(data);
       }
 
-      // 2/3 路使用过滤后的数据（如启用过滤）：避免 alt screen 内容
-      //     污染 OutputBuffer（重连回放）和广播给 webapp
-      const filtered = this.ansiFilter ? this.ansiFilter.filter(data) : data;
-      if (filtered.length === 0) return;
+      // 2/3 路共用同一份 strip 后的流（剥 CSI 3J，ADR-002）：前端 xterm 与
+      //     headless grid 的 scrollback 都不能被 ink 的清屏序列擦掉。
+      //     alt/normal buffer 的语义由 headless 的 VT 解析器管理（ADR-002）
+      const stripped = stripEraseScrollback(data);
+      if (stripped.length === 0) return;
 
-      this.buffer.append(filtered);
-      this.enqueueWsOutput(filtered);
+      this.state.write(stripped);
+      this.enqueueWsOutput(stripped);
     });
 
     this.pty.on('exit', (exitCode: number) => {
@@ -465,8 +471,9 @@ export class SessionController {
       });
     });
 
-    // PTY resize 事件（同尺寸已被 PtyManager 内去重）→ 通知所有客户端
+    // PTY resize 事件（同尺寸已被 PtyManager 内去重）→ 同步 grid 状态 + 通知所有客户端
     this.pty.on('resize', (cols: number, rows: number) => {
+      this.state.resize(cols, rows);
       this.ws.broadcast({ type: 'terminal_resize', cols, rows });
     });
 
@@ -527,11 +534,15 @@ export class SessionController {
     this.wsFlushCount++;
     this.wsFlushBytesTotal += bytes;
 
-    this.ws.broadcast({
-      type: 'terminal_output',
-      data: merged,
-      seq: this.buffer.sequenceNumber,
-    });
+    this.ws.broadcast(
+      {
+        type: 'terminal_output',
+        data: merged,
+        seq: this.state.sequenceNumber,
+      },
+      // history_sync 未送达的客户端暂不投递增量（顺序保证，见 pendingHistoryClients）
+      this.pendingHistoryClients,
+    );
   }
 
   // ──────────────── WS → PTY ────────────────
@@ -580,24 +591,7 @@ export class SessionController {
 
     this.ws.onConnect((wsConn: WebSocket, type: ClientType) => {
       logger.info({ clientType: type }, '新客户端连入，推送 history_sync');
-      this.ws.sendTo(wsConn, {
-        type: 'history_sync',
-        data: this.buffer.getFullContent(),
-        seq: this.buffer.sequenceNumber,
-        status: this.deriveStatus(),
-        ...this.buildStatusExtras(),
-        cols: this.pty.cols,
-        rows: this.pty.rows,
-      });
-      // 重连时若 PTY 当前在 alt-screen（如 Claude/vim 已运行），也要把状态告诉
-      // 客户端——否则客户端默认 inAltScreen=false，swipe 路径走错（不会接管为
-      // PgUp/PgDn）
-      if (this.pty.inAltScreen) {
-        this.ws.sendTo(wsConn, {
-          type: 'alt_screen_change',
-          inAltScreen: true,
-        });
-      }
+      void this.sendHistorySync(wsConn);
     });
 
     this.ws.onDisconnect((counts: ClientCounts) => {
@@ -617,6 +611,55 @@ export class SessionController {
         });
       }
     });
+  }
+
+  /**
+   * 序列化 grid 状态并推送 history_sync（onConnect 触发）
+   *
+   * serialize() 要等 headless 解析队列 flush（异步），存在竞态：新客户端可能
+   * 在全量到达前先收到实时增量，前端 reset 时会吞掉这段增量。处理：
+   *  1. serialize 完成前该客户端在 pendingHistoryClients 中，被排除在
+   *     terminal_output 广播外（增量暂不投递）
+   *  2. 完成后比对 seq：未变 → 比对+发送在同一个同步延续里（原子），发全量
+   *     （数据精确到该 seq）；变了（serialize 期间有新写入）→ 重试，最多
+   *     SERIALIZE_MAX_ATTEMPTS 次（输出洪流下的兜底，重叠可被前端 reset 容忍）
+   *  3. 发送后解除排除，后续增量按序到达
+   */
+  private async sendHistorySync(wsConn: WebSocket): Promise<void> {
+    this.pendingHistoryClients.add(wsConn);
+    try {
+      let data = '';
+      let seq = 0;
+      for (let attempt = 1; ; attempt++) {
+        const seqBefore = this.state.sequenceNumber;
+        data = await this.state.serialize();
+        seq = this.state.sequenceNumber;
+        if (seq === seqBefore || attempt >= SERIALIZE_MAX_ATTEMPTS) break;
+        logger.debug({ attempt }, 'history_sync 序列化期间有新写入，重试');
+      }
+
+      this.ws.sendTo(wsConn, {
+        type: 'history_sync',
+        data,
+        seq,
+        status: this.deriveStatus(),
+        ...this.buildStatusExtras(),
+        cols: this.pty.cols,
+        rows: this.pty.rows,
+      });
+      // 重连时若 PTY 当前在 alt-screen（如 Claude/vim 已运行），也把状态告诉
+      // 客户端——否则客户端默认 inAltScreen=false，swipe 路径走错（不会接管为
+      // PgUp/PgDn）。serialize 输出本身已含 alt buffer 内容，这里补的是前端
+      // 滚动行为依赖的显式通知
+      if (this.pty.inAltScreen) {
+        this.ws.sendTo(wsConn, {
+          type: 'alt_screen_change',
+          inAltScreen: true,
+        });
+      }
+    } finally {
+      this.pendingHistoryClients.delete(wsConn);
+    }
   }
 }
 

@@ -112,13 +112,18 @@ export class WsServer {
 
   // ──────────────── 发送 ────────────────
 
-  /** 广播到所有连接的客户端 */
-  broadcast(msg: ServerMessage): void {
+  /**
+   * 广播到所有连接的客户端
+   *
+   * @param exclude 可选排除集合（如 SessionController 的 pendingHistoryClients：
+   *   history_sync 尚未送达的客户端暂不收增量，保证"全量 → 增量"顺序）
+   */
+  broadcast(msg: ServerMessage, exclude?: { has(ws: WebSocket): boolean }): void {
     const payload = JSON.stringify(msg);
     for (const c of this.clients) {
-      if (c.ws.readyState === WebSocket.OPEN) {
-        c.ws.send(payload);
-      }
+      if (c.ws.readyState !== WebSocket.OPEN) continue;
+      if (exclude?.has(c.ws)) continue;
+      c.ws.send(payload);
     }
   }
 
