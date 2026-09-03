@@ -451,7 +451,11 @@ export const zhCN: Messages = {
     workdirLabel: 'cwd',
     workdirHelper: '/home/me/code/foo',
     nameLabelOptional: '实例名（可选）',
-    namePlaceholder: '留空则用 cwd basename',
+    namePlaceholder: '留空自动生成（目录名，重名自动加序号）',
+    nameConflictNotice:
+      '实例名「{{name}}」已被运行中的实例占用（pid {{pid}}，{{cwd}}）',
+    nameConflictUseSuggestion: '改用建议名「{{name}}」',
+    nameConflictKeep: '仍使用「{{name}}」（允许重名）',
     submit: '新增',
     submitting: '新增中…',
     errorEmptyCwd: 'cwd 不能为空',

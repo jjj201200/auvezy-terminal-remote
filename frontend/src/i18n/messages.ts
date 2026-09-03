@@ -505,6 +505,10 @@ export interface Messages {
     workdirHelper: string;
     nameLabelOptional: string;
     namePlaceholder: string;
+    /** 显式名重名确认：notice 带 {{name}}/{{pid}}/{{cwd}}，按钮带 {{name}} */
+    nameConflictNotice: string;
+    nameConflictUseSuggestion: string;
+    nameConflictKeep: string;
     submit: string;
     submitting: string;
     errorEmptyCwd: string;

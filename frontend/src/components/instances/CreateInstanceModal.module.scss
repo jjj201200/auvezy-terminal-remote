@@ -344,3 +344,76 @@
     color: var(--color-fg);
   }
 }
+
+// 409 显式名重名二次确认区（warn 语义，与 allowEmptyWarn 同族但带动作按钮）
+.conflictBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--color-warn);
+  background: color-mix(in srgb, var(--color-warn) 12%, transparent);
+}
+
+.conflictNotice {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  color: var(--color-warn);
+  font-size: var(--fs-2xs);
+  line-height: var(--lh-loose);
+  word-break: break-all;
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+}
+
+.conflictActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+// 主选：改用建议名（accent 填充，引导走推荐路径）
+.conflictPrimaryBtn {
+  @include m.btn-reset;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  @include m.transition(background var(--dur-fast), opacity var(--dur-fast));
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-accent) 92%, white 8%);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// 次选：保留重名（ghost，尊重用户显式选择）
+.conflictSecondaryBtn {
+  @include m.btn-reset;
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-fg);
+  font-size: var(--fs-2xs);
+  @include m.transition(background var(--dur-fast), border-color var(--dur-fast));
+
+  &:hover:not(:disabled) {
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hi);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

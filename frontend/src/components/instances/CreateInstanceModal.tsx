@@ -38,13 +38,22 @@ import {
   type RecentInstance,
 } from '../../services/recent-instances.js';
 import { fetchWorkdirPolicy } from '../../services/workdir-policy-api.js';
+import type { CreateNameConflict } from '../../hooks/useInstances.js';
 import { bases as extractBases, joinBaseAndRelative, matchAllow } from '../../utils/workdir-glob.js';
 import s from './CreateInstanceModal.module.scss';
 
 export interface CreateInstanceModalProps {
   open: boolean;
-  /** 成功返回 null；失败返回错误信息（直接显示给用户） */
-  onSubmit: (cwd: string, name?: string) => Promise<string | null>;
+  /**
+   * 成功返回 null；失败返回错误信息（直接显示给用户）；
+   * 显式名重名返回 CreateNameConflict（modal 内弹二次确认，用户选择后
+   * 自动重发——改用建议名或带 confirmDuplicate 保留重名）。
+   */
+  onSubmit: (
+    cwd: string,
+    name?: string,
+    opts?: { confirmDuplicate?: boolean },
+  ) => Promise<string | null | CreateNameConflict>;
   onClose: () => void;
 }
 
@@ -66,6 +75,8 @@ export function CreateInstanceModal({
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 409 显式名重名冲突：非空时展示二次确认区（改用建议名 / 保留重名）
+  const [conflict, setConflict] = useState<CreateNameConflict['conflict'] | null>(null);
   const [recent, setRecent] = useState<RecentInstance[]>([]);
   const [showRecent, setShowRecent] = useState(false);
   const [scanInvalid, setScanInvalid] = useState<string | null>(null);
@@ -91,6 +102,7 @@ export function CreateInstanceModal({
       setCwd('');
       setName('');
       setError(null);
+      setConflict(null);
       setSubmitting(false);
       setScanInvalid(null);
       setRecent(getRecentInstances());
@@ -127,8 +139,15 @@ export function CreateInstanceModal({
     return cwd.trim();
   };
 
-  const handleSubmit = async (e?: FormEvent<HTMLFormElement>): Promise<void> => {
-    e?.preventDefault();
+  /**
+   * 实际提交（表单 submit 与 409 确认后的重发共用）。
+   * @param nameValue 本次使用的实例名（409 后可能换建议名）
+   * @param confirmDuplicate true = 用户已确认保留重名，跳过后端 409 检查
+   */
+  const submitWith = async (
+    nameValue: string | undefined,
+    confirmDuplicate: boolean,
+  ): Promise<void> => {
     const finalCwd = computeFinalCwd();
     if (!finalCwd) {
       setError(t('instance.errorEmptyCwd'));
@@ -146,14 +165,38 @@ export function CreateInstanceModal({
     }
     setSubmitting(true);
     setError(null);
-    const errMsg = await onSubmit(finalCwd, name.trim() || undefined);
+    setConflict(null);
+    const result = await onSubmit(finalCwd, nameValue, { confirmDuplicate });
     setSubmitting(false);
-    if (errMsg === null) {
-      pushRecentInstance({ cwd: finalCwd, name: name.trim() || undefined });
+    if (result === null) {
+      pushRecentInstance({ cwd: finalCwd, name: nameValue });
       onClose();
+    } else if (typeof result === 'object') {
+      // 409 冲突：展示二次确认区，等用户选择后重发
+      setConflict(result.conflict);
     } else {
-      setError(errMsg);
+      setError(result);
     }
+  };
+
+  const handleSubmit = async (e?: FormEvent<HTMLFormElement>): Promise<void> => {
+    e?.preventDefault();
+    void submitWith(name.trim() || undefined, false);
+  };
+
+  /** 409 确认：改用后端建议名（换名重发，无需 confirmDuplicate） */
+  const handleUseSuggestion = (): void => {
+    if (!conflict) return;
+    const suggested = conflict.suggestion;
+    setName(suggested);
+    setConflict(null);
+    void submitWith(suggested, false);
+  };
+
+  /** 409 确认：保留重名（confirmDuplicate:true 重发放行） */
+  const handleKeepDuplicateName = (): void => {
+    setConflict(null);
+    void submitWith(name.trim() || undefined, true);
   };
 
   const handleCwdKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
@@ -563,6 +606,38 @@ export function CreateInstanceModal({
               spellCheck={false}
             />
           </label>
+          {conflict && (
+            <div className={s.conflictBox} role="alert">
+              <p className={s.conflictNotice}>
+                <IconAlertTriangle size={14} stroke={1.5} />
+                <span>
+                  {t('instance.nameConflictNotice', {
+                    name: conflict.existing.name,
+                    pid: conflict.existing.pid,
+                    cwd: conflict.existing.cwd,
+                  })}
+                </span>
+              </p>
+              <div className={s.conflictActions}>
+                <button
+                  type="button"
+                  className={s.conflictPrimaryBtn}
+                  disabled={submitting}
+                  onClick={handleUseSuggestion}
+                >
+                  {t('instance.nameConflictUseSuggestion', { name: conflict.suggestion })}
+                </button>
+                <button
+                  type="button"
+                  className={s.conflictSecondaryBtn}
+                  disabled={submitting}
+                  onClick={handleKeepDuplicateName}
+                >
+                  {t('instance.nameConflictKeep', { name: conflict.existing.name })}
+                </button>
+              </div>
+            </div>
+          )}
           {error && <p className={s.error}>{error}</p>}
         </form>
       )}

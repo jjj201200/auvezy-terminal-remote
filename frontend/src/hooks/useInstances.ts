@@ -46,8 +46,8 @@ export interface UseInstancesResult {
   error: string | null;
   /** 强制立即重新 fetch；返回最新列表 */
   reload: () => Promise<InstanceListItem[]>;
-  /** 创建新实例；成功返回 null，失败返回错误信息 */
-  create: (cwd: string, name?: string) => Promise<string | null>;
+  /** 创建新实例；成功返回 null，失败返回错误信息，显式名重名返回冲突结构（由 UI 二次确认） */
+  create: (cwd: string, name?: string, opts?: { confirmDuplicate?: boolean }) => Promise<CreateOutcome>;
   /** 关闭实例（DELETE /api/instances/:id） */
   remove: (instanceId: string) => Promise<string | null>;
   /** 重新等一个失败的 pending：把 state 改回 creating + 立即拉一次 + 重置超时 */
@@ -55,6 +55,22 @@ export interface UseInstancesResult {
   /** 关闭一个 pending tab（仅 UI 层移除，不调 DELETE；用于用户放弃等待） */
   dismissPending: (pendingId: string) => void;
 }
+
+/**
+ * 显式名重名冲突（POST 409 INSTANCE_NAME_CONFLICT）。
+ * create() 返回此结构时 UI 应弹二次确认：改用建议名 / 仍保留重名。
+ */
+export interface CreateNameConflict {
+  conflict: {
+    /** 后端建议的避让名（base-N） */
+    suggestion: string;
+    /** 占用该名字的现有实例摘要 */
+    existing: { name: string; pid: number; cwd: string; startedAt: string };
+  };
+}
+
+/** create() 的三态返回：null=成功；string=错误信息；CreateNameConflict=需二次确认 */
+export type CreateOutcome = string | null | CreateNameConflict;
 
 export function useInstances(): UseInstancesResult {
   const [instances, setInstances] = useState<InstanceListItem[]>([]);
@@ -210,8 +226,12 @@ export function useInstances(): UseInstancesResult {
   }, []);
 
   const create = useCallback(
-    async (cwd: string, name?: string): Promise<string | null> => {
-      const r = await createInstance({ cwd, name });
+    async (
+      cwd: string,
+      name?: string,
+      opts?: { confirmDuplicate?: boolean },
+    ): Promise<CreateOutcome> => {
+      const r = await createInstance({ cwd, name, confirmDuplicate: opts?.confirmDuplicate });
       if (r.ok && r.data) {
         const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const expectedPid = r.data.instance.pid;
@@ -232,6 +252,36 @@ export function useInstances(): UseInstancesResult {
         // 兜底拉一次：万一 SSE 断了，主动取一次让 pending 尽快命中
         void reload();
         return null;
+      }
+      // 409 显式名重名：结构化上抛给 UI 做二次确认（不进全局 error）
+      if (
+        r.status === 409 &&
+        r.error?.code === 'INSTANCE_NAME_CONFLICT'
+      ) {
+        const d = r.error.details as
+          | { suggestion?: unknown; existing?: Record<string, unknown> }
+          | undefined;
+        const { suggestion, existing } = d ?? {};
+        const pid = existing?.pid;
+        if (
+          typeof suggestion === 'string' &&
+          typeof existing?.name === 'string' &&
+          typeof pid === 'number' &&
+          typeof existing.cwd === 'string' &&
+          typeof existing.startedAt === 'string'
+        ) {
+          return {
+            conflict: {
+              suggestion,
+              existing: {
+                name: existing.name,
+                pid,
+                cwd: existing.cwd,
+                startedAt: existing.startedAt,
+              },
+            },
+          };
+        }
       }
       const msg = r.error?.message ?? '创建实例失败';
       setError(msg);

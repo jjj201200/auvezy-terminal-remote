@@ -465,7 +465,11 @@ export const en: Messages = {
     workdirLabel: 'Working directory (cwd)',
     workdirHelper: '/home/me/code/foo',
     nameLabelOptional: 'Instance name (optional)',
-    namePlaceholder: 'leave empty to use cwd basename',
+    namePlaceholder: 'leave empty to auto-generate (dirname, -N on clash)',
+    nameConflictNotice:
+      'Instance name "{{name}}" is already used by a running instance (pid {{pid}}, {{cwd}})',
+    nameConflictUseSuggestion: 'Use suggested name "{{name}}"',
+    nameConflictKeep: 'Keep "{{name}}" (duplicate allowed)',
     submit: 'Add',
     submitting: 'Adding…',
     errorEmptyCwd: 'cwd cannot be empty',
