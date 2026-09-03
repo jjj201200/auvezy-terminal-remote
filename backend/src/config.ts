@@ -285,6 +285,12 @@ export interface AppConfig {
   claudeArgs: string[];
   claudeCwd: string;
   instanceName: string;
+  /**
+   * instanceName 是否来自显式指定（--name / INSTANCE_NAME env）。
+   * false = basename fallback，register 时锁内自动避让重名（base-N）；
+   * true = 尊重用户选择原样写入，重名由启动时交互 / API 409 确认把关。
+   */
+  instanceNameExplicit: boolean;
   maxBufferLines: number;
   sessionTtlMs: number;
   authRateLimit: number;
@@ -369,6 +375,10 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
     explicitArgs.length > 0 || explicitCommand !== undefined
       ? explicitArgs
       : defaultShellArgs(claudeCommand);
+  // 名字来源优先级：--name > INSTANCE_NAME env（spawner 透传的显式名）> basename(cwd)。
+  // explicit 标记决定后续 register 是否自动避让——只有 basename fallback 才避让。
+  const instanceNameExplicit =
+    cli.instanceName !== undefined || env['INSTANCE_NAME'] !== undefined;
   const instanceName =
     cli.instanceName ?? env['INSTANCE_NAME'] ?? (basename(claudeCwd) || 'instance');
   const maxBufferLines =
@@ -422,6 +432,7 @@ export function loadConfig(deps: LoadConfigDeps): AppConfig {
     claudeArgs,
     claudeCwd,
     instanceName,
+    instanceNameExplicit,
     maxBufferLines,
     sessionTtlMs,
     authRateLimit,

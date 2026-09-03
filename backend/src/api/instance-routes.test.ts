@@ -154,6 +154,83 @@ describe('broker instance-routes', () => {
     expect(r.status).toBe(400);
   });
 
+  // ──────────────── 显式名重名 409 两段式 ────────────────
+
+  it('POST 显式名撞活实例且未确认 → 409 + suggestion + existing，不 spawn', async () => {
+    const cookie = await login();
+    await registry.register({
+      instanceId: 'inst-occupied',
+      name: 'myproj',
+      host: '127.0.0.1',
+      port: 3000,
+      pid: process.pid, // 自身 pid 保活
+      cwd: '/home/me/code/myproj',
+      startedAt: new Date().toISOString(),
+    });
+
+    const r = await fetch(`http://127.0.0.1:${port}/api/instances`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ cwd: '/tmp', name: 'myproj' }),
+    });
+    expect(r.status).toBe(409);
+    const body = (await r.json()) as {
+      error: {
+        code: string;
+        details?: { suggestion?: string; existing?: { pid?: number; cwd?: string } };
+      };
+    };
+    expect(body.error.code).toBe('INSTANCE_NAME_CONFLICT');
+    expect(body.error.details?.suggestion).toBe('myproj-2');
+    expect(body.error.details?.existing?.pid).toBe(process.pid);
+    expect(body.error.details?.existing?.cwd).toBe('/home/me/code/myproj');
+    // 未确认 → spawner 不得被调用
+    expect(spawner.calls).toHaveLength(0);
+  });
+
+  it('POST 显式名撞活实例 + confirmDuplicate:true → 202 放行（用户已确认）', async () => {
+    const cookie = await login();
+    await registry.register({
+      instanceId: 'inst-occupied2',
+      name: 'myproj',
+      host: '127.0.0.1',
+      port: 3001,
+      pid: process.pid,
+      cwd: '/tmp',
+      startedAt: new Date().toISOString(),
+    });
+
+    const r = await fetch(`http://127.0.0.1:${port}/api/instances`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ cwd: '/tmp', name: 'myproj', confirmDuplicate: true }),
+    });
+    expect(r.status).toBe(202);
+    expect(spawner.calls).toHaveLength(1);
+    expect(spawner.calls[0]?.name).toBe('myproj');
+  });
+
+  it('POST 不带 name → 不做重名检查直接 202（worker 侧自动避让）', async () => {
+    const cookie = await login();
+    await registry.register({
+      instanceId: 'inst-occupied3',
+      name: 'tmp',
+      host: '127.0.0.1',
+      port: 3002,
+      pid: process.pid,
+      cwd: '/tmp',
+      startedAt: new Date().toISOString(),
+    });
+
+    const r = await fetch(`http://127.0.0.1:${port}/api/instances`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ cwd: '/tmp' }),
+    });
+    expect(r.status).toBe(202);
+    expect(spawner.calls[0]?.name).toBeUndefined();
+  });
+
   it('DELETE /instances/:id → 不存在 404', async () => {
     const cookie = await login();
     const r = await fetch(

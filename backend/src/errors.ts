@@ -43,18 +43,22 @@ export class AppError extends Error {
   public readonly code: ErrorCode;
   public readonly httpStatus: number;
   public override readonly cause?: unknown;
+  /** 可选的机器可读上下文（如 409 重名冲突的 existing/suggestion），透传到 ErrorPayload.details */
+  public readonly details?: Record<string, unknown>;
 
   constructor(
     code: ErrorCode,
     message: string,
     httpStatus: number = 500,
     cause?: unknown,
+    details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = this.constructor.name;
     this.code = code;
     this.httpStatus = httpStatus;
     this.cause = cause;
+    this.details = details;
 
     // 保留原始错误的 stack（cause 链），便于调试
     if (cause instanceof Error && cause.stack) {
@@ -69,6 +73,7 @@ export class AppError extends Error {
     return {
       code: this.code,
       message: this.message,
+      ...(this.details !== undefined ? { details: this.details } : {}),
     };
   }
 }
@@ -107,8 +112,14 @@ export class ConfigError extends AppError {
 
 /** 实例管理错误（默认 400） */
 export class InstanceError extends AppError {
-  constructor(code: ErrorCode, message: string, httpStatus = 400, cause?: unknown) {
-    super(code, message, httpStatus, cause);
+  constructor(
+    code: ErrorCode,
+    message: string,
+    httpStatus = 400,
+    cause?: unknown,
+    details?: Record<string, unknown>,
+  ) {
+    super(code, message, httpStatus, cause, details);
   }
 }
 

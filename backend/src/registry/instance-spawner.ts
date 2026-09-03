@@ -6,7 +6,8 @@
  * 设计：
  *  - 用 child_process.spawn 拉起 backend 的 cli.js（同一二进制）
  *  - 子进程独立 detached + stdio:'ignore'，让父进程退出后子进程仍存活
- *  - 通过 spawn 选项 cwd 设置工作目录；env 注入 INSTANCE_NAME（cli 自身已默认 --no-terminal）
+ *  - 通过 spawn 选项 cwd 设置工作目录；仅显式命名时 env 注入 INSTANCE_NAME
+ *    （未命名由子进程 basename fallback + register 自动避让，见 instance-name.ts）
  *  - 端口由子进程自行 findAvailablePort（不预选避免 TOCTOU）
  *  - 把 spawn 完成视为成功；不等待子进程完全 ready
  *  - 调用方可以再 GET /api/instances 拉新列表确认上线
@@ -98,7 +99,13 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
       );
     }
 
-    const name = input.name && input.name.trim() ? input.name.trim() : basename(cwd);
+    // 命名语义：显式名（web 表单填写）才透传 INSTANCE_NAME，子进程 register
+    // 时原样写入（重名已由 POST /api/instances 的 409 两段式把关）；未显式
+    // 命名则不注入 env，子进程走 basename fallback + register 锁内自动避让
+    // （并发创建的同 cwd 实例必然得到不同序号）。
+    // 返回值的 name 仅用于 API 202 响应的"建议名"——未命名时是 basename，
+    // 实际最终名（可能带 -N 序号）以子进程注册后的 GET /api/instances 为准。
+    const explicitName = input.name?.trim() || undefined;
 
     // 解析子进程入口：
     // 1) 若 cliJsPath 直接存在 → 用 node 跑（生产态：dist/cli.js）
@@ -120,7 +127,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
         env: {
           ...process.env,
           ...this.opts.env,
-          INSTANCE_NAME: name,
+          ...(explicitName ? { INSTANCE_NAME: explicitName } : {}),
           // 0.7.0：broker 预生成 instanceId 透传给 worker，让 webapp 立刻能
           // 用同一个 id 订阅 SSE / 拼 /i/<id>/ws；worker 启动时优先读这个
           // env，没有才 randomUUID()
@@ -159,7 +166,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
       {
         pid: child.pid,
         cwd,
-        name,
+        name: explicitName ?? basename(cwd),
         instanceId: input.instanceId,
         exec: execPath,
         args: entryArgs,
@@ -169,7 +176,7 @@ export class DefaultInstanceSpawner implements InstanceSpawner {
     return {
       pid: child.pid,
       cwd,
-      name,
+      name: explicitName ?? basename(cwd),
       ...(input.instanceId ? { instanceId: input.instanceId } : {}),
     };
   }

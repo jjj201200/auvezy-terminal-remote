@@ -30,6 +30,7 @@ import {
 import { withFileLock } from '../utils/file-lock.js';
 import { atomicWriteJson } from '../utils/atomic-write.js';
 import { logger } from '../logger/logger.js';
+import { nextInstanceName } from './instance-name.js';
 
 /** Manager 构造选项 */
 export interface InstanceRegistryOptions {
@@ -72,17 +73,34 @@ export class InstanceRegistryManager {
 
   /**
    * 注册新实例（如果 instanceId 已存在则替换 = upsert）
+   *
+   * @param info 实例元信息
+   * @param opts.autoName true 时 info.name 视为"建议名"（cwd basename），
+   *   在锁内对照活实例名单原子避让为 base-N——并发启动的同名实例串行
+   *   进锁，必然得到不同名字。缺省（显式名）原样写入，允许重名
+   *   （重名确认由调用方 UI / API 层负责）。
+   * @returns 实际写入的最终名 + 注册后的最新列表
    */
-  async register(info: InstanceInfo): Promise<InstanceInfo[]> {
+  async register(
+    info: InstanceInfo,
+    opts?: { autoName?: boolean },
+  ): Promise<{ name: string; instances: InstanceInfo[] }> {
     return withFileLock(this.lockDir, () => {
       const reg = this.readUnlocked();
       const filtered = reg.instances.filter(
         (i) => i.instanceId !== info.instanceId && isPidAlive(i.pid),
       );
-      filtered.push(info);
+      const name = opts?.autoName
+        ? nextInstanceName(
+            info.name,
+            filtered.map((i) => i.name),
+          )
+        : info.name;
+      const entry: InstanceInfo = name === info.name ? info : { ...info, name };
+      filtered.push(entry);
       this.writeUnlocked({ version: 1, instances: filtered });
-      logger.info({ instanceId: info.instanceId, port: info.port }, '实例已注册');
-      return filtered;
+      logger.info({ instanceId: info.instanceId, port: info.port, name }, '实例已注册');
+      return { name, instances: filtered };
     });
   }
 

@@ -9,6 +9,7 @@
  */
 
 import { InstanceRegistryManager } from './instance-registry.js';
+import { truncateName } from './instance-name.js';
 import { c } from '../utils/colors.js';
 
 export async function listInstancesCli(): Promise<number> {
@@ -23,7 +24,8 @@ export async function listInstancesCli(): Promise<number> {
   const rows = list.map((i) => [
     String(i.port),
     String(i.pid),
-    i.name.slice(0, 30),
+    // 保 -N 序号截断：长目录名下序号被切掉会让避让前功尽弃
+    truncateName(i.name, 30),
     i.cwd,
   ]);
 

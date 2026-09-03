@@ -36,6 +36,7 @@ import {
   type BrokerLogRotator,
 } from './broker-log-rotator.js';
 import { InstanceRegistryManager } from '../registry/instance-registry.js';
+import { truncateName } from '../registry/instance-name.js';
 import { DefaultInstanceSpawner } from '../registry/instance-spawner.js';
 import {
   startInstanceWatcher,
@@ -820,8 +821,9 @@ async function writeInstancesSection(): Promise<void> {
       );
     } else {
       for (const i of list) {
+        // 保 -N 序号截断（与 atr list 一致），避免长目录名下序号被切掉
         process.stdout.write(
-          `  - ${i.name.padEnd(20).slice(0, 20)} pid=${String(i.pid).padEnd(6)} port=${i.port}  cwd=${i.cwd}\n`,
+          `  - ${truncateName(i.name, 20).padEnd(20)} pid=${String(i.pid).padEnd(6)} port=${i.port}  cwd=${i.cwd}\n`,
         );
       }
       process.stdout.write('  (full table: atr list)\n');

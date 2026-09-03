@@ -53,7 +53,8 @@ import type { ParsedCliArgs } from './cli-utils.js';
 import { acquireSharedToken } from './registry/shared-token.js';
 import { bindAvailablePort } from './registry/port-finder.js';
 import { InstanceError } from './errors.js';
-import { InstanceRegistryManager } from './registry/instance-registry.js';
+import { InstanceRegistryManager, isPidAlive } from './registry/instance-registry.js';
+import { nextInstanceName } from './registry/instance-name.js';
 import { detectDisplayIp } from './utils/network.js';
 import { renderQrCode } from './utils/qrcode-banner.js';
 // IpMonitor 在 0.7.0 worker 路径下移除（ADR-009：worker 只听 loopback，本机 IP
@@ -380,6 +381,72 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
   // worker 收窄：用户配置读写、实例派生、SSE 推送都不再经 worker。
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const registry = new InstanceRegistryManager();
+
+  // 2.7 确定最终实例名并注册到 instances.json
+  //
+  // 刻意提前到这里（旧实现在 banner + 入口选择之后）：banner / push 通知
+  // 标题 / 启动日志都要显示最终名；且 TTY 用户在入口选择界面停留多久都
+  // 不影响实例被发现（SSE / 反代立即可见）。
+  //
+  // 命名语义（见 registry/instance-name.ts）：
+  //  - basename fallback → register 锁内原子避让（并发启动必然不同名）
+  //  - 显式名 → 原样写入；TTY 撞名先交互确认，非 TTY（headless / spawner
+  //    派生）warn 后放行——Web 路径的确认已由 POST /api/instances 409 把关
+  const brokerHost =
+    brokerState.host === '0.0.0.0' || brokerState.host === '::'
+      ? displayIp
+      : brokerState.host;
+  if (cfg.instanceNameExplicit) {
+    const taken = registry
+      .readSync()
+      .filter((i) => isPidAlive(i.pid))
+      .map((i) => i.name);
+    if (taken.includes(cfg.instanceName)) {
+      const suggestion = nextInstanceName(cfg.instanceName, taken);
+      if (process.stdin.isTTY) {
+        const { selectOne } = await import('./utils/confirm-prompt.js');
+        const choice = await selectOne({
+          message: `instance name '${cfg.instanceName}' is already used by a running instance`,
+          choices: [
+            { title: `Use suggested name '${suggestion}'`, value: 'suggestion' as const },
+            { title: `Keep '${cfg.instanceName}' (duplicate)`, value: 'keep' as const },
+            { title: 'Cancel startup', value: 'cancel' as const },
+          ],
+          nonInteractiveDefault: 'keep' as const,
+        });
+        if (choice === 'cancel') {
+          process.stderr.write('[atr] startup cancelled\n');
+          process.exit(1);
+        }
+        if (choice === 'suggestion') cfg.instanceName = suggestion;
+      } else {
+        logger.warn(
+          { name: cfg.instanceName, suggestion },
+          '实例名与现有实例重复（非交互模式，按原样保留）',
+        );
+      }
+    }
+  }
+  try {
+    const r = await registry.register(
+      {
+        instanceId,
+        name: cfg.instanceName,
+        host: '127.0.0.1',
+        port: cfg.port,
+        pid: process.pid,
+        cwd: cfg.claudeCwd,
+        startedAt: new Date().toISOString(),
+        headless: cfg.noTerminal,
+        ...(brokerHost ? { brokerHost } : {}),
+      },
+      { autoName: !cfg.instanceNameExplicit },
+    );
+    // 回写最终名（cfg 是共享引用，banner / push / 启动日志全部生效）
+    cfg.instanceName = r.name;
+  } catch (err) {
+    logger.warn({ err }, '注册实例失败');
+  }
 
   // 3. Express 路由（app + httpServer 已在 1.10 创建并 listen，这里只往同一个 app 上挂中间件/路由）
   // CORS：同源 + localhost/127.0.0.1 + 本机所有网卡 IP（含 Tailscale / VPN / 多网卡）
@@ -732,29 +799,8 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       }
     }
 
-    // 注册到 instances.json（headless 派生的子进程也走这一步）
-    //
-    // 字段语义:
-    //  - host = worker 监听地址(永远 127.0.0.1,broker 反代连 worker 用)
-    //  - brokerHost = 注册该实例的 broker 对外可达 host,前端按这个分组"哪台机";
-    //    broker listen 0.0.0.0 时 displayIp 是首选 LAN IP;监听具体 IP 时就是它
-    const brokerHost =
-      brokerState.host === '0.0.0.0' || brokerState.host === '::'
-        ? displayIp
-        : brokerState.host;
-    void registry
-      .register({
-        instanceId,
-        name: cfg.instanceName,
-        host: '127.0.0.1',
-        port: cfg.port,
-        pid: process.pid,
-        cwd: cfg.claudeCwd,
-        startedAt: new Date().toISOString(),
-        headless: cfg.noTerminal,
-        ...(brokerHost ? { brokerHost } : {}),
-      })
-      .catch((err) => logger.warn({ err }, '注册实例失败'));
+    // 注册到 instances.json 已提前到「2.7 确定最终实例名」段（registry 创建后、
+    // banner / push 之前）——实例名需要在那之前定稿，且实例越早注册越早可被发现
 
     // IP 监控已在阶段 2D 移除（worker 只听 loopback；ip_changed 广播由 broker 端
     // 在阶段 3 重新设计——可能改成 ws 推一个"broker 反代 host 列表更新"事件）

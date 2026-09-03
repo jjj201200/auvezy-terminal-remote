@@ -122,4 +122,45 @@ describe('InstanceRegistryManager', () => {
     const ports = list.map((i) => i.port).sort((a, b) => a - b);
     expect(ports).toEqual([3000, 3001, 3002, 3003, 3004]);
   });
+
+  // ──────────────── autoName 原子避让 ────────────────
+
+  it('autoName 无冲突 → 名字原样，返回 { name, instances }', async () => {
+    const r = await mgr.register(fakeInfo({ name: 'demo' }), { autoName: true });
+    expect(r.name).toBe('demo');
+    expect(r.instances).toHaveLength(1);
+    expect(r.instances[0]?.name).toBe('demo');
+  });
+
+  it('autoName 同名已活 → 锁内避让为 -2 并落盘', async () => {
+    await mgr.register(fakeInfo({ name: 'demo' }));
+    const r = await mgr.register(fakeInfo({ name: 'demo' }), { autoName: true });
+    expect(r.name).toBe('demo-2');
+    const list = await mgr.list();
+    expect(list.map((i) => i.name).sort()).toEqual(['demo', 'demo-2']);
+  });
+
+  it('非 autoName（显式名）重名 → 原样写入，允许重名', async () => {
+    await mgr.register(fakeInfo({ name: 'demo' }));
+    const r = await mgr.register(fakeInfo({ name: 'demo' }));
+    expect(r.name).toBe('demo');
+    const list = await mgr.list();
+    expect(list.filter((i) => i.name === 'demo')).toHaveLength(2);
+  });
+
+  it('并发 autoName 同名 → 名字必然不同（锁内原子）', async () => {
+    const [a, b] = await Promise.all([
+      mgr.register(fakeInfo({ name: 'demo' }), { autoName: true }),
+      mgr.register(fakeInfo({ name: 'demo' }), { autoName: true }),
+    ]);
+    expect(new Set([a.name, b.name]).size).toBe(2);
+    expect([a.name, b.name].sort()).toEqual(['demo', 'demo-2']);
+  });
+
+  it('autoName 跳号场景 → max+1', async () => {
+    await mgr.register(fakeInfo({ name: 'demo' }));
+    await mgr.register(fakeInfo({ name: 'demo-5' }));
+    const r = await mgr.register(fakeInfo({ name: 'demo' }), { autoName: true });
+    expect(r.name).toBe('demo-6');
+  });
 });

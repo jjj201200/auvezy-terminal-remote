@@ -27,6 +27,7 @@ import type { AuthModule } from '../auth/auth-middleware.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
 import type { InstanceSpawner, SpawnInstanceInput } from '../registry/instance-spawner.js';
 import { onInstanceChange } from '../registry/instance-events.js';
+import { nextInstanceName } from '../registry/instance-name.js';
 import { InstanceError } from '../errors.js';
 import { logger } from '../logger/logger.js';
 
@@ -135,7 +136,7 @@ export function createBrokerInstanceRoutes(
    * 这里**不**等 worker 注册：spawn 已成功 = 进程在跑；ready 是异步事件。
    */
   router.post('/instances', authModule.requireAuth, async (req: Request, res: Response) => {
-    const body = req.body as Partial<SpawnInstanceInput> | undefined;
+    const body = req.body as (Partial<SpawnInstanceInput> & { confirmDuplicate?: boolean }) | undefined;
     if (!body || typeof body !== 'object' || typeof body.cwd !== 'string') {
       const e = new InstanceError(
         ErrorCode.CWD_NOT_EXIST,
@@ -146,11 +147,40 @@ export function createBrokerInstanceRoutes(
       return;
     }
 
+    // 显式名重名检查（409 两段式）：首次请求不带 confirmDuplicate，撞名则
+    // 返回冲突实例信息 + 建议名，前端弹确认；用户选择后带 confirmDuplicate:true
+    // 重发放行。未填 name 的实例由 worker register 锁内自动避让，不经此检查。
+    const explicitName =
+      typeof body.name === 'string' && body.name.trim() ? body.name.trim() : undefined;
     const instanceId = randomUUID();
     try {
+      if (explicitName && body.confirmDuplicate !== true) {
+        const alive = await registry.list();
+        const clash = alive.find((i) => i.name === explicitName);
+        if (clash) {
+          const e = new InstanceError(
+            ErrorCode.INSTANCE_NAME_CONFLICT,
+            `instance name '${explicitName}' is already used by a running instance`,
+            409,
+            undefined,
+            {
+              suggestion: nextInstanceName(explicitName, alive.map((i) => i.name)),
+              existing: {
+                name: clash.name,
+                pid: clash.pid,
+                cwd: clash.cwd,
+                startedAt: clash.startedAt,
+              },
+            },
+          );
+          res.status(e.httpStatus).json({ error: e.toPayload() });
+          return;
+        }
+      }
+
       const result = await spawner.spawn({
         cwd: body.cwd,
-        ...(typeof body.name === 'string' ? { name: body.name } : {}),
+        ...(explicitName ? { name: explicitName } : {}),
         instanceId,
       });
 
