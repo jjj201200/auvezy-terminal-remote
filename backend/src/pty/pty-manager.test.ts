@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { PtyManager } from './pty-manager.js';
+import { PtyManager, stripParentSessionEnv } from './pty-manager.js';
 
 describe('PtyManager', () => {
   let mgr: PtyManager;
@@ -187,4 +187,36 @@ describe('PtyManager', () => {
     const code = await exitPromise;
     expect(code).not.toBe(0);
   }, 10_000);
+});
+
+describe('stripParentSessionEnv（父会话标记剥离）', () => {
+  it('剥掉 Claude Code 父会话运行时标记', () => {
+    const out = stripParentSessionEnv({
+      PATH: '/usr/bin',
+      CLAUDE_CODE_CHILD_SESSION: '1',
+      CLAUDE_CODE_SESSION_ID: 'parent-id',
+      CLAUDE_CODE_MESSAGING_TOKEN: 'secret',
+      CLAUDE_CODE_MESSAGING_SOCKET: '/run/x.sock',
+      CLAUDE_CODE_SSE_PORT: '64048',
+      CLAUDE_CODE_ENTRYPOINT: 'cli',
+      CLAUDE_CODE_EXECPATH: '/opt/claude',
+    });
+    expect(out['PATH']).toBe('/usr/bin');
+    expect('CLAUDE_CODE_CHILD_SESSION' in out).toBe(false);
+    expect('CLAUDE_CODE_SESSION_ID' in out).toBe(false);
+    expect('CLAUDE_CODE_MESSAGING_TOKEN' in out).toBe(false);
+    expect('CLAUDE_CODE_MESSAGING_SOCKET' in out).toBe(false);
+    expect('CLAUDE_CODE_SSE_PORT' in out).toBe(false);
+    expect('CLAUDE_CODE_ENTRYPOINT' in out).toBe(false);
+    expect('CLAUDE_CODE_EXECPATH' in out).toBe(false);
+  });
+
+  it('保留用户显式配置类变量', () => {
+    const out = stripParentSessionEnv({
+      CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1',
+      CLAUDE_CODE_NO_FLICKER: '1',
+    });
+    expect(out['CLAUDE_CODE_FORCE_SESSION_PERSISTENCE']).toBe('1');
+    expect(out['CLAUDE_CODE_NO_FLICKER']).toBe('1');
+  });
 });

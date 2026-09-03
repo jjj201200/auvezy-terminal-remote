@@ -42,6 +42,38 @@ export interface PtyManagerSpawnOptions {
   env?: Record<string, string>;
 }
 
+/**
+ * 需要从 process.env 继承中剥离的 Claude Code 父会话运行时标记
+ *
+ * 场景：用户在 claude 会话内（`!` 前缀 / AI 代跑 / 嵌套终端）启动
+ * `atr claude`——worker 会原样继承父 claude 注入的环境。若不剥离：
+ *  - `CHILD_SESSION` 让子 claude 认为自己是嵌套会话，**静默关闭 transcript
+ *    落盘**（提示 "Transcript saving is off"）
+ *  - `SESSION_ID` / `MESSAGING_*` / `SSE_PORT` 与父会话同名，子 claude 可能
+ *    误连父会话的消息总线或串扰会话状态
+ *  - `ENTRYPOINT` / `EXECPATH` 是父 claude 的启动形态，与子实例无关
+ *
+ * 只剥"父子实例串扰"类标记；用户显式配置类（如
+ * `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE`、`CLAUDE_CODE_NO_FLICKER`）不在此列。
+ * atr 的语义是"像在干净 shell 里直接跑 claude"。
+ */
+const PTY_ENV_STRIP = new Set([
+  'CLAUDE_CODE_CHILD_SESSION',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_MESSAGING_TOKEN',
+  'CLAUDE_CODE_MESSAGING_SOCKET',
+  'CLAUDE_CODE_SSE_PORT',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_EXECPATH',
+]);
+
+/** 复制 env 并剥掉父会话运行时标记（opts.env 显式注入的值不受影响） */
+export function stripParentSessionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out = { ...env };
+  for (const key of PTY_ENV_STRIP) delete out[key];
+  return out;
+}
+
 export class PtyManager extends EventEmitter implements IPtyManager {
   private process: pty.IPty | null = null;
   private _exited = false;
@@ -102,7 +134,11 @@ export class PtyManager extends EventEmitter implements IPtyManager {
         cols,
         rows,
         cwd: opts.cwd ?? process.cwd(),
-        env: { ...process.env, ...opts.env } as Record<string, string>,
+        // 先剥父会话标记再合并 opts.env——显式注入的值始终保留
+        env: {
+          ...stripParentSessionEnv(process.env),
+          ...opts.env,
+        } as Record<string, string>,
       });
 
       this.process.onData((data: string) => {
