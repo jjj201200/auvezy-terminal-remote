@@ -5,6 +5,50 @@
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-03
+
+主题:**终端状态模型重构(grid)——长跑实例内存暴涨与渐进卡顿根除**。
+
+### Changed
+
+- **重连回放缓冲从"输出流"重构为"终端状态模型"**:PTY 输出经完整 VT
+  解析器写入 headless xterm(`@xterm/headless`)的屏幕矩阵,重连时序列化
+  当前画面 + scrollback 回放(VS Code 终端持久化同款架构)。内存/CPU 上限
+  内建于数据模型(scrollback 行数 × 列宽),不引入字节硬上限——此前
+  claude code 等全屏 TUI 几乎不输出换行,按行分流的流式缓冲把全部重绘流
+  累积在单条字符串上(实测挂机 6 天实例:堆内单条字符串 428MB、RSS
+  1.34GB→3GB、输出洪流期 CPU 满核),且换行前每次输出都要全量复制该
+  字符串——这正是"实例开几天越来越卡"的机理。重连回放语义变化:由
+  "原始字节流回放"变为"最终画面 + 语义化 scrollback"(更接近 tmux
+  attach 体验,颜色保留)。
+- **`OCR_ANSI_FILTER` / `OCR_ANSI_FILTER_TUI_NAMES` 环境变量退役**:
+  alt/normal 屏幕语义由 VT 解析器天然管理(TUI 重绘帧不再污染回放),
+  原过滤开关不再有任何效果。
+- **webapp 可翻阅的 scrollback 不再被 TUI 清屏序列擦除**:claude code
+  (ink)每次重绘前发送的 CSI 3J(擦除保存行)现被统一剥除(此前该剥离
+  因过滤开关默认关闭而未生效),翻阅历史不再被反复清空。
+
+### Fixed
+
+- **长跑实例(挂机自主任务)内存持续增长 + 输出洪流期 CPU 满核**:根因
+  见上;grid 模型下"无换行输出"与"超长单行"分别被重绘覆盖与自动换行
+  消化,不再存在无界累积维度。
+- **从 claude code 会话内启动的实例(如 `!` 前缀 / AI 代跑)transcript
+  静默不保存**:PTY 子进程不再继承父会话的 `CLAUDE_CODE_CHILD_SESSION`
+  / `SESSION_ID` / `MESSAGING_*` 等运行时标记(此前子 claude 按嵌套
+  会话关闭 transcript 落盘,并可能误连父会话消息总线)。
+- **非 InputBar(直接输入)模式下英文退格一次删两个字符**:直接输入的
+  隐形捕获层此前未实现"commit 后清空"设计语义,英文输入累积在捕获层,
+  退格时事件回写与浏览器默认删除发生顺序竞争,竞态后补偿性再发一次
+  退格;中文因输入法路径已清空而不受影响。
+
+### Internal
+
+- 新增依赖 `@xterm/headless@5.5.0` + `@xterm/addon-serialize@0.14.0`
+  (bundle 后 npm 包体积 +约 70KB);OutputBuffer / AnsiFilter 及其测试
+  退役,新增 TerminalState 12 项测试(闭环恢复/帧去重/wrap 封顶/事故
+  负载回归),全量 696 测试通过。
+
 ## [0.15.0] - 2026-08-18
 
 主题:**Markdown 预览正文字号设置 + 预览边距收紧**。
