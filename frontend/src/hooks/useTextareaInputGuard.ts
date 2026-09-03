@@ -112,7 +112,7 @@ export function useTextareaInputGuard(
     }
   };
 
-  /** 单 commit：filter → 更新 buffer → onCommit 通知 */
+  /** 单 commit：filter → 更新 buffer → onCommit 通知（stream 模式随后清空） */
   const commitOne = useCallback(
     (intent: InputIntent): void => {
       const ctx = { buffer: bufferRef.current };
@@ -126,6 +126,19 @@ export function useTextareaInputGuard(
         mode, intent: final, before, after: bufferRef.current,
       }));
       onCommitRef.current(final, { buffer: bufferRef.current });
+
+      // stream 模式设计语义："commit 后立刻清空 buffer，textarea 始终空"。
+      // 此前该清空未实现（仅 composition 路径的 clear() 生效），英文经
+      // flushDiff commit 后一直累积在 textarea——退格时 beforeinput 的微任务
+      // sync 与浏览器默认删除在 iOS WebKit 上存在执行顺序竞争，textarea
+      // 终态与 buffer 错位，防抖 flushDiff 会把差值再 commit 一次 delete，
+      // 表现为"英文退格删 2 个字符"。清空后英文与中文一致走"空 textarea
+      // 退格"的单发路径（beforeinput 触发一次、input 无变化不 diff）。
+      if (mode === 'stream') {
+        bufferRef.current = '';
+        const el = elRef.current;
+        if (el && el.value !== '') el.value = '';
+      }
     },
     [mode],
   );
