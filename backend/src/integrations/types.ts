@@ -31,6 +31,11 @@ export interface SpawnContext {
   /** 当前实例端口,用于生成回调地址 */
   port: number;
   /**
+   * 实例工作目录(claude-code 集成用它给镜像目录命名——按项目共享,
+   * 见 integrations/claude-code/config-dir-mirror.ts)
+   */
+  cwd: string;
+  /**
    * program 是否经 shell 函数 fallback 改写(此时 command 是 $SHELL,真实
    * 命令在 args[1] 的内层命令行里,detect 无法从 command 识别——如 zshrc
    * 里的 zclaude 函数最终启动 claude)

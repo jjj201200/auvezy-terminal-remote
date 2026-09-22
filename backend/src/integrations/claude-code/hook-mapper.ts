@@ -28,6 +28,7 @@
  */
 
 import type { IntegrationEvent } from '../types.js';
+import type { ClaudeCodeEventToggles } from './settings-builder.js';
 import { summarizeToolCall } from './tool-summary.js';
 
 /** 从 message 文本末尾抠工具名(Notification 没有 tool_name 字段时兜底用) */
@@ -67,6 +68,45 @@ export function deriveApprovalId(payload: Record<string, unknown>): string {
   if (toolUseId) return toolUseId;
   const tool = asString(payload['tool_name']) ?? extractToolFromMessage(payload['message']) ?? 'unknown';
   return `pending:${tool}`;
+}
+
+/**
+ * 按事件子开关过滤翻译结果(0.18 起,ADR-002)
+ *
+ * 镜像 settings 固定全事件注册(同项目多实例共享,内容不能按实例定制),
+ * 实例级开关(用户设置面板 perModule events)在翻译后执行过滤。矩阵精确
+ * 复刻旧版"生成时挑事件"的行为:
+ *  - approval_pending 随 approvals;approval_resolved 随 toolProgress——
+ *    它由 PostToolUse 附带产生,旧版该 hook 归 toolProgress 注册
+ *  - user_prompt 随 userPrompts||approvals——approvals 开启时依赖
+ *    UserPromptSubmit 信号清 stuck pending(审批兜底)
+ *  - turn_started 非本模块产生,恒放行(保底)
+ */
+export function filterEventsByToggles(
+  events: readonly IntegrationEvent[],
+  toggles: ClaudeCodeEventToggles,
+): IntegrationEvent[] {
+  return events.filter((e) => {
+    switch (e.kind) {
+      case 'approval_pending':
+        return toggles.approvals;
+      case 'approval_resolved':
+        return toggles.toolProgress;
+      case 'tool_started':
+      case 'tool_finished':
+        return toggles.toolProgress;
+      case 'turn_ended':
+      case 'turn_failed':
+        return toggles.turnLifecycle;
+      case 'session_event':
+      case 'cwd_changed':
+        return toggles.sessionLifecycle;
+      case 'user_prompt':
+        return toggles.userPrompts || toggles.approvals;
+      case 'turn_started':
+        return true;
+    }
+  });
 }
 
 /** 把单个 hook payload 翻译为 0..N 个 IntegrationEvent */

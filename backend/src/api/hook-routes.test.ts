@@ -43,7 +43,7 @@ describe('hook-routes', () => {
     mgr = new IntegrationManager();
     mgr.register(new ClaudeCodeIntegration({ settingsBaseDir: '/tmp/atr-test-hook-routes' }));
     // 走 prepareSpawn 让模块激活(给 detect 一个能命中的 command)
-    mgr.prepareSpawn({ command: 'claude', args: [], port: 9999 });
+    mgr.prepareSpawn({ command: 'claude', args: [], port: 9999, cwd: '/tmp/atr-test-hook-routes' });
     ({ port, close } = await bootstrapServer({ manager: mgr }));
   });
 
@@ -99,7 +99,7 @@ describe('hook-routes', () => {
     await close();
     const fresh = new IntegrationManager();
     fresh.register(new ClaudeCodeIntegration({ settingsBaseDir: '/tmp/atr-test-hook-routes' }));
-    fresh.prepareSpawn({ command: 'claude', args: [], port: 9999 });
+    fresh.prepareSpawn({ command: 'claude', args: [], port: 9999, cwd: '/tmp/atr-test-hook-routes' });
     const srv = await bootstrapServer({ manager: fresh, trustProxy: true });
     const res = await fetch(`http://127.0.0.1:${srv.port}/api/hook`, {
       method: 'POST',

@@ -5,6 +5,11 @@
  * 其余 entry 全部 symlink 透传(登录态/历史/projects/skills 等零拷贝共享)。
  * 配合 PTY env 注入 CLAUDE_CONFIG_DIR,claude 以任何方式启动(直接/函数/wrapper)
  * 都能读到 atr 的 hooks——不再依赖 --settings 参数转发与命令名 detect。
+ *
+ * 0.18 起(ADR-002)镜像按项目 cwd 命名(对齐 claude projects/<sanitized-cwd>
+ * 惯例),同项目多实例共享;hooks 端口经 ATR_HOOK_PORT env 注入,settings 内容
+ * 与实例无关。.claude.json symlink 指向顶级 ~/.claude.json(修正旧版误链
+ * 目录内同名文件的 bug——该 bug 曾导致直跑/经 atr 双身份分裂)。
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -12,13 +17,12 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readdirSync, existsSync,
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { buildConfigDirMirror } from './config-dir-mirror.js';
-import { DEFAULT_CLAUDE_CODE_EVENTS } from './settings-builder.js';
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), 'atr-mirror-test-'));
 }
 
-describe('buildConfigDirMirror', () => {
+describe('buildConfigDirMirror - 按项目命名', () => {
   let realDir: string;
   let mirrorBase: string;
 
@@ -39,12 +43,41 @@ describe('buildConfigDirMirror', () => {
     rmSync(dirname(realDir), { recursive: true, force: true });
   });
 
-  it('settings.json 被顶替为 atr 版(合并用户原值 + hooks)', () => {
+  it('镜像子目录名为转义后的项目 cwd(非字母数字→-)', () => {
     const dir = buildConfigDirMirror({
       mirrorBaseDir: mirrorBase,
       realConfigDir: realDir,
-      port: 41234,
-      toggles: DEFAULT_CLAUDE_CODE_EVENTS,
+      cwd: '/mnt/d/github/observer',
+    });
+    expect(dir).toBe(join(mirrorBase, '-mnt-d-github-observer'));
+  });
+
+  it('同项目 cwd 多实例共享同一镜像目录', () => {
+    const d1 = buildConfigDirMirror({ mirrorBaseDir: mirrorBase, realConfigDir: realDir, cwd: '/mnt/d/github/observer' });
+    const d2 = buildConfigDirMirror({ mirrorBaseDir: mirrorBase, realConfigDir: realDir, cwd: '/mnt/d/github/observer' });
+    expect(d1).toBe(d2);
+  });
+
+  it('不同项目 cwd 各自独立目录', () => {
+    const d1 = buildConfigDirMirror({ mirrorBaseDir: mirrorBase, realConfigDir: realDir, cwd: '/mnt/d/github/observer' });
+    const d2 = buildConfigDirMirror({ mirrorBaseDir: mirrorBase, realConfigDir: realDir, cwd: '/mnt/d/github/df-market' });
+    expect(d1).not.toBe(d2);
+    expect(existsSync(d1) && existsSync(d2)).toBe(true);
+  });
+
+  it('超长 cwd 截断并追加 hash 后缀(防文件系统路径上限)', () => {
+    const longCwd = '/mnt/d/' + 'project-'.repeat(30);
+    const dir = buildConfigDirMirror({ mirrorBaseDir: mirrorBase, realConfigDir: realDir, cwd: longCwd });
+    const name = dir.slice(mirrorBase.length + 1);
+    expect(name.length).toBeLessThanOrEqual(180);
+    expect(name).toMatch(/-[0-9a-f]{8}$/);
+  });
+
+  it('settings.json 被顶替为 atr 版(合并用户原值 + hooks,端口走 env)', () => {
+    const dir = buildConfigDirMirror({
+      mirrorBaseDir: mirrorBase,
+      realConfigDir: realDir,
+      cwd: '/mnt/d/github/observer',
     });
 
     const settings = JSON.parse(
@@ -53,15 +86,14 @@ describe('buildConfigDirMirror', () => {
     expect(settings.model).toBe('opus'); // 用户原配置保留
     expect(settings.hooks).toBeDefined(); // atr hooks 注入
     const hookCmd = (settings.hooks!['PreToolUse'] as Array<{ hooks: Array<{ command: string }> }>)[0].hooks[0].command;
-    expect(hookCmd).toContain('127.0.0.1:41234/api/hook');
+    expect(hookCmd).toContain('${ATR_HOOK_PORT:-1}');
   });
 
   it('其余 entry 全部 symlink 透传(凭据/目录)', () => {
     const dir = buildConfigDirMirror({
       mirrorBaseDir: mirrorBase,
       realConfigDir: realDir,
-      port: 41234,
-      toggles: DEFAULT_CLAUDE_CODE_EVENTS,
+      cwd: '/mnt/d/github/observer',
     });
 
     expect(readlinkSync(join(dir, '.credentials.json'))).toBe(join(realDir, '.credentials.json'));
@@ -70,12 +102,43 @@ describe('buildConfigDirMirror', () => {
     expect(existsSync(join(dir, 'projects', 'some-session.jsonl'))).toBe(true);
   });
 
+  it('.claude.json:目录内同名文件不透传,symlink 指向顶级状态文件', () => {
+    // 造双份:顶级 ~/.claude.json(直跑会话的现行状态)与目录内 .claude.json(历史误产物)
+    const root = dirname(realDir);
+    const topLevel = join(root, '.claude.json');
+    const inDir = join(realDir, '.claude.json');
+    writeFileSync(topLevel, '{"numStartups":436}');
+    writeFileSync(inDir, '{"numStartups":111}');
+    try {
+      const dir = buildConfigDirMirror({
+        mirrorBaseDir: mirrorBase,
+        realConfigDir: realDir,
+        cwd: '/mnt/d/github/observer',
+      });
+      // 指向顶级(直跑现行状态),而非目录内同名文件
+      expect(readlinkSync(join(dir, '.claude.json'))).toBe(topLevel);
+      expect(readlinkSync(join(dir, '.claude.json'))).not.toBe(inDir);
+    } finally {
+      rmSync(topLevel, { force: true });
+      rmSync(inDir, { force: true });
+    }
+  });
+
+  it('顶级状态文件 .claude.json 不存在时不建 symlink(首跑用户)', () => {
+    const dir = buildConfigDirMirror({
+      mirrorBaseDir: mirrorBase,
+      realConfigDir: realDir,
+      cwd: '/mnt/d/github/observer',
+    });
+    expect(existsSync(join(dir, '.claude.json'))).toBe(false);
+  });
+
   it('幂等:二次调用不报错、symlink 不重复创建', () => {
-    const opts = { mirrorBaseDir: mirrorBase, realConfigDir: realDir, port: 41234, toggles: DEFAULT_CLAUDE_CODE_EVENTS };
+    const opts = { mirrorBaseDir: mirrorBase, realConfigDir: realDir, cwd: '/mnt/d/github/observer' };
     buildConfigDirMirror(opts);
     buildConfigDirMirror(opts); // 第二次 no-op
     // mirror 下没有套娃
-    const entries = readdirSync(join(mirrorBase, '41234'));
+    const entries = readdirSync(join(mirrorBase, '-mnt-d-github-observer'));
     expect(entries.sort()).toEqual(['.credentials.json', 'projects', 'settings.json'].sort());
   });
 
@@ -83,8 +146,7 @@ describe('buildConfigDirMirror', () => {
     const dir = buildConfigDirMirror({
       mirrorBaseDir: mirrorBase,
       realConfigDir: join(mirrorBase, '..', 'no-such-claude'),
-      port: 41235,
-      toggles: DEFAULT_CLAUDE_CODE_EVENTS,
+      cwd: '/mnt/d/github/observer',
     });
     const entries = readdirSync(dir);
     expect(entries).toEqual(['settings.json']);
@@ -94,45 +156,10 @@ describe('buildConfigDirMirror', () => {
     const dir = buildConfigDirMirror({
       mirrorBaseDir: mirrorBase,
       realConfigDir: realDir,
-      port: 41236,
-      toggles: DEFAULT_CLAUDE_CODE_EVENTS,
+      cwd: '/mnt/d/github/observer',
     });
     expect((statSync(dir).mode & 0o777).toString(8)).toBe('700');
     expect((statSync(join(dir, 'settings.json')).mode & 0o777).toString(8)).toBe('600');
-  });
-
-  it('不同端口各自独立目录(hooks URL 不同)', () => {
-    const d1 = buildConfigDirMirror({ mirrorBaseDir: mirrorBase, realConfigDir: realDir, port: 1, toggles: DEFAULT_CLAUDE_CODE_EVENTS });
-    const d2 = buildConfigDirMirror({ mirrorBaseDir: mirrorBase, realConfigDir: realDir, port: 2, toggles: DEFAULT_CLAUDE_CODE_EVENTS });
-    expect(d1).not.toBe(d2);
-    expect(existsSync(d1) && existsSync(d2)).toBe(true);
-  });
-
-  it('顶级状态文件 .claude.json 存在时 symlink 透传(CLAUDE_CONFIG_DIR 官方语义)', () => {
-    // ~/.claude.json 与 ~/.claude 同级:造在 realDir 的父目录
-    const topLevel = join(dirname(realDir), '.claude.json');
-    writeFileSync(topLevel, '{"firstLogin":true}');
-    try {
-      const dir = buildConfigDirMirror({
-        mirrorBaseDir: mirrorBase,
-        realConfigDir: realDir,
-        port: 41237,
-        toggles: DEFAULT_CLAUDE_CODE_EVENTS,
-      });
-      expect(readlinkSync(join(dir, '.claude.json'))).toBe(topLevel);
-    } finally {
-      rmSync(topLevel, { force: true });
-    }
-  });
-
-  it('顶级状态文件 .claude.json 不存在时不建 symlink(首跑用户)', () => {
-    const dir = buildConfigDirMirror({
-      mirrorBaseDir: mirrorBase,
-      realConfigDir: realDir,
-      port: 41238,
-      toggles: DEFAULT_CLAUDE_CODE_EVENTS,
-    });
-    expect(existsSync(join(dir, '.claude.json'))).toBe(false);
   });
 });
 
@@ -141,7 +168,7 @@ describe('buildConfigDirMirror', () => {
  * 绝对路径写进 plugins/known_marketplaces.json 与 installed_plugins.json,
  * 并强校验其位于当前 CLAUDE_CONFIG_DIR 内。多实例 symlink 共享一份注册表
  * 时任一实例写入都会让其它实例(含官方 ~/.claude 环境)报 marketplace
- * corrupted——plugins 必须每实例独立副本,拷贝后归一注册表路径。
+ * corrupted——plugins 必须每镜像独立副本,拷贝后归一注册表路径。
  */
 describe('buildConfigDirMirror:plugins 独立副本', () => {
   let realDir: string;
@@ -193,17 +220,16 @@ describe('buildConfigDirMirror:plugins 独立副本', () => {
     rmSync(dirname(realDir), { recursive: true, force: true });
   });
 
-  function build(port: number): string {
+  function build(cwd: string): string {
     return buildConfigDirMirror({
       mirrorBaseDir: mirrorBase,
       realConfigDir: realDir,
-      port,
-      toggles: DEFAULT_CLAUDE_CODE_EVENTS,
+      cwd,
     });
   }
 
   it('plugins 深拷贝为独立真目录(非 symlink),与官方侧互不影响', () => {
-    const dir = build(41300);
+    const dir = build('/mnt/d/github/observer');
     const p = join(dir, 'plugins');
     expect(lstatSync(p).isSymbolicLink()).toBe(false);
     expect(lstatSync(p).isDirectory()).toBe(true);
@@ -215,7 +241,7 @@ describe('buildConfigDirMirror:plugins 独立副本', () => {
   });
 
   it('known_marketplaces.json 的 installLocation/source.path 归一为本镜像路径', () => {
-    const dir = build(41301);
+    const dir = build('/mnt/d/github/observer');
     const km = JSON.parse(
       readFileSync(join(dir, 'plugins', 'known_marketplaces.json'), 'utf-8'),
     ) as Record<string, { installLocation: string; source: { path?: string } }>;
@@ -229,7 +255,7 @@ describe('buildConfigDirMirror:plugins 独立副本', () => {
   });
 
   it('installed_plugins.json 的 installPath 归一,projectPath 等非 plugins 路径不动', () => {
-    const dir = build(41302);
+    const dir = build('/mnt/d/github/observer');
     const ip = JSON.parse(
       readFileSync(join(dir, 'plugins', 'installed_plugins.json'), 'utf-8'),
     ) as { plugins: Record<string, Array<{ installPath: string; projectPath: string }>> };
@@ -240,10 +266,10 @@ describe('buildConfigDirMirror:plugins 独立副本', () => {
 
   it('残留的旧版 plugins symlink 自动替换为真目录(升级兼容)', () => {
     // 预埋旧版产物:镜像子目录里 plugins 是指向官方的 symlink
-    const staleDir = join(mirrorBase, '41303');
+    const staleDir = join(mirrorBase, '-mnt-d-github-observer');
     mkdirSync(staleDir, { recursive: true });
     symlinkSync(join(realDir, 'plugins'), join(staleDir, 'plugins'));
-    const dir = build(41303);
+    const dir = build('/mnt/d/github/observer');
     const p = join(dir, 'plugins');
     expect(lstatSync(p).isSymbolicLink()).toBe(false);
     expect(existsSync(join(p, 'marketplaces', 'df-market'))).toBe(true);
@@ -255,15 +281,15 @@ describe('buildConfigDirMirror:plugins 独立副本', () => {
 
   it('官方侧无 plugins 时镜像同样不建 symlink(claude 首跑自初始化)', () => {
     rmSync(join(realDir, 'plugins'), { recursive: true, force: true });
-    const dir = build(41304);
+    const dir = build('/mnt/d/github/observer');
     expect(existsSync(join(dir, 'plugins'))).toBe(false);
   });
 
   it('幂等:二次调用不重拷不报错,归一结果保持', () => {
-    const dir = build(41305);
+    const dir = build('/mnt/d/github/observer');
     const kmPath = join(dir, 'plugins', 'known_marketplaces.json');
     const before = readFileSync(kmPath, 'utf-8');
-    build(41305);
+    build('/mnt/d/github/observer');
     expect(readFileSync(kmPath, 'utf-8')).toBe(before);
   });
 });

@@ -22,12 +22,12 @@
 
 import { createServer, type Server as HttpServer } from 'node:http';
 import { execSync } from 'node:child_process';
-import { networkInterfaces } from 'node:os';
+import { networkInterfaces, homedir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
-import { ErrorCode } from 'auvezy-terminal-remote-shared';
+import { ErrorCode, ATR_DATA_DIR } from 'auvezy-terminal-remote-shared';
 import { logger } from './logger/logger.js';
 import { createWorkerApiRouter } from './api/router.js';
 import { PtyManager } from './pty/pty-manager.js';
@@ -49,6 +49,7 @@ import {
 } from './config.js';
 import { IntegrationManager, DEFAULT_INTEGRATION_PREFS } from './integrations/manager.js';
 import { ClaudeCodeIntegration } from './integrations/claude-code/index.js';
+import { cleanupLegacyPortMirrors } from './integrations/claude-code/config-dir-mirror.js';
 import type { ParsedCliArgs } from './cli-utils.js';
 import { acquireSharedToken } from './registry/shared-token.js';
 import { bindAvailablePort } from './registry/port-finder.js';
@@ -339,11 +340,15 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       ...(extracted?.value ? { existingSettings: extracted.value } : {}),
     }),
   );
+  // ADR-002 迁移兜底:清理按端口命名的旧版镜像残留(24h 宽限防误删混跑
+  // 旧版本实例正在使用的镜像)
+  cleanupLegacyPortMirrors(resolve(homedir(), ATR_DATA_DIR));
 
   const aug = integrations.prepareSpawn({
     command: cfg.claudeCommand,
     args: finalClaudeArgs,
     port: cfg.port,
+    cwd: cfg.claudeCwd,
     ...(usedShellFallback ? { viaShellFallback: true } : {}),
   });
   /** PTY spawn 的额外 env(集成模块注入,如 CLAUDE_CONFIG_DIR 镜像) */

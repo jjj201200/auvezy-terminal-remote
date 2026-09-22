@@ -1,35 +1,38 @@
 /**
- * Claude Code settings JSON 生成 + 落盘
+ * Claude Code settings JSON 生成
  *
  * 给 Claude Code 注入 hook 配置,把多个生命周期事件 POST 到本地 /api/hook。
- * 文件路径:~/.atr/settings/<port>.json,作为 `claude --settings <path>` 参数。
+ * 生成的 settings.json 落在按项目命名的镜像目录内(见 config-dir-mirror.ts),
+ * 经 PTY env CLAUDE_CONFIG_DIR 生效。
  *
- * 与原 backend/src/config.ts 的 createClaudeSettings 相比的扩展:
- *  - 不再只挂 Notification + PreToolUse(AskUserQuestion);现在按 ClaudeCodeEventToggles
- *    选择性注册多个事件,默认全部启用
- *  - 用户原有 settings 仍合并保留;同名 hook 事件被覆盖时打 warn
+ * 0.18 起(ADR-002)两个关键约束:
+ *  - **端口走 env**:镜像被同项目多实例共享,settings 内容必须与实例无关——
+ *    URL 写死 `${ATR_HOOK_PORT:-1}`,实例端口经 PTY env ATR_HOOK_PORT 注入,
+ *    未注入(不经 atr 的普通终端)时打 127.0.0.1:1 即刻 connection refused,
+ *    无感开销。
+ *  - **固定全事件注册**:事件子开关(用户设置面板的 perModule events)不再
+ *    影响生成,改由 ClaudeCodeIntegration.onHookPayload 按事件类别运行时过滤
+ *    ——设置面板语义不变,镜像内容恒定。
  *
- * 文件 IO 与原 saveClaudeSettings 行为一致(同步、0o600、目录 0o700)。
+ * 用户原有 settings 仍合并保留;同名 hook 事件按条目级 append,用户条目在前。
  */
 
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { homedir } from 'node:os';
-import { ATR_DATA_DIR, SETTINGS_DIRNAME } from 'auvezy-terminal-remote-shared';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { logger } from '../../logger/logger.js';
 
 /**
  * 各类事件的子开关。设置面板的 perModule['claude-code'].events 字段。
  *
- * 各开关相互独立;按事件语义归属拆分,而非按"修复某个 bug 需要哪些事件":
- *  - approvals:Notification(permission_prompt) + PermissionRequest 两类纯审批信号
- *  - toolProgress:PreToolUse / PostToolUse / PostToolUseFailure,完整工具生命周期
- *  - turnLifecycle:Stop / StopFailure
- *  - sessionLifecycle:SessionStart / SessionEnd / PreCompact / PostCompact / CwdChanged
- *  - userPrompts:UserPromptSubmit;默认 false 防 Web Push 带出 prompt 原文
+ * 0.18 起语义为**运行时过滤**(onHookPayload 按类别丢弃事件),不再影响
+ * settings 生成——镜像共享后 settings 只能有一份,无法按实例定制。
  *
- * 注:用户关掉 approvals 后,backend 不再收到 PermissionRequest,也就永远不会
- * 切到 waiting_input,自然不存在"审批后状态卡住"问题。开关之间不存在隐式 coupling。
+ * 各开关相互独立,按事件语义归属拆分:
+ *  - approvals:approval_pending / approval_resolved 两类纯审批信号
+ *  - toolProgress:tool_started / tool_finished,完整工具生命周期
+ *  - turnLifecycle:turn_ended / turn_failed
+ *  - sessionLifecycle:session_event
+ *  - userPrompts:user_prompt;默认 false 防 Web Push 带出 prompt 原文
  */
 export interface ClaudeCodeEventToggles {
   approvals: boolean;
@@ -48,16 +51,18 @@ export const DEFAULT_CLAUDE_CODE_EVENTS: ClaudeCodeEventToggles = {
 };
 
 /**
- * 把 toggle 集合转成 Claude Code 的 hooks JSON 节点
+ * 生成全量事件的 hooks JSON 节点(端口经 ATR_HOOK_PORT env 解引用)
  *
  * 全部 hook 都指向同一个本地 endpoint;后端 HookManager 根据 payload 的
  * hook_event_name 字段路由。
+ *
+ * shell 展开语义:hooks 命令由 claude 以 sh -c 执行、继承 PTY env,
+ * `${ATR_HOOK_PORT:-1}` 在 atr 实例内展开为实例端口,未注入时取默认 1
+ * (loopback :1 无监听,curl 立即 ECONNREFUSED,不等待超时)。
  */
-export function buildHooksConfig(
-  port: number,
-  toggles: ClaudeCodeEventToggles = DEFAULT_CLAUDE_CODE_EVENTS,
-): Record<string, unknown> {
-  const hookUrl = `http://127.0.0.1:${port}/api/hook`;
+export function buildHooksConfig(): Record<string, unknown> {
+  // 注意:此处是普通单引号字符串,${} 为字面量(端口由 hooks 执行期的 sh 展开)
+  const hookUrl = 'http://127.0.0.1:${ATR_HOOK_PORT:-1}/api/hook';
   // --noproxy '*':用户 shell 常带 http_proxy,curl 不绕过时 loopback 请求会被
   //   代理拦截(实测稳定 503),backend 永远收不到 hook 事件,且阻塞工具调用
   // --max-time 2:hook 是 fire-and-forget 通知,网络路径挂起时宁可丢弃也不拖慢
@@ -69,56 +74,40 @@ export function buildHooksConfig(
   // matcher 文档说省略或 "" 都视为 "命中所有",这里用空字符串保持显式
   const allMatcher = [{ matcher: '', hooks: [handler] }];
 
-  const out: Record<string, unknown> = {};
-  if (toggles.approvals) {
-    out['Notification'] = [{ matcher: 'permission_prompt', hooks: [handler] }];
-    out['PermissionRequest'] = allMatcher;
-  }
-  if (toggles.toolProgress) {
-    out['PreToolUse'] = allMatcher;
-    out['PostToolUse'] = allMatcher;
-    out['PostToolUseFailure'] = allMatcher;
-  }
-  if (toggles.turnLifecycle) {
-    out['Stop'] = allMatcher;
-    out['StopFailure'] = allMatcher;
-  }
-  if (toggles.sessionLifecycle) {
-    out['SessionStart'] = allMatcher;
-    out['SessionEnd'] = allMatcher;
-    out['PreCompact'] = allMatcher;
-    out['PostCompact'] = allMatcher;
-    out['CwdChanged'] = allMatcher;
-  }
-  // UserPromptSubmit 触发条件:
-  //  - approvals 开启时也订阅(审批兜底:用户 ESC 跳过审批 + 提交新 prompt
-  //    时,SessionController 用 user_prompt 信号清掉 stuck pending,见
-  //    session-controller.ts 的 user_prompt case)
-  //  - 或者用户显式开 userPrompts(把 prompt 原文也送到 Web Push 等通道)
-  if (toggles.userPrompts || toggles.approvals) {
-    out['UserPromptSubmit'] = allMatcher;
-  }
-  return out;
+  return {
+    Notification: [{ matcher: 'permission_prompt', hooks: [handler] }],
+    PermissionRequest: allMatcher,
+    PreToolUse: allMatcher,
+    PostToolUse: allMatcher,
+    PostToolUseFailure: allMatcher,
+    Stop: allMatcher,
+    StopFailure: allMatcher,
+    SessionStart: allMatcher,
+    SessionEnd: allMatcher,
+    PreCompact: allMatcher,
+    PostCompact: allMatcher,
+    CwdChanged: allMatcher,
+    // 旧版按 userPrompts/approvals 开关条件注册;镜像共享后固定注册,
+    // userPrompts 关闭时由运行时过滤丢弃 prompt 原文
+    UserPromptSubmit: allMatcher,
+  };
 }
 
 /**
  * 完整 settings 文件构造(与用户原 settings 合并)
  *
  * hooks 合并粒度是**条目级 append**:用户在每个事件下的 hook 条目全部保留,
- * atr 的 curl 条目追加在其后。此前的事件级整体覆盖会把用户自己的 hooks
+ * atr 的 curl 条目追加在其后。事件级整体覆盖会把用户自己的 hooks
  * (如 ghost-probe / detect-ghost-tool-call)在 atr 注册的同名事件下全部顶掉,
  * 镜像 settings.json 因此"丢配置"。
  *
- * @param port    当前实例端口
- * @param toggles 事件子开关(由 IntegrationManager 传入用户偏好)
- * @param existing 用户原有 settings(从 --settings <path> 提取的内容)
+ * @param existing 用户已有 settings(如 --settings 参数提取的内容;
+ *   不传时由 config-dir-mirror 自动读 ~/.claude/settings.json 合并)
  */
 export function buildClaudeSettings(
-  port: number,
-  toggles: ClaudeCodeEventToggles,
   existing?: Record<string, unknown>,
 ): Record<string, unknown> {
-  const ourHooks = buildHooksConfig(port, toggles);
+  const ourHooks = buildHooksConfig();
 
   if (!existing) return { hooks: ourHooks };
 
@@ -146,25 +135,14 @@ export function buildClaudeSettings(
   return { ...existing, hooks: mergedHooks };
 }
 
-/**
- * 落盘 settings 文件并返回绝对路径
- *
- * 同步 IO,仅启动阶段调用。文件 0o600,目录 0o700(沿用原 saveClaudeSettings)。
- */
-export function saveSettingsFile(
-  settings: Record<string, unknown>,
-  port: number,
-  baseDir?: string,
-): string {
-  const dir = baseDir ?? resolve(homedir(), ATR_DATA_DIR);
-  const settingsDir = resolve(dir, SETTINGS_DIRNAME);
-
-  if (!existsSync(settingsDir)) {
-    mkdirSync(settingsDir, { recursive: true, mode: 0o700 });
+/** 读用户 ~/.claude/settings.json;不存在/损坏返回 undefined(按全新生成) */
+export function readUserSettings(realConfigDir: string): Record<string, unknown> | undefined {
+  const path = join(realConfigDir, 'settings.json');
+  if (!existsSync(path)) return undefined;
+  try {
+    return JSON.parse(readFileSync(path, 'utf-8')) as Record<string, unknown>;
+  } catch (err) {
+    logger.warn({ err, path }, '用户 claude settings.json 解析失败,按无既有配置处理');
+    return undefined;
   }
-
-  const path = resolve(settingsDir, `${port}.json`);
-  writeFileSync(path, JSON.stringify(settings, null, 2), { encoding: 'utf-8', mode: 0o600 });
-  logger.info({ path, port }, 'Claude settings 已写入(integrations/claude-code)');
-  return path;
 }

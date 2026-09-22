@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mapHookPayload, deriveApprovalId } from './hook-mapper.js';
+import { mapHookPayload, deriveApprovalId, filterEventsByToggles } from './hook-mapper.js';
+import type { IntegrationEvent } from '../types.js';
 
 describe('mapHookPayload - Notification', () => {
   it('permission_prompt → approval_pending,工具名从 message 抠', () => {
@@ -201,5 +202,68 @@ describe('deriveApprovalId', () => {
 
   it('啥都没 → pending:unknown', () => {
     expect(deriveApprovalId({})).toBe('pending:unknown');
+  });
+});
+
+/**
+ * 事件运行时过滤(0.18 起,ADR-002)
+ *
+ * 镜像 settings 固定全事件注册,实例级开关在 onHookPayload 翻译后过滤。
+ * 矩必须精确复刻旧版"生成时挑事件"的行为,设置面板语义不变:
+ *  - approval_pending 仅随 approvals;approval_resolved 随 toolProgress
+ *    (它由 PostToolUse 附带产生,旧版该 hook 归 toolProgress 注册)
+ *  - user_prompt 随 userPrompts||approvals(approvals 开启时用 UserPromptSubmit
+ *    信号清 stuck pending,见 settings-builder 旧注释)
+ */
+describe('filterEventsByToggles - 过滤矩阵', () => {
+  const ALL = { approvals: true, toolProgress: true, turnLifecycle: true, sessionLifecycle: true, userPrompts: true };
+
+  it('全开:全部事件放行', () => {
+    const events: IntegrationEvent[] = [
+      { kind: 'approval_pending', id: 'a', tool: 'Bash' },
+      { kind: 'approval_resolved', id: 'a', outcome: 'allow' },
+      { kind: 'tool_started', toolUseId: 't', tool: 'Bash', summary: 's' },
+      { kind: 'tool_finished', toolUseId: 't', ok: true },
+      { kind: 'turn_ended' },
+      { kind: 'turn_failed', errorKind: 'rate_limit' },
+      { kind: 'session_event', phase: 'start' },
+      { kind: 'cwd_changed', from: '/a', to: '/b' },
+      { kind: 'user_prompt', text: 'hi' },
+    ];
+    expect(filterEventsByToggles(events, ALL)).toHaveLength(9);
+  });
+
+  it('approvals=false:approval_pending 拦截,approval_resolved(随 toolProgress)放行', () => {
+    const events: IntegrationEvent[] = [
+      { kind: 'approval_pending', id: 'a', tool: 'Bash' },
+      { kind: 'approval_resolved', id: 'a', outcome: 'allow' },
+    ];
+    const out = filterEventsByToggles(events, { ...ALL, approvals: false });
+    expect(out.map((e) => e.kind)).toEqual(['approval_resolved']);
+  });
+
+  it('toolProgress=false:tool_* 与 approval_resolved 全拦', () => {
+    const events: IntegrationEvent[] = [
+      { kind: 'tool_started', toolUseId: 't', tool: 'Bash', summary: 's' },
+      { kind: 'tool_finished', toolUseId: 't', ok: true },
+      { kind: 'approval_resolved', id: 'a', outcome: 'deny' },
+    ];
+    expect(filterEventsByToggles(events, { ...ALL, toolProgress: false })).toEqual([]);
+  });
+
+  it('turnLifecycle=false 拦 turn_*;sessionLifecycle=false 拦 session_event 与 cwd_changed', () => {
+    const events: IntegrationEvent[] = [
+      { kind: 'turn_ended' },
+      { kind: 'turn_failed', errorKind: 'x' },
+      { kind: 'session_event', phase: 'end' },
+      { kind: 'cwd_changed', from: '/a', to: '/b' },
+    ];
+    expect(filterEventsByToggles(events, { ...ALL, turnLifecycle: false, sessionLifecycle: false })).toEqual([]);
+  });
+
+  it('userPrompts=false 且 approvals=true:user_prompt 仍放行(审批兜底语义)', () => {
+    const events: IntegrationEvent[] = [{ kind: 'user_prompt', text: 'hi' }];
+    expect(filterEventsByToggles(events, { ...ALL, userPrompts: false })).toHaveLength(1);
+    expect(filterEventsByToggles(events, { ...ALL, userPrompts: false, approvals: false })).toEqual([]);
   });
 });
