@@ -382,6 +382,23 @@ export function useTextareaInputGuard(
         return;
       }
 
+      // 字符插入即时通道:同步 commit,不等 80ms 防抖——长按字符的键盘
+      // repeat 会不断重置防抖定时器,diff 攒到松手才跑(表现为"长按松开
+      // 才生效")。与退格同款:不 preventDefault,微任务 sync 写回哨兵,
+      // 随后 input 事件的防抖 diff 无差异,不双发。composition 中间态
+      // (insertCompositionText)已被 composing 守卫挡在外面。
+      // 代价:iOS smart-punct 的"空格换标点"不再走 flushDiff 终态矫正,
+      // 按原子事件序列直发(空格删除 + 标点插入),终端终态一致。
+      if (e.inputType === 'insertText' && typeof e.data === 'string' && e.data.length > 0) {
+        if (settleTimerRef.current) {
+          clearTimeout(settleTimerRef.current);
+          settleTimerRef.current = null;
+        }
+        commitOne({ kind: 'insert', text: e.data });
+        Promise.resolve().then(syncTextareaToBuffer);
+        return;
+      }
+
       if (e.inputType !== 'insertReplacementText') return;
       const replaceText = (e.dataTransfer?.getData('text/plain')) ?? e.data ?? '';
       const ranges = (e as InputEvent & { getTargetRanges?: () => StaticRange[] })

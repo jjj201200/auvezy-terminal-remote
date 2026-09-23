@@ -74,12 +74,13 @@ describe('DirectInputCapture - 退格限速与保序', () => {
     keyDown('Backspace');
     keyDown('Backspace'); // pending
     // 模拟输入路径 commit insert(guard 80ms 防抖后的 onCommit)
-    // 直接经由 beforeinput insertText → input 事件 → 防抖 commit
     const ta = container.querySelector('textarea')!;
     ta.value = ta.value + 'a';
     ta.dispatchEvent(new Event('input', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(80 + 5);
-    // 顺序:\x7f(立即) → \x7f(flush 出的 pending) → 'a'
+    // 时间线:60ms 冷却窗发挂起的 \x7f 并续窗;80ms 防抖 diff commit 'a'
+    // (进第二冷却窗);120ms 窗末发 'a'——推进到 125ms 覆盖全程
+    await vi.advanceTimersByTimeAsync(125);
+    // 顺序:\x7f(立即) → \x7f(窗口末) → 'a'(下一窗口末)
     expect(sent).toEqual(['\x7f', '\x7f', 'a']);
   });
 });

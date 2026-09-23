@@ -72,10 +72,11 @@ function mountGuard(
 }
 
 /** dispatch beforeinput(InputEvent);jsdom 无 InputEvent 时退回 Event + 手挂属性 */
-function dispatchBeforeInput(el: HTMLTextAreaElement, inputType: string): void {
+function dispatchBeforeInput(el: HTMLTextAreaElement, inputType: string, data?: string): void {
   const Ev = typeof InputEvent !== 'undefined' ? InputEvent : Event;
   const e = new Ev('beforeinput', { bubbles: true, cancelable: true });
   Object.defineProperty(e, 'inputType', { value: inputType });
+  if (data !== undefined) Object.defineProperty(e, 'data', { value: data });
   el.dispatchEvent(e);
 }
 
@@ -131,6 +132,31 @@ describe('useTextareaInputGuard - stream 哨兵语义', () => {
     h.clear();
     expect(h.textarea.value).toBe(STREAM_SENTINEL);
     expect(h.getBuffer()).toBe(STREAM_SENTINEL);
+  });
+
+  it('字符插入即时通道:beforeinput(insertText) 同步 commit,不等防抖', async () => {
+    const onCommit = vi.fn();
+    h = mountGuard('stream', onCommit);
+    dispatchBeforeInput(h.textarea, 'insertText', 'a');
+    // 同步:此刻(未过 80ms 防抖)就应 commit——长按字符即时生效的关键
+    expect(onCommit).toHaveBeenCalledWith({ kind: 'insert', text: 'a' }, expect.anything());
+    // 微任务写回哨兵:随后 input 事件的防抖 diff 无差异,不双发
+    await Promise.resolve();
+    expect(h.textarea.value).toBe(STREAM_SENTINEL);
+    h.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(80 + 5);
+    const inserts = onCommit.mock.calls.filter(([i]) => i.kind === 'insert');
+    expect(inserts).toHaveLength(1);
+  });
+
+  it('长按字符连续插入:每键同步 commit(即时性)', () => {
+    const onCommit = vi.fn();
+    h = mountGuard('stream', onCommit);
+    dispatchBeforeInput(h.textarea, 'insertText', 'a');
+    dispatchBeforeInput(h.textarea, 'insertText', 'a');
+    dispatchBeforeInput(h.textarea, 'insertText', 'a');
+    const inserts = onCommit.mock.calls.filter(([i]) => i.kind === 'insert');
+    expect(inserts).toHaveLength(3); // 不再攒到松手
   });
 });
 

@@ -30,7 +30,7 @@ import {
   type CompositionEvent,
 } from 'react';
 import { useTextareaInputGuard, type InputIntent } from '../../hooks/useTextareaInputGuard.js';
-import { createBackspaceThrottler, type BackspaceThrottler } from '../../utils/backspace-throttle.js';
+import { createInputThrottler, type InputThrottler } from '../../utils/input-throttle.js';
 import s from './DirectInputCapture.module.scss';
 
 export interface DirectInputCaptureProps {
@@ -84,17 +84,19 @@ export const DirectInputCapture = forwardRef<HTMLTextAreaElement, DirectInputCap
     const onSendRef = useRef(onSend);
     onSendRef.current = onSend;
 
-    // 退格限速器:键盘 repeat(20-30/s)压到 ~16/s,窗口内合并、首键即时
-    const throttlerRef = useRef<BackspaceThrottler | null>(null);
+    // 输入限速器:键盘 repeat(20-30/s)压到 ~16/s,窗口内合并(退格/文本
+    // 拼接保序)、首键即时。insert 与 delete 统一走它——长按字符与长按
+    // 退格同款手感
+    const throttlerRef = useRef<InputThrottler | null>(null);
     if (throttlerRef.current === null) {
-      throttlerRef.current = createBackspaceThrottler((d) => onSendRef.current(d), 60);
+      throttlerRef.current = createInputThrottler((d) => onSendRef.current(d), 60);
     }
     const throttler = throttlerRef.current;
 
-    // 卸载丢弃挂起,防迟到的 \x7f
+    // 卸载丢弃挂起,防迟到的字节
     useEffect(() => () => throttler.cancel(), [throttler]);
 
-    /** 发送任何非退格字节前冲刷挂起的退格,保证 \x7f 先于后续文本 */
+    /** 发送任何不走限速的字节前(控制键/IME 上屏)冲刷挂起,保序 */
     const sendOrdered = useCallback(
       (data: string): void => {
         throttler.flush();
@@ -106,19 +108,17 @@ export const DirectInputCapture = forwardRef<HTMLTextAreaElement, DirectInputCap
     const onCommit = useCallback((intent: InputIntent): void => {
       switch (intent.kind) {
         case 'insert':
-          sendOrdered(intent.text);
+          throttler.push(intent.text);
           break;
         case 'delete':
-          // 限速通道:数量守恒,由 throttler 决定立即或合并
-          throttler.push(intent.count);
+          throttler.push('\x7f'.repeat(intent.count));
           break;
         case 'replace':
-          // 低频矫正路径:delete 成分同样走限速保序
-          throttler.push(intent.deleteCount);
-          sendOrdered(intent.insert);
+          // delete 成分与插入一体拼接,顺序天然保序
+          throttler.push('\x7f'.repeat(intent.deleteCount) + intent.insert);
           break;
       }
-    }, [throttler, sendOrdered]);
+    }, [throttler]);
 
     const { flushPending, clear } = useTextareaInputGuard(elRef, {
       mode: 'stream',
@@ -135,7 +135,7 @@ export const DirectInputCapture = forwardRef<HTMLTextAreaElement, DirectInputCap
           flushPending();
           if (e.key === 'Backspace') {
             // 与 beforeinput 路径共用同一限速通道:连按 repeat 同样合并
-            throttler.push(1);
+            throttler.push('\x7f');
           } else {
             sendOrdered(ctrlSeq);
           }
