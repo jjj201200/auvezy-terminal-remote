@@ -158,6 +158,54 @@ describe('useTextareaInputGuard - stream 哨兵语义', () => {
     const inserts = onCommit.mock.calls.filter(([i]) => i.kind === 'insert');
     expect(inserts).toHaveLength(3); // 不再攒到松手
   });
+
+  it('IME 回声去重:即时 commit 后 IME 异步把字符写回 textarea,flushDiff 不重复上报', async () => {
+    const onCommit = vi.fn();
+    h = mountGuard('stream', onCommit);
+    // 1. beforeinput 即时通道(commit ①)
+    dispatchBeforeInput(h.textarea, 'insertText', 'x');
+    // 2. 微任务先跑掉(sync 把 textarea 写回哨兵——这一步 jsdom 里会成功)
+    await Promise.resolve();
+    // 3. 模拟真机 IME 竞态:IME 的异步终态写入发生在微任务**之后**,
+    //    把哨兵+字符盖回 textarea(真机日志实证的行为)
+    h.textarea.value = STREAM_SENTINEL + 'x';
+    // 4. input 事件 + 防抖到期——flushDiff 不得再 commit 一次
+    h.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(80 + 5);
+    const inserts = onCommit.mock.calls.filter(([i]) => i.kind === 'insert');
+    expect(inserts).toHaveLength(1);
+    expect(h.textarea.value).toBe(STREAM_SENTINEL);
+  });
+
+  it('IME 回声去重:哨兵被 IME 完全覆盖丢失时,不误触哨兵丢失兜底(不误发 delete)', async () => {
+    const onCommit = vi.fn();
+    h = mountGuard('stream', onCommit);
+    dispatchBeforeInput(h.textarea, 'insertText', 'x');
+    await Promise.resolve();
+    // IME 终态连哨兵都覆盖掉(value 只剩 'x',不含哨兵)
+    h.textarea.value = 'x';
+    h.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(80 + 5);
+    const inserts = onCommit.mock.calls.filter(([i]) => i.kind === 'insert');
+    const deletes = onCommit.mock.calls.filter(([i]) => i.kind === 'delete');
+    expect(inserts).toHaveLength(1);
+    expect(deletes).toHaveLength(0);
+    expect(h.textarea.value).toBe(STREAM_SENTINEL);
+  });
+
+  it('IME 回声去重(退格):beforeinput 退格后 IME 终态覆盖,flushDiff 不二次 delete', async () => {
+    const onCommit = vi.fn();
+    h = mountGuard('stream', onCommit);
+    dispatchBeforeInput(h.textarea, 'deleteContentBackward');
+    await Promise.resolve();
+    // 模拟:浏览器/IME 把哨兵删掉(value='')
+    h.textarea.value = '';
+    h.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(80 + 5);
+    const deletes = onCommit.mock.calls.filter(([i]) => i.kind === 'delete');
+    expect(deletes).toHaveLength(1); // 仅 beforeinput 那一次
+    expect(h.textarea.value).toBe(STREAM_SENTINEL);
+  });
 });
 
 describe('useTextareaInputGuard - buffered 模式回归(哨兵不得泄漏)', () => {

@@ -98,6 +98,13 @@ export function useTextareaInputGuard(
   // hook truth：当前已 commit 的 buffer（textarea 应当显示的真值）。
   // stream 模式恒为哨兵（用户内容即发即清）；buffered 模式为草稿。
   const bufferRef = useRef<string>(mode === 'stream' ? STREAM_SENTINEL : '');
+  /**
+   * 即时通道回声队列：beforeinput 同步 commit 过、尚未被 flushDiff 消化的
+   * 序列。真机第三方 IME 的终态写入发生在我们的微任务写回**之后**（异步
+   * 竞态，日志实证），textarea 里的脏内容是已 commit 内容的回声——
+   * flushDiff 开头发现回声在途即整批丢弃并重置哨兵，不重复上报。
+   */
+  const echoRef = useRef('');
   // 防抖 timer
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -183,6 +190,16 @@ export function useTextareaInputGuard(
     // 也规范化成 ASCII space；随后剥离哨兵，把两边都投影到用户语义域
     // （哨兵不参与 diff，否则光标在哨兵前插入时哨兵会被当成内容发出）
     const actual = stripSentinel(el.value.replace(/[  ]/g, ' '));
+
+    // 回声去重:即时通道(beforeinput 同步 commit)在途时,textarea 的脏
+    // 内容全是已 commit 的回声(IME 异步终态覆盖了哨兵写回)——直接丢弃
+    // 重置,不做 diff、不触发哨兵丢失兜底(那会误发 delete)。纯 input
+    // 平台(不发 beforeinput)echo 恒空,防抖 diff 照常兜底。
+    if (echoRef.current.length > 0) {
+      echoRef.current = '';
+      syncTextareaToBuffer();
+      return;
+    }
 
     // 哨兵丢失 = 一次退格:某些平台/输入法退格不派发 beforeinput,只剩
     // input + 值变化——哨兵从在到不在就是用户按了退格的铁证,兜底 commit
@@ -376,6 +393,7 @@ export function useTextareaInputGuard(
         }));
         if (actualCount > 0) {
           commitOne({ kind: 'delete', count: actualCount });
+          echoRef.current += '\x7f'.repeat(actualCount);
         }
         // 等浏览器自己改完 textarea 后再 sync
         Promise.resolve().then(syncTextareaToBuffer);
@@ -395,6 +413,7 @@ export function useTextareaInputGuard(
           settleTimerRef.current = null;
         }
         commitOne({ kind: 'insert', text: e.data });
+        echoRef.current += e.data;
         Promise.resolve().then(syncTextareaToBuffer);
         return;
       }
@@ -419,10 +438,13 @@ export function useTextareaInputGuard(
       }));
       if (removeLen > 0 && replaceText.length > 0) {
         commitOne({ kind: 'replace', deleteCount: removeLen, insert: replaceText });
+        echoRef.current += '\x7f'.repeat(removeLen) + replaceText;
       } else if (removeLen > 0) {
         commitOne({ kind: 'delete', count: removeLen });
+        echoRef.current += '\x7f'.repeat(removeLen);
       } else if (replaceText.length > 0) {
         commitOne({ kind: 'insert', text: replaceText });
+        echoRef.current += replaceText;
       }
       // 等 input 事件结束后再 sync（让 iOS 自己改完 textarea，我们再覆盖）
       Promise.resolve().then(syncTextareaToBuffer);
