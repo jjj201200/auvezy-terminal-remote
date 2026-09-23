@@ -36,6 +36,24 @@ const POST_SMART_SET = new Set([
 /** 防抖窗口：等 iOS 智能键盘所有事件落地后才 diff commit */
 const SETTLE_MS = 80;
 
+/**
+ * stream 模式哨兵字符（ZWSP）：textarea 恒含 1 个哨兵而非空。
+ *
+ * 空 textarea 上 WebKit / iOS 第三方输入法的退格**不派发**
+ * beforeinput（无可删内容），\x7f 无从发出——手机退格键失效的根因。
+ * 哨兵让每次退格"有内容可删"，beforeinput(deleteContentBackward) 必触发；
+ * commit 后立即写回哨兵（微任务，必然先于下一次键盘事件）。
+ *
+ * 选 ZWSP(​)：不属于 \s（不参与 smart-punct 空白匹配）、不被 NBSP
+ * 规范化触及、视觉零宽度。
+ */
+export const STREAM_SENTINEL = '​';
+
+/** 剥离文本中所有哨兵字符（diff / commit 前把 textarea 值投影到用户语义域） */
+export function stripSentinel(text: string): string {
+  return text.split(STREAM_SENTINEL).join('');
+}
+
 export type InputIntent =
   | { kind: 'insert'; text: string }
   | { kind: 'delete'; count: number }
@@ -77,8 +95,9 @@ export function useTextareaInputGuard(
   const filterRef = useRef(opts.filter);
   filterRef.current = opts.filter;
 
-  // hook truth：当前已 commit 的 buffer（textarea 应当显示的真值）
-  const bufferRef = useRef('');
+  // hook truth：当前已 commit 的 buffer（textarea 应当显示的真值）。
+  // stream 模式恒为哨兵（用户内容即发即清）；buffered 模式为草稿。
+  const bufferRef = useRef<string>(mode === 'stream' ? STREAM_SENTINEL : '');
   // 防抖 timer
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -127,17 +146,17 @@ export function useTextareaInputGuard(
       }));
       onCommitRef.current(final, { buffer: bufferRef.current });
 
-      // stream 模式设计语义："commit 后立刻清空 buffer，textarea 始终空"。
-      // 此前该清空未实现（仅 composition 路径的 clear() 生效），英文经
-      // flushDiff commit 后一直累积在 textarea——退格时 beforeinput 的微任务
-      // sync 与浏览器默认删除在 iOS WebKit 上存在执行顺序竞争，textarea
-      // 终态与 buffer 错位，防抖 flushDiff 会把差值再 commit 一次 delete，
-      // 表现为"英文退格删 2 个字符"。清空后英文与中文一致走"空 textarea
-      // 退格"的单发路径（beforeinput 触发一次、input 无变化不 diff）。
+      // stream 模式设计语义："commit 后立刻重置回哨兵，textarea 恒含哨兵"。
+      // 0.18 前是清空为 ''——空 textarea 上 WebKit / iOS 第三方输入法的退格
+      // 不派发 beforeinput（无可删内容），手机退格键失效；改为哨兵常驻后
+      // 每次退格都有内容可删，beforeinput 必触发。写回发生在微任务路径
+      // （syncTextareaToBuffer），必然先于下一次键盘事件，连按不丢键。
       if (mode === 'stream') {
-        bufferRef.current = '';
+        bufferRef.current = STREAM_SENTINEL;
         const el = elRef.current;
-        if (el && el.value !== '') el.value = '';
+        if (el && stripSentinel(el.value) !== '' || el?.value !== STREAM_SENTINEL) {
+          if (el) el.value = STREAM_SENTINEL;
+        }
       }
     },
     [mode],
@@ -157,12 +176,27 @@ export function useTextareaInputGuard(
   const flushDiff = useCallback((): void => {
     const el = elRef.current;
     if (!el) return;
-    const prev = bufferRef.current;
+    const prev = stripSentinel(bufferRef.current);
     // iOS 在某些场景下把 textarea 中已有的 ASCII space (32) 自动替换为 NBSP
     // (160) / narrow NBSP (8239)，导致 LCP diff 在等价空格位置上错位（prev
     // 已被 filter 规范化成 ASCII space）。在 diff 入口先把 actual 中的 NBSP
-    // 也规范化成 ASCII space，让两边可比
-    const actual = el.value.replace(/[  ]/g, ' ');
+    // 也规范化成 ASCII space；随后剥离哨兵，把两边都投影到用户语义域
+    // （哨兵不参与 diff，否则光标在哨兵前插入时哨兵会被当成内容发出）
+    const actual = stripSentinel(el.value.replace(/[  ]/g, ' '));
+
+    // 哨兵丢失 = 一次退格:某些平台/输入法退格不派发 beforeinput,只剩
+    // input + 值变化——哨兵从在到不在就是用户按了退格的铁证,兜底 commit
+    // delete(1)。有 beforeinput 的平台不会双发:该路径同步 commit 后微任务
+    // 立即写回哨兵,80ms 防抖到期时哨兵已在位,includes 判定不命中。
+    if (
+      mode === 'stream' &&
+      bufferRef.current === STREAM_SENTINEL &&
+      !el.value.includes(STREAM_SENTINEL)
+    ) {
+      commitOne({ kind: 'delete', count: 1 });
+      return; // commitOne(stream) 已重置哨兵并写回 textarea
+    }
+
     if (actual === prev) return;
 
     const prefix = commonPrefixLen(prev, actual);
@@ -272,6 +306,16 @@ export function useTextareaInputGuard(
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
+
+    // stream 模式初始挂载即置哨兵（textarea defaultValue 是空,必须显式写）
+    if (mode === 'stream' && el.value !== STREAM_SENTINEL) {
+      el.value = STREAM_SENTINEL;
+      try {
+        el.setSelectionRange(el.value.length, el.value.length);
+      } catch {
+        /* iOS 偶发 */
+      }
+    }
 
     const handleInput = (e: Event): void => {
       if (composingRef.current) return;
@@ -404,9 +448,10 @@ export function useTextareaInputGuard(
       clearTimeout(settleTimerRef.current);
       settleTimerRef.current = null;
     }
-    bufferRef.current = '';
+    // stream 模式恢复哨兵（而非空）——空 textarea 退格无 beforeinput
+    bufferRef.current = mode === 'stream' ? STREAM_SENTINEL : '';
     syncTextareaToBuffer();
-  }, [syncTextareaToBuffer]);
+  }, [mode, syncTextareaToBuffer]);
 
   return { getBuffer, setBuffer, clear, flushPending: flushNow };
 }

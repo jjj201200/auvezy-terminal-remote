@@ -24,19 +24,28 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useRef,
   type KeyboardEvent,
   type CompositionEvent,
 } from 'react';
 import { useTextareaInputGuard, type InputIntent } from '../../hooks/useTextareaInputGuard.js';
+import { createBackspaceThrottler, type BackspaceThrottler } from '../../utils/backspace-throttle.js';
 import s from './DirectInputCapture.module.scss';
 
 export interface DirectInputCaptureProps {
   onSend: (data: string) => void;
 }
 
-/** 控制键 → PTY 转义序列映射 */
-function controlKeyToSequence(
+/**
+ * 控制键 → PTY 转义序列映射
+ *
+ * Backspace 的 \x7f 是 0.18 补上的兜底通道:stream 模式 textarea 恒哨兵化
+ * 后 beforeinput(deleteContentBackward) 已是主通道,但发 keydown 的平台
+ * (Android / 桌面硬件键盘)多一层保险;handler 统一 preventDefault,不会
+ * 与 beforeinput 双发。
+ */
+export function controlKeyToSequence(
   key: string,
   ctrl: boolean,
   alt: boolean,
@@ -52,6 +61,7 @@ function controlKeyToSequence(
     case 'Enter':       return '\r';
     case 'Tab':         return '\t';
     case 'Escape':      return '\x1b';
+    case 'Backspace':   return '\x7f';
     case 'ArrowUp':     return '\x1b[A';
     case 'ArrowDown':   return '\x1b[B';
     case 'ArrowRight':  return '\x1b[C';
@@ -70,19 +80,45 @@ export const DirectInputCapture = forwardRef<HTMLTextAreaElement, DirectInputCap
     const elRef = useRef<HTMLTextAreaElement | null>(null);
     const composingRef = useRef(false);
 
+    // onSend prop 引用可能随渲染变化,throttler 内部经 ref 取最新值
+    const onSendRef = useRef(onSend);
+    onSendRef.current = onSend;
+
+    // 退格限速器:键盘 repeat(20-30/s)压到 ~16/s,窗口内合并、首键即时
+    const throttlerRef = useRef<BackspaceThrottler | null>(null);
+    if (throttlerRef.current === null) {
+      throttlerRef.current = createBackspaceThrottler((d) => onSendRef.current(d), 60);
+    }
+    const throttler = throttlerRef.current;
+
+    // 卸载丢弃挂起,防迟到的 \x7f
+    useEffect(() => () => throttler.cancel(), [throttler]);
+
+    /** 发送任何非退格字节前冲刷挂起的退格,保证 \x7f 先于后续文本 */
+    const sendOrdered = useCallback(
+      (data: string): void => {
+        throttler.flush();
+        onSend(data);
+      },
+      [onSend, throttler],
+    );
+
     const onCommit = useCallback((intent: InputIntent): void => {
       switch (intent.kind) {
         case 'insert':
-          onSend(intent.text);
+          sendOrdered(intent.text);
           break;
         case 'delete':
-          onSend('\x7f'.repeat(intent.count));
+          // 限速通道:数量守恒,由 throttler 决定立即或合并
+          throttler.push(intent.count);
           break;
         case 'replace':
-          onSend('\x7f'.repeat(intent.deleteCount) + intent.insert);
+          // 低频矫正路径:delete 成分同样走限速保序
+          throttler.push(intent.deleteCount);
+          sendOrdered(intent.insert);
           break;
       }
-    }, [onSend]);
+    }, [throttler, sendOrdered]);
 
     const { flushPending, clear } = useTextareaInputGuard(elRef, {
       mode: 'stream',
@@ -97,14 +133,19 @@ export const DirectInputCapture = forwardRef<HTMLTextAreaElement, DirectInputCap
         if (ctrlSeq !== null) {
           e.preventDefault();
           flushPending();
-          onSend(ctrlSeq);
+          if (e.key === 'Backspace') {
+            // 与 beforeinput 路径共用同一限速通道:连按 repeat 同样合并
+            throttler.push(1);
+          } else {
+            sendOrdered(ctrlSeq);
+          }
           if (e.key === 'Enter') {
             // Enter 提交后清空一切（防止 textarea 累积无关文本）
             clear();
           }
         }
       },
-      [onSend, flushPending, clear],
+      [sendOrdered, flushPending, clear, throttler],
     );
 
     const onCompositionStart = useCallback((): void => {
@@ -115,10 +156,10 @@ export const DirectInputCapture = forwardRef<HTMLTextAreaElement, DirectInputCap
       (e: CompositionEvent<HTMLTextAreaElement>): void => {
         composingRef.current = false;
         const data = e.data;
-        if (data && data.length > 0) onSend(data);
+        if (data && data.length > 0) sendOrdered(data);
         clear();
       },
-      [onSend, clear],
+      [sendOrdered, clear],
     );
 
     const setRef = useCallback(
