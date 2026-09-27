@@ -707,7 +707,6 @@ export interface Messages {
   share: {
     title: string;
     intro: string;
-    devHint: string; // 模板：dev 代理 :{{win}}，分享链接指向真后端 :{{real}}
     sectionLabel: string;
     refreshTooltip: string;
     loading: string;

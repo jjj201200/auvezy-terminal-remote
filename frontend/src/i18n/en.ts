@@ -607,7 +607,6 @@ export const en: Messages = {
   share: {
     title: 'Share this instance',
     intro: 'Scan or copy the link to log in from another device',
-    devHint: 'Page on dev proxy :{{win}}, share link points to real backend :{{real}} (use this on phone).',
     sectionLabel: 'Choose endpoint',
     refreshTooltip: 'Refresh endpoints',
     loading: 'Loading endpoints…',

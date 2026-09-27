@@ -9,6 +9,10 @@
  *
  * URL 形态：http://<host>:<port>/?token=<hex>（IPv6 自动加方括号）
  *
+ * 端口跟随浏览器当前访问入口（window.location.port）：生产=broker 端口，
+ * dev=vite 端口——分享出去的链接永远是"打开就能用的入口"，而不是后端
+ * 自身监听端口（dev broker 只绑 loopback 且无 frontend-dist，直连打不开）。
+ *
  * 安全：token 默认隐藏 ••••；用户主动点"显示"才以明文展示在输入框
  */
 
@@ -80,24 +84,22 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
   const selected: ShareEndpoint | null =
     selectedIdx >= 0 && selectedIdx < endpoints.length ? endpoints[selectedIdx]! : null;
 
-  // dev 模式提示：webapp 跑在 vite dev (5173)，分享链接是真后端端口（3000）
-  // 让开发者一眼看明白「为什么端口不一样」，不至于以为是 bug
-  const devPortHint = useMemo(() => {
-    if (!selected) return null;
-    const winPort = Number(window.location.port || (window.location.protocol === 'https:' ? 443 : 80));
-    if (winPort === selected.port) return null;
-    return { winPort, realPort: selected.port };
-  }, [selected]);
+  // 浏览器实际访问端口：分享链接与入口列表都跟随它（见文件头注释）。
+  // 非显式端口时按协议补默认值（443/80）
+  const winPort = useMemo(
+    () => window.location.port || (window.location.protocol === 'https:' ? '443' : '80'),
+    [],
+  );
 
   // 完整 URL（host + token），IPv6 自动加方括号
   const fullUrl = useMemo(() => {
     if (!selected) return '';
     const token = loadToken();
     const hostPart = selected.kind === 'ipv6' ? `[${selected.host}]` : selected.host;
-    const base = `http://${hostPart}:${selected.port}/`;
+    const base = `http://${hostPart}:${winPort}/`;
     if (!token) return base;
     return `${base}?token=${encodeURIComponent(token)}`;
-  }, [selected]);
+  }, [selected, winPort]);
 
   // 隐藏态展示用：把 token 替换成 •••••• 但保留 URL 形态
   const displayUrl = useMemo(() => {
@@ -180,12 +182,6 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
       <div className={s.body}>
         <p className={s.intro}>{t('share.intro')}</p>
 
-        {devPortHint && (
-          <div className={s.devHint}>
-            {t('share.devHint', { win: devPortHint.winPort, real: devPortHint.realPort })}
-          </div>
-        )}
-
         {/* 入口选择 */}
         <div className={s.endpointSection}>
           <div className={s.sectionLabelRow}>
@@ -218,7 +214,7 @@ export function ShareSheet({ open, onOpenChange }: ShareSheetProps): JSX.Element
                   >
                     <span className={s.endpointKind}>{t(KIND_KEY[ep.kind])}</span>
                     <span className={s.endpointHost}>
-                      {ep.host}:{ep.port}
+                      {ep.host}:{winPort}
                     </span>
                     {ep.interface && (
                       <span className={s.endpointIface}>{ep.interface}</span>

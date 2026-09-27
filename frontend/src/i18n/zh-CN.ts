@@ -593,7 +593,6 @@ export const zhCN: Messages = {
   share: {
     title: '分享此实例',
     intro: '扫码或复制链接，让其它设备直接登录此实例',
-    devHint: '当前页面在 dev proxy :{{win}}，分享链接指向 backend :{{real}}（手机扫码用这个）。',
     sectionLabel: '选择入口',
     refreshTooltip: '刷新入口列表',
     loading: '加载入口…',
