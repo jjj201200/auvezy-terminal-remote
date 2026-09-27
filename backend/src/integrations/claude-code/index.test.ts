@@ -72,9 +72,16 @@ describe('ClaudeCodeIntegration.prepareSpawn - env 注入通道', () => {
     const settings = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf-8')) as {
       hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
     };
-    const cmd = settings.hooks['PreToolUse'][0].hooks[0].command;
-    expect(cmd).toContain('${ATR_HOOK_PORT:-1}');
-    expect(cmd).not.toMatch(/127\.0\.0\.1:\d{4,5}\/api\/hook/);
+    // 用户本机已有 hooks(如 claude-sound)会透传合并进镜像,ATR 注入项未必在
+    // 数组 [0]——在整个 PreToolUse 里找 ATR 注入项断言,不依赖顺序
+    const allCmds = (settings.hooks['PreToolUse'] ?? []).flatMap((g) =>
+      g.hooks.map((h) => h.command),
+    );
+    expect(allCmds.some((c) => c.includes('${ATR_HOOK_PORT:-1}'))).toBe(true);
+    // 任何 hook 都不得硬编码实例端口(镜像内容与实例无关,这是共享的前提)
+    for (const c of allCmds) {
+      expect(c).not.toMatch(/127\.0\.0\.1:\d{4,5}\/api\/hook/);
+    }
   });
 
   it('同项目不同端口共享同一镜像(目录名不含端口)', () => {
