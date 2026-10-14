@@ -8,6 +8,7 @@ import {
   DEFAULT_COMMANDS,
   DEFAULT_INTEGRATIONS,
   SHORTCUT_GROUPS,
+  COMMAND_GROUPS,
   findShortcutGroup,
   ensureDefaultUserConfig,
 } from './defaults.js';
@@ -15,7 +16,16 @@ import {
 describe('SHORTCUT_GROUPS', () => {
   it('包含全部预期分组', () => {
     const ids = SHORTCUT_GROUPS.map((g) => g.id);
-    expect(ids).toEqual(['common', 'editing', 'readline', 'vim', 'tmux', 'signals']);
+    expect(ids).toEqual([
+      'common',
+      'editing',
+      'readline',
+      'vim',
+      'tmux',
+      'signals',
+      'claude-code',
+      'codex',
+    ]);
   });
 
   it('common 组所有项默认 enabled=true', () => {
@@ -108,12 +118,15 @@ describe('ensureDefaultUserConfig', () => {
     expect(r.commands).toEqual(DEFAULT_COMMANDS);
   });
 
-  it('用户值优先（新版有 group 字段）', () => {
+  it('用户值优先（新版有 group 字段；缺失的内置条目追加到尾部）', () => {
     const custom = {
       shortcuts: [{ label: 'X', data: 'x', enabled: true, group: 'custom' as const }],
     };
     const r = ensureDefaultUserConfig(custom);
-    expect(r.shortcuts).toEqual(custom.shortcuts);
+    // 用户条目原样保留在最前
+    expect(r.shortcuts[0]).toEqual(custom.shortcuts[0]);
+    // 内置默认条目（用户列表缺失）全部追加到尾部
+    expect(r.shortcuts).toHaveLength(1 + DEFAULT_SHORTCUTS.length);
     // commands 字段缺失 → 默认
     expect(r.commands).toEqual(DEFAULT_COMMANDS);
   });
@@ -199,15 +212,118 @@ describe('ensureDefaultUserConfig：旧版直接重置', () => {
     expect(r.shortcuts).toEqual(DEFAULT_SHORTCUTS);
   });
 
-  it('全部有 group 字段 → 视为新版，原样保留', () => {
+  it('全部有 group 字段 → 视为新版，原样保留 + 条目级合并补缺', () => {
     const newConfig = {
       shortcuts: [
         { label: 'Esc', data: '\x1b', enabled: true, group: 'common' as const },
       ],
     };
     const r = ensureDefaultUserConfig(newConfig);
-    expect(r.shortcuts).toHaveLength(1);
+    // 用户条目第一，其余内置缺失条目追加
     expect(r.shortcuts[0]?.label).toBe('Esc');
+    expect(r.shortcuts).toHaveLength(DEFAULT_SHORTCUTS.length);
+  });
+});
+
+describe('ensureDefaultUserConfig：条目级合并（0.19 起）', () => {
+  it('老配置自动获得新增默认分组（claude / codex / claude-code / codex）', () => {
+    // 模拟 0.18 老用户：只有旧 6 组快捷键 + 旧 7 组命令
+    const legacyShortcuts = DEFAULT_SHORTCUTS.filter((s) =>
+      ['common', 'editing', 'readline', 'vim', 'tmux', 'signals'].includes(s.group ?? ''),
+    );
+    const legacyCommands = DEFAULT_COMMANDS.filter((c) =>
+      ['session', 'context', 'agent', 'workflow', 'auth', 'help', 'tools'].includes(c.group ?? ''),
+    );
+    expect(legacyShortcuts.length).toBeLessThan(DEFAULT_SHORTCUTS.length);
+    expect(legacyCommands.length).toBeLessThan(DEFAULT_COMMANDS.length);
+
+    const r = ensureDefaultUserConfig({
+      shortcuts: legacyShortcuts,
+      commands: legacyCommands,
+    });
+    // 老条目原样在前，新组条目全部补齐
+    expect(r.shortcuts).toHaveLength(DEFAULT_SHORTCUTS.length);
+    expect(r.commands).toHaveLength(DEFAULT_COMMANDS.length);
+    expect(r.shortcuts.some((s) => s.group === 'claude-code')).toBe(true);
+    expect(r.shortcuts.some((s) => s.group === 'codex')).toBe(true);
+    expect(r.commands.some((c) => c.group === 'claude')).toBe(true);
+    expect(r.commands.some((c) => c.group === 'codex')).toBe(true);
+  });
+
+  it('幂等：合并结果再过一次 ensure 不会重复追加', () => {
+    const once = ensureDefaultUserConfig({
+      shortcuts: [{ label: 'X', data: 'x', enabled: true, group: 'custom' as const }],
+    });
+    const twice = ensureDefaultUserConfig({ shortcuts: once.shortcuts });
+    expect(twice.shortcuts).toEqual(once.shortcuts);
+  });
+
+  it('用户已删除的内置条目会复活（键缺失即补），但不会重复', () => {
+    const removed = DEFAULT_SHORTCUTS.filter((s) => s.data !== '\x1b[Z'); // 删掉 S-Tab
+    const r = ensureDefaultUserConfig({ shortcuts: removed });
+    const stabCount = r.shortcuts.filter((s) => s.data === '\x1b[Z').length;
+    expect(stabCount).toBe(1);
+  });
+
+  it('用户改过 enabled / label 的同键条目不被覆盖', () => {
+    const edited = DEFAULT_SHORTCUTS.map((s) =>
+      s.data === '\x1b' && s.group === 'common'
+        ? { ...s, label: '我的Esc', enabled: false }
+        : s,
+    );
+    const r = ensureDefaultUserConfig({ shortcuts: edited });
+    const esc = r.shortcuts.find((s) => s.group === 'common' && s.data === '\x1b');
+    expect(esc?.label).toBe('我的Esc');
+    expect(esc?.enabled).toBe(false);
+  });
+});
+
+describe('claude / codex 默认分组', () => {
+  it('四个新分组所有条目默认 enabled=false（用户自行启用）', () => {
+    for (const id of ['claude-code', 'codex'] as const) {
+      const g = SHORTCUT_GROUPS.find((x) => x.id === id);
+      expect(g, id).toBeDefined();
+      for (const item of g!.items) expect(item.enabled, `${id}/${item.label}`).toBe(false);
+    }
+    for (const id of ['claude', 'codex'] as const) {
+      const g = COMMAND_GROUPS.find((x) => x.id === id);
+      expect(g, id).toBeDefined();
+      for (const item of g!.items) expect(item.enabled, `${id}/${item.label}`).toBe(false);
+    }
+  });
+
+  it('claude 命令组按常用度排序：前 5 条是会话类高频命令', () => {
+    const g = COMMAND_GROUPS.find((x) => x.id === 'claude')!;
+    const first5 = g.items.slice(0, 5).map((c) => c.command);
+    expect(first5).toEqual(['/clear', '/compact', '/resume', '/exit', '/rewind']);
+  });
+
+  it('codex 命令组前 3 条是 /clear /new /resume', () => {
+    const g = COMMAND_GROUPS.find((x) => x.id === 'codex')!;
+    const first3 = g.items.slice(0, 3).map((c) => c.command);
+    expect(first3).toEqual(['/clear', '/new', '/resume']);
+  });
+
+  it('新分组条目数量达到"全集"量级（数据完整性哨兵）', () => {
+    const claudeCmds = COMMAND_GROUPS.find((x) => x.id === 'claude')!.items;
+    const codexCmds = COMMAND_GROUPS.find((x) => x.id === 'codex')!.items;
+    expect(claudeCmds.length).toBeGreaterThanOrEqual(100);
+    expect(codexCmds.length).toBeGreaterThanOrEqual(45);
+  });
+
+  it('claude / codex 命令组内 command 无重复', () => {
+    for (const id of ['claude', 'codex'] as const) {
+      const cmds = COMMAND_GROUPS.find((x) => x.id === id)!.items.map((c) => c.command);
+      expect(new Set(cmds).size, id).toBe(cmds.length);
+    }
+  });
+
+  it('废弃命令已从默认常量移除（/vim /pr_comments；/bashes 已更名 /tasks）', () => {
+    const allCmds = DEFAULT_COMMANDS.map((c) => c.command);
+    expect(allCmds).not.toContain('/vim ');
+    expect(allCmds).not.toContain('/pr_comments');
+    expect(allCmds).not.toContain('/bashes');
+    expect(allCmds).toContain('/tasks');
   });
 });
 
