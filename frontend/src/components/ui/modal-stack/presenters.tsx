@@ -197,10 +197,48 @@ export const useSharePresenter = makeSheetPresenter<ShareSheetProps>(
   { kind: 'share' },
 );
 
-export const useFileBrowserPresenter = makeSheetPresenter<FileBrowserSheetProps>(
-  FileBrowserSheet,
-  { kind: 'file-browser' },
-);
+/**
+ * FileBrowserSheet presenter — 自定义实现(不走 makeSheetPresenter):
+ *
+ *  - entry 设 keepAlive:关闭播完退场动画后转 hidden 休眠(组件不卸载,目录/
+ *    搜索/预览栈等全部 state 保留),再次 present 同实例 → bringToTop 复活
+ *    接着上次看;不同实例 → push 新 entry(该实例的旧会话若还 hidden 留在
+ *    栈里,切回该实例再打开仍可恢复;每实例最多一份,总量有界)
+ *  - meta 带 instanceId 供复用查找
+ *  - 打开时的"重置到根目录"行为由 FileBrowserSheet 的 mount 初始态天然提供
+ *    (复用路径组件从未卸载,不重置 —— 正是需求要的"接着看")
+ */
+export function useFileBrowserPresenter(): (
+  args: PresenterArgs<WithoutOpen<FileBrowserSheetProps>>,
+) => string {
+  const stack = useModalStack();
+  return useCallback(
+    (args) => {
+      const { onClosed, ...rest } = args;
+      // 复用:hidden 或活跃的同实例 entry → bringToTop(hidden 时兼复活)
+      const existingId = stack.find((m) => m?.['modalKind'] === 'file-browser' && m?.['instanceId'] === rest.instanceId);
+      if (existingId) {
+        stack.bringToTop(existingId);
+        return existingId;
+      }
+      return stack.push({
+        kind: 'file-browser',
+        meta: { modalKind: 'file-browser', instanceId: rest.instanceId },
+        keepAlive: true,
+        debugLabel: `file-browser:${rest.instanceId}`,
+        onClosed,
+        render: (ctx) => (
+          <FileBrowserSheet
+            {...(rest as unknown as FileBrowserSheetProps)}
+            open={ctx.isOpen}
+            onOpenChange={(next: boolean) => { if (!next) ctx.close(); }}
+          />
+        ),
+      });
+    },
+    [stack],
+  );
+}
 
 // kind: 单例语义(文件列表点不同文件 = 替换),group: 批量语义(与 pusher 同组,
 // "全部关闭"一键清这两条入口产生的所有 preview)
@@ -223,6 +261,7 @@ export function useFilePreviewPresenter(): (
         kind: 'file-preview',
         group: 'file-preview',
         meta: { instanceId, path: target.path, name: target.name },
+        keepAlive: true,
         debugLabel: `file-preview:${target.path}`,
         onClosed,
         render: (ctx) => (
@@ -290,6 +329,7 @@ export function useFilePreviewPusher(): (args: FilePreviewPusherArgs) => string 
       return stack.push({
         group: 'file-preview',
         meta: { instanceId, path: target.path, name: target.name },
+        keepAlive: true,
         debugLabel: `file-preview:${target.path}`,
         onClosed,
         render: (ctx) => (

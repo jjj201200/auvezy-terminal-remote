@@ -41,8 +41,13 @@ export interface ModalStackHandle {
    *
    * 用于"环检测":wikilink 跳到栈中已存在的文件时,把那层提到顶而非再 push,
    * 避免 A→B→A→B 死循环式叠加。
+   *
+   * keepAlive entry 被 hide 后,bringToTop 同时是"复活"操作:清掉 hidden 标记
+   * 并提到顶(组件从未卸载,state 原样恢复)。
    */
   bringToTop: (id: string) => void;
+  /** 指定 entry 当前是否处于 hidden(keepAlive 关闭后)状态 */
+  isHidden: (id: string) => boolean;
   /**
    * 按 meta 谓词查找首个匹配的 entry,返回 id;无匹配返回 undefined。
    * 主要供"已存在则 bringToTop,否则 push"的环检测用。
@@ -106,6 +111,14 @@ export interface ModalEntryInput {
    *  - 恢复触发按钮的焦点
    */
   onClosed?: () => void;
+  /**
+   * 关闭时保活:退场动画播完后不从数组移除,转为 hidden(层 display:none,
+   * 组件保持挂载,state/scrollTop 全部保留)。bringToTop(id) 可复活。
+   *
+   * 用途:文件浏览器等"关闭后重开要接着上次看"的会话型 modal。onClosed
+   * 在转 hidden 时同样触发(视作"本次会话结束")。
+   */
+  keepAlive?: boolean;
   /** debug 标签 */
   debugLabel?: string;
 }
@@ -121,6 +134,14 @@ export interface ModalEntry extends Required<Pick<ModalEntryInput, 'render'>> {
   debugLabel: string | undefined;
   /** 是否正在退场（动画中，等 onClosed 触发后从数组里移除） */
   closing: boolean;
+  /**
+   * keepAlive entry 关闭后的休眠态:层 display:none、不参与 topRank/isTop/
+   * esc/groupSize 计算,但组件仍挂载(React key 不变)。
+   * bringToTop(id) 清除此标记复活。非 keepAlive entry 恒为 false。
+   */
+  hidden: boolean;
+  /** 关闭时保活(见 ModalEntryInput.keepAlive);normalize 时固化 */
+  keepAlive: boolean;
   /**
    * 单调递增的"激活序号",决定 z-index 与 isTop:
    *  - z-index = BASE + topRank(显式分层,替代之前"靠 DOM 顺序天然分层"的策略)

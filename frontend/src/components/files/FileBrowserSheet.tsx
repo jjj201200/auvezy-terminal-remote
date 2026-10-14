@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
-import { ErrorCode, type FileEntry, type SearchEvent } from 'auvezy-terminal-remote-shared';
+import { ErrorCode, DEFAULT_RECENT_FILES_LIMIT, type FileEntry, type SearchEvent } from 'auvezy-terminal-remote-shared';
 import { Sheet } from '../ui/Sheet.js';
 import { BrailleSpinner } from '../ui/BrailleSpinner.js';
 import { useT } from '../../i18n/i18n-context.js';
@@ -13,8 +13,10 @@ import {
 import { Breadcrumb } from './Breadcrumb.js';
 import { FileList } from './FileList.js';
 import type { PreviewTarget } from './PreviewPane.js';
+import { RecentFilesMenu } from './RecentFilesMenu.js';
 import { SearchBox } from './SearchBox.js';
 import { SearchResults } from './SearchResults.js';
+import { pushRecentFile } from '../../services/recent-files.js';
 import { translateFileErr } from './translate-err.js';
 import s from './FileBrowserSheet.module.scss';
 
@@ -24,9 +26,11 @@ export interface FileBrowserSheetProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
   instanceId: string;
+  /** 最近文件记录上限(0=不记录且隐藏按钮,-1=不限);缺省按 20 */
+  recentFilesLimit?: number;
 }
 
-export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowserSheetProps): JSX.Element {
+export function FileBrowserSheet({ open, onOpenChange, instanceId, recentFilesLimit }: FileBrowserSheetProps): JSX.Element {
   const t = useT();
   const files = useFiles(instanceId);
   const presentFilePreview = useFilePreviewPresenter();
@@ -55,12 +59,10 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   const [searchTruncated, setSearchTruncated] = useState(false);
   const handleRef = useRef<SearchHandle | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setPath(undefined);
-    setSubmittedQ('');
-    setSearchBoxKey((k) => k + 1);
-  }, [open, instanceId]);
+  // 注:不再有"每次打开重置到根目录"的 effect——0.19 起浏览器 entry 是
+  // keepAlive(关闭转 hidden 休眠,组件不卸载),重开要接着上次看;新会话由
+  // 组件 mount 初始态天然提供(path=undefined = 实例根)。searchBoxKey 仍
+  // 用于 onPick/clearSearch 的草稿重置场景。
 
   // 搜索必须由用户显式 submit 触发(SEARCH_MIN_CHARS 闸 + 按钮触发),
   // 避免 keystroke 级请求穿透服务端限流。
@@ -123,6 +125,8 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
   }, [open, path, instanceId, files]);
 
   const openPreview = (target: PreviewTarget): void => {
+    // 记录最近文件(limit<=0 时 service 内部直接忽略)
+    pushRecentFile(instanceId, target, recentFilesLimit ?? DEFAULT_RECENT_FILES_LIMIT);
     presentFilePreview({ instanceId, target });
   };
 
@@ -183,6 +187,12 @@ export function FileBrowserSheet({ open, onOpenChange, instanceId }: FileBrowser
           onJump={(p) => setPath(p)}
           showHidden={showHidden}
           onToggleHidden={() => setShowHidden((v) => !v)}
+        />
+        {/* 最近文件入口:搜索框左侧;limit<=0(不记录)时组件自渲染 null */}
+        <RecentFilesMenu
+          instanceId={instanceId}
+          limit={recentFilesLimit ?? DEFAULT_RECENT_FILES_LIMIT}
+          onPick={(target) => openPreview(target as PreviewTarget)}
         />
         <SearchBox
           key={searchBoxKey}

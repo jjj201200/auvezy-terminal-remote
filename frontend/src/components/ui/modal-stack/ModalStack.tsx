@@ -140,8 +140,17 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
     const entry = normalizeEntry(input);
     setStack((prev) => {
       const top = prev[prev.length - 1];
-      if (top && top.kind && entry.kind && top.kind === entry.kind && !top.closing) {
-        // 同 kind 互斥：替换栈顶（旧 entry 立即卸载，不走退场动画——同 kind 视为同一逻辑 modal 的状态切换）
+      if (
+        top &&
+        top.kind &&
+        entry.kind &&
+        top.kind === entry.kind &&
+        !top.closing &&
+        !top.hidden
+      ) {
+        // 同 kind 互斥：替换栈顶（旧 entry 立即卸载，不走退场动画——同 kind 视为同一逻辑 modal 的状态切换）。
+        // hidden 的 keepAlive entry 不参与互斥(它是冻结的会话,调用方应走
+        // bringToTop 复活而非再 push)
         top.onClosed?.();
         return [...prev.slice(0, -1), entry];
       }
@@ -192,10 +201,15 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
       );
       window.setTimeout(() => {
         setStack((curr) => {
-          // 触发 onClosed + 从数组里删
-          const removed = curr.filter((e) => closingIds.has(e.id));
-          for (const e of removed) e.onClosed?.();
-          return curr.filter((e) => !closingIds.has(e.id));
+          // 触发 onClosed(keepAlive 的也触发——视作"本次会话结束");
+          // keepAlive entry 转 hidden 休眠(组件不卸载,state 保留),
+          // 普通entry 从数组删除
+          const touched = curr.filter((e) => closingIds.has(e.id));
+          for (const e of touched) e.onClosed?.();
+          return curr.flatMap((e) => {
+            if (!closingIds.has(e.id)) return [e];
+            return e.keepAlive ? [{ ...e, closing: false, hidden: true }] : [];
+          });
         });
       }, CLOSING_ANIMATION_MS);
       return next;
@@ -219,6 +233,8 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
    * 把指定 id 的 entry 的 topRank 改为新的最大值,数组位置不动。
    * 关键:复用 entry 对象的 id(React key 稳定),只换 topRank 字段 → React
    * 不会卸载该 layer 的 DOM → 子组件 scrollTop / state 全部保留。
+   *
+   * hidden(keepAlive 休眠)的 entry 被调时兼做复活:清 hidden + 提顶。
    */
   const bringToTop = useCallback((id: string): void => {
     setStack((prev) => {
@@ -226,14 +242,20 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
       if (idx < 0) return prev;
       const target = prev[idx]!;
       if (target.closing) return prev;
-      // 已经在顶 → 无操作,避免无意义 re-render
-      const maxRank = Math.max(...prev.map((e) => e.topRank));
-      if (target.topRank === maxRank) return prev;
+      const wasHidden = target.hidden;
+      // "已在顶"判断只比可见层(hidden 的 topRank 可能虚高但不算顶)
+      const maxRank = Math.max(...prev.filter((e) => !e.hidden).map((e) => e.topRank));
+      if (!wasHidden && target.topRank === maxRank) return prev;
       const next = [...prev];
-      next[idx] = { ...target, topRank: nextTopRank() };
+      next[idx] = { ...target, topRank: nextTopRank(), hidden: false };
       return next;
     });
   }, []);
+
+  const isHidden = useCallback(
+    (id: string): boolean => stackRef.current.find((e) => e.id === id)?.hidden === true,
+    [],
+  );
 
   const find = useCallback(
     (
@@ -252,7 +274,7 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
   const popGroup = useCallback(
     (group: string): void => {
       const targets = stackRef.current.filter(
-        (e) => e.group === group && !e.closing,
+        (e) => e.group === group && !e.closing && !e.hidden,
       );
       for (const e of targets) pop(e.id);
     },
@@ -260,15 +282,15 @@ export function ModalStackProvider({ children }: ModalStackProviderProps): JSX.E
   );
 
   const handle = useMemo<ModalStackHandle>(
-    () => ({ push, replace, pop, popTo, dismiss, depth, bringToTop, find, popGroup }),
-    [push, replace, pop, popTo, dismiss, depth, bringToTop, find, popGroup],
+    () => ({ push, replace, pop, popTo, dismiss, depth, bringToTop, isHidden, find, popGroup }),
+    [push, replace, pop, popTo, dismiss, depth, bringToTop, isHidden, find, popGroup],
   );
 
   // 全局 esc：关栈顶(按 topRank 算,不是数组末尾 — bringToTop 后两者可能不一致)
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return;
-      const live = stackRef.current.filter((x) => !x.closing);
+      const live = stackRef.current.filter((x) => !x.closing && !x.hidden);
       if (live.length === 0) return;
       const top = live.reduce((a, b) => (a.topRank >= b.topRank ? a : b));
       if (!top.dismissible) return;
@@ -342,8 +364,9 @@ function ModalStackPortal({
   handle: ModalStackHandle;
 }): JSX.Element {
   // 按 topRank 决定"哪个 entry 在视觉/交互层最顶"。数组顺序仍按 push 顺序 →
-  // React key 稳定 → bringToTop 不重 mount(关键)
-  const liveStack = stack.filter((e) => !e.closing);
+  // React key 稳定 → bringToTop 不重 mount(关键)。hidden(keepAlive 休眠)的
+  // entry 不参与可见层计算,但仍然渲染(ModalLayerRoot display:none,组件保活)
+  const liveStack = stack.filter((e) => !e.closing && !e.hidden);
   const maxTopRank =
     liveStack.length > 0 ? Math.max(...liveStack.map((e) => e.topRank)) : -1;
   // 同 group 计数:供 ctx.groupSize,让 render 决定是否显示"全部关闭"之类批量 UI
@@ -354,7 +377,8 @@ function ModalStackPortal({
   return (
     <>
       {stack.map((entry, idx) => {
-        const isTop = !entry.closing && entry.topRank === maxTopRank;
+        const visible = !entry.closing && !entry.hidden;
+        const isTop = visible && entry.topRank === maxTopRank;
         const ctx: ModalRenderContext = {
           id: entry.id,
           close: () => handle.pop(entry.id),
@@ -366,9 +390,10 @@ function ModalStackPortal({
           },
           isTop,
           index: idx,
-          // closing 标志反映为 isOpen=false：让 render 函数把它传给 Sheet 的 open prop
-          // → Radix/vaul 触发退场动画。CLOSING_ANIMATION_MS 后 entry 才真从数组移除
-          isOpen: !entry.closing,
+          // closing / hidden 都反映为 isOpen=false：让 render 函数把它传给 Sheet
+          // 的 open prop → Radix/vaul 触发退场动画。CLOSING_ANIMATION_MS 后
+          // entry 被移除(普通)或转 hidden(keepAlive),hidden 期间保持 false
+          isOpen: visible,
           activatedSeq: entry.topRank,
           groupSize: entry.group ? (groupCounts.get(entry.group) ?? 0) : 0,
         };
@@ -377,6 +402,7 @@ function ModalStackPortal({
             key={entry.id}
             idx={idx}
             isTop={isTop}
+            hidden={entry.hidden}
             zIndex={Z_INDEX_BASE + entry.topRank}
             fadeOnSwap={entry.group === 'file-preview'}
           >
@@ -403,12 +429,15 @@ function ModalStackPortal({
 function ModalLayerRoot({
   idx,
   isTop,
+  hidden,
   zIndex,
   fadeOnSwap,
   children,
 }: {
   idx: number;
   isTop: boolean;
+  /** keepAlive 休眠态:层整体 display:none(组件保持挂载,state/滚动保留) */
+  hidden: boolean;
   zIndex: number;
   /**
    * 是否参与"bringToTop 切层时的渐隐渐现"。仅 file-preview 等"全屏覆盖且
@@ -435,6 +464,7 @@ function ModalLayerRoot({
         data-modal-layer={idx}
         data-modal-top={isTop ? 'true' : 'false'}
         style={{
+          display: hidden ? 'none' : undefined,
           position: 'fixed',
           inset: 0,
           zIndex,
@@ -478,8 +508,10 @@ function normalizeEntry(input: ModalEntryInput): ModalEntry {
     render: input.render,
     dismissible: input.dismissible ?? true,
     onClosed: input.onClosed,
+    keepAlive: input.keepAlive ?? false,
     debugLabel: input.debugLabel,
     closing: false,
+    hidden: false,
     topRank: nextTopRank(),
   };
 }
@@ -506,7 +538,7 @@ export function useModalStackGroup(group: string): readonly ModalGroupItem[] {
   const ctx = useContext(ModalStackOutletCtx);
   return useMemo<readonly ModalGroupItem[]>(() => {
     if (!ctx) return [];
-    const live = ctx.stack.filter((e) => !e.closing && e.group === group);
+    const live = ctx.stack.filter((e) => !e.closing && !e.hidden && e.group === group);
     if (live.length === 0) return [];
     const maxTopRank = Math.max(...live.map((e) => e.topRank));
     return live

@@ -399,3 +399,108 @@ describe('ModalStack data attrs', () => {
     expect(layers[1]?.compareDocumentPosition(layers[2] as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+// ─────────────── keepAlive / hidden(0.19 文件浏览器会话保活) ───────────────
+
+describe('ModalStack keepAlive', () => {
+  it('keepAlive pop:退场动画后转 hidden 而非移除,onClosed 触发,层 display:none', () => {
+    const { handle, container } = setup();
+    const onClosed = vi.fn();
+    let id = '';
+    act(() => {
+      id = handle.push({ keepAlive: true, onClosed, render: dummyRender('ka') });
+    });
+    expect(handle.depth()).toBe(1);
+    act(() => {
+      handle.pop(id);
+    });
+    flushClose();
+    // 留栈(hidden),不移除
+    expect(handle.depth()).toBe(1);
+    expect(handle.isHidden(id)).toBe(true);
+    expect(onClosed).toHaveBeenCalledTimes(1);
+    // DOM 层保留但 display:none(组件未卸载)
+    const layer = container.querySelector<HTMLElement>('[data-modal-layer="0"]');
+    expect(layer).not.toBeNull();
+    expect(layer!.style.display).toBe('none');
+  });
+
+  it('bringToTop(hidden id) 复活:清 hidden + 提为视觉顶', () => {
+    const { handle, container } = setup();
+    let ka = '';
+    let other = '';
+    act(() => {
+      ka = handle.push({ keepAlive: true, render: dummyRender('ka') });
+      other = handle.push({ render: dummyRender('other') });
+    });
+    act(() => {
+      handle.pop(ka);
+    });
+    flushClose();
+    expect(handle.isHidden(ka)).toBe(true);
+
+    act(() => {
+      handle.bringToTop(ka);
+    });
+    expect(handle.isHidden(ka)).toBe(false);
+    const top = container.querySelector<HTMLElement>('[data-modal-top="true"]');
+    expect(top?.getAttribute('data-modal-layer')).toBe('0'); // 复活层是视觉顶
+    // 复活层不再 display:none
+    const layer0 = container.querySelector<HTMLElement>('[data-modal-layer="0"]');
+    expect(layer0!.style.display).not.toBe('none');
+    void other;
+  });
+
+  it('hidden entry 不参与 esc 栈顶计算(esc 关可见顶,不关隐藏层)', () => {
+    const { handle } = setup();
+    let ka = '';
+    let visible = '';
+    act(() => {
+      ka = handle.push({ keepAlive: true, render: dummyRender('ka') });
+      visible = handle.push({ render: dummyRender('v') });
+    });
+    act(() => {
+      handle.pop(ka);
+    });
+    flushClose();
+    // 派发 esc:应关可见的 v,不碰 hidden 的 ka
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    flushClose();
+    expect(handle.isHidden(ka)).toBe(true); // 仍 hidden(未被二次处理)
+    expect(handle.depth()).toBe(1); // 只剩 hidden ka
+  });
+
+  it('hidden 的同 kind entry 不参与 push 互斥(追加而非 replace)', () => {
+    const { handle } = setup();
+    let first = '';
+    act(() => {
+      first = handle.push({ kind: 'fb', keepAlive: true, render: dummyRender('fb1') });
+    });
+    act(() => {
+      handle.pop(first);
+    });
+    flushClose();
+    act(() => {
+      handle.push({ kind: 'fb', render: dummyRender('fb2') });
+    });
+    // 旧的 hidden + 新的 = 2 层(旧会话保活,新会话共存)
+    expect(handle.depth()).toBe(2);
+    expect(handle.isHidden(first)).toBe(true);
+  });
+
+  it('非 keepAlive 对照:pop 后彻底移除', () => {
+    const { handle } = setup();
+    let id = '';
+    act(() => {
+      id = handle.push({ render: dummyRender('plain') });
+    });
+    act(() => {
+      handle.pop(id);
+    });
+    flushClose();
+    expect(handle.depth()).toBe(0);
+    expect(handle.isHidden(id)).toBe(false);
+  });
+});
