@@ -112,9 +112,13 @@ describe('config-routes', () => {
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; config: UserConfig };
-    expect(body.config.shortcuts).toEqual(newCfg.shortcuts);
+    // 0.19 起响应经条目级合并：用户条目保留在最前，缺失的内置默认追加在后；
+    // store / 落盘保持用户原始值（默认值只在读取时动态补，不写回文件）
+    const merged = body.config.shortcuts ?? [];
+    expect(merged[0]).toEqual(newCfg.shortcuts![0]);
+    expect(merged).toHaveLength(1 + DEFAULT_SHORTCUTS.length);
     expect(body.config.fontScale).toBe(1.5);
-    expect(store.state).toEqual(newCfg);
+    expect(store.state.shortcuts).toEqual(newCfg.shortcuts);
   });
 
   it('PUT body 非对象 → 400 CONFIG_VALIDATION_FAIL', async () => {

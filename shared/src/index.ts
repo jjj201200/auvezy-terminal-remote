@@ -13,3 +13,4 @@ export * from './action-tree-defaults.js';
 export * from './errors.js';
 export * from './html-injection.js';
 export * from './files.js';
+export * from './discovery.js';

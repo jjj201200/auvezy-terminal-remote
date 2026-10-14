@@ -151,6 +151,13 @@ export class FileError extends AppError {
   }
 }
 
+/** Skill / MCP 自动发现错误(默认 400) */
+export class DiscoveryError extends AppError {
+  constructor(code: ErrorCode, message: string, httpStatus = 400, cause?: unknown) {
+    super(code, message, httpStatus, cause);
+  }
+}
+
 // ============================================================
 // 工具函数
 // ============================================================

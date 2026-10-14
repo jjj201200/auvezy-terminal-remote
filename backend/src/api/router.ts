@@ -28,6 +28,7 @@ import {
   type WorkdirPolicySnapshot,
 } from './workdir-policy-routes.js';
 import { createFileRoutes } from './file-routes.js';
+import { createDiscoveryRoutes } from './discovery-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { IntegrationManager } from '../integrations/manager.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
@@ -98,6 +99,14 @@ export function createBrokerApiRouter(opts: BrokerApiRouterOptions): Router {
       authModule: opts.authModule,
       registry: opts.registry,
       workdirPolicy: opts.workdirPolicy,
+    }),
+  );
+
+  // Skill / MCP 自动发现(扫描 claude / codex 固定目录,鉴权)
+  router.use(
+    createDiscoveryRoutes({
+      authModule: opts.authModule,
+      registry: opts.registry,
     }),
   );
 
