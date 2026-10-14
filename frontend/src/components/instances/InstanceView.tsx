@@ -454,6 +454,8 @@ export function InstanceView({
             },
           });
         }}
+        filterByTui={config.integrations?.enabled ?? true}
+        activeTuiModule={sessionExtras.integrationId ?? null}
         disabled={disabled || connectionStatus !== 'connected'}
       />
 

@@ -41,6 +41,20 @@ import s from './Toolbar.module.scss';
 const CUSTOM_SHORTCUT_GROUP_ID: ShortcutGroupId = 'custom';
 const CUSTOM_COMMAND_GROUP_ID: CommandGroupId = 'custom';
 
+/**
+ * TUI 专属分组 → 需要的激活集成模块 id（见 ToolbarProps.filterByTui）
+ *
+ * 快捷键组 id 与模块 id 同名；命令组用简名（claude / codex）。
+ */
+const TUI_SHORTCUT_GROUP_MODULE: Record<string, string> = {
+  'claude-code': 'claude-code',
+  codex: 'codex',
+};
+const TUI_COMMAND_GROUP_MODULE: Record<string, string> = {
+  claude: 'claude-code',
+  codex: 'codex',
+};
+
 export interface ToolbarProps {
   shortcuts?: ConfigurableShortcut[];
   commands?: ConfigurableCommand[];
@@ -58,6 +72,16 @@ export interface ToolbarProps {
    * 由 backend /api/discovery 扫描）。两组 tab 不可见时入口随之隐藏。
    */
   onOpenDiscovery?: () => void;
+  /**
+   * TUI 分组过滤开关（= integrations 总开关）。
+   *
+   * true 时 claude-code / claude 与 codex / codex 四个 TUI 专属组只在
+   * activeTuiModule 与之匹配（实例检测到对应 TUI）时出现在分类行；
+   * false / 缺省时不做过滤，仅按条目 enabled 显示。
+   */
+  filterByTui?: boolean;
+  /** 实例当前激活的集成模块 id（SessionStatusExtras.integrationId，可为 null） */
+  activeTuiModule?: string | null;
   disabled?: boolean;
 }
 
@@ -74,10 +98,24 @@ export function Toolbar({
   onSubmitCommand,
   onPrefillCommand,
   onOpenDiscovery,
+  filterByTui,
+  activeTuiModule,
   disabled,
 }: ToolbarProps): JSX.Element | null {
   const t = useT();
   const customLabel = t('toolbar.customGroup');
+
+  // TUI 专属分组的过滤谓词：过滤开启时，组要求模块与实例激活模块一致
+  const tuiFilterOn = filterByTui === true;
+  const activeModule = activeTuiModule ?? null;
+  const shortcutVisible = (groupId: string): boolean =>
+    !tuiFilterOn ||
+    TUI_SHORTCUT_GROUP_MODULE[groupId] === undefined ||
+    TUI_SHORTCUT_GROUP_MODULE[groupId] === activeModule;
+  const commandVisible = (groupId: string): boolean =>
+    !tuiFilterOn ||
+    TUI_COMMAND_GROUP_MODULE[groupId] === undefined ||
+    TUI_COMMAND_GROUP_MODULE[groupId] === activeModule;
 
   // ──────── 快捷键按 group 分桶（仅启用项）────────
   const shortcutBuckets = useMemo(() => {
@@ -115,6 +153,7 @@ export function Toolbar({
   const visibleShortcutGroups = useMemo<ScrollableTabItem[]>(() => {
     const arr: ScrollableTabItem[] = [];
     for (const g of SHORTCUT_GROUPS) {
+      if (!shortcutVisible(g.id)) continue;
       if ((shortcutBuckets.get(g.id) ?? []).length > 0) {
         arr.push({ id: g.id, title: g.title });
       }
@@ -123,11 +162,13 @@ export function Toolbar({
       arr.push({ id: CUSTOM_SHORTCUT_GROUP_ID, title: customLabel });
     }
     return arr;
-  }, [shortcutBuckets, customLabel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- shortcutVisible 依赖 tuiFilterOn/activeModule
+  }, [shortcutBuckets, customLabel, tuiFilterOn, activeModule]);
 
   const visibleCommandGroups = useMemo<ScrollableTabItem[]>(() => {
     const arr: ScrollableTabItem[] = [];
     for (const g of COMMAND_GROUPS) {
+      if (!commandVisible(g.id)) continue;
       if ((commandBuckets.get(g.id) ?? []).length > 0) {
         arr.push({ id: g.id, title: g.title });
       }
@@ -136,7 +177,8 @@ export function Toolbar({
       arr.push({ id: CUSTOM_COMMAND_GROUP_ID, title: customLabel });
     }
     return arr;
-  }, [commandBuckets, customLabel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- commandVisible 依赖 tuiFilterOn/activeModule
+  }, [commandBuckets, customLabel, tuiFilterOn, activeModule]);
 
   // ──────── 激活态 ────────
   const [active, setActive] = useState<ActiveState | null>(null);
