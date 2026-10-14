@@ -291,6 +291,10 @@ export interface Messages {
 
     sectionClaudeCode: string;
     claudeCodeModalTitle: string;
+    sectionCodex: string;
+    codexDescription: string;
+    codexModalTitle: string;
+    codexInactiveNote: string;
     claudeCodeDescription: string;
     claudeCodeInactiveNote: string;
     eventApprovals: string;
@@ -304,6 +308,15 @@ export interface Messages {
     eventUserPrompts: string;
     eventUserPromptsHint: string;
     eventUserPromptsWarning: string;
+  };
+
+  /** Codex hook 一键授权横幅(CodexTrustBanner) */
+  codexTrust: {
+    bannerText: string;
+    grantButton: string;
+    granting: string;
+    grantedHint: string;
+    queryError: string;
   };
 
   // 设置 - 集成 → Obsidian 渲染集成命名空间

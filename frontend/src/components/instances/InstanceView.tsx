@@ -35,6 +35,7 @@ import { InputBar, type InputBarHandle } from '../input/InputBar.js';
 import { DirectInputCapture } from '../input/DirectInputCapture.js';
 import { Toolbar } from '../input/Toolbar.js';
 import { useDiscoveryPresenter } from '../ui/modal-stack/presenters.js';
+import { CodexTrustBanner } from '../common/CodexTrustBanner.js';
 import { IpChangeToast, type IpChangeInfo } from '../common/IpChangeToast.js';
 import s from '../../pages/ConsolePage.module.scss';
 
@@ -363,6 +364,12 @@ export function InstanceView({
           onPrev={searchPrev}
           onClear={clearSearch}
         />
+      )}
+
+      {/* codex 实例 hooks 未授权时的提示横幅(已授权自渲染 null)。
+          放 terminalWrap 之前:占一行高度,xterm ResizeObserver 自动 fit。 */}
+      {sessionExtras.integrationId === 'codex' && (
+        <CodexTrustBanner instanceId={instanceId} />
       )}
       <div
         id="console-terminal-wrap"

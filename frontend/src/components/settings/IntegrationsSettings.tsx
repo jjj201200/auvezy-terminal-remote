@@ -22,6 +22,7 @@ import { useT } from '../../i18n/i18n-context.js';
 import { BoolToggleRow } from './BoolToggleRow.js';
 import {
   useClaudeCodeSettingsPresenter,
+  useCodexSettingsPresenter,
   useMarkdownSettingsPresenter,
   useObsidianSettingsPresenter,
 } from '../ui/modal-stack/presenters.js';
@@ -33,9 +34,10 @@ export interface IntegrationsSettingsProps {
   onChange: (next: IntegrationsPrefs) => void;
 }
 
-const FORCE_OPTIONS: ReadonlyArray<'auto' | 'claude-code' | 'none'> = [
+const FORCE_OPTIONS: ReadonlyArray<'auto' | 'claude-code' | 'codex' | 'none'> = [
   'auto',
   'claude-code',
+  'codex',
   'none',
 ];
 
@@ -85,6 +87,7 @@ function InlineBoolToggle(props: {
 export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsProps): JSX.Element {
   const t = useT();
   const presentClaudeCode = useClaudeCodeSettingsPresenter();
+  const presentCodex = useCodexSettingsPresenter();
 
   const enabled = value?.enabled ?? DEFAULT_INTEGRATIONS.enabled;
   const forceModule = value?.forceModule ?? DEFAULT_INTEGRATIONS.forceModule;
@@ -99,11 +102,20 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
     sessionLifecycle: userCcEvents?.sessionLifecycle ?? ccDefaults.sessionLifecycle,
     userPrompts: userCcEvents?.userPrompts ?? ccDefaults.userPrompts,
   };
+  const userCxEvents = value?.perModule?.['codex']?.events;
+  const cxDefaults = DEFAULT_INTEGRATIONS.perModule['codex'].events;
+  const cxEvents = {
+    approvals: userCxEvents?.approvals ?? cxDefaults.approvals,
+    toolProgress: userCxEvents?.toolProgress ?? cxDefaults.toolProgress,
+    turnLifecycle: userCxEvents?.turnLifecycle ?? cxDefaults.turnLifecycle,
+    sessionLifecycle: userCxEvents?.sessionLifecycle ?? cxDefaults.sessionLifecycle,
+    userPrompts: userCxEvents?.userPrompts ?? cxDefaults.userPrompts,
+  };
 
   const setEnabled = (next: boolean): void => {
     onChange({ ...value, enabled: next });
   };
-  const setForceModule = (next: 'auto' | 'claude-code' | 'none'): void => {
+  const setForceModule = (next: 'auto' | 'claude-code' | 'codex' | 'none'): void => {
     onChange({ ...value, forceModule: next });
   };
   const setCcEvents = (next: typeof ccEvents): void => {
@@ -119,14 +131,36 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
     });
   };
 
+  const setCxEvents = (next: typeof cxEvents): void => {
+    onChange({
+      ...value,
+      perModule: {
+        ...value?.perModule,
+        codex: {
+          ...value?.perModule?.['codex'],
+          events: next,
+        },
+      },
+    });
+  };
+
   // 当前会被激活的模块判定:总开关 + 识别策略派生
   const ccActive = enabled && (forceModule === 'auto' || forceModule === 'claude-code');
+  const cxActive = enabled && (forceModule === 'auto' || forceModule === 'codex');
 
   const openClaudeCodeSettings = (): void => {
     presentClaudeCode({
       value: ccEvents,
       onChange: setCcEvents,
       active: ccActive,
+    });
+  };
+
+  const openCodexSettings = (): void => {
+    presentCodex({
+      value: cxEvents,
+      onChange: setCxEvents,
+      active: cxActive,
     });
   };
 
@@ -235,7 +269,9 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
                 ? t('integrations.forceModuleAuto')
                 : opt === 'none'
                   ? t('integrations.forceModuleNone')
-                  : 'Claude Code';
+                  : opt === 'codex'
+                    ? 'Codex'
+                    : 'Claude Code';
             return (
               <button
                 key={opt}
@@ -274,6 +310,27 @@ export function IntegrationsSettings({ value, onChange }: IntegrationsSettingsPr
         </header>
         <div className={s.row}>
           <button type="button" onClick={openClaudeCodeSettings} className={s.btn}>
+            {t('integrations.openDetails')}
+          </button>
+        </div>
+      </section>
+
+      {/* Codex */}
+      <section className={s.section}>
+        <header className={s.header}>
+          <h3 className={s.title}>
+            {t('integrations.sectionCodex')}
+            <span
+              className={s.titleStatus}
+              data-tone={cxActive ? 'info' : 'muted'}
+            >
+              {cxActive ? t('integrations.activeBadge') : t('integrations.inactiveBadge')}
+            </span>
+          </h3>
+          <p className={s.hint}>{t('integrations.codexDescription')}</p>
+        </header>
+        <div className={s.row}>
+          <button type="button" onClick={openCodexSettings} className={s.btn}>
             {t('integrations.openDetails')}
           </button>
         </div>

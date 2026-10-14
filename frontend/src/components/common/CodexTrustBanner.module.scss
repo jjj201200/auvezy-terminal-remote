@@ -1,0 +1,53 @@
+/**
+ * CodexTrustBanner 样式:终端区顶部的细提示条,三态配色
+ * (默认=需授权 info、ok=已授权、error=查询失败)。
+ */
+
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-info-soft);
+  background: var(--color-info-soft);
+  color: var(--color-fg);
+  font-size: var(--fs-xs);
+
+  &[data-tone='ok'] {
+    border-bottom-color: var(--color-accent-soft);
+    background: var(--color-accent-soft);
+  }
+
+  &[data-tone='error'] {
+    border-bottom-color: var(--color-warn-soft);
+    background: var(--color-warn-soft);
+  }
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  line-height: var(--lh-base);
+  color: var(--color-fg-dim);
+}
+
+.action {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+
+  &:active {
+    background: var(--color-accent-soft);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}

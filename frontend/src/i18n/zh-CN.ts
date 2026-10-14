@@ -245,6 +245,12 @@ export const zhCN: Messages = {
 
     sectionClaudeCode: 'Claude Code',
     claudeCodeModalTitle: 'Claude Code 集成设置',
+    sectionCodex: 'Codex',
+    codexDescription:
+      '识别 codex CLI：注入 CODEX_HOME 镜像与 hooks 回调，翻译审批 / 工具进度 / 回合状态事件。首次使用需在 codex 实例上点击横幅一键授权 hooks。',
+    codexModalTitle: 'Codex 集成设置',
+    codexInactiveNote:
+      '当前模块未激活(总开关已关 或 识别策略选了"禁用所有模块" / 强制了其它模块)。下方的事件订阅设置仍可调整,但要等模块激活后才会生效。',
     claudeCodeDescription:
       '检测到 Claude Code 时,把审批 / 工具进度 / 轮次 / 会话生命周期等事件接到状态栏与推送通知。',
     claudeCodeInactiveNote:
@@ -264,6 +270,15 @@ export const zhCN: Messages = {
       '订阅用户在原终端的 prompt 文本。可用于在 PWA 显示对话历史,但 prompt 原文会进入 backend 内存。',
     eventUserPromptsWarning:
       '默认关闭。开启前请确保你的 ATR 实例只在受信网络中可达——任何持有 token 的客户端都能看到这些原文。',
+  },
+
+  codexTrust: {
+    bannerText:
+      'Codex 集成需要授权 atr 注入的 hooks（事件回调到本机 /api/hook，只读不干预审批）',
+    grantButton: '一键授权',
+    granting: '授权中…',
+    grantedHint: '已授权——重启 codex 实例后生效',
+    queryError: 'Codex hooks 授权状态查询失败',
   },
 
   obsidian: {

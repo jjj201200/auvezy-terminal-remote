@@ -253,6 +253,12 @@ export const en: Messages = {
 
     sectionClaudeCode: 'Claude Code',
     claudeCodeModalTitle: 'Claude Code integration',
+    sectionCodex: 'Codex',
+    codexDescription:
+      'Detect the codex CLI: injects a CODEX_HOME mirror with hook callbacks, translating approval / tool-progress / turn events. First use requires a one-click hook authorization banner on the codex instance.',
+    codexModalTitle: 'Codex integration',
+    codexInactiveNote:
+      'This module is currently inactive (global switch off, or detection strategy is "Disable all modules" / forces a different module). Event toggles below can still be edited; they will take effect once the module is activated.',
     claudeCodeDescription:
       "When Claude Code is detected, wire approvals / tool progress / turn / session lifecycle events into the status bar and push notifications.",
     claudeCodeInactiveNote:
@@ -273,6 +279,15 @@ export const en: Messages = {
       'Subscribe to the prompt text the user submits in the host terminal. Useful for chat history in the PWA, but prompt text enters backend memory.',
     eventUserPromptsWarning:
       'Off by default. Only enable if your ATR instance is on a trusted network—any client holding the token can see this text.',
+  },
+
+  codexTrust: {
+    bannerText:
+      'Codex integration needs authorization for atr-injected hooks (event callbacks to local /api/hook, read-only, never blocks approvals)',
+    grantButton: 'Authorize',
+    granting: 'Authorizing…',
+    grantedHint: 'Authorized — restart the codex instance to take effect',
+    queryError: 'Failed to query Codex hooks trust status',
   },
 
   obsidian: {
