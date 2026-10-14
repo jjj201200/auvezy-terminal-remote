@@ -217,7 +217,12 @@ export function SettingsModal({
       }
     >
       {tab === 'general' && (
-        <GeneralSettings value={localeDraft} onChange={setLocaleDraft} />
+        <GeneralSettings
+          value={localeDraft}
+          onChange={setLocaleDraft}
+          recentFilesLimit={draft.recentFilesLimit}
+          onRecentFilesLimitChange={(n) => setDraft({ ...draft, recentFilesLimit: n })}
+        />
       )}
       {tab === 'actions' && <ActionsSettings value={draft} onChange={setDraft} />}
       {tab === 'display' && (

@@ -1,0 +1,125 @@
+/**
+ * RecentFilesMenu 样式:搜索行左侧 icon 按钮 + 下方浮动面板。
+ * 面板 absolute 定位挂在按钮下缘,宽上限约束 + 滚动。
+ */
+
+.root {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input);
+  color: var(--color-fg-dim);
+  cursor: pointer;
+
+  &:active {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+  }
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: min(78vw, 360px);
+  max-height: 55vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-hi);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elev);
+  box-shadow: var(--shadow-focus);
+  overflow: hidden;
+}
+
+.panelHead {
+  padding: 8px 10px 6px;
+  font-size: var(--fs-xs);
+  color: var(--color-fg-low);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+
+  &:active {
+    background: var(--color-accent-soft);
+  }
+}
+
+.itemName {
+  font-size: var(--fs-sm);
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.itemPath {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemTime {
+  flex-shrink: 0;
+  font-size: var(--fs-2xs);
+  color: var(--color-fg-low);
+  font-family: var(--font-mono);
+}
+
+.empty {
+  padding: 16px 10px;
+  font-size: var(--fs-xs);
+  color: var(--color-fg-low);
+  text-align: center;
+}
+
+.clear {
+  padding: 8px;
+  border-top: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-fg-dim);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+
+  &:active {
+    color: var(--color-alarm);
+  }
+}

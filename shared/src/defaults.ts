@@ -698,6 +698,14 @@ export interface UserConfig {
   vapidPublicKey?: string;
   /** 字体缩放比例（1.0 = 默认；阶段 4 暂留口子，UI 不做） */
   fontScale?: number;
+  /**
+   * 文件浏览「最近文件」记录条数上限。
+   *
+   * 语义：0 = 不记录（搜索框旁的最近文件按钮也不渲染）；
+   * -1 = 不限制；正整数 = 保留最近 N 条。记录存前端 localStorage（每设备
+   * 各自独立，不同步到 ~/.atrrc）。
+   */
+  recentFilesLimit?: number;
   /** 显示偏好：xterm 自适应字号目标列数 + 字间距 */
   display?: DisplayPrefs;
   /** 网络偏好：WS 自动重连上限等 */
@@ -968,6 +976,12 @@ export const DEFAULT_NETWORK: Required<NetworkPrefs> = {
 export const RECONNECT_MAX_ATTEMPTS_MIN = 1;
 export const RECONNECT_MAX_ATTEMPTS_MAX = 1000;
 
+/** 「最近文件」记录条数上限默认值(20 条) */
+export const DEFAULT_RECENT_FILES_LIMIT = 20;
+/** 上限语义边界:0 = 不记录(按钮隐藏);-1 = 不限制。normalize 时小于 -1 归为 -1 */
+export const RECENT_FILES_LIMIT_DISABLED = 0;
+export const RECENT_FILES_LIMIT_UNLIMITED = -1;
+
 /**
  * 显示偏好
  *
@@ -1157,6 +1171,14 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
   // 字符串元素全部 trim 后剔空 → 防止"空字符串 pattern 命中所有路径"
   const workdirAllow = normalizeStringArray(src.workdirAllow);
 
+  // recentFilesLimit:0=不记录 / -1=不限 / 正整数=条数;非整数截整,小于 -1 归为 -1,
+  // 非法值回退默认 20
+  const recentFilesLimitRaw = src.recentFilesLimit;
+  const recentFilesLimit =
+    typeof recentFilesLimitRaw === 'number' && Number.isFinite(recentFilesLimitRaw)
+      ? Math.max(RECENT_FILES_LIMIT_UNLIMITED, Math.trunc(recentFilesLimitRaw))
+      : DEFAULT_RECENT_FILES_LIMIT;
+
   // workdir 黑名单：用户没设（undefined）→ 用 DEFAULT_WORKDIR_DENY 兜底（复制一份，
   // 因为 UserConfig.workdirDeny 是 mutable string[]，DEFAULT 是 readonly）；
   // 用户显式设了空数组 [] → 尊重，表示"我不要任何黑名单"（但仍受白名单约束）；
@@ -1337,6 +1359,7 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
     workdirAllow,
     workdirDeny,
     integrations,
+    recentFilesLimit,
   };
 }
 

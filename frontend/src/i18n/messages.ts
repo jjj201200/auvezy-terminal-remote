@@ -210,6 +210,10 @@ export interface Messages {
 
   // 设置 - 通用（语言切换）
   general: {
+    recentFilesTitle: string;
+    recentFilesHint: string;
+    recentFilesOff: string;
+    recentFilesUnlimited: string;
     languageTitle: string;
     languageHint: string;
   };
@@ -682,6 +686,10 @@ export interface Messages {
 
   // FileBrowserSheet
   files: {
+    recentButton: string;
+    recentTitle: string;
+    recentEmpty: string;
+    recentClear: string;
     title: string;
     /** 顶栏按钮 aria(挨着 IconFolder) */
     openTooltip: string;

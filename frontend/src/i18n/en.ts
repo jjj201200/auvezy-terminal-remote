@@ -174,6 +174,10 @@ export const en: Messages = {
   },
 
   general: {
+    recentFilesTitle: 'Recent files limit',
+    recentFilesHint: 'How many recently viewed files the browser keeps. 0 = off (entry button hidden), -1 = unlimited.',
+    recentFilesOff: 'Off',
+    recentFilesUnlimited: 'Unlimited',
     languageTitle: 'Language',
     languageHint: 'Interface language. Stored on this device.',
   },
@@ -604,6 +608,10 @@ export const en: Messages = {
   },
 
   files: {
+    recentButton: 'Recent files',
+    recentTitle: 'Recently viewed',
+    recentEmpty: 'No viewing history yet',
+    recentClear: 'Clear history',
     title: 'Files',
     openTooltip: 'Browse files',
     breadcrumbRoot: 'Working directory',

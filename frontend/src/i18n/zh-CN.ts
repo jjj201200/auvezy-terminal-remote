@@ -166,6 +166,10 @@ export const zhCN: Messages = {
   },
 
   general: {
+    recentFilesTitle: '最近文件上限',
+    recentFilesHint: '文件浏览器记录最近查看的文件数量。0 = 不记录（隐藏入口按钮），-1 = 不限制。',
+    recentFilesOff: '不记录',
+    recentFilesUnlimited: '不限',
     languageTitle: '语言',
     languageHint: '界面语言。仅保存于本设备。',
   },
@@ -590,6 +594,10 @@ export const zhCN: Messages = {
   },
 
   files: {
+    recentButton: '最近文件',
+    recentTitle: '最近查看',
+    recentEmpty: '还没有查看记录',
+    recentClear: '清空记录',
     title: '文件浏览',
     openTooltip: '浏览文件',
     breadcrumbRoot: '工作目录',

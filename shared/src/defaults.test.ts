@@ -397,3 +397,22 @@ describe('rendering integration migration', () => {
     expect(missing.integrations.rendering?.markdown?.fontSize).toBe(0);
   });
 });
+
+describe('recentFilesLimit normalize', () => {
+  it('缺省 → 默认 20', () => {
+    expect(ensureDefaultUserConfig({}).recentFilesLimit).toBe(20);
+  });
+
+  it('合法值透传:0(不记录) / -1(不限) / 正整数', () => {
+    expect(ensureDefaultUserConfig({ recentFilesLimit: 0 }).recentFilesLimit).toBe(0);
+    expect(ensureDefaultUserConfig({ recentFilesLimit: -1 }).recentFilesLimit).toBe(-1);
+    expect(ensureDefaultUserConfig({ recentFilesLimit: 50 }).recentFilesLimit).toBe(50);
+  });
+
+  it('非整数截整;小于 -1 归为 -1;非法值回退 20', () => {
+    expect(ensureDefaultUserConfig({ recentFilesLimit: 8.9 } as never).recentFilesLimit).toBe(8);
+    expect(ensureDefaultUserConfig({ recentFilesLimit: -5 } as never).recentFilesLimit).toBe(-1);
+    expect(ensureDefaultUserConfig({ recentFilesLimit: 'x' } as never).recentFilesLimit).toBe(20);
+    expect(ensureDefaultUserConfig({ recentFilesLimit: null } as never).recentFilesLimit).toBe(20);
+  });
+});

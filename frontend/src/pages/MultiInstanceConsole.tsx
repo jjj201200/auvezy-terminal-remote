@@ -178,8 +178,11 @@ export function MultiInstanceConsole(): JSX.Element {
 
   const openFileBrowser = useCallback(() => {
     if (!activeId) return;
-    presentFileBrowser({ instanceId: activeId });
-  }, [presentFileBrowser, activeId]);
+    presentFileBrowser({
+      instanceId: activeId,
+      recentFilesLimit: config.recentFilesLimit,
+    });
+  }, [presentFileBrowser, activeId, config.recentFilesLimit]);
 
   // tab 关闭按钮 → 走 useConfirm 的 Promise 流程
   // 三种形态合并到一条线性代码：lastBlocked = singleButton；其它两种是
