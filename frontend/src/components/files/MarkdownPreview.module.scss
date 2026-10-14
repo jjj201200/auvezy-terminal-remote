@@ -437,8 +437,9 @@
 }
 
 // Task list — react-markdown + remark-gfm 输出 <li class="task-list-item">
+// padding 需容纳绝对定位的 checkbox(12px)再加间隙:sp-5(12) + sp-4(8) = 20px
 .root ul :global(li.task-list-item) {
-  padding-left: var(--sp-4);
+  padding-left: calc(var(--sp-5) + var(--sp-4));
   list-style: none;
 }
 
