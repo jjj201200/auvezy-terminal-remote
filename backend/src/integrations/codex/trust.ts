@@ -59,6 +59,21 @@ function canonicalJson(value: unknown): string {
  * @param eventSnake 事件 snake_case 名(如 'pre_tool_use')
  */
 export function computeHookTrustHash(eventSnake: string): string {
+  return computeHookTrustHashFor(eventSnake, CODEX_HOOK_COMMAND, HOOK_TIMEOUT_SEC);
+}
+
+/**
+ * 可注入 command/timeout 的哈希计算(golden 测试用;生产路径走上面的包装)
+ *
+ * 算法已用本机 codex-cli 0.162.1 实测校准(2026-10-14):正确哈希 → hook
+ * 执行,错误哈希 → 静默跳过。golden 值见 codex.test.ts——重构 canonicalJson
+ * 时先跑它。
+ */
+export function computeHookTrustHashFor(
+  eventSnake: string,
+  command: string,
+  timeoutSec: number,
+): string {
   const identity = {
     event_name: eventSnake,
     // MatcherGroup flatten 到顶层:matcher 为 Some("")(hooks.json 显式空串)
@@ -66,8 +81,8 @@ export function computeHookTrustHash(eventSnake: string): string {
     hooks: [
       {
         async: false,
-        command: CODEX_HOOK_COMMAND,
-        timeout: HOOK_TIMEOUT_SEC,
+        command,
+        timeout: timeoutSec,
         type: 'command',
       },
     ],

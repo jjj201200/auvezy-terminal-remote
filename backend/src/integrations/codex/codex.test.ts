@@ -20,6 +20,7 @@ import { mapCodexHookPayload, filterCodexEventsByToggles } from './hook-mapper.j
 import { buildCodexHomeMirror } from './codex-home-mirror.js';
 import {
   computeHookTrustHash,
+  computeHookTrustHashFor,
   trustStateKey,
   readCodexTrustStatus,
   grantCodexTrust,
@@ -223,6 +224,15 @@ describe('trust', () => {
     expect(h1).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(computeHookTrustHash('pre_tool_use')).toBe(h1);
     expect(computeHookTrustHash('permission_request')).not.toBe(h1);
+  });
+
+  it('golden:实测 codex-cli 0.162.1 认可的哈希值(算法校准锚点)', () => {
+    // 2026-10-14 本机 codex 0.162.1 实测:此 command/timeout/event 的哈希写入
+    // [hooks.state] 后 hook 被信任执行(错误哈希则静默跳过)——重构 canonicalJson
+    // 前此用例必须保持绿,否则一键授权会静默失效
+    expect(
+      computeHookTrustHashFor('session_start', 'echo fired >> /tmp/codex-trust-fired', 3),
+    ).toBe('sha256:ca05b741114f19738557fe82c5d167c826b1348ed63c542ba5e64566dd7acd6a');
   });
 
   it('trustStateKey 格式:<hooks.json 路径>:<event_snake>:0:0', () => {
