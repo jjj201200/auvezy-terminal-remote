@@ -93,15 +93,17 @@ docs/plans/<计划名>/
 AskUserQuestion 确认。
 
 **决策树:何时启什么**:
-1. 探活先行:`pgrep -af "vite|cli\.js start|cli\.ts start"` + `ss -tln | grep -E ":3737|:5173"`
-2. **改 backend / shared/src** → 必须用开发版 broker:
-   - `nohup pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts start > /tmp/atr-broker.log 2>&1 &`
-   - 若 :3737 已被生产版(`atr start --foreground`,即全局 npm 装的 dist 版)占用,
-     必须 AskUserQuestion 授权 kill 那个 PID 再启
-3. **只改 frontend** → 不动 broker,**复用** :3737 上的现有 broker(无论是开发版还是
-   生产版,API 同协议),只起 vite:
-   - `nohup pnpm --filter auvezy-terminal-remote-frontend dev > /tmp/atr-vite.log 2>&1 &`
-4. 鉴别 :3737 上跑的是开发版还是生产版:`ps -p <PID> -o cmd --no-headers`
+1. 探活先行:`pgrep -af "vite|cli\.js start|cli\.ts start"` + `ss -tln | grep -E ":3737|:5173|:13737"`
+2. **dev 一律独立端口,绝不与生产 :3737 抢**(详见下方「标准 dev 启动流程」):
+   - dev broker 固定 **`:13737`**(1 开头),vite 固定 **`:5173`**(5 开头)
+   - 生产 broker(`atr start`,全局 npm dist 版)照常跑 :3737,两边互不干扰
+   - **严禁**为跑 dev 而 kill 生产 broker;仅当用户显式要求处理生产实例才碰 :3737
+3. **改 backend / shared/src** → 必须起独立端口开发版 broker(隔离 HOME):
+   - `nohup env HOME=/tmp/atr-dev-home pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts start --foreground --port 13737 > /tmp/atr-dev-broker.log 2>&1 &`
+4. **只改 frontend** → 不动 broker,复用 :13737 上已有的 dev broker(没有则按 3 起),
+   只起/复用 vite:
+   - `ATR_BROKER_PORT=13737 nohup pnpm --filter auvezy-terminal-remote-frontend dev > /tmp/atr-vite.log 2>&1 &`
+5. 鉴别某端口上跑的是开发版还是生产版:`ps -p <PID> -o cmd --no-headers`
    - 含 `node_modules/auvezy-terminal-remote/dist/cli.js` → 生产版
    - 含 `tsx src/cli.ts` → 开发版
 
@@ -131,27 +133,43 @@ AskUserQuestion 确认。
 - 沙箱默认禁止 kill 不是当前会话直接 fork 的进程（包括之前会话留下的 dev server / tsx watch 父进程）
 - 写 token 字段到 `config.json` 也属于"未授权动作"，沙箱会拒
 
-**标准重启流程：**
+**标准 dev 启动流程（独立端口模式）：**
 
-1. `pgrep -af "cli\.js start\|cli\.ts start"` 找到 broker 进程 PID(v2 起核心是
-   broker,不是 worker;子命令是 `start`,匹配字串里别用 `broker`)
-2. 用 **AskUserQuestion** 让用户授权 kill（"Kill <PID>" 选项），不要直接 `kill` 等沙箱拒了再问
-3. 用户授权后 `kill <broker-pid>`（broker SIGTERM 自己有 graceful handler）
-4. 重启 broker:**开发路径**(改 backend / shared 后必走)
-   `nohup pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts start > /tmp/atr-broker-restart.log 2>&1 &`;
-   生产路径 = `atr start --foreground`(全局已装时;只为生产 smoke,改 src 后用不上)
-5. `sleep 5-8` 后 `curl --noproxy '*' http://127.0.0.1:3737/api/health` 确认就绪(端口
-   是 **3737**,响应含 `role: 'broker'`)
-6. 拿 token：从 `~/.atrrc` 读 `.token` 字段（broker 与 worker 共享 token 来源），或 `node -e "console.log(JSON.parse(require('fs').readFileSync(require('os').homedir()+'/.atrrc','utf-8')).token)"`
-7. broker log 在 `~/.auvezy/terminal-remote/broker-YYYY-MM-DD.log`（按天 rotate，保留 7 天）
+1. 探活:`ss -tln | grep 13737` + `pgrep -af "tsx src/cli\.ts start.*13737"`——已有
+   dev broker 且代码没变则跳到第 5 步;代码变了先 kill 旧 dev broker(本会话起的可直接 kill)
+2. 建隔离 HOME(首次):`/tmp/atr-dev-home`。要测 skill/MCP 自动发现等真实数据时,
+   把真实配置逐项 symlink 进去(只读共享,目标名与发现扫描约定一致;不整体
+   symlink `.claude`,避免把生产凭据目录整个暴露给 dev HOME):
+   ```bash
+   mkdir -p /tmp/atr-dev-home/.claude        # 只建 .claude(要放两个子链接)
+   ln -sfn ~/.claude/skills /tmp/atr-dev-home/.claude/skills
+   ln -sfn ~/.claude/commands /tmp/atr-dev-home/.claude/commands 2>/dev/null || true
+   ln -sfn ~/.claude.json /tmp/atr-dev-home/.claude.json
+   ln -sfn ~/.codex /tmp/atr-dev-home/.codex
+   ln -sfn ~/.agents /tmp/atr-dev-home/.agents   # 目标不能预先 mkdir,否则链接建进目录里
+   ```
+3. 起 dev broker(开发路径,改 backend / shared 后必走):
+   `nohup env HOME=/tmp/atr-dev-home pnpm --filter auvezy-terminal-remote exec tsx src/cli.ts start --foreground --port 13737 > /tmp/atr-dev-broker.log 2>&1 &`
+   (`--foreground` + nohup:进程归本会话管,kill 方便、日志直接进文件;不用 daemon
+   模式——daemon 化的 `start` 会 detach,CLI wrapper 还可能报 "did not become
+   ready" 后退出,增加判断噪音)
+4. `sleep 5-8` 后 `curl --noproxy '*' http://127.0.0.1:13737/api/health` 确认就绪
+   (端口是 **13737**,响应含 `role: 'broker'`)
+5. 起/复用 vite:`ATR_BROKER_PORT=13737 nohup pnpm --filter auvezy-terminal-remote-frontend dev > /tmp/atr-vite.log 2>&1 &`
+   (vite proxy 读 `ATR_BROKER_PORT` 跟随 dev broker,见 frontend/vite.config.ts)
+6. 拿 token(注意是**隔离 HOME** 的 .atrrc,dev broker 自己生成):
+   `node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/atr-dev-home/.atrrc','utf-8')).token)"`
+7. 访问链接:`http://localhost:5173/?token=<TOKEN>`
+8. **测完必须清理**(测试红线):kill dev broker + vite + 由它派生的 worker,
+   `ss -tln` 确认 13737/5173 释放;隔离 HOME 想保留复用就留着,否则一并删
 
-**验证 schema 是否生效：** 走完整 auth 链路而不是直接 GET：
+**验证 schema 是否生效：** 走完整 auth 链路而不是直接 GET（dev 环境把端口换成 **13737**）：
 
 ```bash
-COOKIE=$(curl -s --noproxy '*' -i -X POST http://127.0.0.1:3737/api/auth \
+COOKIE=$(curl -s --noproxy '*' -i -X POST http://127.0.0.1:13737/api/auth \
   -H 'Content-Type: application/json' -d "{\"token\":\"$TOKEN\"}" \
   | grep -i '^set-cookie:' | head -1 | sed 's/^[Ss]et-[Cc]ookie: //; s/;.*$//')
-curl -s --noproxy '*' -H "Cookie: $COOKIE" http://127.0.0.1:3737/api/config | python3 -m json.tool
+curl -s --noproxy '*' -H "Cookie: $COOKIE" http://127.0.0.1:13737/api/config | python3 -m json.tool
 ```
 
 如果新字段返回 → ensureDefaultUserConfig 已加载新版；如果被 strip → 还是旧 dist 或忘了 normalize。
