@@ -157,6 +157,14 @@ AskUserQuestion 确认。
    (端口是 **13737**,响应含 `role: 'broker'`)
 5. 起/复用 vite:`ATR_BROKER_PORT=13737 nohup pnpm --filter auvezy-terminal-remote-frontend dev > /tmp/atr-vite.log 2>&1 &`
    (vite proxy 读 `ATR_BROKER_PORT` 跟随 dev broker,见 frontend/vite.config.ts)
+   **手机经 Tailscale 测试**:vite 默认只绑 127.0.0.1,要改绑 Tailscale IP(用
+   `exec vite` 直传参数,`pnpm dev -- --host` 的 `--` 会被 vite 当位置参数吞掉):
+   ```bash
+   TS_IP=$(ip -4 addr show | grep -oP 'inet 100\.\d+\.\d+\.\d+' | head -1 | awk '{print $2}')
+   ATR_BROKER_PORT=13737 nohup pnpm --filter auvezy-terminal-remote-frontend exec vite --host "$TS_IP" --port 5173 > /tmp/atr-vite.log 2>&1 &
+   ```
+   (只绑 tailscale 网卡,不暴露 LAN;WS/API 走同域相对路径代理,手机直达。
+   注意 kill 旧 vite 时要杀 node vite 子进程——pnpm wrapper 死了子进程会残存活占 5173)
 6. 拿 token(注意是**隔离 HOME** 的 .atrrc,dev broker 自己生成):
    `node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/atr-dev-home/.atrrc','utf-8')).token)"`
 7. 访问链接:`http://localhost:5173/?token=<TOKEN>`
