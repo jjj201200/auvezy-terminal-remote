@@ -458,6 +458,27 @@ export const en: Messages = {
     customGroup: 'Custom',
   },
 
+  discovery: {
+    title: 'Skill / MCP',
+    toolbarButton: 'Skill·MCP',
+    toolbarButtonHint: 'Browse discovered skills and MCP servers',
+    loading: 'Scanning…',
+    loadError: 'Scan failed',
+    retry: 'Retry',
+    empty: 'No skills or MCP servers found',
+    emptyHint:
+      'Claude: .claude/skills, .claude/commands and .mcp.json; Codex: .agents/skills and .codex/config.toml (user + project level)',
+    skillsSection: 'Skills',
+    pickHint: 'Tap to fill the input',
+    mcpSection: 'MCP servers',
+    mcpHint: 'Tap to send /mcp',
+    tuiClaude: 'Claude',
+    tuiCodex: 'Codex',
+    sourceUser: 'User',
+    sourceProject: 'Project',
+    kindCommand: 'Command',
+  },
+
   instance: {
     create: 'Add instance',
     instancesAriaLabel: 'Instance switcher',

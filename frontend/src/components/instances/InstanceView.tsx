@@ -34,6 +34,7 @@ import { SearchBar } from '../terminal/SearchBar.js';
 import { InputBar, type InputBarHandle } from '../input/InputBar.js';
 import { DirectInputCapture } from '../input/DirectInputCapture.js';
 import { Toolbar } from '../input/Toolbar.js';
+import { useDiscoveryPresenter } from '../ui/modal-stack/presenters.js';
 import { IpChangeToast, type IpChangeInfo } from '../common/IpChangeToast.js';
 import s from '../../pages/ConsolePage.module.scss';
 
@@ -122,6 +123,7 @@ export function InstanceView({
   onReconnect,
 }: InstanceViewProps): JSX.Element {
   const t = useT();
+  const presentDiscovery = useDiscoveryPresenter();
   const containerRef = useRef<HTMLDivElement | null>(null);
   // InputBar 是非受控组件，通过 imperative ref 操作 buffer（focus / setValue / clear）
   const inputBarRef = useRef<InputBarHandle | null>(null);
@@ -439,6 +441,18 @@ export function InstanceView({
         onPrefillCommand={(text) => {
           inputBarRef.current?.setValue(text);
           inputBarRef.current?.focus({ preventScroll: true });
+        }}
+        onOpenDiscovery={() => {
+          presentDiscovery({
+            instanceId,
+            onPickSkill: (invoke) => {
+              inputBarRef.current?.setValue(invoke);
+              inputBarRef.current?.focus({ preventScroll: true });
+            },
+            onSubmitMcp: () => {
+              send({ type: 'user_input', data: '/mcp\r' });
+            },
+          });
         }}
         disabled={disabled || connectionStatus !== 'connected'}
       />

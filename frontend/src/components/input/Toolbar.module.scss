@@ -96,6 +96,12 @@
   border-style: dashed;
 }
 
+/* Skill / MCP 自动发现入口：与普通条目按钮区分（accent 边框 + 实底字色） */
+.btnDiscovery {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
 .empty {
   padding: var(--sp-2) var(--sp-3);
   font-size: var(--fs-2xs);

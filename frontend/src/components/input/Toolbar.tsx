@@ -50,6 +50,14 @@ export interface ToolbarProps {
   onSubmitCommand: (text: string) => void;
   /** 把命令填入输入框（autoSend=false 走这条） */
   onPrefillCommand: (text: string) => void;
+  /**
+   * 打开 Skill / MCP 自动发现 modal。
+   *
+   * 传了才显示入口按钮——按钮固定挂在「常用」组（快捷键）与
+   * 「会话」组（命令）的内容行末尾，不占配置条目位（动态数据，
+   * 由 backend /api/discovery 扫描）。两组 tab 不可见时入口随之隐藏。
+   */
+  onOpenDiscovery?: () => void;
   disabled?: boolean;
 }
 
@@ -65,6 +73,7 @@ export function Toolbar({
   onSendData,
   onSubmitCommand,
   onPrefillCommand,
+  onOpenDiscovery,
   disabled,
 }: ToolbarProps): JSX.Element | null {
   const t = useT();
@@ -246,6 +255,23 @@ export function Toolbar({
               </PressPreview>
             );
           })}
+
+        {/* Skill / MCP 自动发现入口：固定挂在「常用」（快捷键）与「会话」（命令）
+            两个组的内容行末尾，不在用户配置里占条目位 */}
+        {onOpenDiscovery &&
+          !disabled &&
+          ((active?.kind === 'shortcut' && active.groupId === 'common') ||
+            (active?.kind === 'command' && active.groupId === 'session')) && (
+            <PressPreview
+              label={t('discovery.toolbarButton')}
+              desc={t('discovery.toolbarButtonHint')}
+              disabled={disabled}
+              onPress={onOpenDiscovery}
+              className={clsx(s.btn, s.btnDiscovery)}
+            >
+              {t('discovery.toolbarButton')}
+            </PressPreview>
+          )}
       </HScroller>
     </div>
   );

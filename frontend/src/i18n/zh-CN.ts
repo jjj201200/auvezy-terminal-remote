@@ -444,6 +444,27 @@ export const zhCN: Messages = {
     customGroup: '自定义',
   },
 
+  discovery: {
+    title: 'Skill / MCP',
+    toolbarButton: 'Skill·MCP',
+    toolbarButtonHint: '浏览自动发现的技能与 MCP 服务器',
+    loading: '扫描中…',
+    loadError: '扫描失败',
+    retry: '重试',
+    empty: '未发现任何技能或 MCP 服务器',
+    emptyHint:
+      'Claude 扫描 .claude/skills、.claude/commands 与 .mcp.json；Codex 扫描 .agents/skills 与 .codex/config.toml（用户级 + 项目级目录）',
+    skillsSection: '技能',
+    pickHint: '点击填入输入框',
+    mcpSection: 'MCP 服务器',
+    mcpHint: '点击发送 /mcp 打开管理界面',
+    tuiClaude: 'Claude',
+    tuiCodex: 'Codex',
+    sourceUser: '用户级',
+    sourceProject: '项目级',
+    kindCommand: '命令',
+  },
+
   instance: {
     create: '新增实例',
     instancesAriaLabel: '实例切换',

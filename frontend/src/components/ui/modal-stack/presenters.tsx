@@ -41,6 +41,10 @@ import {
   type CommandSettingsModalProps,
 } from '../../settings/CommandSettingsModal.js';
 import { ShareSheet, type ShareSheetProps } from '../../share/ShareSheet.js';
+import {
+  DiscoveryModal,
+  type DiscoveryModalProps,
+} from '../../input/DiscoveryModal.js';
 import { MobileInstanceSwitcher, type MobileInstanceSwitcherProps } from '../../instances/MobileInstanceSwitcher.js';
 import { FileBrowserSheet, type FileBrowserSheetProps } from '../../files/FileBrowserSheet.js';
 import { FilePreviewSheet, type FilePreviewSheetProps } from '../../files/FilePreviewSheet.js';
@@ -169,6 +173,12 @@ export const useShortcutSettingsPresenter = makeModalPresenter<ShortcutSettingsM
 export const useCommandSettingsPresenter = makeModalPresenter<CommandSettingsModalProps>(
   CommandSettingsModal,
   { kind: 'command-settings' },
+);
+
+/** Skill / MCP 自动发现列表（Toolbar「常用」「会话」组的 Skill·MCP 入口打开） */
+export const useDiscoveryPresenter = makeModalPresenter<DiscoveryModalProps>(
+  DiscoveryModal,
+  { kind: 'discovery' },
 );
 
 // ─────────────────────── Sheet 类 ───────────────────────

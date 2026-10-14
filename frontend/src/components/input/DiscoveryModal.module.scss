@@ -1,0 +1,154 @@
+/**
+ * DiscoveryModal 样式
+ *
+ * 视觉与 settings 子 modal（GeneralSettings.module.scss）同族：
+ * 卡片行 + 徽标 + 层级文字色 token，无新造颜色变量。
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-fg-dim);
+  font-size: var(--fs-sm);
+}
+
+.hintBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.hintSub {
+  margin: 0;
+  color: var(--color-fg-low);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.retry {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input);
+  color: var(--color-fg);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+
+  &:active {
+    background: var(--color-accent-soft);
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--color-fg);
+}
+
+.sectionHint {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-low);
+}
+
+.tuiBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tuiLabel {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  padding: 2px 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input);
+  color: var(--color-fg);
+  text-align: left;
+  cursor: pointer;
+
+  &:active {
+    background: var(--color-accent-soft);
+  }
+}
+
+.rowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+}
+
+.rowName {
+  font-family: var(--font-mono);
+}
+
+.rowDetail {
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.badge {
+  padding: 1px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-dim);
+  white-space: nowrap;
+}
+
+.badgeAccent {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+}
+
+.badgeTui {
+  text-transform: capitalize;
+}

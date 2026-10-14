@@ -496,6 +496,27 @@ export interface Messages {
     customGroup: string;
   };
 
+  // Skill / MCP 自动发现（Toolbar Skill·MCP 入口 → DiscoveryModal）
+  discovery: {
+    title: string;
+    toolbarButton: string;
+    toolbarButtonHint: string;
+    loading: string;
+    loadError: string;
+    retry: string;
+    empty: string;
+    emptyHint: string;
+    skillsSection: string;
+    pickHint: string;
+    mcpSection: string;
+    mcpHint: string;
+    tuiClaude: string;
+    tuiCodex: string;
+    sourceUser: string;
+    sourceProject: string;
+    kindCommand: string;
+  };
+
   // 实例
   instance: {
     create: string;
