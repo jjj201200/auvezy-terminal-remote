@@ -50,6 +50,7 @@ import {
 import { IntegrationManager, DEFAULT_INTEGRATION_PREFS } from './integrations/manager.js';
 import { ClaudeCodeIntegration } from './integrations/claude-code/index.js';
 import { cleanupLegacyPortMirrors } from './integrations/claude-code/config-dir-mirror.js';
+import { CodexIntegration } from './integrations/codex/index.js';
 import type { ParsedCliArgs } from './cli-utils.js';
 import { acquireSharedToken } from './registry/shared-token.js';
 import { bindAvailablePort } from './registry/port-finder.js';
@@ -340,6 +341,18 @@ export async function startServer(overrides: StartServerOverrides = {}): Promise
       ...(extracted?.value ? { existingSettings: extracted.value } : {}),
     }),
   );
+  // codex 模块:事件子开关同构透传(镜像/CODEX_HOME 注入见 integrations/codex/)
+  const cxPerModule =
+    typeof integrationPrefs.perModule === 'object' && integrationPrefs.perModule !== null
+      ? (integrationPrefs.perModule as Record<string, unknown>)['codex']
+      : undefined;
+  const cxEvents =
+    cxPerModule && typeof cxPerModule === 'object' && 'events' in cxPerModule
+      ? ((cxPerModule as { events?: unknown }).events as
+          | import('./integrations/codex/index.js').CodexEventToggles
+          | undefined)
+      : undefined;
+  integrations.register(new CodexIntegration({ ...(cxEvents ? { events: cxEvents } : {}) }));
   // ADR-002 迁移兜底:清理按端口命名的旧版镜像残留(24h 宽限防误删混跑
   // 旧版本实例正在使用的镜像)
   cleanupLegacyPortMirrors(resolve(homedir(), ATR_DATA_DIR));

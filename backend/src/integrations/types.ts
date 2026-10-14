@@ -18,7 +18,7 @@
  *
  * 新模块加入时在此扩展;`null` 表示未激活任何模块(纯透传 PTY)。
  */
-export type IntegrationId = 'claude-code';
+export type IntegrationId = 'claude-code' | 'codex';
 
 /**
  * Spawn 时上下文,供 detect / prepareSpawn 判断

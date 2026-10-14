@@ -777,9 +777,18 @@ export interface RenderingIntegrationPrefs {
  */
 export interface IntegrationsPrefs {
   enabled?: boolean;
-  forceModule?: 'auto' | 'claude-code' | 'none';
+  forceModule?: 'auto' | 'claude-code' | 'codex' | 'none';
   perModule?: {
     'claude-code'?: {
+      events?: {
+        approvals?: boolean;
+        toolProgress?: boolean;
+        turnLifecycle?: boolean;
+        sessionLifecycle?: boolean;
+        userPrompts?: boolean;
+      };
+    };
+    'codex'?: {
       events?: {
         approvals?: boolean;
         toolProgress?: boolean;
@@ -796,9 +805,18 @@ export interface IntegrationsPrefs {
 /** Integrations 默认值(供 ensureDefaultUserConfig 兜底用) */
 export const DEFAULT_INTEGRATIONS: Required<{
   enabled: boolean;
-  forceModule: 'auto' | 'claude-code' | 'none';
+  forceModule: 'auto' | 'claude-code' | 'codex' | 'none';
   perModule: {
     'claude-code': {
+      events: {
+        approvals: boolean;
+        toolProgress: boolean;
+        turnLifecycle: boolean;
+        sessionLifecycle: boolean;
+        userPrompts: boolean;
+      };
+    };
+    'codex': {
       events: {
         approvals: boolean;
         toolProgress: boolean;
@@ -824,6 +842,15 @@ export const DEFAULT_INTEGRATIONS: Required<{
   forceModule: 'auto',
   perModule: {
     'claude-code': {
+      events: {
+        approvals: true,
+        toolProgress: true,
+        turnLifecycle: true,
+        sessionLifecycle: true,
+        userPrompts: false,
+      },
+    },
+    'codex': {
       events: {
         approvals: true,
         toolProgress: true,
@@ -1199,11 +1226,34 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
   };
 
   // integrations:对象 deep-merge,缺失字段全用默认。
-  // 总开关 / forceModule 单字段;perModule 当前只认 'claude-code' 的 events,逐个字段填默认
+  // 总开关 / forceModule 单字段;perModule 认 'claude-code' 与 'codex' 的
+  // events(同构 5 开关),逐个字段填默认
   const rawIntegrations = src.integrations;
   const ccUserEvents =
     rawIntegrations?.perModule?.['claude-code']?.events ?? {};
   const ccDefaults = DEFAULT_INTEGRATIONS.perModule['claude-code'].events;
+  const cxUserEvents =
+    rawIntegrations?.perModule?.['codex']?.events ?? {};
+  const cxDefaults = DEFAULT_INTEGRATIONS.perModule['codex'].events;
+
+  /** 5 类事件开关逐字段 normalize(claude-code 与 codex 同构,抽公共) */
+  function normalizeEventToggles(
+    user: Record<string, unknown>,
+    defaults: { approvals: boolean; toolProgress: boolean; turnLifecycle: boolean; sessionLifecycle: boolean; userPrompts: boolean },
+  ) {
+    return {
+      approvals:
+        typeof user.approvals === 'boolean' ? user.approvals : defaults.approvals,
+      toolProgress:
+        typeof user.toolProgress === 'boolean' ? user.toolProgress : defaults.toolProgress,
+      turnLifecycle:
+        typeof user.turnLifecycle === 'boolean' ? user.turnLifecycle : defaults.turnLifecycle,
+      sessionLifecycle:
+        typeof user.sessionLifecycle === 'boolean' ? user.sessionLifecycle : defaults.sessionLifecycle,
+      userPrompts:
+        typeof user.userPrompts === 'boolean' ? user.userPrompts : defaults.userPrompts,
+    };
+  }
 
   // 渲染集成 — 兼容 0.8.x:display.markdownPreview 是旧位置,0.9 起搬到
   // integrations.rendering.markdown.enabled。新字段存在则优先用新的;旧字段保留
@@ -1267,32 +1317,13 @@ export function ensureDefaultUserConfig(input: UserConfig | null | undefined): R
     forceModule:
       rawIntegrations?.forceModule === 'auto' ||
       rawIntegrations?.forceModule === 'claude-code' ||
+      rawIntegrations?.forceModule === 'codex' ||
       rawIntegrations?.forceModule === 'none'
         ? rawIntegrations.forceModule
         : DEFAULT_INTEGRATIONS.forceModule,
     perModule: {
-      'claude-code': {
-        events: {
-          approvals:
-            typeof ccUserEvents.approvals === 'boolean' ? ccUserEvents.approvals : ccDefaults.approvals,
-          toolProgress:
-            typeof ccUserEvents.toolProgress === 'boolean'
-              ? ccUserEvents.toolProgress
-              : ccDefaults.toolProgress,
-          turnLifecycle:
-            typeof ccUserEvents.turnLifecycle === 'boolean'
-              ? ccUserEvents.turnLifecycle
-              : ccDefaults.turnLifecycle,
-          sessionLifecycle:
-            typeof ccUserEvents.sessionLifecycle === 'boolean'
-              ? ccUserEvents.sessionLifecycle
-              : ccDefaults.sessionLifecycle,
-          userPrompts:
-            typeof ccUserEvents.userPrompts === 'boolean'
-              ? ccUserEvents.userPrompts
-              : ccDefaults.userPrompts,
-        },
-      },
+      'claude-code': { events: normalizeEventToggles(ccUserEvents, ccDefaults) },
+      'codex': { events: normalizeEventToggles(cxUserEvents, cxDefaults) },
     },
     rendering,
   };

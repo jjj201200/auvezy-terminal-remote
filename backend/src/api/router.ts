@@ -29,6 +29,7 @@ import {
 } from './workdir-policy-routes.js';
 import { createFileRoutes } from './file-routes.js';
 import { createDiscoveryRoutes } from './discovery-routes.js';
+import { createCodexTrustRoutes } from './integrations-routes.js';
 import type { AuthModule } from '../auth/auth-middleware.js';
 import type { IntegrationManager } from '../integrations/manager.js';
 import type { InstanceRegistryManager } from '../registry/instance-registry.js';
@@ -105,6 +106,14 @@ export function createBrokerApiRouter(opts: BrokerApiRouterOptions): Router {
   // Skill / MCP 自动发现(扫描 claude / codex 固定目录,鉴权)
   router.use(
     createDiscoveryRoutes({
+      authModule: opts.authModule,
+      registry: opts.registry,
+    }),
+  );
+
+  // Codex hook 一键授权(trust 状态查询 / 写入 ~/.codex/config.toml,鉴权)
+  router.use(
+    createCodexTrustRoutes({
       authModule: opts.authModule,
       registry: opts.registry,
     }),
