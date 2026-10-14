@@ -5,6 +5,55 @@
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-15
+
+主题:**Claude Code / Codex 深度集成 + 文件浏览器体验升级**。
+
+### Added
+
+- **Claude Code / Codex 默认快捷键与命令全集**:设置「操作」新增四个分组——
+  快捷键侧「Claude Code」(36 键,含 transcript 查看器、任务清单、草稿暂存、
+  Ctrl+X 和弦系列、模型/思考/fast 切换、transcript 内部键)与「Codex」
+  (42 键,含线程视图 `ag:*` 与审批框 `ap:*` 单键);命令侧「Claude」(109 条
+  官方全集)与「Codex」(49 条全集)。全部默认不启用、按常用度排序,描述标注
+  最低版本与平台差异。顺带清理已废弃命令(/vim、/pr_comments 移除,
+  /bashes 更名 /tasks)。
+- **老配置自动升级(条目级合并)**:已保存过快捷键/命令配置的实例升级后自动
+  补齐新增默认条目(按"分组+内容"识别,用户已有的条目一律不动)。
+- **Skill / MCP 自动发现**:Toolbar「常用」「会话」组行尾新增 Skill·MCP 入口,
+  modal 列出自动扫描到的技能与 MCP 服务器——claude 侧扫 `.claude/skills`、
+  `.claude/commands`、`~/.claude.json`/`.mcp.json`,codex 侧扫 `.agents/skills`
+  (CWD 到 git root 每级)与 `config.toml` 的 `[mcp_servers]`,均含用户级+项目级
+  来源标注。点技能把调用文本填入输入框(claude `/name` / codex `$name`),
+  点 MCP 直发 `/mcp` 打开管理界面。
+- **Codex CLI 运行时集成**:识别 codex 实例并注入 CODEX_HOME 镜像(登录态/
+  会话历史/用户配置 symlink 保真,零拷贝),把审批等待(PermissionRequest,
+  只感知不干预,TUI 原生审批框照常)、工具进度、回合/会话生命周期事件翻译到
+  状态栏与推送。codex 对注入 hooks 有信任审查——首次使用在实例顶部横幅
+  **一键授权**(写入 `~/.codex/config.toml` 的 trusted_hash,算法已对
+  codex-cli 0.162.1 实测校准;授权后重启实例生效)。设置「集成」新增 Codex
+  卡片与 5 类事件开关。
+- **TUI 分组与集成检测联动**:集成开启时,Claude/Codex 专属分组只在检测到
+  对应 TUI 的实例里显示(分组仍需启用);集成关闭时按启用状态显示,与原先一致。
+- **文件浏览器会话保活**:关闭文件浏览器不再销毁界面——重开接着上次:所在
+  目录、搜索结果与草稿、预览栈、每个文件的滚动/跳行位置全部原样恢复;每个
+  实例独立记忆,主动关掉的单个预览不复活。
+- **最近文件**:文件浏览器搜索框左侧新增时钟入口,下拉列出当前实例最近查看
+  的文件(点击直接开预览并还原跳行,可清空记录)。「常规」设置新增记录上限:
+  0 = 不记录(入口按钮隐藏)、-1 = 不限、默认 20;记录存各设备本地。
+
+### Fixed
+
+- **markdown 任务列表勾选框与文字重叠**:checkbox 宽 12px 但列表缩进仅 8px,
+  文字起点压进勾选框内部;缩进改为 20px(勾选框 + 8px 间隙)。
+
+### Internal
+
+- dev 环境固化为独立端口模式(dev broker :13737 / vite :5173,不碰生产 :3737),
+  含手机经 Tailscale 测试步骤(CLAUDE.md)。
+- 调研文档落盘 `docs/research/`:Claude Code / Codex 快捷键与命令全集、
+  codex hooks 集成契约(源码级)。
+
 ## [0.18.1] - 2026-09-27
 
 ### Fixed
