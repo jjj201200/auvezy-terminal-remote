@@ -293,3 +293,39 @@ describe('trust', () => {
     expect(readCodexTrustStatus(configToml, hooksJsonPath).status).toBe('trusted');
   });
 });
+
+describe('codex 镜像:运行时 socket 目录排除(0.19.1 闪退修复)', () => {
+  it('app-server-daemon / app-server-control 不透传(codex 要在 CODEX_HOME 自建,lstat 下 symlink 非 directory 即 fatal)', () => {
+    const home = join(base, 'home-sockets');
+    const real = join(home, '.codex');
+    mkdirSync(join(real, 'app-server-daemon'), { recursive: true });
+    mkdirSync(join(real, 'app-server-control'), { recursive: true });
+    writeFileSync(join(real, 'auth.json'), '{}');
+
+    const dir = buildCodexHomeMirror({
+      mirrorBaseDir: join(base, 'mirror-sockets'),
+      realCodexHome: real,
+      cwd: '/tmp/proj',
+    });
+    const { lstatSync } = require('node:fs') as typeof import('node:fs');
+    // 排除项:镜像内不得存在(既无 symlink 也无其它)
+    expect(() => lstatSync(join(dir, 'app-server-daemon'))).toThrow();
+    expect(() => lstatSync(join(dir, 'app-server-control'))).toThrow();
+    // 用户数据照常透传
+    expect(lstatSync(join(dir, 'auth.json')).isSymbolicLink()).toBe(true);
+  });
+
+  it('幂等治愈:旧版镜像遗留的坏 symlink 在重建时被清除', () => {
+    const home = join(base, 'home-heal');
+    const real = join(home, '.codex');
+    mkdirSync(join(real, 'app-server-daemon'), { recursive: true });
+    const mirrorBase = join(base, 'mirror-heal');
+    const dir = buildCodexHomeMirror({ mirrorBaseDir: mirrorBase, realCodexHome: real, cwd: '/tmp/p' });
+    // 模拟 0.19.0 行为:手动放进坏 symlink(指向真实 socket 目录)
+    const { symlinkSync, lstatSync } = require('node:fs') as typeof import('node:fs');
+    symlinkSync(join(real, 'app-server-daemon'), join(dir, 'app-server-daemon'));
+    // 重建 → 坏 symlink 被清
+    buildCodexHomeMirror({ mirrorBaseDir: mirrorBase, realCodexHome: real, cwd: '/tmp/p' });
+    expect(() => lstatSync(join(dir, 'app-server-daemon'))).toThrow();
+  });
+});

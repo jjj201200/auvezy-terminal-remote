@@ -6,6 +6,8 @@
  *
  *   <ATR_DATA_DIR>/codex/<escapedCwd>/
  *   ├── hooks.json        ← 真文件:atr 生成的事件回调(唯一注入物)
+ *   ├── app-server-daemon/ ← 不透传(留空):codex 自建的 daemon socket 目录
+ *   ├── app-server-control/ ← 同上(透传 symlink 会让 codex lstat 判非目录 fatal)
  *   └── <其余 entry>      ← 全部 symlink → ~/.codex 对应 entry
  *                           (auth.json 登录态 / sessions 会话历史 /
  *                            history.jsonl / config.toml 用户配置零拷贝共享)
@@ -24,9 +26,11 @@
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -34,6 +38,21 @@ import { join } from 'node:path';
 import { logger } from '../../logger/logger.js';
 import { escapeCwdToDirName } from '../claude-code/config-dir-mirror.js';
 import { buildCodexHooksJson } from './hooks-builder.js';
+
+/**
+ * 不透传进镜像的 entry(相对 ~/.codex 的名字)
+ *
+ *  - `hooks.json`(MIRROR_REPLACED):由镜像生成版顶替(atr 注入;文件由下方
+ *    第 2 步统一写,循环里只需跳过透传)
+ *  - `app-server-daemon` / `app-server-control`(MIRROR_BLOCKED):codex 的
+ *    后台 daemon **socket 目录**——codex 启动(含扫码登录拉 daemon)时要求在
+ *    CODEX_HOME 下自建该目录,路径若是透传 symlink,lstat 非 directory 直接
+ *    fatal("socket directory path exists and is not a directory",0.19.0
+ *    实测 `atr codex` 扫码即闪退)。必须留空让 codex 自建;旧镜像遗留的
+ *    透传 symlink 在重建时清除(幂等治愈)。
+ */
+const MIRROR_REPLACED_ENTRIES = new Set(['hooks.json']);
+const MIRROR_BLOCKED_ENTRIES = new Set(['app-server-daemon', 'app-server-control']);
 
 /** 镜像构建参数 */
 export interface CodexHomeMirrorOptions {
@@ -65,10 +84,24 @@ export function buildCodexHomeMirror(opts: CodexHomeMirrorOptions): string {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   chmodSync(dir, 0o700); // 幂等校准(umask / 已存在目录)
 
-  // 1. symlink 透传:~/.codex 的每个 entry(除 hooks.json——由镜像版顶替)
+  // 1. symlink 透传:~/.codex 的每个 entry(排除语义见 MIRROR_*_ENTRIES 注释)
   if (existsSync(opts.realCodexHome)) {
     for (const entry of readdirSync(opts.realCodexHome)) {
-      if (entry === 'hooks.json') continue; // 由 atr 生成版顶替
+      if (MIRROR_REPLACED_ENTRIES.has(entry)) continue; // 由第 2 步生成版顶替
+      if (MIRROR_BLOCKED_ENTRIES.has(entry)) {
+        // 幂等治愈:0.19.0 旧镜像可能已透传了 socket 目录 symlink(codex 会
+        // fatal),重建时清掉让 codex 自建
+        const stale = join(dir, entry);
+        if (lstatSync(stale, { throwIfNoEntry: false }) !== undefined) {
+          try {
+            rmSync(stale, { recursive: true, force: true });
+            logger.info({ entry }, 'codex 镜像:清除不该透传的 entry(运行时 socket 目录)');
+          } catch (err) {
+            logger.warn({ entry, err }, 'codex 镜像:排除项清理失败');
+          }
+        }
+        continue;
+      }
       const target = join(opts.realCodexHome, entry);
       const linkPath = join(dir, entry);
       if (existsSync(linkPath)) continue; // 幂等(悬挂 symlink 会在下次重建)

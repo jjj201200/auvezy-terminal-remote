@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-16
+
+### Fixed
+
+- **`atr codex` 扫码登录时闪退**:codex 集成的 CODEX_HOME 镜像把
+  `~/.codex/app-server-daemon` / `app-server-control`(codex 后台 daemon 的
+  **socket 目录**)当普通配置 symlink 透传进了镜像;codex 启动(含扫码拉起
+  daemon)要求在 CODEX_HOME 下自建该目录,遇到透传 symlink 直接 fatal
+  ("socket directory path exists and is not a directory")——TUI 一进扫码
+  界面就退出。现在这两个运行时目录不再透传(由 codex 在镜像内自建);旧版
+  镜像里遗留的透传 symlink 会在下次启动时自动清除(幂等治愈,无需手动删)。
+
 ## [0.19.0] - 2026-10-15
 
 主题:**Claude Code / Codex 深度集成 + 文件浏览器体验升级**。
